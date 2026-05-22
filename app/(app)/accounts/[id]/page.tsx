@@ -7,14 +7,14 @@ export default async function Page({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params {
-    const supabase = await createClient()
+  const { id } = await params
+  const supabase = await createClient()
 
   const { data: account } = await supabase
-      .from('account_balances')
-      .select('*')
-      .eq('id', params.id)
-      .single()
+    .from('account_balances')
+    .select('*')
+    .eq('id', params.id)
+    .single()
 
   if (!account) notFound()
 
