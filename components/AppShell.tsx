@@ -294,7 +294,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
       {/* Add Transaction Modal */}
       {showAddTx && (
-        <TransactionForm onClose={() => setShowAddTx(false)} />
+        <TransactionForm onSaved={() => { setShowAddTx(false); router.refresh() }} onClose={() => setShowAddTx(false)} />
       )}
     </div>
   )
