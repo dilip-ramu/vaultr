@@ -1,38 +1,34 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
-import AccountDetailClient from '@/components/accounts/AccountDetailClient'
+import BillsClient from '@/components/bills/BillsClient'
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const { id } = await params
-
+export default async function BillsPage() {
   const supabase = await createClient()
 
-  const { data: account } = await supabase
-    .from('account_balances')
+  const { data: bills } = await supabase
+    .from('bills')
     .select('*')
-    .eq('id', id)
-    .single()
+    .order('due_date', { ascending: true })
 
-  if (!account) notFound()
+  const { data: accounts } = await supabase
+    .from('accounts')
+    .select('id,name,color,type')
 
-  // Recent transactions for this account
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select(
-      '*, category:categories(id,name,icon,color), account:accounts!transactions_account_id_fkey(id,name,color,type), to_account:accounts!transactions_to_account_id_fkey(id,name,color,type)'
-    )
-    .or(`account_id.eq.${id},to_account_id.eq.${id}`)
-    .order('date', { ascending: false })
-    .limit(10)
+  const { data: categories } = await supabase
+    .from('categories')
+    .select('*')
+    .order('name')
+
+  const { data: customers } = await supabase
+    .from('customers')
+    .select('*')
+    .order('name')
 
   return (
-    <AccountDetailClient
-      account={account}
-      recentTransactions={transactions ?? []}
+    <BillsClient
+      initialBills={bills ?? []}
+      accounts={(accounts as any) ?? []}
+      categories={categories ?? []}
+      customers={customers ?? []}
     />
   )
 }
