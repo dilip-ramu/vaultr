@@ -25,9 +25,28 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* iOS PWA — fill the whole screen including notch area */
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
 /* Mobile safe areas */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent iOS bounce scroll on the root */
+body {
+  position: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+#__next {
+  height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Smooth scrolling */
