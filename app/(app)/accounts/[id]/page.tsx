@@ -8,12 +8,13 @@ export default async function Page({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+
   const supabase = await createClient()
 
   const { data: account } = await supabase
     .from('account_balances')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!account) notFound()
@@ -21,10 +22,17 @@ export default async function Page({
   // Recent transactions for this account
   const { data: transactions } = await supabase
     .from('transactions')
-    .select('*, category:categories(id,name,icon,color), account:accounts!transactions_account_id_fkey(id,name,color,type), to_account:accounts!transactions_to_account_id_fkey(id,name,color,type)')
-    .or(`account_id.eq.${params.id},to_account_id.eq.${params.id}`)
+    .select(
+      '*, category:categories(id,name,icon,color), account:accounts!transactions_account_id_fkey(id,name,color,type), to_account:accounts!transactions_to_account_id_fkey(id,name,color,type)'
+    )
+    .or(`account_id.eq.${id},to_account_id.eq.${id}`)
     .order('date', { ascending: false })
     .limit(10)
 
-  return <AccountDetailClient account={account} recentTransactions={transactions ?? []} />
+  return (
+    <AccountDetailClient
+      account={account}
+      recentTransactions={transactions ?? []}
+    />
+  )
 }
