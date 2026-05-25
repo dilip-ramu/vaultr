@@ -38,12 +38,6 @@ const navItems = [
   { href: '/currencies',    label: 'Currencies',    icon: DollarSign },
 ]
 
-const bottomNavItems = [
-  { href: '/dashboard',    label: 'Home',         icon: LayoutDashboard },
-  { href: '/accounts',     label: 'Accounts',     icon: Wallet },
-  { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-  { href: '/bills',        label: 'Bills',        icon: Receipt },
-]
 
 export default function AppShell({ user, profile, children }: AppShellProps) {
   const pathname = usePathname()
@@ -252,7 +246,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
         <BillNotificationBanner />
 
-        {/* Scrollable content */}
+        {/* Scrollable content — fills all remaining space */}
         <main
           className="flex-1 overflow-y-auto"
           style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}
@@ -260,63 +254,27 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
           {children}
         </main>
 
-        {/* Mobile Bottom Nav — flex child (not fixed), fixes iOS gap permanently */}
-        <nav
-          className="shrink-0 border-t"
+        {/* Floating Add Button — bottom right, above home indicator */}
+        <button
+          onClick={() => setShowQuickAdd(true)}
+          className="tap-scale"
           style={{
-            backgroundColor: 'var(--surface)',
-            borderColor: 'var(--border)',
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-            boxShadow: '0 -1px 12px var(--shadow)',
+            position: 'fixed',
+            right: 20,
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)',
+            width: 56,
+            height: 56,
+            borderRadius: 18,
+            backgroundColor: 'var(--brand)',
+            boxShadow: '0 6px 20px rgba(99,102,241,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 40,
           }}
         >
-          <div className="flex items-center h-[58px]">
-
-            {/* Home, Accounts */}
-            {bottomNavItems.slice(0, 2).map(({ href, label, icon: Icon }) => {
-              const active = pathname === href || pathname.startsWith(href + '/')
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className="tap-scale flex-1 flex flex-col items-center justify-center gap-0.5 h-full"
-                  style={{ color: active ? 'var(--brand)' : 'var(--text-faint)' }}
-                >
-                  <Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.5 : 1.5} />
-                  <span className="text-[9px] font-medium">{label}</span>
-                </Link>
-              )
-            })}
-
-            {/* Center FAB — opens QuickAddSheet on mobile */}
-            <div className="flex-1 flex items-center justify-center">
-              <button
-                onClick={() => setShowQuickAdd(true)}
-                className="w-[52px] h-[52px] rounded-2xl flex items-center justify-center active:scale-95 transition-transform"
-                style={{ backgroundColor: 'var(--brand)', boxShadow: '0 4px 16px rgba(99,102,241,0.4)' }}
-              >
-                <Plus className="w-[22px] h-[22px] text-white" strokeWidth={2.5} />
-              </button>
-            </div>
-
-            {/* Transactions, Bills */}
-            {bottomNavItems.slice(2).map(({ href, label, icon: Icon }) => {
-              const active = pathname === href || pathname.startsWith(href + '/')
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className="tap-scale flex-1 flex flex-col items-center justify-center gap-0.5 h-full"
-                  style={{ color: active ? 'var(--brand)' : 'var(--text-faint)' }}
-                >
-                  <Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.5 : 1.5} />
-                  <span className="text-[9px] font-medium">{label}</span>
-                </Link>
-              )
-            })}
-
-          </div>
-        </nav>
+          <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
+        </button>
       </div>
 
       {/* Mobile drawer overlay */}
