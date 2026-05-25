@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill, Category } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
+import type { Insight } from '@/lib/insights'
 import { formatCurrency, getRelativeDate, getMonthYear } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
@@ -24,9 +25,10 @@ interface Props {
   budgets?: Budget[]
   upcomingSubs?: Bill[]
   subMonthlyTotal?: number
+  topInsights?: Insight[]
 }
 
-export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [], upcomingSubs = [], subMonthlyTotal = 0 }: Props) {
+export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [], upcomingSubs = [], subMonthlyTotal = 0, topInsights = [] }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
 
@@ -206,6 +208,47 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
               <Area type="monotone" dataKey="expense" stroke="#EF4444" strokeWidth={2} fill="url(#eg)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Insights Widget — below chart */}
+      {topInsights.length > 0 && (
+        <div className="fade-in" style={{ animationDelay: '155ms' }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Insights</p>
+            <Link href="/insights" className="text-xs font-medium flex items-center gap-0.5" style={{ color: 'var(--brand)' }}>
+              See all <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {topInsights.map(insight => {
+              const dotColor = insight.type === 'positive' ? 'var(--income)'
+                : insight.type === 'alert' ? 'var(--expense)'
+                : insight.type === 'warning' ? '#F59E0B'
+                : 'var(--brand)'
+              return (
+                <Link
+                  key={insight.id}
+                  href="/insights"
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-sm"
+                  style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0"
+                    style={{ backgroundColor: `${dotColor}18` }}
+                  >
+                    {insight.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>
+                      {insight.title}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-faint)' }} />
+                </Link>
+              )
+            })}
+          </div>
         </div>
       )}
 

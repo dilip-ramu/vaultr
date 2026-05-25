@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from '@/components/dashboard/DashboardClient'
 import type { Budget, Bill } from '@/lib/types'
+import { generateInsights, type Insight } from '@/lib/insights'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,9 +10,11 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   const now = new Date()
-  const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    .toISOString().split('T')[0]
+  const cy = now.getFullYear()
+  const cm = now.getMonth()
+  const startOfMonth = `${cy}-${String(cm + 1).padStart(2, '0')}-01`
+  const endOfMonth = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
+  const historyStart = new Date(cy, cm - 4, 1).toISOString().split('T')[0]
 
   const [
     { data: accounts },
@@ -22,6 +25,7 @@ export default async function DashboardPage() {
     { data: rawBudgets },
     { data: budgetTx },
     { data: upcomingSubs },
+    { data: historyTx },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -72,6 +76,13 @@ export default async function DashboardPage() {
       .eq('status', 'pending')
       .order('due_date', { ascending: true })
       .limit(3),
+    supabase
+      .from('transactions')
+      .select('id, type, amount, date, name, category:categories(id,name,icon,color,avatar_url)')
+      .eq('user_id', user!.id)
+      .gte('date', historyStart)
+      .order('date', { ascending: false })
+      .limit(300),
   ])
 
   // Compute spent per category for budget widget
@@ -84,6 +95,14 @@ export default async function DashboardPage() {
     const effective = b.amount + (b.rollover ? b.rollover_amount : 0)
     return { ...b, spent, remaining: effective - spent, percentage: effective > 0 ? (spent / effective) * 100 : 0 }
   })
+
+  // Compute top insights for dashboard widget
+  const topInsights: Insight[] = generateInsights({
+    transactions: (historyTx ?? []) as never[],
+    accounts: accounts ?? [],
+    budgets,
+    currentMonth: now,
+  }).slice(0, 2)
 
   // Compute monthly sub total for widget
   const subMonthlyTotal = (upcomingSubs ?? []).reduce((s: number, b: Bill) => {
@@ -105,6 +124,7 @@ export default async function DashboardPage() {
       budgets={budgets}
       upcomingSubs={(upcomingSubs ?? []) as Bill[]}
       subMonthlyTotal={subMonthlyTotal}
+      topInsights={topInsights}
     />
   )
 }

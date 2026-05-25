@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
-  Moon, Sun, Target, RefreshCw
+  Moon, Sun, Target, RefreshCw, Lightbulb
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -31,6 +31,7 @@ const navItems = [
   { href: '/bills',          label: 'Bills',          icon: Receipt },
   { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
   { href: '/customers',     label: 'Customers',     icon: Users },
+  { href: '/insights',      label: 'Insights',      icon: Lightbulb },
   { href: '/budgets',       label: 'Budgets',       icon: Target },
   { href: '/categories',    label: 'Categories',    icon: Tag },
   { href: '/account-types', label: 'Account Types', icon: Layers },
