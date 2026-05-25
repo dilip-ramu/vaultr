@@ -43,7 +43,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [showAddTx, setShowAddTx] = useState(false)
-  const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
@@ -261,7 +260,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
         {/* Floating Add Button — bottom right, above home indicator */}
         <button
-          onClick={() => setShowQuickAdd(true)}
+          onClick={() => setShowAddTx(true)}
           className="tap-scale"
           style={{
             position: 'fixed',
@@ -353,10 +352,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         <TransactionForm onSaved={() => { setShowAddTx(false); router.refresh() }} onClose={() => setShowAddTx(false)} />
       )}
 
-      {/* Mobile: quick add bottom sheet */}
-      {showQuickAdd && (
-        <QuickAddSheet onSaved={() => { setShowQuickAdd(false); router.refresh() }} onClose={() => setShowQuickAdd(false)} />
-      )}
     </>
   )
 }
