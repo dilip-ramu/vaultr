@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
-  Users, Settings, Plus, LogOut, Vault, ChevronRight,
+  Users, Settings, Plus, LogOut, ChevronRight,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -78,17 +78,10 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Logo + collapse toggle */}
         <div className={`flex items-center border-b border-gray-100 h-14 shrink-0 ${collapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
           {!collapsed && (
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center shrink-0">
-                <Vault className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-base font-bold text-gray-900">Vaultr</span>
-            </div>
+            <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-8 w-auto object-contain" />
           )}
           {collapsed && (
-            <div className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center">
-              <Vault className="w-4 h-4 text-white" />
-            </div>
+            <img src="/vaultr-logo.png" alt="Vaultr" className="w-8 h-8 object-contain" />
           )}
           <button
             onClick={toggleCollapsed}
@@ -185,12 +178,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
           <div className="fixed inset-0 bg-black/40" onClick={() => setMobileSidebarOpen(false)} />
           <aside className="relative flex flex-col w-72 bg-white h-full shadow-xl slide-up">
             <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center">
-                  <Vault className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-bold text-gray-900">Vaultr</span>
-              </div>
+              <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-8 w-auto object-contain" />
               <button onClick={() => setMobileSidebarOpen(false)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
@@ -234,12 +222,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
           <button onClick={() => setMobileSidebarOpen(true)} className="text-gray-600 p-1">
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center">
-              <Vault className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-bold text-gray-900 text-sm">Vaultr</span>
-          </div>
+          <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-7 w-auto object-contain" />
           <button onClick={() => setShowAddTx(true)} className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center">
             <Plus className="w-4 h-4 text-white" />
           </button>
