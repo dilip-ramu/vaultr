@@ -58,6 +58,22 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
     localStorage.setItem('vaultr-theme', theme)
   }, [theme])
 
+  // iOS PWA fix: set --app-height to actual window.innerHeight.
+  // CSS `position:fixed; bottom:0` is unreliable on iOS home screen apps —
+  // this bypasses that bug entirely.
+  useEffect(() => {
+    const setAppHeight = () => {
+      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)
+    }
+    setAppHeight()
+    window.addEventListener('resize', setAppHeight)
+    window.addEventListener('orientationchange', setAppHeight)
+    return () => {
+      window.removeEventListener('resize', setAppHeight)
+      window.removeEventListener('orientationchange', setAppHeight)
+    }
+  }, [])
+
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
 
   useEffect(() => {
@@ -89,7 +105,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
           ══════════════════════════════════════ */}
       <div
         className="hidden md:flex overflow-hidden"
-        style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
+        style={{ height: 'var(--app-height, 100dvh)', backgroundColor: 'var(--bg)' }}
       >
         {/* Desktop Sidebar */}
         <aside
@@ -213,7 +229,14 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
           ══════════════════════════════════════ */}
       <div
         className="md:hidden flex flex-col overflow-hidden"
-        style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--bg)' }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 'var(--app-height, 100dvh)',
+          backgroundColor: 'var(--bg)',
+        }}
       >
         {/* Mobile Header */}
         <header

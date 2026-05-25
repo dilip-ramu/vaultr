@@ -51,7 +51,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* iOS PWA — fill the whole screen, no bounce */
+/* iOS PWA — fill the whole screen edge-to-edge */
+:root {
+  --app-height: 100dvh; /* overridden by JS in AppShell to window.innerHeight */
+}
+
 html {
   height: 100%;
   height: -webkit-fill-available;
@@ -64,7 +68,7 @@ body {
   min-height: -webkit-fill-available;
   overflow: hidden;
   overscroll-behavior: none;
-  background-color: var(--bg);
+  background-color: var(--bg); /* fills any exposed edges with app bg */
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
