@@ -16,6 +16,7 @@ import type { Profile } from '@/lib/types'
 import BillNotificationBanner from './bills/BillNotificationBanner'
 
 const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
+const QuickAddSheet = dynamic(() => import('./transactions/QuickAddSheet'), { ssr: false })
 
 interface AppShellProps {
   user: User
@@ -45,6 +46,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [showAddTx, setShowAddTx] = useState(false)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
@@ -283,10 +285,10 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
               )
             })}
 
-            {/* Center FAB */}
+            {/* Center FAB — opens QuickAddSheet on mobile */}
             <div className="flex-1 flex items-center justify-center">
               <button
-                onClick={() => setShowAddTx(true)}
+                onClick={() => setShowQuickAdd(true)}
                 className="w-[52px] h-[52px] rounded-2xl flex items-center justify-center active:scale-95 transition-transform"
                 style={{ backgroundColor: 'var(--brand)', boxShadow: '0 4px 16px rgba(99,102,241,0.4)' }}
               >
@@ -380,9 +382,14 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         </div>
       )}
 
-      {/* Transaction form modal */}
+      {/* Desktop: full transaction form */}
       {showAddTx && (
         <TransactionForm onSaved={() => { setShowAddTx(false); router.refresh() }} onClose={() => setShowAddTx(false)} />
+      )}
+
+      {/* Mobile: quick add bottom sheet */}
+      {showQuickAdd && (
+        <QuickAddSheet onSaved={() => { setShowQuickAdd(false); router.refresh() }} onClose={() => setShowQuickAdd(false)} />
       )}
     </>
   )
