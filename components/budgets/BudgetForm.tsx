@@ -137,6 +137,9 @@ export default function BudgetForm({ budget, categories, currentMonth, currentYe
                 style={{ color: 'var(--text)' }}
                 min="0"
                 step="0.01"
+                inputMode="decimal"
+                autoComplete="off"
+                enterKeyHint="done"
               />
             </div>
           </div>

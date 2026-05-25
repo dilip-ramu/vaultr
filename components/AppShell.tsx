@@ -208,7 +208,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Desktop main content */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <BillNotificationBanner />
-          <main className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' as never }}>
+          <main className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}>
             {children}
           </main>
         </div>
@@ -255,7 +255,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Scrollable content */}
         <main
           className="flex-1 overflow-y-auto"
-          style={{ WebkitOverflowScrolling: 'touch' as never }}
+          style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}
         >
           {children}
         </main>
@@ -279,7 +279,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
                 <Link
                   key={href}
                   href={href}
-                  className="flex-1 flex flex-col items-center justify-center gap-0.5 h-full"
+                  className="tap-scale flex-1 flex flex-col items-center justify-center gap-0.5 h-full"
                   style={{ color: active ? 'var(--brand)' : 'var(--text-faint)' }}
                 >
                   <Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.5 : 1.5} />
@@ -306,7 +306,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
                 <Link
                   key={href}
                   href={href}
-                  className="flex-1 flex flex-col items-center justify-center gap-0.5 h-full"
+                  className="tap-scale flex-1 flex flex-col items-center justify-center gap-0.5 h-full"
                   style={{ color: active ? 'var(--brand)' : 'var(--text-faint)' }}
                 >
                   <Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.5 : 1.5} />

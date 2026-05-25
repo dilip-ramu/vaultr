@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getTodayString } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import FileUpload from '../shared/FileUpload'
+import BottomSheet from '../shared/BottomSheet'
 import { Avatar } from '../AppShell'
 
 interface Props {
@@ -211,9 +212,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const currencyMeta = getCurrencyMeta(currency)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up overflow-hidden">
+    <BottomSheet isOpen onClose={onClose}>
 
         {/* Type selector header */}
         <div className={`${activeType.color} px-6 pt-5 pb-4`}>
@@ -269,6 +268,9 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                   required
                   min="0.01"
                   step="0.01"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  enterKeyHint="done"
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xl font-bold"
                 />
               </div>
@@ -430,7 +432,6 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : `Add ${activeType.label}`}
           </button>
         </form>
-      </div>
 
       {/* Currency picker modal */}
       {showCurrencyPicker && (
@@ -516,7 +517,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           </div>
         </div>
       )}
-    </div>
+    </BottomSheet>
   )
 }
 

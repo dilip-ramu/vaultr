@@ -125,6 +125,7 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
                 <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min="0.01" step="0.01"
+                  inputMode="decimal" autoComplete="off" enterKeyHint="done"
                   placeholder="0.00" className="w-full pl-7 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
               </div>
             </div>

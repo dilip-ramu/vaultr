@@ -162,3 +162,21 @@ input:focus, select:focus, textarea:focus {
 .text-label    { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .text-body     { font-size: 0.875rem; line-height: 1.5; }
 .text-caption  { font-size: 0.75rem; color: var(--text-muted); }
+
+/* Page transition — applied to loading.tsx root divs */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: pageIn 0.2s ease-out both; }
+
+/* Touch feedback — scale down on tap */
+.tap-scale {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease, transform 0.1s ease;
+}
+.tap-scale:active { transform: scale(0.97); }
+
+/* iOS input zoom prevention — font-size < 16px triggers zoom on Safari */
+@layer base {
+  input, select, textarea { font-size: max(16px, 1rem); }
+}

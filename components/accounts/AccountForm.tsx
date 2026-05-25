@@ -197,6 +197,9 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                 value={balance}
                 onChange={e => setBalance(e.target.value)}
                 step="0.01"
+                inputMode="decimal"
+                autoComplete="off"
+                enterKeyHint="done"
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               />
             </div>

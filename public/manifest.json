@@ -3,24 +3,18 @@
   "short_name": "Vaultr",
   "description": "Your personal finance command centre",
   "start_url": "/dashboard",
-  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#6366F1",
+  "display_override": ["standalone", "fullscreen"],
   "orientation": "portrait",
-  "categories": ["finance", "productivity"],
+  "background_color": "#1B1D2A",
+  "theme_color": "#6366F1",
+  "categories": ["finance"],
   "icons": [
-    {
-      "src": "/vaultr-logo.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/vaultr-logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/vaultr-logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/vaultr-logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Add Transaction", "url": "/transactions?quick=true", "icons": [{ "src": "/vaultr-logo.png", "sizes": "96x96" }] },
+    { "name": "Dashboard", "url": "/dashboard", "icons": [{ "src": "/vaultr-logo.png", "sizes": "96x96" }] }
   ]
 }
