@@ -267,6 +267,25 @@ export const CATEGORY_ICONS = [
   { value: 'more-horizontal', label: 'Other' },
 ]
 
+export interface Budget {
+  id: string
+  user_id: string
+  household_id: string | null
+  category_id: string
+  amount: number
+  period: 'monthly' | 'weekly' | 'yearly'
+  rollover: boolean
+  rollover_amount: number
+  month: number | null
+  year: number | null
+  is_active: boolean
+  created_at: string
+  category?: Category
+  spent?: number
+  remaining?: number
+  percentage?: number
+}
+
 export const EMOJI_MAP: Record<string, string> = {
   'utensils': '🍽️', 'car': '🚗', 'shopping-bag': '🛍️', 'film': '🎬',
   'zap': '⚡', 'heart-pulse': '❤️', 'graduation-cap': '🎓', 'home': '🏠',

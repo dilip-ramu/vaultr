@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from '@/components/dashboard/DashboardClient'
+import type { Budget } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,8 @@ export default async function DashboardPage() {
     { data: monthlyTx },
     { data: profile },
     { data: overrides },
+    { data: rawBudgets },
+    { data: budgetTx },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -47,7 +50,31 @@ export default async function DashboardPage() {
       .from('builtin_account_type_overrides')
       .select('*')
       .eq('user_id', user!.id),
+    supabase
+      .from('budgets')
+      .select('*, category:categories(id,name,icon,color,avatar_url)')
+      .eq('user_id', user!.id)
+      .eq('is_active', true),
+    supabase
+      .from('transactions')
+      .select('category_id, amount')
+      .eq('user_id', user!.id)
+      .eq('type', 'expense')
+      .not('category_id', 'is', null)
+      .gte('date', startOfMonth)
+      .lte('date', endOfMonth),
   ])
+
+  // Compute spent per category for budget widget
+  const spentMap: Record<string, number> = {}
+  for (const tx of budgetTx ?? []) {
+    if (tx.category_id) spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + tx.amount
+  }
+  const budgets: Budget[] = (rawBudgets ?? []).map(b => {
+    const spent = spentMap[b.category_id] ?? 0
+    const effective = b.amount + (b.rollover ? b.rollover_amount : 0)
+    return { ...b, spent, remaining: effective - spent, percentage: effective > 0 ? (spent / effective) * 100 : 0 }
+  })
 
   return (
     <DashboardClient
@@ -56,6 +83,7 @@ export default async function DashboardPage() {
       monthlyTransactions={monthlyTx ?? []}
       profile={profile}
       builtinOverrides={overrides ?? []}
+      budgets={budgets}
     />
   )
 }

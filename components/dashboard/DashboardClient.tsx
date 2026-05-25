@@ -7,8 +7,8 @@ import {
   TrendingUp, TrendingDown, ChevronRight, Wallet,
   ArrowLeftRight, ArrowRight
 } from 'lucide-react'
-import type { Account, Transaction, Profile, BuiltinTypeOverride } from '@/lib/types'
-import { resolveAccountTypeDisplay } from '@/lib/types'
+import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget } from '@/lib/types'
+import { resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
 import { formatCurrency, getRelativeDate, getMonthYear } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
@@ -21,9 +21,10 @@ interface Props {
   monthlyTransactions: { type: string; amount: number; date: string }[]
   profile: Profile | null
   builtinOverrides?: BuiltinTypeOverride[]
+  budgets?: Budget[]
 }
 
-export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [] }: Props) {
+export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [] }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
 
@@ -248,6 +249,51 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
           </div>
         )}
       </div>
+
+      {/* Budget Widget */}
+      {budgets.length > 0 && (
+        <div className="fade-in" style={{ animationDelay: '210ms' }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Budgets</p>
+            <Link href="/budgets" className="text-xs font-medium flex items-center gap-0.5" style={{ color: 'var(--brand)' }}>
+              View all <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div
+            className="rounded-2xl overflow-hidden shadow-sm"
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            {[...budgets].sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0)).slice(0, 3).map((b, i, arr) => {
+              const pct = b.percentage ?? 0
+              const barColor = pct < 70 ? 'var(--income)' : pct < 90 ? '#F59E0B' : 'var(--expense)'
+              const emoji = EMOJI_MAP[b.category?.icon ?? ''] ?? '💸'
+              return (
+                <div
+                  key={b.id}
+                  className="px-4 py-3"
+                  style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border-2)' : 'none' }}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{emoji}</span>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>{b.category?.name ?? 'Budget'}</span>
+                      {pct > 100 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--expense)' }}>OVER</span>
+                      )}
+                    </div>
+                    <span className="text-xs tabular-nums" style={{ color: 'var(--text-faint)' }}>
+                      {formatCurrency(b.spent ?? 0)} / {formatCurrency(b.amount)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-2)' }}>
+                    <div className="h-1.5 rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Debts & Liabilities */}
       {liabilityAccounts.length > 0 && (
