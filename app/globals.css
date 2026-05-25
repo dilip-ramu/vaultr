@@ -5,13 +5,43 @@
 :root {
   --bg: #F7F8FA;
   --surface: #FFFFFF;
+  --surface-2: #F3F4F6;
   --border: #E5E7EB;
+  --border-2: #F3F4F6;
   --text: #111827;
   --text-muted: #6B7280;
+  --text-faint: #9CA3AF;
   --brand: #6366F1;
+  --brand-light: #EEF2FF;
   --income: #10B981;
   --expense: #EF4444;
   --transfer: #3B82F6;
+  --shadow: rgba(0,0,0,0.06);
+}
+
+[data-theme="dark"] {
+  --bg: #1B1D2A;
+  --surface: #252837;
+  --surface-2: #2D3047;
+  --border: #373A52;
+  --border-2: #2D3047;
+  --text: #E8EAFF;
+  --text-muted: #8891B8;
+  --text-faint: #5C6289;
+  --brand: #7C7FFF;
+  --brand-light: #2D2F52;
+  --income: #34D399;
+  --expense: #F87171;
+  --transfer: #60A5FA;
+  --shadow: rgba(0,0,0,0.3);
+}
+
+/* Smooth dark/light transitions — skip transforms so animations stay snappy */
+*, *::before, *::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+}
+.active\:scale-95:active, .transition-transform {
+  transition: transform 0.15s ease !important;
 }
 
 * {
