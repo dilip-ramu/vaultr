@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Paperclip, X, FileText, Image, Loader2, ExternalLink, Camera } from 'lucide-react'
+import { Paperclip, X, FileText, Loader2, Camera, Download, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Attachment } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 
@@ -15,10 +15,122 @@ interface Props {
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({
+  attachments,
+  index,
+  onClose,
+}: {
+  attachments: { url: string; name: string; type: string }[]
+  index: number
+  onClose: () => void
+}) {
+  const [current, setCurrent] = useState(index)
+  const att = attachments[current]
+
+  const prev = () => setCurrent(i => Math.max(0, i - 1))
+  const next = () => setCurrent(i => Math.min(attachments.length - 1, i + 1))
+
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(att.url)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = att.name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.location.href = att.url
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex flex-col"
+      style={{ backgroundColor: 'rgba(0,0,0,0.95)' }}
+    >
+      {/* Top bar */}
+      <div
+        className="flex items-center justify-between px-4 shrink-0"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: 12 }}
+      >
+        <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center bg-white/10">
+          <X className="w-5 h-5 text-white" />
+        </button>
+        <p className="text-white text-sm font-medium truncate flex-1 mx-4 text-center">{att.name}</p>
+        <button
+          onClick={handleDownload}
+          className="w-9 h-9 rounded-full flex items-center justify-center bg-white/10"
+        >
+          <Download className="w-5 h-5 text-white" />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex items-center justify-center overflow-hidden px-2">
+        {att.type.startsWith('image/') ? (
+          <img
+            src={att.url}
+            alt={att.name}
+            className="max-w-full max-h-full object-contain rounded-lg"
+            style={{ maxHeight: 'calc(100dvh - 160px)' }}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-5 px-6 text-center">
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.2)' }}>
+              <FileText className="w-10 h-10 text-red-400" />
+            </div>
+            <p className="text-white font-semibold">{att.name}</p>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>PDF preview isn&apos;t supported in the app.</p>
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl text-white font-semibold"
+              style={{ backgroundColor: 'var(--brand)' }}
+            >
+              <Download className="w-4 h-4" />
+              Download PDF
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Nav arrows */}
+      {attachments.length > 1 && (
+        <div
+          className="flex items-center justify-center gap-6 shrink-0"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', paddingTop: 16 }}
+        >
+          <button
+            onClick={prev}
+            disabled={current === 0}
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center disabled:opacity-30"
+          >
+            <ChevronLeft className="w-5 h-5 text-white" />
+          </button>
+          <span className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>{current + 1} / {attachments.length}</span>
+          <button
+            onClick={next}
+            disabled={current === attachments.length - 1}
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center disabled:opacity-30"
+          >
+            <ChevronRight className="w-5 h-5 text-white" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function FileUpload({ transactionId, billId, existingAttachments = [], onAttachmentsChange }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>(existingAttachments)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [lightbox, setLightbox] = useState<{ urls: { url: string; name: string; type: string }[]; index: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
@@ -72,6 +184,7 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
   }
 
   const handleDelete = async (attachment: Attachment) => {
+    if (!confirm(`Delete "${attachment.file_name}"?`)) return
     const supabase = createClient()
     await supabase.storage.from('vaultr-attachments').remove([attachment.file_path])
     await supabase.from('attachments').delete().eq('id', attachment.id)
@@ -80,103 +193,142 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
     onAttachmentsChange?.(updated)
   }
 
-  const getUrl = async (path: string) => {
+  // Open lightbox — fetch signed URLs for all attachments first
+  const openLightbox = async (clickedIndex: number) => {
     const supabase = createClient()
-    const { data } = await supabase.storage.from('vaultr-attachments').createSignedUrl(path, 3600)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+    const urls = await Promise.all(
+      attachments.map(async att => {
+        const { data } = await supabase.storage
+          .from('vaultr-attachments')
+          .createSignedUrl(att.file_path, 3600)
+        return {
+          url: data?.signedUrl ?? '',
+          name: att.file_name,
+          type: att.content_type ?? 'application/octet-stream',
+        }
+      })
+    )
+    setLightbox({ urls, index: clickedIndex })
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <label className="text-sm font-medium text-gray-700">Attachments</label>
-        <div className="flex items-center gap-2">
-          {/* Camera capture — shows on mobile, works on desktop too */}
-          <button
-            type="button"
-            onClick={() => cameraRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-1 text-xs text-gray-500 font-medium hover:text-brand-500 disabled:opacity-50"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            Camera
-          </button>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-1.5 text-xs text-brand-500 font-medium hover:text-brand-600 disabled:opacity-50"
-          >
-            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
-            {uploading ? 'Uploading…' : 'Attach file'}
-          </button>
+    <>
+      {lightbox && (
+        <Lightbox
+          attachments={lightbox.urls}
+          index={lightbox.index}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+            Attachments{attachments.length > 0 && <span style={{ color: 'var(--text-muted)' }}> ({attachments.length})</span>}
+          </label>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1 text-xs font-medium disabled:opacity-50"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              Camera
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 text-xs font-medium disabled:opacity-50"
+              style={{ color: 'var(--brand)' }}
+            >
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+              {uploading ? 'Uploading…' : 'Attach'}
+            </button>
+          </div>
+          <input ref={inputRef} type="file" multiple accept="image/*,.pdf" className="hidden" onChange={e => handleFiles(e.target.files)} />
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFiles(e.target.files)} />
         </div>
-        {/* Regular file picker */}
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept="image/*,.pdf"
-          className="hidden"
-          onChange={e => handleFiles(e.target.files)}
-        />
-        {/* Camera capture input — uses rear camera on mobile */}
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={e => handleFiles(e.target.files)}
-        />
+
+        {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
+
+        {attachments.length > 0 && (
+          <div className="space-y-2">
+            {attachments.map((att, i) => (
+              <div
+                key={att.id}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+                style={{ backgroundColor: 'var(--surface-2)' }}
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: att.content_type?.startsWith('image/') ? '#DBEAFE' : '#FEE2E2' }}
+                >
+                  {att.content_type?.startsWith('image/') ? (
+                    <ZoomIn className="w-4 h-4 text-blue-500" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-red-500" />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{att.file_name}</p>
+                  {att.file_size && (
+                    <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                      {att.file_size >= 1024 * 1024
+                        ? `${(att.file_size / 1024 / 1024).toFixed(1)} MB`
+                        : `${(att.file_size / 1024).toFixed(0)} KB`}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => openLightbox(i)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center tap-scale"
+                  style={{ color: 'var(--brand)', backgroundColor: 'var(--brand-light)' }}
+                  title="Preview / Download"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => handleDelete(att)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center tap-scale"
+                  style={{ color: 'var(--text-faint)' }}
+                  title="Delete"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {attachments.length === 0 && !uploading && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              className="flex-1 border-2 border-dashed rounded-xl py-3 text-xs font-medium flex items-center justify-center gap-1.5"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-faint)' }}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              Take Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="flex-1 border-2 border-dashed rounded-xl py-3 text-xs font-medium flex items-center justify-center gap-1.5"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-faint)' }}
+            >
+              <Paperclip className="w-3.5 h-3.5" />
+              Attach File
+            </button>
+          </div>
+        )}
       </div>
-
-      {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
-
-      {attachments.length > 0 && (
-        <div className="space-y-1.5">
-          {attachments.map(att => (
-            <div key={att.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
-              {att.content_type?.startsWith('image/') ? (
-                <Image className="w-4 h-4 text-blue-500 shrink-0" />
-              ) : (
-                <FileText className="w-4 h-4 text-red-500 shrink-0" />
-              )}
-              <span className="text-xs text-gray-700 flex-1 truncate">{att.file_name}</span>
-              {att.file_size && (
-                <span className="text-[10px] text-gray-400">{(att.file_size / 1024).toFixed(0)}KB</span>
-              )}
-              <button onClick={() => getUrl(att.file_path)} className="text-gray-400 hover:text-brand-500">
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-              <button onClick={() => handleDelete(att)} className="text-gray-400 hover:text-red-500">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {attachments.length === 0 && !uploading && (
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => cameraRef.current?.click()}
-            className="flex-1 border-2 border-dashed border-gray-200 rounded-xl py-3 text-xs text-gray-400 hover:border-brand-300 hover:text-brand-400 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            Take Photo
-          </button>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="flex-1 border-2 border-dashed border-gray-200 rounded-xl py-3 text-xs text-gray-400 hover:border-brand-300 hover:text-brand-400 transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Paperclip className="w-3.5 h-3.5" />
-            Attach File
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   )
 }
