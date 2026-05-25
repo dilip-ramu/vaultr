@@ -218,11 +218,10 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
 
         {/* Mobile Top Bar */}
-        <header className="md:hidden bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between shrink-0">
+        <header className="md:hidden bg-white border-b border-gray-100 px-4 pb-3 flex items-center justify-between shrink-0" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
           <button onClick={() => setMobileSidebarOpen(true)} className="text-gray-600 p-1">
             <Menu className="w-5 h-5" />
           </button>
-          <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-7 w-auto object-contain" />
           <button onClick={() => setShowAddTx(true)} className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center">
             <Plus className="w-4 h-4 text-white" />
           </button>
@@ -232,13 +231,13 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         <BillNotificationBanner />
 
         {/* Page content — extra bottom padding covers the nav bar + safe area on iOS */}
-        <main className="flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           {children}
         </main>
 
         {/* ── Mobile Bottom Tab Bar ── */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40 safe-bottom">
-          <div className="flex items-center h-16">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40">
+          <div className="flex items-center h-16 mb-[env(safe-area-inset-bottom,0px)]">
             {bottomNavItems.slice(0, 2).map(({ href, label, icon: Icon }) => {
               const active = pathname === href
               return (
@@ -251,11 +250,16 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
               )
             })}
 
+            {/* Logo → Dashboard */}
+            <Link href="/dashboard" className="flex-shrink-0 px-2 flex flex-col items-center justify-center gap-0.5 h-full">
+              <img src="/vaultr-logo.png" alt="Vaultr" className="w-8 h-8 object-contain" />
+            </Link>
+
             {/* FAB */}
-            <div className="flex-shrink-0 px-3">
+            <div className="flex-shrink-0 px-2">
               <button
                 onClick={() => setShowAddTx(true)}
-                className="w-12 h-12 bg-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-95 transition-transform"
+                className="w-11 h-11 bg-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-95 transition-transform"
               >
                 <Plus className="w-5 h-5 text-white" />
               </button>

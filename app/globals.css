@@ -41,6 +41,7 @@ body {
   position: fixed;
   width: 100%;
   overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 #__next {
