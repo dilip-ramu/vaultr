@@ -265,7 +265,8 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         <BillNotificationBanner />
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto pb-[calc(76px+env(safe-area-inset-bottom,0px))] md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-[calc(76px+env(safe-area-inset-bottom,0px))] md:pb-0"
+          style={{ WebkitOverflowScrolling: 'touch' }}>
           {children}
         </main>
 
@@ -318,7 +319,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
           </div>
           {/* Safe area filler — extends white background under home indicator */}
-          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
+          <div className="bg-white" style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
         </nav>
       </div>
 
