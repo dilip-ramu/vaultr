@@ -20,6 +20,14 @@
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
+  /* Status badge colors */
+  --status-pending-bg: #FEF3C7;   --status-pending-text: #92400E;
+  --status-partial-bg: #DBEAFE;   --status-partial-text: #1E40AF;
+  --status-paid-bg: #D1FAE5;      --status-paid-text: #065F46;
+  --status-cancelled-bg: #FEE2E2; --status-cancelled-text: #991B1B;
+  --status-warning: #D97706;
+  --status-sent-bg: #DBEAFE;      --status-sent-text: #1E40AF;
+  --status-overdue-bg: #FEE2E2;   --status-overdue-text: #991B1B;
 }
 
 [data-theme="dark"] {
@@ -37,6 +45,14 @@
   --expense: #F87171;
   --transfer: #60A5FA;
   --shadow: rgba(0,0,0,0.3);
+  /* Status badge colors — dark mode variants */
+  --status-pending-bg: #3D2E00;   --status-pending-text: #FCD34D;
+  --status-partial-bg: #1E2D4A;   --status-partial-text: #93C5FD;
+  --status-paid-bg: #052E16;      --status-paid-text: #6EE7B7;
+  --status-cancelled-bg: #2D0B0B; --status-cancelled-text: #FCA5A5;
+  --status-warning: #F59E0B;
+  --status-sent-bg: #1E2D4A;      --status-sent-text: #93C5FD;
+  --status-overdue-bg: #2D0B0B;   --status-overdue-text: #FCA5A5;
 }
 
 /* Smooth dark/light transitions — skip transforms so animations stay snappy */
@@ -177,6 +193,18 @@ input:focus, select:focus, textarea:focus {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease, transform 0.1s ease;
 }
 .tap-scale:active { transform: scale(0.97); }
+
+/* Toast slide-in from bottom */
+@keyframes toastIn {
+  from { transform: translateY(100%) translateX(-50%); opacity: 0; }
+  to   { transform: translateY(0)    translateX(-50%); opacity: 1; }
+}
+@keyframes toastOut {
+  from { transform: translateY(0)    translateX(-50%); opacity: 1; }
+  to   { transform: translateY(100%) translateX(-50%); opacity: 0; }
+}
+.toast-enter { animation: toastIn  0.25s ease-out both; }
+.toast-exit  { animation: toastOut 0.2s  ease-in  both; }
 
 /* iOS input zoom prevention — font-size < 16px triggers zoom on Safari */
 @layer base {

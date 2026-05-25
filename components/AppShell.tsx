@@ -8,11 +8,12 @@ import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
-  Moon, Sun, Target, RefreshCw, Lightbulb
+  Moon, Sun, Target, RefreshCw, Lightbulb, Package
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
+import { ToastProvider } from '@/components/shared/Toast'
 import BillNotificationBanner from './bills/BillNotificationBanner'
 
 const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/accounts',      label: 'Accounts',      icon: Wallet },
   { href: '/transactions',  label: 'Transactions',  icon: ArrowLeftRight },
   { href: '/bills',          label: 'Bills',          icon: Receipt },
+  { href: '/logistics',     label: 'Logistics',      icon: Package },
   { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
   { href: '/customers',     label: 'Customers',     icon: Users },
   { href: '/insights',      label: 'Insights',      icon: Lightbulb },
@@ -99,6 +101,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const avatarUrl = profile?.avatar_url
 
   return (
+    <ToastProvider>
     <>
       {/* ══════════════════════════════════════
           DESKTOP LAYOUT (md and above)
@@ -375,6 +378,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
       )}
 
     </>
+    </ToastProvider>
   )
 }
 
