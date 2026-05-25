@@ -17,6 +17,9 @@
   --expense: #EF4444;
   --transfer: #3B82F6;
   --shadow: rgba(0,0,0,0.06);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 }
 
 [data-theme="dark"] {
@@ -139,4 +142,23 @@ input:focus, select:focus, textarea:focus {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.fade-in { animation: fadeIn 0.2s ease-out; }
+.fade-in { animation: fadeIn 0.2s ease-out both; }
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Typography system */
+.text-display { font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.text-heading  { font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+.text-label    { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.text-body     { font-size: 0.875rem; line-height: 1.5; }
+.text-caption  { font-size: 0.75rem; color: var(--text-muted); }

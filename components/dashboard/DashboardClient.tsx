@@ -8,7 +8,7 @@ import {
   ArrowLeftRight, ArrowRight
 } from 'lucide-react'
 import type { Account, Transaction, Profile, BuiltinTypeOverride } from '@/lib/types'
-import { resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
+import { resolveAccountTypeDisplay } from '@/lib/types'
 import { formatCurrency, getRelativeDate, getMonthYear } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
@@ -53,118 +53,172 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
     return resolveAccountTypeDisplay(account.type, builtinOverrides)
   }
 
+  // Group recent transactions by date
+  const txSlice = txs.slice(0, 8)
+  const groupedTxs = txSlice.reduce((acc, tx) => {
+    if (!acc[tx.date]) acc[tx.date] = []
+    acc[tx.date].push(tx)
+    return acc
+  }, {} as Record<string, Transaction[]>)
+  const sortedDates = Object.keys(groupedTxs).sort().reverse()
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
 
       {/* Greeting */}
-      <div>
-        <p className="text-xs text-gray-400 font-medium">{getMonthYear()}</p>
-        <h1 className="text-xl font-bold text-gray-900">
+      <div className="fade-in" style={{ animationDelay: '0ms' }}>
+        <p className="text-label" style={{ color: 'var(--text-faint)' }}>{getMonthYear()}</p>
+        <h1 className="text-heading mt-0.5" style={{ color: 'var(--text)' }}>
           {profile?.full_name ? `Hi, ${profile.full_name.split(' ')[0]} 👋` : 'Dashboard'}
         </h1>
       </div>
 
       {/* Net Worth Hero */}
-      <div className="bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-700 rounded-2xl p-5 text-white shadow-lg shadow-indigo-200">
-        <p className="text-indigo-200 text-xs font-medium uppercase tracking-wider mb-1">Net Worth</p>
-        <p className="text-4xl font-bold mb-1">{formatCurrency(netWorth)}</p>
-        <p className="text-indigo-300 text-xs mb-4">
+      <div
+        className="rounded-2xl p-5 text-white shadow-lg fade-in"
+        style={{
+          background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+          boxShadow: '0 8px 32px rgba(99,102,241,0.3)',
+          animationDelay: '50ms',
+        }}
+      >
+        <p className="text-label mb-1" style={{ color: 'rgba(255,255,255,0.7)' }}>Net Worth</p>
+        <p className="text-display mb-1">{formatCurrency(netWorth)}</p>
+        <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>
           Assets {formatCurrency(totalAssets)} · Debts {formatCurrency(totalLiabilities)}
         </p>
-        <div className="bg-white/20 rounded-full h-1.5 mb-3">
+        <div className="rounded-full h-1.5 mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
           <div
-            className={`h-1.5 rounded-full transition-all ${spendPct > 90 ? 'bg-red-300' : 'bg-green-300'}`}
-            style={{ width: `${spendPct}%` }}
+            className="h-1.5 rounded-full transition-all"
+            style={{
+              width: `${spendPct}%`,
+              backgroundColor: spendPct > 90 ? '#FCA5A5' : '#6EE7B7',
+            }}
           />
         </div>
-        <p className="text-indigo-200 text-xs">
+        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
           {spendPct.toFixed(0)}% of income spent this month
         </p>
       </div>
 
-      {/* Monthly Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-green-50 rounded-2xl p-3.5">
+      {/* Monthly Summary — colored left border */}
+      <div className="grid grid-cols-3 gap-3 fade-in" style={{ animationDelay: '100ms' }}>
+        <div
+          className="rounded-2xl p-3.5"
+          style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderLeft: '4px solid var(--income)',
+          }}
+        >
           <div className="flex items-center gap-1.5 mb-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-green-500" />
-            <p className="text-[10px] text-green-600 font-medium uppercase tracking-wide">Income</p>
+            <TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--income)' }} />
+            <p className="text-label" style={{ color: 'var(--income)' }}>Income</p>
           </div>
-          <p className="text-base font-bold text-green-700 leading-tight">{formatCurrency(monthlyIncome)}</p>
-          <p className="text-[10px] text-green-500 mt-0.5">this month</p>
+          <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{formatCurrency(monthlyIncome)}</p>
+          <p className="text-caption mt-0.5">this month</p>
         </div>
 
-        <div className="bg-red-50 rounded-2xl p-3.5">
+        <div
+          className="rounded-2xl p-3.5"
+          style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderLeft: '4px solid var(--expense)',
+          }}
+        >
           <div className="flex items-center gap-1.5 mb-1.5">
-            <TrendingDown className="w-3.5 h-3.5 text-red-500" />
-            <p className="text-[10px] text-red-600 font-medium uppercase tracking-wide">Spent</p>
+            <TrendingDown className="w-3.5 h-3.5" style={{ color: 'var(--expense)' }} />
+            <p className="text-label" style={{ color: 'var(--expense)' }}>Spent</p>
           </div>
-          <p className="text-base font-bold text-red-700 leading-tight">{formatCurrency(monthlyExpense)}</p>
-          <p className="text-[10px] text-red-500 mt-0.5">this month</p>
+          <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{formatCurrency(monthlyExpense)}</p>
+          <p className="text-caption mt-0.5">this month</p>
         </div>
 
-        <div className={`rounded-2xl p-3.5 ${leftover >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
+        <div
+          className="rounded-2xl p-3.5"
+          style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderLeft: `4px solid ${leftover >= 0 ? 'var(--transfer)' : 'var(--expense)'}`,
+          }}
+        >
           <div className="flex items-center gap-1.5 mb-1.5">
-            <ArrowRight className={`w-3.5 h-3.5 ${leftover >= 0 ? 'text-blue-500' : 'text-orange-500'}`} />
-            <p className={`text-[10px] font-medium uppercase tracking-wide ${leftover >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-              Left
-            </p>
+            <ArrowRight className="w-3.5 h-3.5" style={{ color: leftover >= 0 ? 'var(--transfer)' : 'var(--expense)' }} />
+            <p className="text-label" style={{ color: leftover >= 0 ? 'var(--transfer)' : 'var(--expense)' }}>Left</p>
           </div>
-          <p className={`text-base font-bold leading-tight ${leftover >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
-            {formatCurrency(Math.abs(leftover))}
-          </p>
-          <p className={`text-[10px] mt-0.5 ${leftover >= 0 ? 'text-blue-500' : 'text-orange-500'}`}>
-            {leftover >= 0 ? 'surplus' : 'deficit'}
-          </p>
+          <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{formatCurrency(Math.abs(leftover))}</p>
+          <p className="text-caption mt-0.5">{leftover >= 0 ? 'surplus' : 'deficit'}</p>
         </div>
       </div>
 
       {/* Cash Flow Chart */}
       {chartData.length > 1 && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <div
+          className="rounded-2xl p-5 shadow-sm fade-in"
+          style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            animationDelay: '150ms',
+          }}
+        >
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-gray-900">Cash Flow</p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Cash Flow</p>
             <div className="flex gap-3">
-              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-400" /><span className="text-[10px] text-gray-400">In</span></div>
-              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400" /><span className="text-[10px] text-gray-400">Out</span></div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--income)' }} />
+                <span className="text-caption">In</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--expense)' }} />
+                <span className="text-caption">Out</span>
+              </div>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={110}>
-            <AreaChart data={chartData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="ig" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
+                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#EF4444" stopOpacity={0.25} />
+                  <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="day" tick={{ fontSize: 9, fill: '#9CA3AF' }} tickLine={false} axisLine={false} interval={4} />
+              <XAxis dataKey="day" tick={{ fontSize: 9, fill: 'var(--text-faint)' }} tickLine={false} axisLine={false} interval={4} />
               <Tooltip
-                contentStyle={{ borderRadius: '12px', border: '1px solid #F3F4F6', fontSize: '11px', padding: '6px 10px' }}
+                contentStyle={{
+                  borderRadius: '12px',
+                  border: '1px solid var(--border)',
+                  fontSize: '11px',
+                  padding: '6px 10px',
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--text)',
+                }}
                 formatter={(val: number) => formatCurrency(val)}
               />
-              <Area type="monotone" dataKey="income" stroke="#10B981" strokeWidth={1.5} fill="url(#ig)" dot={false} />
-              <Area type="monotone" dataKey="expense" stroke="#EF4444" strokeWidth={1.5} fill="url(#eg)" dot={false} />
+              <Area type="monotone" dataKey="income" stroke="#10B981" strokeWidth={2} fill="url(#ig)" dot={false} />
+              <Area type="monotone" dataKey="expense" stroke="#EF4444" strokeWidth={2} fill="url(#eg)" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       )}
 
       {/* Accounts */}
-      <div>
+      <div className="fade-in" style={{ animationDelay: '200ms' }}>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-gray-900">Accounts</p>
-          <Link href="/accounts" className="text-xs text-brand-500 font-medium flex items-center gap-0.5">
+          <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Accounts</p>
+          <Link href="/accounts" className="text-xs font-medium flex items-center gap-0.5" style={{ color: 'var(--brand)' }}>
             All <ChevronRight className="w-3 h-3" />
           </Link>
         </div>
         {accounts.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
-            <Wallet className="w-6 h-6 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">No accounts yet</p>
-            <Link href="/accounts" className="text-brand-500 text-sm font-medium">Add account →</Link>
+          <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <Wallet className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--text-faint)' }} />
+            <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>No accounts yet</p>
+            <Link href="/accounts" className="text-sm font-medium" style={{ color: 'var(--brand)' }}>Add account →</Link>
           </div>
         ) : (
           <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
@@ -175,12 +229,17 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
                 <Link
                   key={account.id}
                   href={`/transactions?account=${account.id}`}
-                  className="min-w-40 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm shrink-0 hover:shadow-md transition-shadow"
-                  style={{ borderTopWidth: '3px', borderTopColor: account.color || d.color }}
+                  className="shrink-0 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                  style={{
+                    minWidth: 160,
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderTop: `3px solid ${account.color || d.color}`,
+                  }}
                 >
-                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1">{d.label}</p>
-                  <p className="font-semibold text-xs text-gray-700 mb-2 truncate">{account.name}</p>
-                  <p className={`text-lg font-bold ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                  <p className="text-label mb-1" style={{ color: 'var(--text-faint)' }}>{d.label}</p>
+                  <p className="text-xs font-semibold mb-2 truncate" style={{ color: 'var(--text-muted)' }}>{account.name}</p>
+                  <p className="text-lg font-bold" style={{ color: balance < 0 ? 'var(--expense)' : 'var(--text)' }}>
                     {formatCurrency(balance)}
                   </p>
                 </Link>
@@ -192,56 +251,75 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
 
       {/* Debts & Liabilities */}
       {liabilityAccounts.length > 0 && (
-        <div>
-          <p className="text-sm font-semibold text-gray-900 mb-3">Debts & Liabilities</p>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="fade-in" style={{ animationDelay: '220ms' }}>
+          <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>Debts & Liabilities</p>
+          <div className="rounded-2xl shadow-sm overflow-hidden" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
             {liabilityAccounts.map((account, i) => {
               const balance = Math.abs(account.balance ?? 0)
               const d = getAccountTypeDisplay(account)
               return (
-                <div key={account.id} className={`flex items-center gap-3 px-4 py-3.5 ${i < liabilityAccounts.length - 1 ? 'border-b border-gray-50' : ''}`}>
+                <div
+                  key={account.id}
+                  className="flex items-center gap-3 px-4 py-3.5"
+                  style={{ borderBottom: i < liabilityAccounts.length - 1 ? '1px solid var(--border-2)' : 'none' }}
+                >
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0" style={{ backgroundColor: d.bgColor }}>
                     {account.type === 'credit' ? '💳' : '🏛️'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{account.name}</p>
-                    <p className="text-xs text-gray-400">{d.label}</p>
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{account.name}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{d.label}</p>
                   </div>
-                  <p className="text-sm font-bold text-red-500">{formatCurrency(balance)}</p>
+                  <p className="text-sm font-bold" style={{ color: 'var(--expense)' }}>{formatCurrency(balance)}</p>
                 </div>
               )
             })}
-            <div className="px-4 py-3 bg-red-50 border-t border-red-100 flex items-center justify-between">
-              <p className="text-xs font-medium text-red-600">Total Debt</p>
-              <p className="text-sm font-bold text-red-600">{formatCurrency(totalLiabilities)}</p>
+            <div
+              className="px-4 py-3 flex items-center justify-between"
+              style={{ backgroundColor: 'rgba(239,68,68,0.06)', borderTop: '1px solid rgba(239,68,68,0.12)' }}
+            >
+              <p className="text-xs font-medium" style={{ color: 'var(--expense)' }}>Total Debt</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--expense)' }}>{formatCurrency(totalLiabilities)}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Recent Transactions */}
-      <div>
+      {/* Recent Transactions — grouped by date */}
+      <div className="fade-in" style={{ animationDelay: '250ms' }}>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-gray-900">Recent Transactions</p>
-          <Link href="/transactions" className="text-xs text-brand-500 font-medium flex items-center gap-0.5">
+          <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Recent Transactions</p>
+          <Link href="/transactions" className="text-xs font-medium flex items-center gap-0.5" style={{ color: 'var(--brand)' }}>
             All <ChevronRight className="w-3 h-3" />
           </Link>
         </div>
-        {txs.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
-            <ArrowLeftRight className="w-6 h-6 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">No transactions yet</p>
+        {txSlice.length === 0 ? (
+          <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <ArrowLeftRight className="w-6 h-6 mx-auto mb-2" style={{ color: 'var(--text-faint)' }} />
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No transactions yet</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-            {txs.slice(0, 8).map((tx, i) => (
-              <TransactionItem
-                key={tx.id}
-                transaction={tx}
-                isLast={i === Math.min(txs.length, 8) - 1}
-                onEdit={() => {}}
-                onDelete={id => setTxs(prev => prev.filter(t => t.id !== id))}
-              />
+          <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+            {sortedDates.map(date => (
+              <div key={date}>
+                <div
+                  className="sticky top-0 px-4 py-1.5 z-10"
+                  style={{ backgroundColor: 'var(--surface-2)', borderBottom: '1px solid var(--border-2)' }}
+                >
+                  <span className="text-label" style={{ color: 'var(--text-faint)' }}>
+                    {getRelativeDate(date)}
+                  </span>
+                </div>
+                {groupedTxs[date].map((tx, i) => (
+                  <TransactionItem
+                    key={tx.id}
+                    transaction={tx}
+                    isLast={i === groupedTxs[date].length - 1}
+                    onEdit={() => {}}
+                    onDelete={id => setTxs(prev => prev.filter(t => t.id !== id))}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}

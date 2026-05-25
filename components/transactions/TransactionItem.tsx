@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal, Pencil, Trash2, ArrowRight, Paperclip, MessageCircle } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, ArrowRight, Paperclip } from 'lucide-react'
 import type { Transaction, Account, Category } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -29,104 +29,124 @@ export default function TransactionItem({ transaction: tx, isLast, onEdit, onDel
   }
 
   const amountColor = tx.type === 'income'
-    ? 'text-green-600'
+    ? 'var(--income)'
     : tx.type === 'expense'
-    ? 'text-red-500'
-    : 'text-blue-500'
+    ? 'var(--expense)'
+    : 'var(--transfer)'
 
   const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''
 
   return (
     <>
-    <div
-      onClick={() => setShowDetail(true)}
-      className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors ${!isLast ? 'border-b border-gray-50' : ''}`}
-    >
-      {/* Category icon */}
       <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center text-sm shrink-0"
+        onClick={() => setShowDetail(true)}
+        className={`flex items-center gap-3 px-4 cursor-pointer transition-colors active:bg-[var(--surface-2)] ${!isLast ? 'border-b' : ''}`}
         style={{
-          backgroundColor: category?.color ? `${category.color}18` : '#F3F4F6',
-          color: category?.color ?? '#6B7280'
+          minHeight: 64,
+          paddingTop: 12,
+          paddingBottom: 12,
+          borderColor: 'var(--border-2)',
         }}
       >
-        {getCategoryEmoji(category?.icon ?? '', tx.type)}
-      </div>
+        {/* Category icon */}
+        <div
+          className="w-10 h-10 flex items-center justify-center text-base shrink-0"
+          style={{
+            backgroundColor: category?.color ? `${category.color}26` : 'var(--surface-2)',
+            color: category?.color ?? 'var(--text-muted)',
+            borderRadius: 'var(--radius-md)',
+          }}
+        >
+          {getCategoryEmoji(category?.icon ?? '', tx.type)}
+        </div>
 
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">
-          {tx.name || category?.name || (tx.type === 'transfer' ? 'Transfer' : 'Uncategorised')}
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>
+            {tx.name || category?.name || (tx.type === 'transfer' ? 'Transfer' : 'Uncategorised')}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {tx.name && category?.name && (
+              <span className="text-xs truncate" style={{ color: 'var(--text-faint)' }}>{category.name} ·</span>
+            )}
+            <span className="text-xs truncate" style={{ color: 'var(--text-faint)' }}>{account?.name ?? ''}</span>
+            {tx.type === 'transfer' && toAccount && (
+              <>
+                <ArrowRight className="w-3 h-3 shrink-0" style={{ color: 'var(--text-faint)' }} />
+                <span className="text-xs truncate" style={{ color: 'var(--text-faint)' }}>{toAccount.name}</span>
+              </>
+            )}
+            {tx.payee?.name && (
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-md shrink-0"
+                style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-muted)' }}
+              >
+                {tx.payee.name}
+              </span>
+            )}
+            {tx.original_currency && tx.original_currency !== 'INR' && tx.original_amount && (
+              <span className="text-xs shrink-0 font-mono" style={{ color: 'var(--transfer)' }}>
+                {tx.original_currency} {tx.original_amount}
+              </span>
+            )}
+            {tx.notes && (
+              <span className="text-xs truncate" style={{ color: 'var(--text-faint)' }}>· {tx.notes}</span>
+            )}
+            {(tx.attachments?.length ?? 0) > 0 && (
+              <Paperclip className="w-3 h-3 shrink-0" style={{ color: 'var(--text-faint)' }} />
+            )}
+          </div>
+        </div>
+
+        {/* Amount */}
+        <p className="text-sm font-bold tabular-nums shrink-0" style={{ color: amountColor }}>
+          {amountPrefix}{formatCurrency(tx.amount)}
         </p>
-        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-          {tx.name && category?.name && (
-            <span className="text-xs text-gray-400 truncate">{category.name} ·</span>
-          )}
-          <span className="text-xs text-gray-400 truncate">{account?.name ?? ''}</span>
-          {tx.type === 'transfer' && toAccount && (
+
+        {/* Menu */}
+        <div className="relative" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors"
+            style={{ color: 'var(--text-faint)' }}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+          {showMenu && (
             <>
-              <ArrowRight className="w-3 h-3 text-gray-300 shrink-0" />
-              <span className="text-xs text-gray-400 truncate">{toAccount.name}</span>
+              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+              <div
+                className="absolute right-0 top-8 rounded-xl shadow-lg py-1 z-20 min-w-32"
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+              >
+                <button
+                  onClick={() => { setShowMenu(false); onEdit(tx) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors"
+                  style={{ color: 'var(--text)' }}
+                >
+                  <Pencil className="w-3.5 h-3.5" /> Edit
+                </button>
+                <button
+                  onClick={() => { setShowMenu(false); handleDelete() }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors"
+                  style={{ color: 'var(--expense)' }}
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                </button>
+              </div>
             </>
           )}
-          {tx.payee?.name && (
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md shrink-0">
-              {tx.payee.name}
-            </span>
-          )}
-          {tx.original_currency && tx.original_currency !== 'INR' && tx.original_amount && (
-            <span className="text-xs text-blue-400 shrink-0 font-mono">
-              {tx.original_currency} {tx.original_amount}
-            </span>
-          )}
-          {tx.notes && <span className="text-xs text-gray-300 truncate">· {tx.notes}</span>}
-          {(tx.attachments?.length ?? 0) > 0 && <Paperclip className="w-3 h-3 text-gray-300 shrink-0" />}
         </div>
       </div>
 
-      {/* Amount */}
-      <p className={`text-sm font-bold tabular-nums shrink-0 ${amountColor}`}>
-        {amountPrefix}{formatCurrency(tx.amount)}
-      </p>
-
-      {/* Menu */}
-      <div className="relative" onClick={e => e.stopPropagation()}>
-        <button
-          onClick={() => setShowMenu(!showMenu)}
-          className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 hover:bg-gray-50 rounded-lg"
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
-        {showMenu && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-            <div className="absolute right-0 top-8 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 min-w-32">
-              <button
-                onClick={() => { setShowMenu(false); onEdit(tx) }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                <Pencil className="w-3.5 h-3.5" /> Edit
-              </button>
-              <button
-                onClick={() => { setShowMenu(false); handleDelete() }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Delete
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-
-    {showDetail && (
-      <TransactionDetail
-        transaction={tx}
-        onEdit={t => { setShowDetail(false); onEdit(t) }}
-        onDelete={id => { setShowDetail(false); onDelete(id) }}
-        onClose={() => setShowDetail(false)}
-      />
-    )}
+      {showDetail && (
+        <TransactionDetail
+          transaction={tx}
+          onEdit={t => { setShowDetail(false); onEdit(t) }}
+          onDelete={id => { setShowDetail(false); onDelete(id) }}
+          onClose={() => setShowDetail(false)}
+        />
+      )}
     </>
   )
 }
