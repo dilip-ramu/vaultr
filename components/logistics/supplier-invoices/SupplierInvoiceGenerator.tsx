@@ -56,6 +56,17 @@ export default function SupplierInvoiceGenerator({
   const [notes, setNotes] = useState('')
   const [paymentTerms, setPaymentTerms] = useState('Net 30')
 
+  // GST state
+  const [gstMode, setGstMode] = useState(false)
+  const [isIGST, setIsIGST] = useState(false)
+  const [igstRate, setIgstRate] = useState('18')
+  const [cgstRate, setCgstRate] = useState('9')
+  const [sgstRate, setSgstRate] = useState('9')
+  const [placeOfSupply, setPlaceOfSupply] = useState('')
+  const [hsnSacCode, setHsnSacCode] = useState('')
+  const [reverseCharge, setReverseCharge] = useState(false)
+  const [gstinSupplier, setGstinSupplier] = useState('')
+
   // Step 3 state
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState('')
@@ -96,7 +107,14 @@ export default function SupplierInvoiceGenerator({
   // Selected allocations
   const selectedAllocations = customerAllocations.filter(a => selectedIds.has(a.id))
   const subtotal = selectedAllocations.reduce((s, a) => s + (a.override_amount ?? a.billed_amount ?? 0), 0)
-  const taxAmount = subtotal * (parseFloat(taxRate) || 0) / 100
+
+  // GST-aware tax calculation
+  const cgstAmount = gstMode && !isIGST ? subtotal * (parseFloat(cgstRate) || 0) / 100 : 0
+  const sgstAmount = gstMode && !isIGST ? subtotal * (parseFloat(sgstRate) || 0) / 100 : 0
+  const igstAmount = gstMode && isIGST  ? subtotal * (parseFloat(igstRate) || 0) / 100 : 0
+  const taxAmount = gstMode
+    ? (isIGST ? igstAmount : cgstAmount + sgstAmount)
+    : subtotal * (parseFloat(taxRate) || 0) / 100
   const total = subtotal + taxAmount
 
   const toggleAlloc = (id: string) => {
@@ -138,10 +156,21 @@ export default function SupplierInvoiceGenerator({
         allocationIds: [...selectedIds],
         invoiceDate,
         dueDate: dueDate || undefined,
-        taxRate: parseFloat(taxRate) || 0,
+        taxRate: gstMode ? 0 : (parseFloat(taxRate) || 0),
         notes: notes.trim() || undefined,
         accountId: accountId || undefined,
         paymentTerms: paymentTerms.trim() || undefined,
+        ...(gstMode ? {
+          isIGST,
+          igstRate: isIGST ? (parseFloat(igstRate) || 0) : 0,
+          cgstRate: !isIGST ? (parseFloat(cgstRate) || 0) : 0,
+          sgstRate: !isIGST ? (parseFloat(sgstRate) || 0) : 0,
+          placeOfSupply: placeOfSupply.trim() || undefined,
+          hsnSacCode: hsnSacCode.trim() || undefined,
+          reverseCharge,
+          gstinSupplier: gstinSupplier.trim() || undefined,
+          gstinCustomer: selectedCustomer?.gst_number || undefined,
+        } : {}),
       })
       setResult(res)
     } catch (err) {
@@ -392,39 +421,223 @@ export default function SupplierInvoiceGenerator({
             </div>
           </div>
 
-          {/* Tax rate */}
-          <div>
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
-              Tax Rate (%)
-            </label>
-            <div className="flex gap-2">
-              {['0', '5', '12', '18', '28'].map(v => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setTaxRate(v)}
-                  className="flex-1 py-2 rounded-xl text-xs font-semibold"
-                  style={{
-                    backgroundColor: taxRate === v ? 'var(--brand)' : 'var(--surface-2)',
-                    color: taxRate === v ? '#fff' : 'var(--text-muted)',
-                    border: taxRate === v ? 'none' : '1px solid var(--border)',
-                  }}
-                >
-                  {v}%
-                </button>
-              ))}
-              <input
-                type="number"
-                value={taxRate}
-                onChange={e => setTaxRate(e.target.value)}
-                min="0"
-                max="100"
-                step="0.01"
-                className="w-16 px-2 py-2 rounded-xl text-xs text-center border"
-                style={inputStyle}
-                placeholder="Custom"
-              />
+          {/* Tax / GST */}
+          <div className="space-y-3">
+            {/* GST toggle */}
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                Tax
+              </label>
+              <button
+                type="button"
+                onClick={() => setGstMode(!gstMode)}
+                className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg"
+                style={{
+                  backgroundColor: gstMode ? 'var(--brand)' : 'var(--surface-2)',
+                  color: gstMode ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                {gstMode ? 'GST Mode ON' : 'Enable GST'}
+              </button>
             </div>
+
+            {!gstMode && (
+              <div className="flex gap-2">
+                {['0', '5', '12', '18', '28'].map(v => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setTaxRate(v)}
+                    className="flex-1 py-2 rounded-xl text-xs font-semibold"
+                    style={{
+                      backgroundColor: taxRate === v ? 'var(--brand)' : 'var(--surface-2)',
+                      color: taxRate === v ? '#fff' : 'var(--text-muted)',
+                      border: taxRate === v ? 'none' : '1px solid var(--border)',
+                    }}
+                  >
+                    {v}%
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  value={taxRate}
+                  onChange={e => setTaxRate(e.target.value)}
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className="w-16 px-2 py-2 rounded-xl text-xs text-center border"
+                  style={inputStyle}
+                  placeholder="Custom"
+                />
+              </div>
+            )}
+
+            {gstMode && (
+              <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: 'var(--border)' }}>
+                {/* IGST vs CGST+SGST */}
+                <div>
+                  <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>GST Type</p>
+                  <div className="flex gap-2">
+                    {[{ label: 'CGST + SGST', value: false }, { label: 'IGST', value: true }].map(opt => (
+                      <button
+                        key={String(opt.value)}
+                        type="button"
+                        onClick={() => setIsIGST(opt.value)}
+                        className="flex-1 py-2 rounded-xl text-xs font-semibold"
+                        style={{
+                          backgroundColor: isIGST === opt.value ? 'var(--brand)' : 'var(--surface-2)',
+                          color: isIGST === opt.value ? '#fff' : 'var(--text-muted)',
+                          border: isIGST === opt.value ? 'none' : '1px solid var(--border)',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Rates */}
+                {isIGST ? (
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                      IGST Rate (%)
+                    </label>
+                    <div className="flex gap-2">
+                      {['5', '12', '18', '28'].map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setIgstRate(v)}
+                          className="flex-1 py-2 rounded-xl text-xs font-semibold"
+                          style={{
+                            backgroundColor: igstRate === v ? 'var(--brand)' : 'var(--surface-2)',
+                            color: igstRate === v ? '#fff' : 'var(--text-muted)',
+                            border: igstRate === v ? 'none' : '1px solid var(--border)',
+                          }}
+                        >
+                          {v}%
+                        </button>
+                      ))}
+                      <input
+                        type="number"
+                        value={igstRate}
+                        onChange={e => setIgstRate(e.target.value)}
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        className="w-16 px-2 py-2 rounded-xl text-xs text-center border"
+                        style={inputStyle}
+                        placeholder="%"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                        CGST Rate (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={cgstRate}
+                        onChange={e => { setCgstRate(e.target.value); setSgstRate(e.target.value) }}
+                        min="0"
+                        max="50"
+                        step="0.01"
+                        inputMode="decimal"
+                        className="w-full px-3 py-2.5 rounded-xl text-sm border text-center"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                        SGST Rate (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={sgstRate}
+                        onChange={e => setSgstRate(e.target.value)}
+                        min="0"
+                        max="50"
+                        step="0.01"
+                        inputMode="decimal"
+                        className="w-full px-3 py-2.5 rounded-xl text-sm border text-center"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Place of Supply */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                    Place of Supply
+                  </label>
+                  <input
+                    type="text"
+                    value={placeOfSupply}
+                    onChange={e => setPlaceOfSupply(e.target.value)}
+                    placeholder="e.g. Maharashtra"
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border"
+                    style={inputStyle}
+                  />
+                </div>
+
+                {/* HSN/SAC Code */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                    HSN / SAC Code
+                  </label>
+                  <input
+                    type="text"
+                    value={hsnSacCode}
+                    onChange={e => setHsnSacCode(e.target.value)}
+                    placeholder="e.g. 9965 (freight)"
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border font-mono"
+                    style={inputStyle}
+                  />
+                </div>
+
+                {/* Our GSTIN */}
+                <div>
+                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                    Our GSTIN (Supplier)
+                  </label>
+                  <input
+                    type="text"
+                    value={gstinSupplier}
+                    onChange={e => setGstinSupplier(e.target.value)}
+                    placeholder="e.g. 27AABCU9603R1ZX"
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border font-mono"
+                    style={inputStyle}
+                  />
+                </div>
+
+                {/* Reverse Charge */}
+                <button
+                  type="button"
+                  onClick={() => setReverseCharge(!reverseCharge)}
+                  className="flex items-center gap-2.5 w-full text-left"
+                >
+                  <div
+                    className="w-4 h-4 rounded flex items-center justify-center border flex-shrink-0"
+                    style={{
+                      backgroundColor: reverseCharge ? 'var(--brand)' : 'transparent',
+                      borderColor: reverseCharge ? 'var(--brand)' : 'var(--border)',
+                    }}
+                  >
+                    {reverseCharge && (
+                      <svg viewBox="0 0 10 10" className="w-2.5 h-2.5 text-white fill-current">
+                        <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                    Reverse Charge Applicable
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Account */}
@@ -577,13 +790,46 @@ export default function SupplierInvoiceGenerator({
                 {formatCurrency(subtotal, currency)}
               </span>
             </div>
-            {parseFloat(taxRate) > 0 && (
+            {gstMode ? (
+              isIGST ? (
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: 'var(--text-muted)' }}>IGST ({igstRate}%)</span>
+                  <span className="tabular-nums" style={{ color: 'var(--text)' }}>
+                    {formatCurrency(igstAmount, currency)}
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {cgstAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color: 'var(--text-muted)' }}>CGST ({cgstRate}%)</span>
+                      <span className="tabular-nums" style={{ color: 'var(--text)' }}>
+                        {formatCurrency(cgstAmount, currency)}
+                      </span>
+                    </div>
+                  )}
+                  {sgstAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color: 'var(--text-muted)' }}>SGST ({sgstRate}%)</span>
+                      <span className="tabular-nums" style={{ color: 'var(--text)' }}>
+                        {formatCurrency(sgstAmount, currency)}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )
+            ) : parseFloat(taxRate) > 0 ? (
               <div className="flex justify-between text-sm">
                 <span style={{ color: 'var(--text-muted)' }}>Tax ({taxRate}%)</span>
                 <span className="tabular-nums" style={{ color: 'var(--text)' }}>
                   {formatCurrency(taxAmount, currency)}
                 </span>
               </div>
+            ) : null}
+            {gstMode && reverseCharge && (
+              <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                * Reverse charge applicable
+              </p>
             )}
             <div className="h-px" style={{ backgroundColor: 'var(--border)' }} />
             <div className="flex justify-between">

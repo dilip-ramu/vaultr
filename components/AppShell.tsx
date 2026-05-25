@@ -121,7 +121,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             style={{ borderColor: 'var(--border)' }}
           >
             {!collapsed && <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-6 w-auto object-contain" />}
-            {collapsed && <img src="/vaultr-logo.jpeg" alt="Vaultr" className="w-7 h-7 object-contain" />}
+            {collapsed && <img src="/vaultr-logo.png" alt="Vaultr" className="w-7 h-7 object-contain" />}
             {!collapsed && (
               <button onClick={toggleCollapsed} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-muted)' }}>
                 <PanelLeftClose className="w-4 h-4" />

@@ -11,6 +11,50 @@ function fmt(amount: number, currency = 'INR'): string {
   return `${sym}${intFormatted}.${dec}`
 }
 
+function amountInWords(amount: number): string {
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen',
+  ]
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+  function twoDigit(n: number): string {
+    if (n === 0) return ''
+    if (n < 20) return ones[n]
+    return tens[Math.floor(n / 10)] + (n % 10 > 0 ? ' ' + ones[n % 10] : '')
+  }
+
+  function threeDigit(n: number): string {
+    if (n === 0) return ''
+    const h = Math.floor(n / 100)
+    const r = n % 100
+    const hundredPart = h > 0 ? ones[h] + ' Hundred' : ''
+    const restPart = r > 0 ? twoDigit(r) : ''
+    return hundredPart + (hundredPart && restPart ? ' ' : '') + restPart
+  }
+
+  const whole = Math.floor(amount)
+  const paise = Math.round((amount - whole) * 100)
+
+  if (whole === 0 && paise === 0) return 'Zero Rupees Only'
+
+  const crore    = Math.floor(whole / 10_000_000)
+  const lakh     = Math.floor((whole % 10_000_000) / 100_000)
+  const thousand = Math.floor((whole % 100_000) / 1_000)
+  const rest     = whole % 1_000
+
+  const parts: string[] = []
+  if (crore    > 0) parts.push(threeDigit(crore)    + ' Crore')
+  if (lakh     > 0) parts.push(threeDigit(lakh)     + ' Lakh')
+  if (thousand > 0) parts.push(threeDigit(thousand) + ' Thousand')
+  if (rest     > 0) parts.push(threeDigit(rest))
+
+  const rupeeWords = parts.join(' ') || 'Zero'
+  const paiseWords = paise > 0 ? ' and ' + twoDigit(paise) + ' Paise' : ''
+  return rupeeWords + ' Rupees' + paiseWords + ' Only'
+}
+
 interface Props {
   invoice: SupplierInvoice & { customer: Customer; lines: SupplierInvoiceLine[] }
   companyName?: string
@@ -29,11 +73,13 @@ export default function SupplierInvoicePDF({
     year: 'numeric',
   })
 
+  const hasGST = invoice.is_igst || invoice.cgst_amount > 0 || invoice.sgst_amount > 0
+
   return (
     <Document
       title={invoice.invoice_number}
       author={companyName}
-      subject="Supplier Invoice"
+      subject="Tax Invoice"
     >
       <Page size="A4" style={styles.page}>
 
@@ -46,6 +92,11 @@ export default function SupplierInvoicePDF({
             )}
             {companyAddress ? (
               <Text style={styles.companyAddress}>{companyAddress}</Text>
+            ) : null}
+            {invoice.gstin_supplier ? (
+              <Text style={[styles.companyAddress, { marginTop: 4 }]}>
+                GSTIN: {invoice.gstin_supplier}
+              </Text>
             ) : null}
           </View>
           <View>
@@ -64,6 +115,12 @@ export default function SupplierInvoicePDF({
                 <Text style={styles.invoiceMetaValue}>{invoice.due_date}</Text>
               </View>
             ) : null}
+            {invoice.place_of_supply ? (
+              <View style={styles.invoiceMetaRow}>
+                <Text style={styles.invoiceMetaLabel}>Place of Supply:  </Text>
+                <Text style={styles.invoiceMetaValue}>{invoice.place_of_supply}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -74,8 +131,10 @@ export default function SupplierInvoicePDF({
           {customer.address ? (
             <Text style={styles.billToDetail}>{customer.address}</Text>
           ) : null}
-          {customer.gst_number ? (
-            <Text style={styles.billToDetail}>GST: {customer.gst_number}</Text>
+          {(invoice.gstin_customer ?? customer.gst_number) ? (
+            <Text style={styles.billToDetail}>
+              GSTIN: {invoice.gstin_customer ?? customer.gst_number}
+            </Text>
           ) : null}
           {customer.email ? (
             <Text style={styles.billToDetail}>{customer.email}</Text>
@@ -112,7 +171,33 @@ export default function SupplierInvoicePDF({
             <Text style={styles.totalsLabel}>Subtotal</Text>
             <Text style={styles.totalsValue}>{fmt(invoice.subtotal, invoice.currency)}</Text>
           </View>
-          {invoice.tax_amount > 0 ? (
+
+          {/* GST breakdown or simple tax */}
+          {hasGST ? (
+            invoice.is_igst ? (
+              invoice.igst_amount > 0
+                ? <View style={styles.totalsRow}>
+                    <Text style={styles.totalsLabel}>IGST ({invoice.igst_rate}%)</Text>
+                    <Text style={styles.totalsValue}>{fmt(invoice.igst_amount, invoice.currency)}</Text>
+                  </View>
+                : null
+            ) : (
+              <View>
+                {invoice.cgst_amount > 0
+                  ? <View style={styles.totalsRow}>
+                      <Text style={styles.totalsLabel}>CGST ({invoice.cgst_rate}%)</Text>
+                      <Text style={styles.totalsValue}>{fmt(invoice.cgst_amount, invoice.currency)}</Text>
+                    </View>
+                  : null}
+                {invoice.sgst_amount > 0
+                  ? <View style={styles.totalsRow}>
+                      <Text style={styles.totalsLabel}>SGST ({invoice.sgst_rate}%)</Text>
+                      <Text style={styles.totalsValue}>{fmt(invoice.sgst_amount, invoice.currency)}</Text>
+                    </View>
+                  : null}
+              </View>
+            )
+          ) : invoice.tax_amount > 0 ? (
             <View style={styles.totalsRow}>
               <Text style={styles.totalsLabel}>
                 {invoice.tax_rate ? `GST (${invoice.tax_rate}%)` : 'Tax'}
@@ -120,16 +205,39 @@ export default function SupplierInvoicePDF({
               <Text style={styles.totalsValue}>{fmt(invoice.tax_amount, invoice.currency)}</Text>
             </View>
           ) : null}
+
           <View style={styles.totalsDivider} />
           <View style={styles.totalsFinalRow}>
             <Text style={styles.totalsFinalLabel}>Total</Text>
             <Text style={styles.totalsFinalValue}>{fmt(invoice.total_amount, invoice.currency)}</Text>
           </View>
+
+          {/* Amount in words */}
+          <View style={{ width: 320, marginTop: 6 }}>
+            <Text style={{ fontSize: 7, color: '#6B7280', textAlign: 'right', fontStyle: 'italic' }}>
+              {amountInWords(invoice.total_amount)}
+            </Text>
+          </View>
         </View>
 
-        {/* ── Notes / Payment Terms ───────────────────────────── */}
-        {(invoice.payment_terms || invoice.notes) ? (
+        {/* ── Reverse Charge Notice ───────────────────────────── */}
+        {invoice.reverse_charge ? (
+          <View style={{ marginBottom: 12, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#FEF9C3', borderRadius: 3 }}>
+            <Text style={{ fontSize: 8, color: '#78350F' }}>
+              Reverse Charge: Tax is payable on reverse charge basis.
+            </Text>
+          </View>
+        ) : null}
+
+        {/* ── HSN/SAC & Notes / Payment Terms ─────────────────── */}
+        {(invoice.hsn_sac_code || invoice.payment_terms || invoice.notes) ? (
           <View style={styles.notesSection}>
+            {invoice.hsn_sac_code ? (
+              <View style={{ marginBottom: 8 }}>
+                <Text style={styles.notesLabel}>HSN / SAC Code</Text>
+                <Text style={[styles.notesText, { fontFamily: 'Courier' }]}>{invoice.hsn_sac_code}</Text>
+              </View>
+            ) : null}
             {invoice.payment_terms ? (
               <View style={{ marginBottom: 8 }}>
                 <Text style={styles.notesLabel}>Payment Terms</Text>
@@ -144,6 +252,20 @@ export default function SupplierInvoicePDF({
             ) : null}
           </View>
         ) : null}
+
+        {/* ── Authorized Signatory ────────────────────────────── */}
+        <View style={{ marginTop: 40, flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <View style={{ alignItems: 'center', minWidth: 160 }}>
+            <View style={{ borderTopWidth: 1, borderTopColor: '#D1D5DB', width: '100%', paddingTop: 6 }}>
+              <Text style={{ fontSize: 8, color: '#6B7280', textAlign: 'center' }}>
+                {companyName !== 'Your Company' ? companyName : 'Authorized Signatory'}
+              </Text>
+              <Text style={{ fontSize: 7, color: '#9CA3AF', textAlign: 'center', marginTop: 2 }}>
+                Authorized Signatory
+              </Text>
+            </View>
+          </View>
+        </View>
 
         {/* ── Footer (fixed on every page) ────────────────────── */}
         <View style={styles.footer} fixed>

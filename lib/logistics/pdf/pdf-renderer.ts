@@ -4,6 +4,51 @@ import type { Customer } from '@/lib/types'
 
 const BUCKET = 'vaultr-attachments'
 
+/** Converts a numeric amount to Indian-English words (e.g. 12500 → "Twelve Thousand Five Hundred Rupees Only") */
+export function amountInWords(amount: number): string {
+  const ones = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+    'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+    'Seventeen', 'Eighteen', 'Nineteen',
+  ]
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+  function twoDigit(n: number): string {
+    if (n === 0) return ''
+    if (n < 20) return ones[n]
+    return tens[Math.floor(n / 10)] + (n % 10 > 0 ? ' ' + ones[n % 10] : '')
+  }
+
+  function threeDigit(n: number): string {
+    if (n === 0) return ''
+    const h = Math.floor(n / 100)
+    const r = n % 100
+    const hundredPart = h > 0 ? ones[h] + ' Hundred' : ''
+    const restPart = r > 0 ? twoDigit(r) : ''
+    return hundredPart + (hundredPart && restPart ? ' ' : '') + restPart
+  }
+
+  const whole = Math.floor(amount)
+  const paise = Math.round((amount - whole) * 100)
+
+  if (whole === 0 && paise === 0) return 'Zero Rupees Only'
+
+  const crore    = Math.floor(whole / 10_000_000)
+  const lakh     = Math.floor((whole % 10_000_000) / 100_000)
+  const thousand = Math.floor((whole % 100_000) / 1_000)
+  const rest     = whole % 1_000
+
+  const parts: string[] = []
+  if (crore    > 0) parts.push(threeDigit(crore)    + ' Crore')
+  if (lakh     > 0) parts.push(threeDigit(lakh)     + ' Lakh')
+  if (thousand > 0) parts.push(threeDigit(thousand) + ' Thousand')
+  if (rest     > 0) parts.push(threeDigit(rest))
+
+  const rupeeWords = parts.join(' ') || 'Zero'
+  const paiseWords = paise > 0 ? ' and ' + twoDigit(paise) + ' Paise' : ''
+  return rupeeWords + ' Rupees' + paiseWords + ' Only'
+}
+
 export async function generateAndStorePDF(params: {
   supabase: SupabaseClient
   invoiceId: string

@@ -133,6 +133,19 @@ export interface SupplierInvoice {
   pdf_path: string | null
   notes: string | null
   internal_notes: string | null
+  // GST fields (added in migration v8c)
+  gstin_supplier: string | null
+  gstin_customer: string | null
+  place_of_supply: string | null
+  is_igst: boolean
+  cgst_rate: number
+  sgst_rate: number
+  igst_rate: number
+  cgst_amount: number
+  sgst_amount: number
+  igst_amount: number
+  reverse_charge: boolean
+  hsn_sac_code: string | null
   created_at: string
   updated_at: string
   // joined

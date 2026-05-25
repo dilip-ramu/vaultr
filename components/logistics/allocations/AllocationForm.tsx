@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Loader2, Plus, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { AWB, AWBAllocation, MarkupRule, MarkupType } from '@/lib/logistics/types'
 import type { Customer } from '@/lib/types'
@@ -11,7 +11,7 @@ import { formatCurrency } from '@/lib/utils'
 interface Props {
   awb: AWB
   markupRules: MarkupRule[]
-  customers: Customer[]
+  customers: Customer[]        // kept for parent compat; search now queries DB directly
   existingCustomerIds: string[]
   currency?: string
   onAdded: (alloc: AWBAllocation) => void
@@ -20,7 +20,6 @@ interface Props {
 export default function AllocationForm({
   awb,
   markupRules,
-  customers,
   existingCustomerIds,
   currency = 'INR',
   onAdded,
@@ -36,22 +35,53 @@ export default function AllocationForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const availableCustomers = useMemo(
-    () => customers.filter(c => !existingCustomerIds.includes(c.id)),
-    [customers, existingCustomerIds]
-  )
+  // Live search state
+  const [searchResults, setSearchResults] = useState<Customer[]>([])
+  const [searching, setSearching] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
 
-  const filteredCustomers = useMemo(
-    () => availableCustomers.filter(c =>
-      c.name.toLowerCase().includes(search.toLowerCase())
-    ),
-    [availableCustomers, search]
-  )
+  // Inline create form state
+  const [showInlineForm, setShowInlineForm] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const [newGst, setNewGst] = useState('')
+  const [newAddress, setNewAddress] = useState('')
+  const [creating, setCreating] = useState(false)
 
-  const autoMarkup = useMemo(() => {
-    if (!selectedCustomer) return null
-    return resolveMarkupForCustomer(selectedCustomer.id, markupRules)
-  }, [selectedCustomer, markupRules])
+  // Real-time Supabase search (debounced 220 ms)
+  useEffect(() => {
+    if (!search.trim() || selectedCustomer) {
+      setSearchResults([])
+      setShowCreate(false)
+      return
+    }
+    setSearching(true)
+    const timer = setTimeout(async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('customers')
+        .select('id, user_id, household_id, name, email, phone, address, gst_number, notes, created_at')
+        .ilike('name', `%${search.trim()}%`)
+        .order('name')
+        .limit(10)
+
+      const filtered = (data ?? [])
+        .filter(c => !existingCustomerIds.includes(c.id)) as Customer[]
+      const results = filtered.slice(0, 6)
+      setSearchResults(results)
+      const exactMatch = results.some(
+        c => c.name.toLowerCase() === search.trim().toLowerCase()
+      )
+      setShowCreate(!exactMatch)
+      setSearching(false)
+    }, 220)
+    return () => clearTimeout(timer)
+  }, [search, selectedCustomer, existingCustomerIds])
+
+  const autoMarkup = selectedCustomer
+    ? resolveMarkupForCustomer(selectedCustomer.id, markupRules)
+    : null
 
   const effectiveMarkup = overrideMarkup
     ? {
@@ -64,18 +94,61 @@ export default function AllocationForm({
   const handleSelectCustomer = (c: Customer) => {
     setSelectedCustomer(c)
     setSearch(c.name)
+    setSearchResults([])
+    setShowCreate(false)
     setOverrideMarkup(false)
+    setShowInlineForm(false)
+  }
+
+  const resetInlineForm = () => {
+    setNewName('')
+    setNewEmail('')
+    setNewPhone('')
+    setNewGst('')
+    setNewAddress('')
   }
 
   const resetForm = () => {
     setSelectedCustomer(null)
     setSearch('')
+    setSearchResults([])
+    setShowCreate(false)
     setPieces('1')
     setOverrideMarkup(false)
     setMarkupType('percentage')
     setMarkupValue('0')
     setMinimumAmount('')
     setError('')
+    setShowInlineForm(false)
+    resetInlineForm()
+  }
+
+  const handleCreateCustomer = async () => {
+    if (!newName.trim()) return
+    setCreating(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setCreating(false); return }
+
+    const { data, error: dbErr } = await supabase
+      .from('customers')
+      .insert({
+        user_id: user.id,
+        name: newName.trim(),
+        email: newEmail.trim() || null,
+        phone: newPhone.trim() || null,
+        gst_number: newGst.trim() || null,
+        address: newAddress.trim() || null,
+      })
+      .select('id, user_id, household_id, name, email, phone, address, gst_number, notes, created_at')
+      .single()
+
+    if (!dbErr && data) {
+      handleSelectCustomer(data as Customer)
+    } else if (dbErr) {
+      setError(dbErr.message)
+    }
+    setCreating(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -148,40 +221,138 @@ export default function AllocationForm({
         <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
           Customer / Supplier
         </label>
-        <input
-          type="text"
-          value={search}
-          onChange={e => { setSearch(e.target.value); setSelectedCustomer(null) }}
-          placeholder="Search customers…"
-          autoComplete="off"
-          className="w-full px-3 py-2.5 rounded-xl text-sm border"
-          style={inputStyle}
-        />
-        {search && !selectedCustomer && (
+        <div className="relative">
+          <input
+            type="text"
+            value={search}
+            onChange={e => {
+              setSearch(e.target.value)
+              setSelectedCustomer(null)
+              setShowInlineForm(false)
+            }}
+            placeholder="Search customers…"
+            autoComplete="off"
+            className="w-full px-3 py-2.5 rounded-xl text-sm border"
+            style={inputStyle}
+          />
+          {searching && (
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--text-faint)' }} />
+            </div>
+          )}
+        </div>
+
+        {/* Dropdown results */}
+        {search && !selectedCustomer && (searchResults.length > 0 || showCreate) && !showInlineForm && (
           <div
             className="absolute z-10 mt-1 w-full rounded-xl border overflow-hidden shadow-lg"
             style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
           >
-            {filteredCustomers.length > 0 ? (
-              filteredCustomers.slice(0, 6).map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => handleSelectCustomer(c)}
-                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-[var(--surface-2)] transition-colors"
-                  style={{ color: 'var(--text)' }}
-                >
-                  {c.name}
-                </button>
-              ))
-            ) : (
-              <p className="px-3 py-2.5 text-sm" style={{ color: 'var(--text-faint)' }}>
-                {availableCustomers.length === 0 ? 'All customers already allocated' : 'No customers found'}
-              </p>
+            {searchResults.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => handleSelectCustomer(c)}
+                className="w-full text-left px-3 py-2.5 hover:bg-[var(--surface-2)] transition-colors border-b"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{c.name}</p>
+                {c.gst_number && (
+                  <p className="text-xs mt-0.5 font-mono" style={{ color: 'var(--text-faint)' }}>
+                    GST: {c.gst_number}
+                  </p>
+                )}
+              </button>
+            ))}
+            {showCreate && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNewName(search.trim())
+                  setShowInlineForm(true)
+                  setSearchResults([])
+                  setShowCreate(false)
+                }}
+                className="w-full text-left px-3 py-2.5 flex items-center gap-2 hover:bg-[var(--surface-2)] transition-colors"
+                style={{ color: 'var(--brand)' }}
+              >
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span className="text-sm font-medium">Create &ldquo;{search.trim()}&rdquo; as new supplier</span>
+              </button>
             )}
           </div>
         )}
       </div>
+
+      {/* Inline create form */}
+      {showInlineForm && (
+        <div
+          className="rounded-xl border p-3 space-y-2.5"
+          style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)' }}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>New Supplier</p>
+            <button
+              type="button"
+              onClick={() => { setShowInlineForm(false); resetInlineForm() }}
+            >
+              <X className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />
+            </button>
+          </div>
+          <input
+            type="text"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="Name *"
+            className="w-full px-2.5 py-2 rounded-lg text-sm border"
+            style={inputStyle}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="email"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              placeholder="Email"
+              className="px-2.5 py-2 rounded-lg text-sm border"
+              style={inputStyle}
+            />
+            <input
+              type="tel"
+              value={newPhone}
+              onChange={e => setNewPhone(e.target.value)}
+              placeholder="Phone"
+              className="px-2.5 py-2 rounded-lg text-sm border"
+              style={inputStyle}
+            />
+          </div>
+          <input
+            type="text"
+            value={newGst}
+            onChange={e => setNewGst(e.target.value)}
+            placeholder="GST Number"
+            className="w-full px-2.5 py-2 rounded-lg text-sm border font-mono"
+            style={inputStyle}
+          />
+          <input
+            type="text"
+            value={newAddress}
+            onChange={e => setNewAddress(e.target.value)}
+            placeholder="Address"
+            className="w-full px-2.5 py-2 rounded-lg text-sm border"
+            style={inputStyle}
+          />
+          <button
+            type="button"
+            disabled={!newName.trim() || creating}
+            onClick={handleCreateCustomer}
+            className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60 flex items-center justify-center gap-2"
+            style={{ backgroundColor: 'var(--brand)' }}
+          >
+            {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {creating ? 'Creating…' : 'Create & Select'}
+          </button>
+        </div>
+      )}
 
       {/* Pieces */}
       <div>

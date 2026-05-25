@@ -15,6 +15,16 @@ interface GenerateParams {
   notes?: string
   accountId?: string
   paymentTerms?: string
+  // GST fields (optional — omit for non-GST invoices)
+  isIGST?: boolean
+  igstRate?: number
+  cgstRate?: number
+  sgstRate?: number
+  placeOfSupply?: string
+  hsnSacCode?: string
+  reverseCharge?: boolean
+  gstinSupplier?: string
+  gstinCustomer?: string
 }
 
 export async function generateSupplierInvoice(
@@ -23,7 +33,11 @@ export async function generateSupplierInvoice(
   const {
     supabase, userId, customerId, allocationIds,
     invoiceDate, dueDate, taxRate = 0, notes, accountId, paymentTerms,
+    isIGST, igstRate = 0, cgstRate = 0, sgstRate = 0,
+    placeOfSupply, hsnSacCode, reverseCharge = false, gstinSupplier, gstinCustomer,
   } = params
+
+  const gstMode = isIGST !== undefined
 
   if (allocationIds.length === 0) throw new Error('At least one allocation is required')
 
@@ -99,7 +113,26 @@ export async function generateSupplierInvoice(
   }
 
   subtotal = round2(subtotal)
-  const taxAmount = round2(subtotal * (taxRate / 100))
+
+  let taxAmount: number
+  let cgstAmount = 0, sgstAmount = 0, igstAmount = 0
+  let effectiveTaxRate = taxRate
+
+  if (gstMode) {
+    if (isIGST) {
+      igstAmount = round2(subtotal * igstRate / 100)
+      taxAmount = igstAmount
+      effectiveTaxRate = igstRate
+    } else {
+      cgstAmount = round2(subtotal * cgstRate / 100)
+      sgstAmount = round2(subtotal * sgstRate / 100)
+      taxAmount = round2(cgstAmount + sgstAmount)
+      effectiveTaxRate = cgstRate + sgstRate
+    }
+  } else {
+    taxAmount = round2(subtotal * (taxRate / 100))
+  }
+
   const totalAmount = round2(subtotal + taxAmount)
 
   // INSERT supplier invoice
@@ -113,7 +146,7 @@ export async function generateSupplierInvoice(
       due_date: dueDate ?? null,
       payment_terms: paymentTerms ?? null,
       subtotal,
-      tax_rate: taxRate,
+      tax_rate: effectiveTaxRate,
       tax_amount: taxAmount,
       total_amount: totalAmount,
       paid_amount: 0,
@@ -121,6 +154,18 @@ export async function generateSupplierInvoice(
       status: 'draft',
       account_id: accountId ?? null,
       notes: notes ?? null,
+      is_igst: gstMode ? (isIGST ?? false) : false,
+      cgst_rate: cgstRate,
+      sgst_rate: sgstRate,
+      igst_rate: igstRate,
+      cgst_amount: cgstAmount,
+      sgst_amount: sgstAmount,
+      igst_amount: igstAmount,
+      reverse_charge: reverseCharge,
+      hsn_sac_code: hsnSacCode ?? null,
+      place_of_supply: placeOfSupply ?? null,
+      gstin_supplier: gstinSupplier ?? null,
+      gstin_customer: gstinCustomer ?? null,
     })
     .select('*')
     .single()
