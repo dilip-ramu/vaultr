@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Check } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { X, Check, Camera } from 'lucide-react'
 import type { Category, CategoryType } from '@/lib/types'
 import { CATEGORY_ICONS, ACCOUNT_COLORS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { Avatar } from '../AppShell'
 
 interface Props {
   category: Category | null
@@ -24,13 +25,34 @@ const ICON_EMOJI_MAP: Record<string, string> = {
 
 export default function CategoryForm({ category, defaultType, onSaved, onClose }: Props) {
   const isEdit = !!category
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const [name, setName] = useState(category?.name ?? '')
   const [type, setType] = useState<CategoryType>(category?.type ?? defaultType)
   const [icon, setIcon] = useState(category?.icon ?? 'more-horizontal')
   const [color, setColor] = useState(category?.color ?? ACCOUNT_COLORS[0])
+  const [avatarUrl, setAvatarUrl] = useState(category?.avatar_url ?? '')
+  const [avatarUploading, setAvatarUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const initials = name.slice(0, 2).toUpperCase() || (ICON_EMOJI_MAP[icon] ?? '?')
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { setError('Image must be under 2MB'); return }
+    setAvatarUploading(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const ext = file.name.split('.').pop()
+    const path = `${user!.id}/categories/${Date.now()}.${ext}`
+    const { error: uploadErr } = await supabase.storage.from('vaultr-avatars').upload(path, file, { upsert: true })
+    if (uploadErr) { setError(uploadErr.message); setAvatarUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(path)
+    setAvatarUrl(`${publicUrl}?t=${Date.now()}`)
+    setAvatarUploading(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,7 +63,7 @@ export default function CategoryForm({ category, defaultType, onSaved, onClose }
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    const payload = { name: name.trim(), type, icon, color }
+    const payload = { name: name.trim(), type, icon, color, avatar_url: avatarUrl || null }
     let data, err
 
     if (isEdit) {
@@ -72,6 +94,36 @@ export default function CategoryForm({ category, defaultType, onSaved, onClose }
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
 
+          {/* Avatar + Name row */}
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Avatar url={avatarUrl || null} initials={initials} size="lg" />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center shadow-md"
+              >
+                {avatarUploading
+                  ? <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                  : <Camera className="w-3 h-3 text-white" />}
+              </button>
+              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+            </div>
+
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Category Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="e.g. Groceries"
+                required
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+            </div>
+          </div>
+
           {/* Type */}
           <div className="flex bg-gray-100 rounded-xl p-1">
             <button
@@ -88,19 +140,6 @@ export default function CategoryForm({ category, defaultType, onSaved, onClose }
             >
               Income
             </button>
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Category Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. Groceries"
-              required
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-            />
           </div>
 
           {/* Icon picker */}

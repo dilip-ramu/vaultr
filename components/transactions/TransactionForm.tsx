@@ -192,7 +192,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
       notes: notes.trim() || null,
     }
 
-    const selectQuery = `*, account:accounts!account_id(id,name,color,type,avatar_url), to_account:accounts!to_account_id(id,name,color,avatar_url), category:categories(id,name,icon,color,type), payee:payees(id,name,type)`
+    const selectQuery = `*, account:accounts!account_id(id,name,color,type,avatar_url,custom_type_id,custom_type_name,custom_type_color), to_account:accounts!to_account_id(id,name,color,avatar_url), category:categories(id,name,icon,color,type,avatar_url), payee:payees(id,name,type), attachments(*)`
 
     let data, err
     if (isEdit) {
@@ -526,7 +526,8 @@ function AccountChip({ account, selected, onSelect }: {
   onSelect: (id: string) => void
 }) {
   const config = ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other
-  const accentColor = account.color || config.color
+  const accentColor = account.custom_type_color ?? account.color ?? config.color
+  const bgColor = account.custom_type_color ? `${account.custom_type_color}18` : config.bgColor
 
   return (
     <button
@@ -539,18 +540,16 @@ function AccountChip({ account, selected, onSelect }: {
       }`}
       style={selected ? { borderColor: accentColor } : {}}
     >
-      {/* Avatar or emoji */}
       {account.avatar_url ? (
         <Avatar url={account.avatar_url} initials={account.name.slice(0, 2).toUpperCase()} size="sm" />
       ) : (
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0"
-          style={{ backgroundColor: config.bgColor }}
+          style={{ backgroundColor: bgColor }}
         >
           {getAccountEmoji(account.type)}
         </div>
       )}
-      {/* Color dot + name */}
       <div className="flex items-center gap-1.5">
         <span
           className="w-2 h-2 rounded-full shrink-0"

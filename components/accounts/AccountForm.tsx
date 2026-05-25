@@ -2,17 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { X, Check, Camera, ChevronDown, ChevronUp } from 'lucide-react'
-import type { Account, AccountType } from '@/lib/types'
+import type { Account, AccountType, CustomAccountType } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
-
-interface CustomAccountType {
-  id: string
-  name: string
-  color: string
-  icon: string
-}
 
 interface AccountFormProps {
   account: Account | null
@@ -27,7 +20,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
 
   const [name, setName] = useState(account?.name ?? '')
   const [type, setType] = useState<AccountType>(account?.type ?? 'checking')
-  const [customTypeId, setCustomTypeId] = useState<string>('')
+  const [customTypeId, setCustomTypeId] = useState<string>(account?.custom_type_id ?? '')
   const [balance, setBalance] = useState(account?.initial_balance?.toString() ?? '0')
   const [color, setColor] = useState(account?.color ?? ACCOUNT_COLORS[0])
   const [currency, setCurrency] = useState(account?.currency ?? 'INR')
@@ -83,6 +76,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
     const payload = {
       name: name.trim(),
       type,
+      custom_type_id: customTypeId || null,
       initial_balance: parseFloat(balance) || 0,
       color,
       currency,
@@ -112,7 +106,6 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
     onSaved(accountWithBalance ?? data)
   }
 
-  // Initials for avatar preview
   const initials = name.slice(0, 2).toUpperCase() || '??'
 
   return (
@@ -168,11 +161,11 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setType(t)}
+                  onClick={() => { setType(t); setCustomTypeId('') }}
                   className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center ${
-                    type === t ? 'text-white shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    type === t && !customTypeId ? 'text-white shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }`}
-                  style={type === t ? { backgroundColor: config.color } : {}}
+                  style={type === t && !customTypeId ? { backgroundColor: config.color } : {}}
                 >
                   {config.label}
                 </button>

@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Pencil, Copy, Check, Calendar, Hash, Building, Globe, MapPin, CreditCard } from 'lucide-react'
-import type { Account, Transaction, Category } from '@/lib/types'
-import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
+import { ArrowLeft, Pencil, Copy, Check, Calendar, CreditCard } from 'lucide-react'
+import type { Account, Transaction, BuiltinTypeOverride } from '@/lib/types'
+import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
 import { formatCurrency, formatDate, getRelativeDate } from '@/lib/utils'
 import { Avatar } from '../AppShell'
 import AccountForm from './AccountForm'
@@ -15,6 +15,7 @@ import Link from 'next/link'
 interface Props {
   account: Account
   recentTransactions: Transaction[]
+  builtinOverrides?: BuiltinTypeOverride[]
 }
 
 const DELETED_KEY = 'vaultr-deleted-tx-ids'
@@ -28,24 +29,27 @@ function addDeletedId(id: string) {
   } catch {}
 }
 
-export default function AccountDetailClient({ account: initialAccount, recentTransactions }: Props) {
+export default function AccountDetailClient({ account: initialAccount, recentTransactions, builtinOverrides = [] }: Props) {
   const router = useRouter()
   const [account, setAccount] = useState(initialAccount)
   const [showEdit, setShowEdit] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
-  // Filter out any transactions already deleted this session (e.g. deleted on /transactions page)
   const [transactions, setTransactions] = useState(() => {
     const deleted = getDeletedIds()
     return deleted.length ? recentTransactions.filter(t => !deleted.includes(t.id)) : recentTransactions
   })
 
-  // Re-sync when server delivers fresh data after router.refresh()
   useEffect(() => {
     const deleted = getDeletedIds()
     setTransactions(deleted.length ? recentTransactions.filter(t => !deleted.includes(t.id)) : recentTransactions)
   }, [recentTransactions])
 
-  const config = ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other
+  const builtinConfig = ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other
+  const typeDisplay = account.custom_type_name
+    ? { label: account.custom_type_name, color: account.custom_type_color ?? '#6B7280', bgColor: `${account.custom_type_color ?? '#6B7280'}18`, icon: account.custom_type_icon ?? 'more-horizontal' }
+    : resolveAccountTypeDisplay(account.type, builtinOverrides)
+  const typeAvatarUrl = account.custom_type_avatar_url ?? null
+
   const balance = account.balance ?? account.initial_balance
 
   const copyToClipboard = (value: string, field: string) => {
@@ -61,9 +65,8 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
   }
 
   const handleDeleteTx = async (id: string) => {
-    addDeletedId(id)                                          // sync with /transactions page
-    setTransactions(prev => prev.filter(t => t.id !== id))  // instant UI update
-    // Re-fetch live balance from the view so it updates immediately
+    addDeletedId(id)
+    setTransactions(prev => prev.filter(t => t.id !== id))
     const supabase = createClient()
     const { data } = await supabase
       .from('account_balances')
@@ -110,21 +113,23 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
       {/* Hero card */}
       <div
         className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
-        style={{ borderTopWidth: '4px', borderTopColor: account.color || config.color }}
+        style={{ borderTopWidth: '4px', borderTopColor: account.color || typeDisplay.color }}
       >
         <div className="p-5">
           <div className="flex items-center gap-4 mb-4">
             {account.avatar_url ? (
               <Avatar url={account.avatar_url} initials={account.name.slice(0, 2).toUpperCase()} size="lg" />
+            ) : typeAvatarUrl ? (
+              <img src={typeAvatarUrl} alt={typeDisplay.label} className="w-14 h-14 rounded-2xl object-cover shrink-0" />
             ) : (
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-                style={{ backgroundColor: config.bgColor }}>
-                {getAccountEmoji(account.type)}
+                style={{ backgroundColor: typeDisplay.bgColor }}>
+                {EMOJI_MAP[typeDisplay.icon] ?? getAccountEmoji(account.type)}
               </div>
             )}
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-bold text-gray-900 truncate">{account.name}</h1>
-              <p className="text-sm text-gray-400">{config.label} · {account.currency}</p>
+              <p className="text-sm text-gray-400">{typeDisplay.label} · {account.currency}</p>
               {!account.include_in_net_worth && (
                 <p className="text-xs text-amber-500 mt-0.5">Excluded from net worth</p>
               )}

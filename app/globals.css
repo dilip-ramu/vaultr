@@ -31,9 +31,9 @@ html, body {
   overscroll-behavior: none;
 }
 
-/* Mobile safe areas */
+/* Mobile safe areas — ensure at least 16px above the home indicator */
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
 }
 
 /* Prevent iOS bounce scroll on the root */

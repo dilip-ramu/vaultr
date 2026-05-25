@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Search, Filter, ArrowLeftRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, TrendingUp, TrendingDown } from 'lucide-react'
 import type { Transaction, Account, Category } from '@/lib/types'
 import { formatCurrency, getRelativeDate } from '@/lib/utils'
-import TransactionForm from './TransactionForm'
 import TransactionItem from './TransactionItem'
+
+const TransactionForm = dynamic(() => import('./TransactionForm'), { ssr: false })
 
 interface Props {
   initialTransactions: Transaction[]
@@ -32,7 +34,6 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Initialise filtering out anything already deleted this session
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const deleted = getDeletedIds()
     return deleted.length ? initialTransactions.filter(t => !deleted.includes(t.id)) : initialTransactions
@@ -41,11 +42,8 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   const [editTx, setEditTx] = useState<Transaction | null>(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
-  // Pre-filter by account if navigated from account detail page (?account=<id>)
   const [accountFilter, setAccountFilter] = useState(() => searchParams.get('account') ?? 'all')
 
-  // When server delivers fresh data (after router.refresh or back-navigation),
-  // re-apply the sessionStorage deleted filter so stale cache never wins.
   useEffect(() => {
     const deleted = getDeletedIds()
     setTransactions(
@@ -68,7 +66,6 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     })
   }, [transactions, filter, accountFilter, search])
 
-  // Group by date
   const grouped = useMemo(() => {
     const groups: Record<string, Transaction[]> = {}
     filtered.forEach(tx => {
@@ -79,10 +76,12 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a))
   }, [filtered])
 
-  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalExpense = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const { totalIncome, totalExpense } = useMemo(() => ({
+    totalIncome: filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+    totalExpense: filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+  }), [filtered])
 
-  const handleSaved = (tx: Transaction) => {
+  const handleSaved = useCallback((tx: Transaction) => {
     setTransactions(prev => {
       const exists = prev.find(t => t.id === tx.id)
       if (exists) return prev.map(t => t.id === tx.id ? tx : t)
@@ -90,18 +89,18 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     })
     setShowForm(false)
     setEditTx(null)
-  }
+  }, [])
 
-  const handleDelete = (id: string) => {
-    addDeletedId(id)                                       // persists across navigation
-    setTransactions(prev => prev.filter(t => t.id !== id)) // instant UI update
-    router.refresh()                                       // ask server to revalidate
-  }
+  const handleDelete = useCallback((id: string) => {
+    addDeletedId(id)
+    setTransactions(prev => prev.filter(t => t.id !== id))
+    router.refresh()
+  }, [router])
 
-  const handleEdit = (tx: Transaction) => {
+  const handleEdit = useCallback((tx: Transaction) => {
     setEditTx(tx)
     setShowForm(true)
-  }
+  }, [])
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -226,7 +225,6 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         </div>
       )}
 
-      {/* Form Modal */}
       {showForm && (
         <TransactionForm
           transaction={editTx}

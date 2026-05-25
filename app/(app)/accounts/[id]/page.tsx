@@ -13,18 +13,24 @@ export default async function AccountDetailPage({ params }: Props) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: account } = await supabase
-    .from('account_balances')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', user!.id)
-    .single()
+  const [{ data: account }, { data: overrides }] = await Promise.all([
+    supabase
+      .from('account_balances')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', user!.id)
+      .single(),
+    supabase
+      .from('builtin_account_type_overrides')
+      .select('*')
+      .eq('user_id', user!.id),
+  ])
 
   if (!account) notFound()
 
   const { data: recentTransactions } = await supabase
     .from('transactions')
-    .select(`*, account:accounts!account_id(id,name,color,type), category:categories(id,name,icon,color), payee:payees(id,name,type)`)
+    .select(`*, account:accounts!account_id(id,name,color,type), category:categories(id,name,icon,color,avatar_url), payee:payees(id,name,type), attachments(*)`)
     .eq('account_id', id)
     .eq('user_id', user!.id)
     .order('date', { ascending: false })
@@ -35,6 +41,7 @@ export default async function AccountDetailPage({ params }: Props) {
     <AccountDetailClient
       account={account}
       recentTransactions={recentTransactions ?? []}
+      builtinOverrides={overrides ?? []}
     />
   )
 }

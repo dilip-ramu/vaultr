@@ -1,14 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { Plus, Wallet, TrendingUp, TrendingDown } from 'lucide-react'
-import type { Account } from '@/lib/types'
-import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
+import type { Account, BuiltinTypeOverride } from '@/lib/types'
+import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import AccountCard from './AccountCard'
-import AccountForm from './AccountForm'
 
-export default function AccountsClient({ initialAccounts }: { initialAccounts: Account[] }) {
+const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
+
+interface Props {
+  initialAccounts: Account[]
+  builtinOverrides?: BuiltinTypeOverride[]
+}
+
+export default function AccountsClient({ initialAccounts, builtinOverrides = [] }: Props) {
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts)
   const [showForm, setShowForm] = useState(false)
   const [editAccount, setEditAccount] = useState<Account | null>(null)
@@ -23,7 +30,7 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: A
 
   const netWorth = totalAssets - totalLiabilities
 
-  const handleSaved = (account: Account) => {
+  const handleSaved = useCallback((account: Account) => {
     setAccounts(prev => {
       const exists = prev.find(a => a.id === account.id)
       if (exists) return prev.map(a => a.id === account.id ? account : a)
@@ -31,16 +38,44 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: A
     })
     setShowForm(false)
     setEditAccount(null)
-  }
+  }, [])
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     setAccounts(prev => prev.filter(a => a.id !== id))
-  }
+  }, [])
 
-  const handleEdit = (account: Account) => {
+  const handleEdit = useCallback((account: Account) => {
     setEditAccount(account)
     setShowForm(true)
-  }
+  }, [])
+
+  // Group accounts: built-in types first, then custom types
+  const accountGroups = useMemo(() => {
+    const groups: { key: string; label: string; color: string; accounts: Account[] }[] = []
+
+    // Built-in types (exclude accounts with custom_type_id from 'other' built-in group)
+    for (const [type] of Object.entries(ACCOUNT_TYPE_CONFIG)) {
+      const typeAccounts = accounts.filter(a => a.type === type && !a.custom_type_id)
+      if (typeAccounts.length === 0) continue
+      const display = resolveAccountTypeDisplay(type as keyof typeof ACCOUNT_TYPE_CONFIG, builtinOverrides)
+      groups.push({ key: type, label: display.label, color: display.color, accounts: typeAccounts })
+    }
+
+    // Custom types
+    const customTypeMap = new Map<string, { name: string; color: string; accounts: Account[] }>()
+    for (const a of accounts.filter(a => a.custom_type_id)) {
+      const key = a.custom_type_id!
+      if (!customTypeMap.has(key)) {
+        customTypeMap.set(key, { name: a.custom_type_name ?? 'Custom', color: a.custom_type_color ?? '#6B7280', accounts: [] })
+      }
+      customTypeMap.get(key)!.accounts.push(a)
+    }
+    customTypeMap.forEach((v, k) => {
+      groups.push({ key: k, label: v.name, color: v.color, accounts: v.accounts })
+    })
+
+    return groups
+  }, [accounts, builtinOverrides])
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6">
@@ -102,31 +137,26 @@ export default function AccountsClient({ initialAccounts }: { initialAccounts: A
         </div>
       ) : (
         <div className="space-y-3">
-          {Object.entries(ACCOUNT_TYPE_CONFIG).map(([type, config]) => {
-            const typeAccounts = accounts.filter(a => a.type === type)
-            if (typeAccounts.length === 0) return null
-            return (
-              <div key={type}>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-2">
-                  {config.label}
-                </p>
-                <div className="space-y-2">
-                  {typeAccounts.map(account => (
-                    <AccountCard
-                      key={account.id}
-                      account={account}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </div>
+          {accountGroups.map(group => (
+            <div key={group.key}>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-2">
+                {group.label}
+              </p>
+              <div className="space-y-2">
+                {group.accounts.map(account => (
+                  <AccountCard
+                    key={account.id}
+                    account={account}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Account Form Modal */}
       {showForm && (
         <AccountForm
           account={editAccount}

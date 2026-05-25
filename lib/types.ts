@@ -40,6 +40,11 @@ export interface Account {
   color: string
   icon: string
   avatar_url: string | null
+  custom_type_id?: string | null
+  custom_type_name?: string | null
+  custom_type_color?: string | null
+  custom_type_icon?: string | null
+  custom_type_avatar_url?: string | null
   // Extended details
   account_number: string | null
   branch: string | null
@@ -63,7 +68,30 @@ export interface Category {
   type: CategoryType
   icon: string
   color: string
+  avatar_url?: string | null
   parent_id: string | null
+  created_at: string
+}
+
+export interface CustomAccountType {
+  id: string
+  user_id: string
+  household_id: string | null
+  name: string
+  color: string
+  icon: string
+  avatar_url: string | null
+  created_at: string
+}
+
+export interface BuiltinTypeOverride {
+  id: string
+  user_id: string
+  type_key: AccountType
+  name: string
+  color: string
+  icon: string
+  avatar_url: string | null
   created_at: string
 }
 
@@ -183,6 +211,17 @@ export const ACCOUNT_TYPE_CONFIG: Record<AccountType, { label: string; color: st
   investment: { label: 'Investment',   color: '#3B82F6', bgColor: '#EFF6FF', icon: 'trending-up' },
   loan:       { label: 'Loan',         color: '#EF4444', bgColor: '#FEF2F2', icon: 'landmark' },
   other:      { label: 'Other',        color: '#6B7280', bgColor: '#F9FAFB', icon: 'more-horizontal' },
+}
+
+export function resolveAccountTypeDisplay(
+  type: AccountType,
+  overrides?: BuiltinTypeOverride[]
+): { label: string; color: string; bgColor: string; icon: string } {
+  const override = overrides?.find(o => o.type_key === type)
+  if (override) {
+    return { label: override.name, color: override.color, bgColor: `${override.color}18`, icon: override.icon }
+  }
+  return ACCOUNT_TYPE_CONFIG[type]
 }
 
 export const PAYMENT_TERMS_LABELS: Record<PaymentTerms, string> = {

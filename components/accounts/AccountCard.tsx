@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal, Pencil, Trash2, ExternalLink, Info, AlertTriangle } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, ExternalLink, Info } from 'lucide-react'
 import Link from 'next/link'
 import type { Account } from '@/lib/types'
-import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
+import { ACCOUNT_TYPE_CONFIG, EMOJI_MAP } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
@@ -19,13 +19,19 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
   const [showMenu, setShowMenu] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [txCount, setTxCount] = useState<number | null>(account.transaction_count ?? null)
-  const config = ACCOUNT_TYPE_CONFIG[account.type]
+
+  const builtinConfig = ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other
+  const typeLabel = account.custom_type_name ?? builtinConfig.label
+  const typeColor = account.custom_type_color ?? (account.color || builtinConfig.color)
+  const typeBgColor = account.custom_type_color ? `${account.custom_type_color}18` : builtinConfig.bgColor
+  const typeIcon = account.custom_type_icon ?? builtinConfig.icon
+  const typeAvatarUrl = account.custom_type_avatar_url ?? null
+
   const balance = account.balance ?? account.initial_balance
 
   const handleDelete = async () => {
     setShowMenu(false)
 
-    // Fetch transaction count if we don't have it
     let count = txCount
     if (count === null) {
       const supabase = createClient()
@@ -35,14 +41,12 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
     }
 
     if (count! > 0) {
-      // Clear sessionStorage filter so any "ghost" transactions become visible again
       try { sessionStorage.removeItem('vaultr-deleted-tx-ids') } catch {}
-      setTxCount(null) // force re-fetch next time
+      setTxCount(null)
       alert(
         `Cannot delete "${account.name}" — it has ${count} linked transaction${count! > 1 ? 's' : ''}.\n\n` +
         `Please go to this account's transactions and delete them first, then try again.`
       )
-      // Navigate to transactions filtered to this account so they can delete them
       window.location.href = `/transactions?account=${account.id}`
       return
     }
@@ -64,24 +68,26 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
     <Link
       href={`/accounts/${account.id}`}
       className={`bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 transition-all hover:shadow-md active:scale-[0.99] ${deleting ? 'opacity-50' : ''}`}
-      style={{ borderLeftWidth: '3px', borderLeftColor: account.color || config.color }}
+      style={{ borderLeftWidth: '3px', borderLeftColor: account.color || typeColor }}
     >
       {/* Avatar or icon */}
       {account.avatar_url ? (
         <Avatar url={account.avatar_url} initials={account.name.slice(0, 2).toUpperCase()} size="md" />
+      ) : typeAvatarUrl ? (
+        <img src={typeAvatarUrl} alt={typeLabel} className="w-10 h-10 rounded-xl object-cover shrink-0" />
       ) : (
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-          style={{ backgroundColor: config.bgColor }}
+          style={{ backgroundColor: typeBgColor }}
         >
-          {getAccountEmoji(account.type)}
+          {EMOJI_MAP[typeIcon] ?? getAccountEmoji(account.type)}
         </div>
       )}
 
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-gray-900 text-sm truncate">{account.name}</p>
-        <p className="text-xs text-gray-400">{config.label}</p>
+        <p className="text-xs text-gray-400">{typeLabel}</p>
         {txCount !== null && txCount > 0 && (
           <p className="text-[10px] text-gray-300">{txCount} transaction{txCount > 1 ? 's' : ''}</p>
         )}
@@ -97,7 +103,7 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
         )}
       </div>
 
-      {/* Menu — stop all clicks from bubbling up to the Link */}
+      {/* Menu */}
       <div className="relative shrink-0" onClick={e => e.preventDefault()}>
         <button
           onClick={e => { e.preventDefault(); setShowMenu(!showMenu) }}

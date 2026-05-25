@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Plus, Tag, Pencil, Trash2 } from 'lucide-react'
 import type { Category, CategoryType } from '@/lib/types'
-import { CATEGORY_ICONS } from '@/lib/types'
+import { EMOJI_MAP } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import CategoryForm from './CategoryForm'
 
@@ -30,11 +30,6 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
     const supabase = createClient()
     await supabase.from('categories').delete().eq('id', id)
     setCategories(prev => prev.filter(c => c.id !== id))
-  }
-
-  const getIconEmoji = (icon: string) => {
-    const found = CATEGORY_ICONS.find(i => i.value === icon)
-    return found?.label ?? icon
   }
 
   return (
@@ -92,13 +87,21 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
               key={cat.id}
               className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm group relative"
             >
-              {/* Icon + Name */}
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3"
-                style={{ backgroundColor: `${cat.color}18` }}
-              >
-                {getCategoryEmoji(cat.icon)}
-              </div>
+              {/* Icon / Avatar */}
+              {cat.avatar_url ? (
+                <img
+                  src={cat.avatar_url}
+                  alt={cat.name}
+                  className="w-10 h-10 rounded-xl object-cover mb-3"
+                />
+              ) : (
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3"
+                  style={{ backgroundColor: `${cat.color}18` }}
+                >
+                  {EMOJI_MAP[cat.icon] ?? '💰'}
+                </div>
+              )}
               <p className="text-sm font-semibold text-gray-900 truncate">{cat.name}</p>
               <div
                 className="w-2 h-2 rounded-full mt-1.5"
@@ -135,16 +138,4 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
       )}
     </div>
   )
-}
-
-function getCategoryEmoji(icon: string): string {
-  const map: Record<string, string> = {
-    'utensils': '🍽️', 'car': '🚗', 'shopping-bag': '🛍️', 'film': '🎬',
-    'zap': '⚡', 'heart-pulse': '❤️', 'graduation-cap': '🎓', 'home': '🏠',
-    'plane': '✈️', 'shirt': '👕', 'gift': '🎁', 'briefcase': '💼',
-    'dumbbell': '🏋️', 'smartphone': '📱', 'book': '📚', 'coffee': '☕',
-    'music': '🎵', 'wifi': '📶', 'building': '🏢', 'trending-up': '📈',
-    'dollar-sign': '💵', 'percent': '💹', 'laptop': '💻', 'more-horizontal': '•••',
-  }
-  return map[icon] ?? '💰'
 }

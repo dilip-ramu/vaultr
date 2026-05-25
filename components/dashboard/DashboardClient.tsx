@@ -1,30 +1,32 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   TrendingUp, TrendingDown, ChevronRight, Wallet,
-  ArrowLeftRight, CreditCard, Landmark, ArrowRight
+  ArrowLeftRight, ArrowRight
 } from 'lucide-react'
-import type { Account, Transaction, Profile } from '@/lib/types'
-import { ACCOUNT_TYPE_CONFIG, EMOJI_MAP } from '@/lib/types'
+import type { Account, Transaction, Profile, BuiltinTypeOverride } from '@/lib/types'
+import { resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
 import { formatCurrency, getRelativeDate, getMonthYear } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
-import TransactionForm from '../transactions/TransactionForm'
+
+const TransactionForm = dynamic(() => import('../transactions/TransactionForm'), { ssr: false })
 
 interface Props {
   accounts: Account[]
   recentTransactions: Transaction[]
   monthlyTransactions: { type: string; amount: number; date: string }[]
   profile: Profile | null
+  builtinOverrides?: BuiltinTypeOverride[]
 }
 
-export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile }: Props) {
+export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [] }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
 
-  // ── Calculations ──────────────────────────────────────────────
   const assetAccounts = accounts.filter(a => !['credit', 'loan'].includes(a.type) && a.include_in_net_worth)
   const liabilityAccounts = accounts.filter(a => ['credit', 'loan'].includes(a.type) && a.include_in_net_worth)
 
@@ -42,6 +44,13 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
   const handleTxSaved = (tx: Transaction) => {
     setTxs(prev => [tx, ...prev.slice(0, 9)])
     setShowAddTx(false)
+  }
+
+  const getAccountTypeDisplay = (account: Account) => {
+    if (account.custom_type_name) {
+      return { label: account.custom_type_name, color: account.custom_type_color ?? '#6B7280', bgColor: `${account.custom_type_color ?? '#6B7280'}18` }
+    }
+    return resolveAccountTypeDisplay(account.type, builtinOverrides)
   }
 
   return (
@@ -62,7 +71,6 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
         <p className="text-indigo-300 text-xs mb-4">
           Assets {formatCurrency(totalAssets)} · Debts {formatCurrency(totalLiabilities)}
         </p>
-        {/* Spend bar */}
         <div className="bg-white/20 rounded-full h-1.5 mb-3">
           <div
             className={`h-1.5 rounded-full transition-all ${spendPct > 90 ? 'bg-red-300' : 'bg-green-300'}`}
@@ -161,16 +169,16 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
         ) : (
           <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
             {accounts.map(account => {
-              const config = ACCOUNT_TYPE_CONFIG[account.type]
+              const d = getAccountTypeDisplay(account)
               const balance = account.balance ?? account.initial_balance
               return (
                 <Link
                   key={account.id}
                   href={`/transactions?account=${account.id}`}
                   className="min-w-40 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm shrink-0 hover:shadow-md transition-shadow"
-                  style={{ borderTopWidth: '3px', borderTopColor: account.color || config.color }}
+                  style={{ borderTopWidth: '3px', borderTopColor: account.color || d.color }}
                 >
-                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1">{config.label}</p>
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1">{d.label}</p>
                   <p className="font-semibold text-xs text-gray-700 mb-2 truncate">{account.name}</p>
                   <p className={`text-lg font-bold ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
                     {formatCurrency(balance)}
@@ -189,15 +197,15 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {liabilityAccounts.map((account, i) => {
               const balance = Math.abs(account.balance ?? 0)
-              const config = ACCOUNT_TYPE_CONFIG[account.type]
+              const d = getAccountTypeDisplay(account)
               return (
                 <div key={account.id} className={`flex items-center gap-3 px-4 py-3.5 ${i < liabilityAccounts.length - 1 ? 'border-b border-gray-50' : ''}`}>
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0" style={{ backgroundColor: config.bgColor }}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0" style={{ backgroundColor: d.bgColor }}>
                     {account.type === 'credit' ? '💳' : '🏛️'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{account.name}</p>
-                    <p className="text-xs text-gray-400">{config.label}</p>
+                    <p className="text-xs text-gray-400">{d.label}</p>
                   </div>
                   <p className="text-sm font-bold text-red-500">{formatCurrency(balance)}</p>
                 </div>

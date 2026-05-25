@@ -1,18 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, Vault, ChevronRight,
-  X, Menu, PanelLeftClose, PanelLeftOpen, Bell, Layers, DollarSign
+  X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
-import TransactionForm from './transactions/TransactionForm'
 import BillNotificationBanner from './bills/BillNotificationBanner'
+
+const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
 
 interface AppShellProps {
   user: User
@@ -45,7 +47,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
-  // Persist sidebar state
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
     if (saved === 'true') setCollapsed(true)
@@ -247,13 +248,13 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Bill notification banner */}
         <BillNotificationBanner />
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+        {/* Page content — extra bottom padding covers the nav bar + safe area on iOS */}
+        <main className="flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
           {children}
         </main>
 
         {/* ── Mobile Bottom Tab Bar ── */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-bottom z-40">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40 safe-bottom">
           <div className="flex items-center h-16">
             {bottomNavItems.slice(0, 2).map(({ href, label, icon: Icon }) => {
               const active = pathname === href

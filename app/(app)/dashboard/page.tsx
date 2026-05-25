@@ -17,6 +17,7 @@ export default async function DashboardPage() {
     { data: recentTx },
     { data: monthlyTx },
     { data: profile },
+    { data: overrides },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -26,7 +27,7 @@ export default async function DashboardPage() {
       .order('created_at'),
     supabase
       .from('transactions')
-      .select(`*, account:accounts!account_id(id,name,color,type), category:categories(id,name,icon,color)`)
+      .select(`*, account:accounts!account_id(id,name,color,type,custom_type_id,custom_type_name,custom_type_color), category:categories(id,name,icon,color,avatar_url)`)
       .eq('user_id', user!.id)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -42,6 +43,10 @@ export default async function DashboardPage() {
       .select('*')
       .eq('id', user!.id)
       .single(),
+    supabase
+      .from('builtin_account_type_overrides')
+      .select('*')
+      .eq('user_id', user!.id),
   ])
 
   return (
@@ -50,6 +55,7 @@ export default async function DashboardPage() {
       recentTransactions={recentTx ?? []}
       monthlyTransactions={monthlyTx ?? []}
       profile={profile}
+      builtinOverrides={overrides ?? []}
     />
   )
 }
