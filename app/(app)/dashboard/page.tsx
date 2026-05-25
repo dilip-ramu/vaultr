@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import DashboardClient from '@/components/dashboard/DashboardClient'
-import type { Budget } from '@/lib/types'
+import type { Budget, Bill } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,7 @@ export default async function DashboardPage() {
     { data: overrides },
     { data: rawBudgets },
     { data: budgetTx },
+    { data: upcomingSubs },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -63,6 +64,14 @@ export default async function DashboardPage() {
       .not('category_id', 'is', null)
       .gte('date', startOfMonth)
       .lte('date', endOfMonth),
+    supabase
+      .from('bills')
+      .select('*, category:categories(id,name,icon,color,avatar_url)')
+      .eq('user_id', user!.id)
+      .eq('is_recurring', true)
+      .eq('status', 'pending')
+      .order('due_date', { ascending: true })
+      .limit(3),
   ])
 
   // Compute spent per category for budget widget
@@ -76,6 +85,16 @@ export default async function DashboardPage() {
     return { ...b, spent, remaining: effective - spent, percentage: effective > 0 ? (spent / effective) * 100 : 0 }
   })
 
+  // Compute monthly sub total for widget
+  const subMonthlyTotal = (upcomingSubs ?? []).reduce((s: number, b: Bill) => {
+    const monthly = b.recurrence_interval === 'weekly'
+      ? b.amount * (52 / 12)
+      : b.recurrence_interval === 'yearly'
+      ? b.amount / 12
+      : b.amount
+    return s + monthly
+  }, 0)
+
   return (
     <DashboardClient
       accounts={accounts ?? []}
@@ -84,6 +103,8 @@ export default async function DashboardPage() {
       profile={profile}
       builtinOverrides={overrides ?? []}
       budgets={budgets}
+      upcomingSubs={(upcomingSubs ?? []) as Bill[]}
+      subMonthlyTotal={subMonthlyTotal}
     />
   )
 }

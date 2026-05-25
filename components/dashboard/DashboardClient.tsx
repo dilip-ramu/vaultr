@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, ChevronRight, Wallet,
   ArrowLeftRight, ArrowRight
 } from 'lucide-react'
-import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget } from '@/lib/types'
+import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill, Category } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
 import { formatCurrency, getRelativeDate, getMonthYear } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
@@ -22,9 +22,11 @@ interface Props {
   profile: Profile | null
   builtinOverrides?: BuiltinTypeOverride[]
   budgets?: Budget[]
+  upcomingSubs?: Bill[]
+  subMonthlyTotal?: number
 }
 
-export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [] }: Props) {
+export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [], upcomingSubs = [], subMonthlyTotal = 0 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
 
@@ -288,6 +290,57 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-2)' }}>
                     <div className="h-1.5 rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
                   </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Subscriptions Widget */}
+      {upcomingSubs.length > 0 && (
+        <div className="fade-in" style={{ animationDelay: '215ms' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Subscriptions</p>
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: 'var(--brand-light)', color: 'var(--brand)' }}
+              >
+                {formatCurrency(subMonthlyTotal)}/mo
+              </span>
+            </div>
+            <Link href="/subscriptions" className="text-xs font-medium flex items-center gap-0.5" style={{ color: 'var(--brand)' }}>
+              Manage <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div
+            className="rounded-2xl overflow-hidden shadow-sm"
+            style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            {upcomingSubs.map((b, i, arr) => {
+              const cat = b.category as Category | undefined
+              const emoji = EMOJI_MAP[cat?.icon ?? ''] ?? '🔄'
+              const daysUntil = Math.ceil(
+                (new Date(b.due_date).getTime() - new Date().setHours(0,0,0,0)) / 86400000
+              )
+              const dueColor = daysUntil <= 0 ? 'var(--expense)' : daysUntil <= 3 ? '#F59E0B' : 'var(--text-faint)'
+              return (
+                <div
+                  key={b.id}
+                  className="flex items-center gap-3 px-4 py-3"
+                  style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border-2)' : 'none' }}
+                >
+                  <span className="text-base">{emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{b.name}</p>
+                    <p className="text-xs" style={{ color: dueColor }}>
+                      {daysUntil <= 0 ? 'Overdue' : daysUntil === 0 ? 'Due today' : `Due in ${daysUntil}d`}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums shrink-0" style={{ color: 'var(--text)' }}>
+                    {formatCurrency(b.amount)}
+                  </p>
                 </div>
               )
             })}
