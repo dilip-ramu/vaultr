@@ -25,22 +25,30 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* iOS PWA — fill the whole screen including notch area */
-html, body {
+/* iOS PWA — fill the whole screen, no bounce */
+html {
   height: 100%;
   overscroll-behavior: none;
 }
 
-/* Mobile safe areas — ensure at least 16px above the home indicator */
-.safe-bottom {
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
-}
-
-/* Prevent iOS bounce scroll on the root */
 body {
-  position: fixed;
+  height: 100%;
   width: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+  position: fixed;
+}
+
+/* Root app container fills exactly the visual viewport */
+#__next,
+[data-nextjs-scroll-focus-boundary] {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Mobile safe areas */
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
 }
 
 /* Slide-in from left — mobile drawer */

@@ -70,7 +70,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const avatarUrl = profile?.avatar_url
 
   return (
-    <div className="flex h-screen bg-[#F7F8FA] overflow-hidden">
+    <div className="flex bg-[#F7F8FA] overflow-hidden" style={{ height: '100dvh' }}>
 
       {/* ── Desktop Sidebar ── */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-gray-100 h-full shrink-0 transition-all duration-200 ${collapsed ? 'w-16' : 'w-60'}`}>
