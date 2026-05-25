@@ -15,7 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { OCRStatus } from '@/lib/logistics/types'
 import type { CourierParser, OCRPipelineResult, ParsedCourierInvoice } from './types'
 import type { AWB, CourierInvoice } from '@/lib/logistics/types'
-import { DHLParser } from './providers/dhl-parser'
+import { DHLParser, FedExParser } from './providers/dhl-parser'
 import { normalizeInvoice, normalizeAWBs } from './normalizer'
 
 // ── Provider registry ──────────────────────────────────────
@@ -23,7 +23,7 @@ import { normalizeInvoice, normalizeAWBs } from './normalizer'
 /** All registered courier parsers. Add new providers here. */
 const PARSERS: CourierParser[] = [
   new DHLParser(),
-  // new FedExParser(),   // TODO: add when FedEx samples available
+  new FedExParser(),
   // new AramexParser(),  // TODO: add when Aramex samples available
 ]
 
@@ -99,6 +99,84 @@ export class OCRPipeline {
       errors.push(msg)
       await this.updateStatus(params.courierInvoiceId, 'failed', { errors })
       return { status: 'failed', parsed: null, errors, warnings, processingMs: Date.now() - start }
+    }
+  }
+
+  /**
+   * Alternative entry point used when text has already been extracted by the caller
+   * (e.g. via pdf-parse in an API route).  Skips Stage 1 (file download) entirely
+   * and runs Stage 2 → 4 directly.
+   *
+   * @param courierInvoiceId  — ID of the already-created courier_invoices row
+   * @param rawText           — pre-extracted plain text from the PDF
+   * @param provider          — courier name (e.g. 'DHL', 'FedEx')
+   */
+  async processText(params: {
+    courierInvoiceId: string
+    rawText: string
+    provider: string
+  }): Promise<OCRPipelineResult & { normalizedInvoice: Partial<CourierInvoice>; normalizedAWBs: Partial<AWB>[] }> {
+    const start = Date.now()
+    const errors: string[] = []
+    const warnings: string[] = []
+
+    try {
+      await this.updateStatus(params.courierInvoiceId, 'processing')
+
+      if (!params.rawText.trim()) {
+        warnings.push('Extracted text is empty — the PDF may be scanned or image-only.')
+      }
+
+      // Stage 2: parse structure
+      const parsed = await this.parseStructure(params.rawText, params.provider)
+      if (parsed.awbs.length === 0) {
+        warnings.push('No AWBs could be identified in the document.')
+      }
+      if (parsed.confidence < 0.5) {
+        warnings.push(`Low confidence (${(parsed.confidence * 100).toFixed(0)}%). Review each extracted AWB carefully.`)
+      }
+
+      // Stage 3: normalise
+      const normalized = this.normalizeToSchema(parsed)
+
+      // Stage 4: persist draft AWBs
+      await this.createDraftRecords(params.courierInvoiceId, normalized)
+
+      const status: OCRPipelineResult['status'] =
+        parsed.awbs.length === 0 ? 'partial' :
+        parsed.confidence >= 0.7 ? 'success' : 'partial'
+
+      await this.updateStatus(params.courierInvoiceId, 'done', {
+        confidence: parsed.confidence,
+        awbCount:   parsed.awbs.length,
+        warnings,
+      })
+
+      return {
+        status,
+        parsed,
+        errors,
+        warnings,
+        processingMs:      Date.now() - start,
+        normalizedInvoice: normalized.invoice,
+        normalizedAWBs:    normalized.awbs.map(awb => ({
+          ...awb,
+          courier_invoice_id: params.courierInvoiceId,
+        })),
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      errors.push(msg)
+      await this.updateStatus(params.courierInvoiceId, 'failed', { errors })
+      return {
+        status:            'failed',
+        parsed:            null,
+        errors,
+        warnings,
+        processingMs:      Date.now() - start,
+        normalizedInvoice: {},
+        normalizedAWBs:    [],
+      }
     }
   }
 

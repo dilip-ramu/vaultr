@@ -1,81 +1,109 @@
 /**
- * DHL courier invoice parser — regex-based stub.
+ * DHL (and FedEx) courier invoice parser — regex-based.
  *
- * DHL PDF invoice structure (typical):
- *   - Header block: "INVOICE" + invoice number, date, total
- *   - Per-shipment sections starting with AWB number (10–12 digits)
- *   - Each section lists charge lines: label + amount + currency
- *   - Section total appears before the next AWB or end-of-invoice
+ * DHL Express invoice PDF text-layer structure (as produced by pdf-parse):
  *
- * TODO (when real DHL PDF samples are available):
- *   1. Run a DHL PDF through `pdf-parse` and inspect the raw text layout.
- *   2. Refine AWB_SECTION_REGEX to match the exact section separator pattern.
- *   3. Validate CHARGE_PATTERNS against real charge labels in the document.
- *   4. Add weight-extraction regex once field positions are confirmed.
- *   5. If text extraction quality is low (scanned PDF), route to AI vision instead.
+ *   INVOICE
+ *   Invoice No.  1234567890          Invoice Date  01/01/2025
+ *   Account No.  123456789
+ *   ...
+ *   Shipment detail
+ *   AWB No.     Shipper Ref   Ship Date    Dest  Pcs  Weight    Amount
+ *   1234567890  REF001        01 Jan 25    AE    2    5.00 KG   1500.00
+ *     Freight                                                    1200.00
+ *     Fuel Surcharge                                              200.00
+ *     Demand Surcharge                                             50.00
+ *     GoGreen Surcharge                                            30.00
+ *     Tax/GST 18%                                                  20.00
+ *   ...
+ *   Invoice Total  INR  15000.00
+ *
+ * FedExParser extends this class — the tabular format is identical,
+ * AWB numbers are 12 digits, and the same charge labels apply.
  */
 
 import type { CourierParser, ParsedAWB, ParsedAWBCharge, ParsedCourierInvoice } from '../types'
 
-// ── Regex patterns ─────────────────────────────────────────
+// ── Regex constants ────────────────────────────────────────
 
-/** DHL AWB numbers are 10–12 digits, sometimes hyphenated. */
+/** DHL AWB numbers are 10–12 digits; FedEx 12 digits. Both are captured. */
 const AWB_NUMBER_REGEX = /\b(\d{10,12})\b/
 
-/**
- * Splits the invoice text into per-AWB sections.
- * TODO: adjust separator pattern once real PDF text is analysed.
- * Common separators: repeated dashes, the word "Shipment", or the AWB number itself.
- */
-const AWB_SECTION_SEPARATOR = /(?=Shipment\s+\d{10,12}|\b\d{10,12}\b\s+[\w\s]+\n)/i
+/** A line whose first non-space token is a 10–12 digit AWB number starts a new section. */
+const AWB_HEADER_LINE_REGEX = /^\d{10,12}\b/
 
 /**
- * Charge label patterns mapped to the AWB field they populate.
- * Each entry: [fieldKey, ...labelPatterns].
- * TODO: expand with labels from a real DHL invoice.
+ * Date formats in DHL/FedEx header lines:
+ *   "01 Jan 25"  /  "01 Jan 2025"
+ */
+const DATE_LONG_REGEX = /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{2,4})\b/i
+
+/** Fallback date: DD/MM/YYYY or DD-MM-YYYY */
+const DATE_SHORT_REGEX = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/
+
+/** Pieces and chargeable weight on the AWB header line: "2  5.00 KG" */
+const PIECES_WEIGHT_REGEX = /\b(\d+)\s+([\d.]+)\s*KG\b/i
+
+/**
+ * Charge lines are indented (≥2 leading spaces) and end with a decimal monetary amount.
+ * The amount must contain a decimal point (eliminates page-number false positives).
+ */
+const CHARGE_LINE_REGEX = /^[ \t]{2,}(.+?)\s{2,}([\d,]+\.\d+)\s*$/
+
+/**
+ * Charge label → AWB column mapping.
+ * Ordered most-specific first so the first match wins.
  */
 const CHARGE_PATTERNS: Array<{ field: string; pattern: RegExp }> = [
-  { field: 'shipment_charge',    pattern: /(?:shipment|transportation)\s+charge[s]?/i },
   { field: 'fuel_surcharge',     pattern: /(?:fuel|energy)\s+surcharge/i },
-  { field: 'demand_surcharge',   pattern: /demand\s+surcharge/i },
-  { field: 'gogreen_surcharge',  pattern: /(?:gogreen|go\s*green)/i },
-  { field: 'remote_area_charge', pattern: /(?:remote\s+area|ras)\s+(?:surcharge|charge)?/i },
-  { field: 'other_charges',      pattern: /(?:peak\s+surcharge|miscellaneous|other\s+charge)/i },
-  { field: 'tax_amount',         pattern: /(?:gst|vat|tax)\s+(?:\d+%\s+)?(?:charge)?/i },
+  { field: 'demand_surcharge',   pattern: /(?:demand|peak)\s+surcharge/i },
+  { field: 'gogreen_surcharge',  pattern: /(?:go\s*green|gogreen|environmental|carbon|eco)/i },
+  { field: 'remote_area_charge', pattern: /(?:remote\s+area|ras\b|extended\s+(?:area|delivery|service))/i },
+  { field: 'tax_amount',         pattern: /^(?:gst|vat|tax)\b/i },
+  { field: 'other_charges',      pattern: /(?:additional\s+(?:handling|charge)|residential|address\s+correction|emergency|covid|misc|handling\s+fee)/i },
+  // Freight / base charge — least specific, must come last
+  { field: 'shipment_charge',    pattern: /(?:^freight$|^shipment\s+charge|transportation|express\s+charge|base\s+charge)/i },
 ]
 
-/** Matches a monetary amount on the same line as a charge label. */
-const AMOUNT_ON_LINE_REGEX = /(\d[\d,]*\.?\d*)\s*(?:INR|USD|EUR|AED|GBP)?$/
+const MONTH_MAP: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+}
 
-// ── Parser implementation ──────────────────────────────────
+// ── ISO 3-letter currency codes to skip during destination detection ──
+const CURRENCY_CODES = new Set(['INR', 'USD', 'EUR', 'AED', 'GBP', 'JPY', 'CNY', 'SGD', 'AUD', 'CAD'])
+
+// ── Parser ─────────────────────────────────────────────────
 
 export class DHLParser implements CourierParser {
-  readonly providerName = 'DHL'
+  readonly providerName: string = 'DHL'
 
-  /**
-   * Entry point. Receives the full raw text extracted from the DHL PDF.
-   * Returns a ParsedCourierInvoice with best-effort data.
-   *
-   * TODO: replace stub header extraction with real regex once layout is known.
-   */
   parse(rawText: string): ParsedCourierInvoice {
-    const sections = this.extractAWBSections(rawText)
-    const awbs = sections.map(s => this.parseAWBSection(s)).filter(a => a.awbNumber !== '')
+    const lines = rawText.split('\n')
 
-    const invoiceNumber = this.extractHeaderField(rawText, /invoice\s+(?:no\.?|number)[:\s]+(\S+)/i)
-    const invoiceDate   = this.extractHeaderField(rawText, /invoice\s+date[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i)
-    const totalMatch    = rawText.match(/(?:total\s+charges?|invoice\s+total)[:\s]+([\d,]+\.?\d*)/i)
-    const totalAmount   = totalMatch ? parseFloat(totalMatch[1].replace(/,/g, '')) : undefined
+    // Invoice-level header fields
+    const invoiceNumber = this.extractHeaderField(rawText, /invoice\s+no\.?\s+([\w\-]+)/i)
+    const invDateRaw    = this.extractHeaderField(rawText, /invoice\s+date\s+(\d{1,2}[\/\s]\w+[\/\s]\d{2,4})/i)
+    const invoiceDate   = invDateRaw ? this.normaliseDate(invDateRaw) : undefined
     const currency      = this.extractCurrency(rawText)
+
+    // "Invoice Total  INR  15000.00"  or  "Total Charges  USD  9850.00"
+    const totalMatch  = rawText.match(/(?:invoice\s+total|total\s+charges?)\s+([A-Z]{3})\s+([\d,]+\.?\d*)/i)
+    const totalAmount = totalMatch ? parseFloat(totalMatch[2].replace(/,/g, '')) : undefined
+
+    const sections = this.splitIntoAWBSections(lines)
+    const awbs = sections
+      .map(s => this.parseAWBSection(s))
+      .filter(a => a.awbNumber !== '')
 
     const overallConfidence = awbs.length > 0
       ? awbs.reduce((s, a) => s + a.confidence, 0) / awbs.length
       : 0
 
     return {
-      provider: 'DHL',
-      invoiceNumber:  invoiceNumber ?? undefined,
-      invoiceDate:    invoiceDate   ? this.normaliseDate(invoiceDate) : undefined,
+      provider:      this.providerName,
+      invoiceNumber: invoiceNumber ?? undefined,
+      invoiceDate,
       currency,
       totalAmount,
       awbs,
@@ -85,32 +113,45 @@ export class DHLParser implements CourierParser {
     }
   }
 
-  /**
-   * Splits raw text into one section per AWB.
-   * TODO: adjust AWB_SECTION_SEPARATOR for real DHL format.
-   */
-  private extractAWBSections(text: string): string[] {
-    const parts = text.split(AWB_SECTION_SEPARATOR).filter(s => s.trim().length > 0)
-    return parts.length > 1 ? parts.slice(1) : parts // skip header block
-  }
+  // ── Section splitting ────────────────────────────────────
 
   /**
-   * Parses a single AWB section string into a ParsedAWB.
-   * TODO: add weight extraction once field positions are confirmed.
+   * Groups lines into AWB sections. A new section begins whenever a line
+   * (after trimming) starts with a 10–12 digit AWB number.
    */
-  private parseAWBSection(section: string): ParsedAWB {
-    const awbNumber    = this.extractAWBNumber(section) ?? ''
-    const charges      = this.extractCharges(section)
-    const destination  = this.extractDestination(section)
-    const shipmentDate = this.extractDate(section)
+  private splitIntoAWBSections(lines: string[]): string[][] {
+    const sections: string[][] = []
+    let current: string[] | null = null
+
+    for (const line of lines) {
+      if (AWB_HEADER_LINE_REGEX.test(line.trim())) {
+        if (current && current.length > 0) sections.push(current)
+        current = [line]
+      } else if (current !== null) {
+        current.push(line)
+      }
+    }
+    if (current && current.length > 0) sections.push(current)
+    return sections
+  }
+
+  // ── Section parser ───────────────────────────────────────
+
+  private parseAWBSection(lines: string[]): ParsedAWB {
+    const { awbNumber, date, destination, pieces, weight } = this.parseHeaderLine(lines[0] ?? '')
+    const charges = this.extractCharges(lines.slice(1))
 
     const awb: ParsedAWB = {
       awbNumber,
-      shipmentDate,
-      destinationCountry: destination?.country,
-      destinationCity:    destination?.city,
+      shipmentDate:       date,
+      destinationCountry: destination,
+      destinationCity:    undefined,
+      chargeableWeight:   weight,
       charges,
-      rawText:    section,
+      // Embed piece count as a comment in rawText; normalizer sets total_pieces=0 for manual review
+      rawText: pieces !== undefined
+        ? `[ocr:pieces=${pieces}]\n` + lines.join('\n')
+        : lines.join('\n'),
       confidence: 0,
     }
 
@@ -118,108 +159,130 @@ export class DHLParser implements CourierParser {
     return awb
   }
 
+  // ── Header line parser ───────────────────────────────────
+
   /**
-   * Extracts the AWB (air waybill) tracking number from a section.
-   * DHL: 10–12 consecutive digits (e.g. "1234567890" or "12345678901").
+   * Parses the first line of an AWB section.
+   * Column layout (DHL Express): AWB#  ShipperRef  DD Mon YY  DEST  Pcs  Weight KG  Amount
    */
-  private extractAWBNumber(section: string): string | null {
-    const m = section.match(AWB_NUMBER_REGEX)
-    return m ? m[1] : null
+  private parseHeaderLine(line: string): {
+    awbNumber: string
+    date?:        string
+    destination?: string
+    pieces?:      number
+    weight?:      number
+  } {
+    const t = line.trim()
+
+    const awbMatch  = t.match(AWB_NUMBER_REGEX)
+    const awbNumber = awbMatch ? awbMatch[1] : ''
+
+    // Date — prefer "DD Mon YYYY" form, fall back to "DD/MM/YYYY"
+    let date: string | undefined
+    const longDate = t.match(DATE_LONG_REGEX)
+    if (longDate) {
+      const d = longDate[1].padStart(2, '0')
+      const m = MONTH_MAP[longDate[2].toLowerCase()] ?? '01'
+      const y = longDate[3].length === 2 ? `20${longDate[3]}` : longDate[3]
+      date = `${y}-${m}-${d}`
+    } else {
+      const short = t.match(DATE_SHORT_REGEX)
+      if (short) date = this.normaliseDate(`${short[1]}/${short[2]}/${short[3]}`)
+    }
+
+    // Pieces + chargeable weight: "2  5.00 KG"
+    const pw     = t.match(PIECES_WEIGHT_REGEX)
+    const pieces = pw ? parseInt(pw[1], 10) : undefined
+    const weight = pw ? parseFloat(pw[2]) : undefined
+
+    // Destination: last 2–3 letter uppercase token immediately before the "N X.XX KG" pattern
+    let destination: string | undefined
+    if (pw) {
+      const beforePW = t.slice(0, t.indexOf(pw[0]))
+      const destMatch = beforePW.match(/\b([A-Z]{2,3})\s*$/)
+      if (destMatch && !CURRENCY_CODES.has(destMatch[1]) && destMatch[1] !== 'AWB') {
+        destination = destMatch[1]
+      }
+    }
+
+    return { awbNumber, date, destination, pieces, weight }
   }
 
+  // ── Charge extractor ─────────────────────────────────────
+
   /**
-   * Extracts all charge lines from an AWB section.
-   * Each line is matched against CHARGE_PATTERNS; unmatched lines become 'other_charges'.
-   * TODO: verify against real DHL layout — amounts may appear on the same or next line.
+   * Parses indented charge lines (label … amount) into ParsedAWBCharge[].
+   * Label is resolved to an AWB column key; unknown labels go to 'other_charges'.
    */
-  private extractCharges(section: string): ParsedAWBCharge[] {
+  private extractCharges(lines: string[]): ParsedAWBCharge[] {
     const charges: ParsedAWBCharge[] = []
-    const lines = section.split('\n')
 
     for (const line of lines) {
-      const amountMatch = line.match(AMOUNT_ON_LINE_REGEX)
-      if (!amountMatch) continue
-      const amount = parseFloat(amountMatch[1].replace(/,/g, ''))
-      if (!isFinite(amount) || amount <= 0) continue
+      const m = line.match(CHARGE_LINE_REGEX)
+      if (!m) continue
 
-      let label = line.replace(AMOUNT_ON_LINE_REGEX, '').trim()
-      let confidence = 0.5 // default for unmatched lines
+      const rawLabel = m[1].trim()
+      const amount   = parseFloat(m[2].replace(/,/g, ''))
+      if (!isFinite(amount) || amount <= 0 || rawLabel.length < 2) continue
 
-      for (const { field, pattern } of CHARGE_PATTERNS) {
-        if (pattern.test(line)) {
-          label = field
+      let field      = 'other_charges'
+      let confidence = 0.5
+
+      for (const { field: f, pattern } of CHARGE_PATTERNS) {
+        if (pattern.test(rawLabel)) {
+          field      = f
           confidence = 0.85
           break
         }
       }
 
-      charges.push({ label, amount, confidence })
+      charges.push({ label: field, amount, confidence })
     }
 
     return charges
   }
 
-  /**
-   * Attempts to extract destination city and country from the AWB section.
-   * TODO: DHL typically shows "To: CITY, COUNTRY" — adjust regex to match.
-   */
-  private extractDestination(section: string): { city?: string; country?: string } | null {
-    const m = section.match(/(?:to|destination)[:\s]+([A-Z][A-Za-z\s]+),\s*([A-Z]{2,3})/i)
-    if (!m) return null
-    return { city: m[1].trim(), country: m[2].trim().toUpperCase() }
-  }
+  // ── Helpers ──────────────────────────────────────────────
 
-  /**
-   * Extracts a date string from the section using common date formats.
-   * Returns ISO YYYY-MM-DD or undefined.
-   */
-  private extractDate(section: string): string | undefined {
-    const m = section.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/)
-    if (!m) return undefined
-    return this.normaliseDate(`${m[1]}/${m[2]}/${m[3]}`)
-  }
-
-  /**
-   * Extracts a single header field using the provided pattern.
-   * Returns the first capture group, or null.
-   */
   private extractHeaderField(text: string, pattern: RegExp): string | null {
     const m = text.match(pattern)
     return m ? m[1].trim() : null
   }
 
-  /** Detects the invoice currency from ISO 3-letter codes in the text. */
   private extractCurrency(text: string): string | undefined {
-    const m = text.match(/\b(INR|USD|EUR|AED|GBP|JPY|CNY)\b/)
+    const m = text.match(/\b(INR|USD|EUR|AED|GBP|JPY|CNY|SGD|AUD|CAD)\b/)
     return m ? m[1] : undefined
   }
 
   /**
-   * Converts common date formats to ISO YYYY-MM-DD.
-   * TODO: handle more locale formats (DD-MMM-YYYY, MMM DD YYYY).
+   * Normalises several date formats to ISO YYYY-MM-DD.
+   * Handles: DD/MM/YYYY, DD-MM-YYYY, DD Mon YY(YY)
    */
   private normaliseDate(raw: string): string {
-    const parts = raw.split(/[\/\-\.]/)
-    if (parts.length !== 3) return raw
+    const parts = raw.trim().split(/[\/\-\.\s]+/)
+    if (parts.length < 3) return raw
     const [d, m, y] = parts
-    const year = y.length === 2 ? `20${y}` : y
-    return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+    const year  = y.length === 2 ? `20${y}` : y
+    const month = isNaN(Number(m))
+      ? (MONTH_MAP[m.toLowerCase()] ?? '01')
+      : m.padStart(2, '0')
+    return `${year}-${month}-${d.padStart(2, '0')}`
   }
 
   /**
-   * Scores an AWB based on how much data was successfully extracted.
-   *   - +0.40 if AWB number found
-   *   - +0.30 if at least one charge found
-   *   - +0.15 if destination extracted
-   *   - +0.15 if shipment date extracted
-   * Charge-level confidence then averaged in for final score.
+   * Confidence scoring (0–1):
+   *   +0.40  AWB number present
+   *   +0.30  at least one charge extracted
+   *   +0.15  destination country code identified
+   *   +0.15  shipment date identified
+   * Charge-level confidence is blended in at 30%.
    */
   private calculateConfidence(awb: ParsedAWB): number {
     let score = 0
-    if (awb.awbNumber)        score += 0.40
-    if (awb.charges.length)   score += 0.30
-    if (awb.destinationCity)  score += 0.15
-    if (awb.shipmentDate)     score += 0.15
+    if (awb.awbNumber)          score += 0.40
+    if (awb.charges.length > 0) score += 0.30
+    if (awb.destinationCountry) score += 0.15
+    if (awb.shipmentDate)       score += 0.15
 
     if (awb.charges.length > 0) {
       const avgChargeConf = awb.charges.reduce((s, c) => s + c.confidence, 0) / awb.charges.length
@@ -228,4 +291,14 @@ export class DHLParser implements CourierParser {
 
     return Math.round(score * 100) / 100
   }
+}
+
+// ── FedEx parser ───────────────────────────────────────────
+
+/**
+ * FedEx invoices use the same tabular layout as DHL Express.
+ * AWB tracking numbers are 12 digits. All charge patterns carry over.
+ */
+export class FedExParser extends DHLParser {
+  readonly providerName = 'FedEx'
 }
