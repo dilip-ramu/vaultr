@@ -265,15 +265,12 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         <BillNotificationBanner />
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto pb-[calc(60px+env(safe-area-inset-bottom,0px)+16px)] md:pb-0">
+        <main className="flex-1 overflow-y-auto pb-[calc(76px+env(safe-area-inset-bottom,0px))] md:pb-0">
           {children}
         </main>
 
         {/* ── Mobile Bottom Tab Bar ── */}
-        <nav
-          className="md:hidden fixed bottom-0 left-0 right-0 bg-white z-40 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] overflow-visible"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-        >
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white z-40 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] overflow-visible">
           <div className="flex items-center h-[60px]">
 
             {/* Left two tabs: Home, Accounts */}
@@ -320,6 +317,8 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             })}
 
           </div>
+          {/* Safe area filler — extends white background under home indicator */}
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} />
         </nav>
       </div>
 
