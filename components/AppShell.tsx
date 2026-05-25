@@ -249,7 +249,12 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Scrollable content — fills all remaining space */}
         <main
           className="flex-1 overflow-y-auto"
-          style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}
+          style={{
+            WebkitOverflowScrolling: 'touch' as never,
+            overscrollBehaviorY: 'contain',
+            /* Extra bottom padding so content clears the FAB + home indicator */
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)',
+          }}
         >
           {children}
         </main>
