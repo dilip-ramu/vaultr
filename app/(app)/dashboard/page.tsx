@@ -27,7 +27,7 @@ export default async function DashboardPage() {
       .order('created_at'),
     supabase
       .from('transactions')
-      .select(`*, account:accounts!account_id(id,name,color,type,custom_type_id,custom_type_name,custom_type_color), category:categories(id,name,icon,color,avatar_url)`)
+      .select(`*, account:accounts!account_id(id,name,color,type,custom_type_id), category:categories(id,name,icon,color,avatar_url)`)
       .eq('user_id', user!.id)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })

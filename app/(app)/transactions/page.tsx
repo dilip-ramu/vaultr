@@ -11,7 +11,7 @@ export default async function TransactionsPage() {
   const [{ data: transactions }, { data: accounts }, { data: categories }] = await Promise.all([
     supabase
       .from('transactions')
-      .select(`*, account:accounts!account_id(id,name,color,type,custom_type_id,custom_type_name,custom_type_color), to_account:accounts!to_account_id(id,name,color), category:categories(id,name,icon,color,type,avatar_url), attachments(*)`)
+      .select(`*, account:accounts!account_id(id,name,color,type,custom_type_id), to_account:accounts!to_account_id(id,name,color), category:categories(id,name,icon,color,type,avatar_url), attachments(*)`)
       .eq('user_id', user!.id)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
