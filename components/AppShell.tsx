@@ -215,7 +215,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
           ══════════════════════════════════════ */}
       <div
         className="md:hidden flex flex-col overflow-hidden"
-        style={{ height: '100dvh', backgroundColor: 'var(--bg)' }}
+        style={{ position: 'fixed', inset: 0, backgroundColor: 'var(--bg)' }}
       >
         {/* Mobile Header */}
         <header
