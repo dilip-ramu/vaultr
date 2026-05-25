@@ -271,38 +271,36 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Scrollable content */}
         <main
           className="flex-1 overflow-y-auto"
-          style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}
+          style={{
+            WebkitOverflowScrolling: 'touch' as never,
+            overscrollBehaviorY: 'contain',
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)',
+          }}
         >
           {children}
         </main>
 
-        {/* Bottom action bar — flex child (NOT position:fixed).
-            paddingBottom fills the iOS home indicator zone perfectly. */}
-        <div
-          className="shrink-0 border-t"
+        {/* Floating + button */}
+        <button
+          onClick={() => setShowAddTx(true)}
+          className="tap-scale"
           style={{
-            backgroundColor: 'var(--surface)',
-            borderColor: 'var(--border)',
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-            boxShadow: '0 -1px 0 var(--border)',
+            position: 'fixed',
+            right: 20,
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)',
+            width: 56,
+            height: 56,
+            borderRadius: 18,
+            backgroundColor: 'var(--brand)',
+            boxShadow: '0 6px 20px rgba(99,102,241,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 40,
           }}
         >
-          <div className="flex items-center justify-between px-5 h-14">
-            {/* Left: page label */}
-            <span className="text-xs font-semibold" style={{ color: 'var(--text-faint)' }}>
-              VAULTR
-            </span>
-            {/* Right: Add button */}
-            <button
-              onClick={() => setShowAddTx(true)}
-              className="tap-scale flex items-center gap-2 px-4 h-9 rounded-xl text-sm font-semibold text-white"
-              style={{ backgroundColor: 'var(--brand)', boxShadow: '0 2px 10px rgba(99,102,241,0.35)' }}
-            >
-              <Plus className="w-4 h-4" strokeWidth={2.5} />
-              Add
-            </button>
-          </div>
-        </div>
+          <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
+        </button>
       </div>
 
       {/* Mobile drawer overlay */}
