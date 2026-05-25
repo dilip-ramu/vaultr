@@ -192,7 +192,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
       notes: notes.trim() || null,
     }
 
-    const selectQuery = `*, account:accounts!account_id(id,name,color,type,avatar_url,custom_type_id,custom_type_name,custom_type_color), to_account:accounts!to_account_id(id,name,color,avatar_url), category:categories(id,name,icon,color,type,avatar_url), payee:payees(id,name,type), attachments(*)`
+    const selectQuery = `*, account:accounts!account_id(id,name,color,type,avatar_url,custom_type_id), to_account:accounts!to_account_id(id,name,color,avatar_url), category:categories(id,name,icon,color,type,avatar_url), payee:payees(id,name,type), attachments(*)`
 
     let data, err
     if (isEdit) {
