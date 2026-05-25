@@ -41,8 +41,14 @@ body {
   position: fixed;
   width: 100%;
   overflow: hidden;
-  padding-top: env(safe-area-inset-top, 0px);
 }
+
+/* Slide-in from left — mobile drawer */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.slide-in-left { animation: slideInLeft 0.25s ease-out; }
 
 #__next {
   height: 100vh;

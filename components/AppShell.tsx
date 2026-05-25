@@ -124,7 +124,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             )
           })}
 
-          {/* Settings */}
           <Link
             href="/settings"
             title={collapsed ? 'Settings' : undefined}
@@ -172,40 +171,60 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         </div>
       </aside>
 
-      {/* ── Mobile Sidebar Overlay ── */}
+      {/* ── Mobile Sidebar Drawer ── */}
       {mobileSidebarOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setMobileSidebarOpen(false)} />
-          <aside className="relative flex flex-col w-72 bg-white h-full shadow-xl slide-up">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-[2px]"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+          <aside
+            className="relative flex flex-col w-[280px] bg-white h-full shadow-xl slide-in-left"
+            style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+          >
+            {/* Drawer header */}
             <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100">
-              <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-8 w-auto object-contain" />
-              <button onClick={() => setMobileSidebarOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-6 w-auto object-contain" />
+              <button
+                onClick={() => setMobileSidebarOpen(false)}
+                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Nav */}
             <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-              {[...navItems, { href: '/settings', label: 'Settings', icon: Settings }].map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMobileSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all ${
-                    pathname === href ? 'bg-brand-50 text-brand-600' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  {label}
-                </Link>
-              ))}
+              {[...navItems, { href: '/settings', label: 'Settings', icon: Settings }].map(({ href, label, icon: Icon }) => {
+                const active = pathname === href || pathname.startsWith(href + '/')
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMobileSidebarOpen(false)}
+                    className={`flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${
+                      active ? 'bg-brand-50 text-brand-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon style={{ width: 18, height: 18 }} className="shrink-0" />
+                    {label}
+                  </Link>
+                )
+              })}
             </nav>
-            <div className="px-4 pb-5 pt-3 border-t border-gray-100">
+
+            {/* Profile card */}
+            <div className="px-4 pb-6 pt-3 border-t border-gray-100">
               <div className="flex items-center gap-3">
                 <Avatar url={avatarUrl} initials={initials} size="md" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{displayName}</p>
                   <p className="text-xs text-gray-400 truncate">{user.email}</p>
                 </div>
-                <button onClick={handleLogout} className="text-gray-400 hover:text-gray-600">
+                <button
+                  onClick={handleLogout}
+                  className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                >
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
@@ -217,65 +236,89 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
       {/* ── Main Content ── */}
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
 
-        {/* Mobile Top Bar */}
-        <header className="md:hidden bg-white border-b border-gray-100 px-4 pb-3 flex items-center justify-between shrink-0" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
-          <button onClick={() => setMobileSidebarOpen(true)} className="text-gray-600 p-1">
+        {/* Mobile Top Header */}
+        <header
+          className="md:hidden bg-white border-b border-gray-100 shrink-0 flex items-center px-2"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+            paddingBottom: '8px',
+          }}
+        >
+          <button
+            onClick={() => setMobileSidebarOpen(true)}
+            className="w-10 h-10 flex items-center justify-center text-gray-600 rounded-xl hover:bg-gray-50 transition-colors"
+          >
             <Menu className="w-5 h-5" />
           </button>
-          <button onClick={() => setShowAddTx(true)} className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center">
-            <Plus className="w-4 h-4 text-white" />
-          </button>
+          <div className="flex-1 flex justify-center">
+            <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-5 w-auto object-contain" />
+          </div>
+          <Link
+            href="/settings"
+            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            <Avatar url={avatarUrl} initials={initials} size="sm" />
+          </Link>
         </header>
 
         {/* Bill notification banner */}
         <BillNotificationBanner />
 
-        {/* Page content — extra bottom padding covers the nav bar + safe area on iOS */}
-        <main className="flex-1 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+        {/* Page content */}
+        <main className="flex-1 overflow-y-auto pb-[calc(60px+env(safe-area-inset-bottom,0px)+16px)] md:pb-0">
           {children}
         </main>
 
         {/* ── Mobile Bottom Tab Bar ── */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-40">
-          <div className="flex items-center h-16 mb-[env(safe-area-inset-bottom,0px)]">
+        <nav
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-white z-40 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] overflow-visible"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          <div className="flex items-center h-[60px]">
+
+            {/* Left two tabs: Home, Accounts */}
             {bottomNavItems.slice(0, 2).map(({ href, label, icon: Icon }) => {
               const active = pathname === href
               return (
-                <Link key={href} href={href}
+                <Link
+                  key={href}
+                  href={href}
                   className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full transition-colors ${active ? 'text-brand-500' : 'text-gray-400'}`}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">{label}</span>
+                  <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 1.5} />
+                  <span className="text-[9px] font-medium mt-0.5">{label}</span>
                 </Link>
               )
             })}
 
-            {/* Logo → Dashboard */}
-            <Link href="/dashboard" className="flex-shrink-0 px-2 flex flex-col items-center justify-center gap-0.5 h-full">
-              <img src="/vaultr-logo.png" alt="Vaultr" className="w-8 h-8 object-contain" />
-            </Link>
-
-            {/* FAB */}
-            <div className="flex-shrink-0 px-2">
+            {/* Center FAB slot */}
+            <div className="flex-1 relative flex flex-col items-center justify-center">
+              {/* White notch behind FAB */}
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-[68px] h-[68px] rounded-full bg-white pointer-events-none" />
+              {/* FAB */}
               <button
                 onClick={() => setShowAddTx(true)}
-                className="w-11 h-11 bg-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-95 transition-transform"
+                className="relative z-10 -mt-5 w-14 h-14 bg-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200/60 active:scale-95 transition-transform"
               >
-                <Plus className="w-5 h-5 text-white" />
+                <Plus className="w-5 h-5 text-white" strokeWidth={2} />
               </button>
             </div>
 
+            {/* Right two tabs: Transactions, Bills */}
             {bottomNavItems.slice(2).map(({ href, label, icon: Icon }) => {
               const active = pathname === href
               return (
-                <Link key={href} href={href}
+                <Link
+                  key={href}
+                  href={href}
                   className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full transition-colors ${active ? 'text-brand-500' : 'text-gray-400'}`}
                 >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">{label}</span>
+                  <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 1.5} />
+                  <span className="text-[9px] font-medium mt-0.5">{label}</span>
                 </Link>
               )
             })}
+
           </div>
         </nav>
       </div>
