@@ -184,6 +184,7 @@ export interface RecoverableInvoiceLine {
   allocation_id: string | null
   line_number: number
   awb: string
+  client_name: string | null
   shipment_date: string | null
   hsn_sac: string | null
   qty: number

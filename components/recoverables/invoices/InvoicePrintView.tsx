@@ -92,6 +92,7 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
 
         /* ── Header ── */
         .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .company-logo { height: 2cm; width: auto; display: block; }
         .company-name { font-size: 20px; font-weight: 700; }
         .tax-invoice-block { text-align: right; }
         .tax-invoice-block h2 { font-size: 16px; font-weight: 700; margin: 0 0 2px; }
@@ -170,7 +171,7 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
 
         {/* 1 — Header */}
         <div className="header">
-          <div className="company-name">{companyName}</div>
+          <img src="/Contrast.png" alt={companyName} className="company-logo" />
           <div className="tax-invoice-block">
             <h2>Tax Invoice</h2>
             <div className="invoice-number"># {invoice.invoice_number}</div>
@@ -180,6 +181,7 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
         {/* 2 — Company info + Balance Due */}
         <div className="subheader">
           <div className="company-info">
+            <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '3px' }}>{companyName}</div>
             {settings?.company_address && <div style={{ whiteSpace: 'pre-wrap' }}>{settings.company_address}</div>}
             {settings?.company_gstin   && <div>GSTIN: {settings.company_gstin}</div>}
             {settings?.company_phone   && <div>Phone: {settings.company_phone}</div>}
@@ -256,13 +258,13 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
                 </td>
                 <td>{line.hsn_sac ?? settings?.hsn_sac ?? '996812'}</td>
                 <td className="right">{line.qty}</td>
-                <td className="right">{fmtInr(line.rate, 3)}</td>
+                <td className="right">{fmtInr(line.rate, 2)}</td>
                 <td className="right">
-                  <div>{fmtInr(line.cgst_amount)}</div>
+                  <div>{fmtInr(line.qty > 0 ? line.cgst_amount / line.qty : 0)}</div>
                   <div style={{ color: '#6b7280', fontSize: '9px' }}>{line.cgst_rate}%</div>
                 </td>
                 <td className="right">
-                  <div>{fmtInr(line.sgst_amount)}</div>
+                  <div>{fmtInr(line.qty > 0 ? line.sgst_amount / line.qty : 0)}</div>
                   <div style={{ color: '#6b7280', fontSize: '9px' }}>{line.sgst_rate}%</div>
                 </td>
                 <td className="right">{fmtInr(line.amount)}</td>
@@ -331,11 +333,7 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
 
         {/* 12 — Signature */}
         <div className="signature-block">
-          <div className="for">For {companyName}</div>
-          <div className="sig-lines">
-            <div>Proprietor</div>
-            <div>Authorized Signature</div>
-          </div>
+          <img src="/signedcopy.png" alt="Authorized Signature" style={{ height: '3cm', width: 'auto' }} />
         </div>
 
       </div>
