@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
-  Moon, Sun, Target, RefreshCw, Lightbulb, Package
+  Moon, Sun, Target, RefreshCw, Lightbulb, ArrowDownUp
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -30,7 +30,7 @@ const navItems = [
   { href: '/accounts',      label: 'Accounts',      icon: Wallet },
   { href: '/transactions',  label: 'Transactions',  icon: ArrowLeftRight },
   { href: '/bills',          label: 'Bills',          icon: Receipt },
-  { href: '/logistics',     label: 'Logistics',      icon: Package },
+  { href: '/recoverables',  label: 'Recoverables',   icon: ArrowDownUp },
   { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
   { href: '/customers',     label: 'Customers',     icon: Users },
   { href: '/insights',      label: 'Insights',      icon: Lightbulb },
@@ -335,8 +335,8 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
                   onClick={() => setMobileSidebarOpen(false)}
                   className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all"
                   style={{
-                    backgroundColor: pathname === href ? 'var(--brand-light)' : 'transparent',
-                    color: pathname === href ? 'var(--brand)' : 'var(--text-muted)',
+                    backgroundColor: (pathname === href || pathname.startsWith(href + '/')) ? 'var(--brand-light)' : 'transparent',
+                    color: (pathname === href || pathname.startsWith(href + '/')) ? 'var(--brand)' : 'var(--text-muted)',
                   }}
                 >
                   <Icon className="w-[18px] h-[18px]" />

@@ -1,0 +1,209 @@
+-- ============================================================
+-- Migration v8d — Fix RLS policies for all logistics tables
+-- Uses SEPARATE SELECT/INSERT/UPDATE/DELETE policies instead
+-- of a single FOR ALL, which can fail on INSERT in Supabase.
+-- Run in Supabase SQL Editor. Safe to re-run.
+-- ============================================================
+
+-- ────────────────────────────────────────────────────────────
+-- Helper: make sure the authenticated role has privileges
+-- ────────────────────────────────────────────────────────────
+GRANT USAGE ON SCHEMA public TO authenticated, anon;
+
+GRANT ALL ON courier_invoices       TO authenticated;
+GRANT ALL ON awbs                   TO authenticated;
+GRANT ALL ON awb_allocations        TO authenticated;
+GRANT ALL ON markup_rules           TO authenticated;
+GRANT ALL ON supplier_invoices      TO authenticated;
+GRANT ALL ON supplier_invoice_lines TO authenticated;
+
+-- Sequences (needed for uuid_generate_v4 via default value)
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- ────────────────────────────────────────────────────────────
+-- courier_invoices
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Users can CRUD own courier_invoices"          ON courier_invoices;
+DROP POLICY IF EXISTS "Household members can access courier_invoices" ON courier_invoices;
+DROP POLICY IF EXISTS "ci_select"  ON courier_invoices;
+DROP POLICY IF EXISTS "ci_insert"  ON courier_invoices;
+DROP POLICY IF EXISTS "ci_update"  ON courier_invoices;
+DROP POLICY IF EXISTS "ci_delete"  ON courier_invoices;
+
+CREATE POLICY "ci_select" ON courier_invoices
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "ci_insert" ON courier_invoices
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "ci_update" ON courier_invoices
+  FOR UPDATE TO authenticated
+  USING  (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "ci_delete" ON courier_invoices
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────────────────────
+-- awbs
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Users can CRUD own awbs" ON awbs;
+DROP POLICY IF EXISTS "awb_select" ON awbs;
+DROP POLICY IF EXISTS "awb_insert" ON awbs;
+DROP POLICY IF EXISTS "awb_update" ON awbs;
+DROP POLICY IF EXISTS "awb_delete" ON awbs;
+
+CREATE POLICY "awb_select" ON awbs
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "awb_insert" ON awbs
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "awb_update" ON awbs
+  FOR UPDATE TO authenticated
+  USING  (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "awb_delete" ON awbs
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────────────────────
+-- awb_allocations
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Users can CRUD own awb_allocations" ON awb_allocations;
+DROP POLICY IF EXISTS "alloc_select" ON awb_allocations;
+DROP POLICY IF EXISTS "alloc_insert" ON awb_allocations;
+DROP POLICY IF EXISTS "alloc_update" ON awb_allocations;
+DROP POLICY IF EXISTS "alloc_delete" ON awb_allocations;
+
+CREATE POLICY "alloc_select" ON awb_allocations
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "alloc_insert" ON awb_allocations
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "alloc_update" ON awb_allocations
+  FOR UPDATE TO authenticated
+  USING  (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "alloc_delete" ON awb_allocations
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────────────────────
+-- markup_rules
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Users can CRUD own markup_rules" ON markup_rules;
+DROP POLICY IF EXISTS "mr_select" ON markup_rules;
+DROP POLICY IF EXISTS "mr_insert" ON markup_rules;
+DROP POLICY IF EXISTS "mr_update" ON markup_rules;
+DROP POLICY IF EXISTS "mr_delete" ON markup_rules;
+
+CREATE POLICY "mr_select" ON markup_rules
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "mr_insert" ON markup_rules
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "mr_update" ON markup_rules
+  FOR UPDATE TO authenticated
+  USING  (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "mr_delete" ON markup_rules
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────────────────────
+-- supplier_invoices
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Users can CRUD own supplier_invoices"          ON supplier_invoices;
+DROP POLICY IF EXISTS "Household members can access supplier_invoices" ON supplier_invoices;
+DROP POLICY IF EXISTS "si_select" ON supplier_invoices;
+DROP POLICY IF EXISTS "si_insert" ON supplier_invoices;
+DROP POLICY IF EXISTS "si_update" ON supplier_invoices;
+DROP POLICY IF EXISTS "si_delete" ON supplier_invoices;
+
+CREATE POLICY "si_select" ON supplier_invoices
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "si_insert" ON supplier_invoices
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "si_update" ON supplier_invoices
+  FOR UPDATE TO authenticated
+  USING  (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "si_delete" ON supplier_invoices
+  FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────────────────────
+-- supplier_invoice_lines  (access via parent invoice)
+-- ────────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "Users can CRUD own supplier_invoice_lines" ON supplier_invoice_lines;
+DROP POLICY IF EXISTS "sil_select" ON supplier_invoice_lines;
+DROP POLICY IF EXISTS "sil_insert" ON supplier_invoice_lines;
+DROP POLICY IF EXISTS "sil_update" ON supplier_invoice_lines;
+DROP POLICY IF EXISTS "sil_delete" ON supplier_invoice_lines;
+
+CREATE POLICY "sil_select" ON supplier_invoice_lines
+  FOR SELECT TO authenticated
+  USING (
+    supplier_invoice_id IN (
+      SELECT id FROM supplier_invoices WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "sil_insert" ON supplier_invoice_lines
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    supplier_invoice_id IN (
+      SELECT id FROM supplier_invoices WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "sil_update" ON supplier_invoice_lines
+  FOR UPDATE TO authenticated
+  USING (
+    supplier_invoice_id IN (
+      SELECT id FROM supplier_invoices WHERE user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    supplier_invoice_id IN (
+      SELECT id FROM supplier_invoices WHERE user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "sil_delete" ON supplier_invoice_lines
+  FOR DELETE TO authenticated
+  USING (
+    supplier_invoice_id IN (
+      SELECT id FROM supplier_invoices WHERE user_id = auth.uid()
+    )
+  );
+
+-- ────────────────────────────────────────────────────────────
+-- Quick sanity check — run this to confirm
+-- ────────────────────────────────────────────────────────────
+-- SELECT tablename, policyname, cmd FROM pg_policies
+-- WHERE tablename IN (
+--   'courier_invoices','awbs','awb_allocations',
+--   'markup_rules','supplier_invoices','supplier_invoice_lines'
+-- )
+-- ORDER BY tablename, cmd;
