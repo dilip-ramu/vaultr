@@ -11,16 +11,45 @@ export function validateRows(
   const errors: RowValidationError[] = []
   const validRows: RawCSVRow[] = []
 
+  // Pre-pass: detect duplicate references
+  const seenRefs = new Map<string, number>() // reference → first rowIndex
+  for (const row of rows) {
+    const ref = row.reference?.trim()
+    if (!ref) continue
+    if (seenRefs.has(ref)) {
+      errors.push({
+        rowIndex: row.rowIndex,
+        reference: ref,
+        field: 'reference',
+        message: `Row ${row.rowIndex}: Duplicate AWB "${ref}" — already seen at row ${seenRefs.get(ref)}. Remove one of them.`,
+      })
+    } else {
+      seenRefs.set(ref, row.rowIndex)
+    }
+  }
+  const duplicateRefs = new Set(
+    [...seenRefs.entries()]
+      .filter(([ref]) => rows.filter(r => r.reference?.trim() === ref).length > 1)
+      .map(([ref]) => ref)
+  )
+
   for (const row of rows) {
     const rowErrors: RowValidationError[] = []
 
-    // 1. Reference must be non-empty
+    // 1. Reference must be non-empty and not a duplicate
     if (!row.reference || row.reference.trim() === '') {
       rowErrors.push({
         rowIndex: row.rowIndex,
         reference: row.reference,
         field: 'reference',
         message: `Row ${row.rowIndex}: Reference is empty.`,
+      })
+    } else if (duplicateRefs.has(row.reference.trim())) {
+      rowErrors.push({
+        rowIndex: row.rowIndex,
+        reference: row.reference,
+        field: 'reference',
+        message: `Row ${row.rowIndex}: Duplicate AWB "${row.reference}" — each reference must appear only once per import.`,
       })
     }
 

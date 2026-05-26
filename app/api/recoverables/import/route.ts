@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
       total_cost:     s.totalCost,
       total_pieces:   s.totalPieces,
       per_piece_cost: s.perPieceCost,
+      shipment_date:  s.shipmentDate ?? null,
     }))
 
     const shipmentIdMap = new Map<string, string>()

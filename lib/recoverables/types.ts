@@ -67,6 +67,7 @@ export interface RawCSVRow {
   reference: string
   totalCost: number
   totalPcs: number
+  shipmentDate: string | null        // yyyy-mm-dd or null
   suppliers: Record<string, number>  // supplierName → pieces
   raw: Record<string, string>        // original values for error display
 }
@@ -102,6 +103,7 @@ export interface ParsedShipment {
   totalCost: number
   totalPieces: number
   perPieceCost: number
+  shipmentDate: string | null
   allocations: ParsedAllocation[]
 }
 

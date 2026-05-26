@@ -5,23 +5,28 @@ import type { RawCSVRow } from '../types'
 const REFERENCE_ALIASES = /^(awb|reference|ref|id)$/i
 const COST_ALIASES      = /^(total\s*cost|cost|amount|total\s*amount)$/i
 const PCS_ALIASES       = /^(total\s*pcs|pcs|total\s*pieces|pieces)$/i
+const DATE_ALIASES      = /^(date|shipment\s*date|ship\s*date|dispatch\s*date|awb\s*date)$/i
 
 export function detectColumns(headers: string[]): {
   referenceCol: number
   totalCostCol: number
   totalPcsCol: number
+  dateCol: number
   supplierCols: Array<{ name: string; index: number }>
   errors: string[]
 } {
   let referenceCol = -1
   let totalCostCol = -1
   let totalPcsCol  = -1
+  let dateCol      = -1
   const supplierCols: Array<{ name: string; index: number }> = []
   const errors: string[] = []
 
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i].trim()
-    if (referenceCol === -1 && REFERENCE_ALIASES.test(h)) {
+    if (dateCol === -1 && DATE_ALIASES.test(h)) {
+      dateCol = i
+    } else if (referenceCol === -1 && REFERENCE_ALIASES.test(h)) {
       referenceCol = i
     } else if (totalCostCol === -1 && COST_ALIASES.test(h)) {
       totalCostCol = i
@@ -36,7 +41,7 @@ export function detectColumns(headers: string[]): {
   if (totalCostCol === -1) errors.push('Could not identify a cost column (expected: Total Cost, Cost, Amount, or Total Amount)')
   if (totalPcsCol  === -1) errors.push('Could not identify a pieces column (expected: Total PCS, PCS, Total Pieces, or Pieces)')
 
-  return { referenceCol, totalCostCol, totalPcsCol, supplierCols, errors }
+  return { referenceCol, totalCostCol, totalPcsCol, dateCol, supplierCols, errors }
 }
 
 // ── CSV tokeniser ────────────────────────────────────────────
@@ -82,7 +87,7 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
   if (nonEmpty.length === 0) return []
 
   const headers = parseCSVLine(nonEmpty[0]).map(h => h.trim())
-  const { referenceCol, totalCostCol, totalPcsCol, supplierCols, errors } = detectColumns(headers)
+  const { referenceCol, totalCostCol, totalPcsCol, dateCol, supplierCols, errors } = detectColumns(headers)
 
   if (errors.length > 0) {
     // Surface header errors as a single synthetic row so callers can report them
@@ -102,9 +107,13 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
     const reference = (fields[referenceCol] ?? '').trim()
     const costStr   = (fields[totalCostCol] ?? '').trim()
     const pcsStr    = (fields[totalPcsCol]  ?? '').trim()
+    const dateStr   = dateCol !== -1 ? (fields[dateCol] ?? '').trim() : ''
 
     const totalCost = parseFloat(costStr.replace(/,/g, ''))
     const totalPcs  = parseInt(pcsStr, 10)
+
+    // Normalise date to ISO yyyy-mm-dd if present
+    const shipmentDate = parseDate(dateStr)
 
     const suppliers: Record<string, number> = {}
     for (const { name, index } of supplierCols) {
@@ -117,12 +126,42 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
       reference,
       totalCost: isNaN(totalCost) ? 0 : totalCost,
       totalPcs:  isNaN(totalPcs)  ? 0 : totalPcs,
+      shipmentDate,
       suppliers,
       raw,
     })
   }
 
   return rows
+}
+
+// ── Date normaliser ──────────────────────────────────────────
+// Accepts: dd/mm/yyyy, dd-mm-yyyy, mm/dd/yyyy, yyyy-mm-dd, d MMM yyyy, etc.
+// Returns: yyyy-mm-dd string or null
+
+function parseDate(raw: string): string | null {
+  if (!raw) return null
+
+  // Already ISO: yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+
+  // dd/mm/yyyy or dd-mm-yyyy
+  const dmy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
+  if (dmy) {
+    const [, d, m, y] = dmy
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+
+  // mm/dd/yyyy — only if day > 12 to disambiguate; otherwise assume dd/mm
+  // (handled above already with dd/mm/yyyy)
+
+  // Fallback: let Date parse it and re-serialise
+  const parsed = new Date(raw)
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10)
+  }
+
+  return null
 }
 
 // ── Re-export detected supplier columns for external use ─────

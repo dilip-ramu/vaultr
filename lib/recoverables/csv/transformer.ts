@@ -45,6 +45,7 @@ export function transformToShipments(validRows: RawCSVRow[], _currency: string):
       totalCost:     row.totalCost,
       totalPieces:   row.totalPcs,
       perPieceCost,
+      shipmentDate:  row.shipmentDate ?? null,
       allocations,
     }
   })
