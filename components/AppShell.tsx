@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
-  Moon, Sun, Target, RefreshCw, Lightbulb, ArrowDownUp
+  Moon, Sun, Target, RefreshCw, Lightbulb, ArrowDownUp, FileText
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -25,19 +25,21 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
-const navItems = [
-  { href: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/accounts',      label: 'Accounts',      icon: Wallet },
-  { href: '/transactions',  label: 'Transactions',  icon: ArrowLeftRight },
-  { href: '/bills',          label: 'Bills',          icon: Receipt },
-  { href: '/recoverables',  label: 'Recoverables',   icon: ArrowDownUp },
-  { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
-  { href: '/customers',     label: 'Customers',     icon: Users },
-  { href: '/insights',      label: 'Insights',      icon: Lightbulb },
-  { href: '/budgets',       label: 'Budgets',       icon: Target },
-  { href: '/categories',    label: 'Categories',    icon: Tag },
-  { href: '/account-types', label: 'Account Types', icon: Layers },
-  { href: '/currencies',    label: 'Currencies',    icon: DollarSign },
+const navItems: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; indent?: boolean }[] = [
+  { href: '/dashboard',                label: 'Dashboard',     icon: LayoutDashboard },
+  { href: '/accounts',                 label: 'Accounts',      icon: Wallet },
+  { href: '/transactions',             label: 'Transactions',  icon: ArrowLeftRight },
+  { href: '/bills',                    label: 'Bills',         icon: Receipt },
+  { href: '/recoverables',             label: 'Recoverables',  icon: ArrowDownUp },
+  { href: '/recoverables/invoices',    label: 'Invoices',      icon: FileText, indent: true },
+  { href: '/recoverables/settings',   label: 'Rec. Settings', icon: Settings, indent: true },
+  { href: '/subscriptions',            label: 'Subscriptions', icon: RefreshCw },
+  { href: '/customers',                label: 'Customers',     icon: Users },
+  { href: '/insights',                 label: 'Insights',      icon: Lightbulb },
+  { href: '/budgets',                  label: 'Budgets',       icon: Target },
+  { href: '/categories',               label: 'Categories',    icon: Tag },
+  { href: '/account-types',            label: 'Account Types', icon: Layers },
+  { href: '/currencies',               label: 'Currencies',    icon: DollarSign },
 ]
 
 
@@ -141,20 +143,24 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
           {/* Nav items */}
           <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-            {navItems.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href || pathname.startsWith(href + '/')
+            {navItems.map(({ href, label, icon: Icon, indent }) => {
+              // For parent items with sub-items, don't highlight when a sub-route is active
+              const hasSubItem = navItems.some(n => n.indent && n.href.startsWith(href + '/'))
+              const active = hasSubItem
+                ? pathname === href
+                : pathname === href || pathname.startsWith(href + '/')
               return (
                 <Link
                   key={href}
                   href={href}
                   title={collapsed ? label : undefined}
-                  className={`flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-sm font-medium transition-all ${collapsed ? 'justify-center' : ''}`}
+                  className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${collapsed ? 'justify-center px-2.5' : indent ? 'pl-6 pr-2.5' : 'px-2.5'}`}
                   style={{
                     backgroundColor: active ? 'var(--brand-light)' : 'transparent',
                     color: active ? 'var(--brand)' : 'var(--text-muted)',
                   }}
                 >
-                  <Icon className="w-[18px] h-[18px] shrink-0" />
+                  <Icon className={`shrink-0 ${indent ? 'w-[15px] h-[15px]' : 'w-[18px] h-[18px]'}`} />
                   {!collapsed && <span className="flex-1">{label}</span>}
                   {!collapsed && active && <ChevronRight className="w-3.5 h-3.5" />}
                 </Link>
@@ -328,21 +334,27 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             </div>
 
             <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-              {[...navItems, { href: '/settings', label: 'Settings', icon: Settings }].map(({ href, label, icon: Icon }) => (
+              {[...navItems, { href: '/settings', label: 'Settings', icon: Settings, indent: false }].map(({ href, label, icon: Icon, indent }) => {
+                const hasSubItem = navItems.some(n => n.indent && n.href.startsWith(href + '/'))
+                const active = hasSubItem
+                  ? pathname === href
+                  : pathname === href || pathname.startsWith(href + '/')
+                return (
                 <Link
                   key={href}
                   href={href}
                   onClick={() => setMobileSidebarOpen(false)}
-                  className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all"
+                  className={`flex items-center gap-3 py-3 rounded-xl text-sm font-medium transition-all ${indent ? 'pl-8 pr-3' : 'px-3'}`}
                   style={{
-                    backgroundColor: (pathname === href || pathname.startsWith(href + '/')) ? 'var(--brand-light)' : 'transparent',
-                    color: (pathname === href || pathname.startsWith(href + '/')) ? 'var(--brand)' : 'var(--text-muted)',
+                    backgroundColor: active ? 'var(--brand-light)' : 'transparent',
+                    color: active ? 'var(--brand)' : 'var(--text-muted)',
                   }}
                 >
-                  <Icon className="w-[18px] h-[18px]" />
+                  <Icon className={`shrink-0 ${indent ? 'w-[15px] h-[15px]' : 'w-[18px] h-[18px]'}`} />
                   {label}
                 </Link>
-              ))}
+                )
+              })}
             </nav>
 
             <div className="px-3 py-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>

@@ -18,6 +18,12 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
   const [phone, setPhone] = useState(customer?.phone ?? '')
   const [address, setAddress] = useState(customer?.address ?? '')
   const [gst, setGst] = useState(customer?.gst_number ?? '')
+  const [city, setCity] = useState(customer?.city ?? '')
+  const [state, setState] = useState(customer?.state ?? '')
+  const [stateCode, setStateCode] = useState(customer?.state_code ?? '')
+  const [pincode, setPincode] = useState(customer?.pincode ?? '')
+  const [country, setCountry] = useState(customer?.country ?? 'India')
+  const [csvAlias, setCsvAlias] = useState(customer?.csv_alias ?? '')
   const [notes, setNotes] = useState(customer?.notes ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -32,12 +38,18 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
     const { data: { user } } = await supabase.auth.getUser()
 
     const payload = {
-      name: name.trim(),
-      email: email.trim() || null,
-      phone: phone.trim() || null,
-      address: address.trim() || null,
+      name:       name.trim(),
+      email:      email.trim() || null,
+      phone:      phone.trim() || null,
+      address:    address.trim() || null,
       gst_number: gst.trim() || null,
-      notes: notes.trim() || null,
+      city:       city.trim() || null,
+      state:      state.trim() || null,
+      state_code: stateCode.trim() || null,
+      pincode:    pincode.trim() || null,
+      country:    country.trim() || null,
+      csv_alias:  csvAlias.trim() || null,
+      notes:      notes.trim() || null,
     }
 
     let data, err
@@ -95,8 +107,49 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
             <textarea value={address} onChange={e => setAddress(e.target.value)}
-              placeholder="Full billing address…" rows={2}
+              placeholder="Street / Building / Area…" rows={2}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
+              <input type="text" value={city} onChange={e => setCity(e.target.value)}
+                placeholder="e.g. Mumbai" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Pincode</label>
+              <input type="text" value={pincode} onChange={e => setPincode(e.target.value)}
+                placeholder="400001" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">State</label>
+              <input type="text" value={state} onChange={e => setState(e.target.value)}
+                placeholder="e.g. Maharashtra" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">State Code</label>
+              <input type="text" value={stateCode} onChange={e => setStateCode(e.target.value)}
+                placeholder="e.g. 27" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Country</label>
+            <input type="text" value={country} onChange={e => setCountry(e.target.value)}
+              placeholder="India" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">CSV Alias</label>
+            <input type="text" value={csvAlias} onChange={e => setCsvAlias(e.target.value)}
+              placeholder="e.g. SURIYAA KNITWEAR" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+            <p className="text-xs text-gray-400 mt-1">
+              Exact column header used in courier CSV files. Used to auto-match imports.
+            </p>
           </div>
 
           <div>

@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ name: string }> },
 ) {
   const { name } = await params
-  const supplierName = decodeURIComponent(name)
+  const customerName = decodeURIComponent(name)
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -19,7 +19,7 @@ export async function GET(
       batch:recoverable_import_batches(id, name, import_date, currency, status)
     `)
     .eq('user_id', user.id)
-    .eq('supplier_name', supplierName)
+    .eq('customer_name', customerName)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -58,6 +58,7 @@ export function processShipment(
   totalCost: number,
   suppliers: Record<string, number>,
   markupRules?: Record<string, { markupType: MarkupType; markupValue: number }>,
+  clientName?: string | null,
 ): ParsedShipment {
   const totalPieces = Object.values(suppliers).reduce((s, p) => s + p, 0)
   const perPieceCost = calcPerPieceCost(totalCost, totalPieces)
@@ -95,5 +96,5 @@ export function processShipment(
     }
   })
 
-  return { reference, totalCost, totalPieces, perPieceCost, allocations }
+  return { reference, totalCost, totalPieces, perPieceCost, shipmentDate: null, clientName: clientName ?? null, allocations }
 }

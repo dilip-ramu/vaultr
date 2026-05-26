@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { Upload } from 'lucide-react'
+import { Upload, Settings } from 'lucide-react'
 import StatsRow from './StatsRow'
-import SupplierBalances from './SupplierBalances'
+import CustomerBalances from './CustomerBalances'
 import BatchList from './BatchList'
 import type { DashboardStats, ImportBatch, SupplierBalance } from '@/lib/recoverables/types'
 
@@ -30,23 +30,42 @@ export default function RecoverablesDashboardClient({
             Track and recover operational expenses
           </p>
         </div>
-        <Link
-          href="/recoverables/import"
-          className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-          style={{ backgroundColor: 'var(--brand)' }}
-        >
-          <Upload className="w-4 h-4" />
-          Import CSV
-        </Link>
+        <div className="hidden md:flex items-center gap-2">
+          <Link
+            href="/recoverables/settings"
+            className="flex items-center justify-center w-9 h-9 rounded-xl border transition-colors"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface-2)' }}
+            title="Invoice Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </Link>
+          <Link
+            href="/recoverables/import"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+            style={{ backgroundColor: 'var(--brand)' }}
+          >
+            <Upload className="w-4 h-4" />
+            Import CSV
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}
       <StatsRow stats={stats} />
 
-      {/* Pending by supplier */}
+      {/* Pending by customer */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Pending by Supplier</h2>
-        <SupplierBalances balances={balances} currency={currency} />
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Pending by Customer</h2>
+          <Link
+            href="/recoverables/invoices"
+            className="text-xs font-semibold"
+            style={{ color: 'var(--brand)' }}
+          >
+            View All Invoices →
+          </Link>
+        </div>
+        <CustomerBalances balances={balances} currency={currency} />
       </section>
 
       {/* Recent imports */}

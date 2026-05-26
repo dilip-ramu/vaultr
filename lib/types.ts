@@ -145,6 +145,12 @@ export interface Customer {
   address: string | null
   gst_number: string | null
   notes: string | null
+  city: string | null
+  state: string | null
+  state_code: string | null
+  pincode: string | null
+  country: string | null
+  csv_alias: string | null
   created_at: string
 }
 

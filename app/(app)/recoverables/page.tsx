@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import RecoverablesDashboardClient from '@/components/recoverables/dashboard/RecoverablesDashboardClient'
-import { aggregateSupplierBalances, calcDashboardStats } from '@/lib/recoverables/engine/balance'
+import { aggregateCustomerBalances, calcDashboardStats } from '@/lib/recoverables/engine/balance'
 import type { ImportBatch, RecoverableAllocation } from '@/lib/recoverables/types'
 
 export default async function RecoverablesPage() {
@@ -29,7 +29,7 @@ export default async function RecoverablesPage() {
   const currency = safeBatches[0]?.currency ?? 'INR'
 
   const pendingAllocations = safeAllocations.filter(a => a.status === 'pending')
-  const balances = aggregateSupplierBalances(pendingAllocations)
+  const balances = aggregateCustomerBalances(pendingAllocations)
   const stats    = calcDashboardStats(safeBatches, safeAllocations, currency)
 
   return (

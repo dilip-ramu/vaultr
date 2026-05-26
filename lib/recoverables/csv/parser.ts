@@ -2,16 +2,19 @@ import type { RawCSVRow } from '../types'
 
 // ── Column detection ─────────────────────────────────────────
 
-const REFERENCE_ALIASES = /^(awb|reference|ref|id)$/i
+const REFERENCE_ALIASES = /^(awb(\s*no\.?)?|reference|ref|id)$/i
 const COST_ALIASES      = /^(total\s*cost|cost|amount|total\s*amount)$/i
 const PCS_ALIASES       = /^(total\s*pcs|pcs|total\s*pieces|pieces)$/i
 const DATE_ALIASES      = /^(date|shipment\s*date|ship\s*date|dispatch\s*date|awb\s*date)$/i
+const CLIENT_ALIASES    = /^(client(\s*name)?|consignee|shipper|customer(\s*name)?)$/i
+const SKIP_ALIASES      = /^(s\.?\s*no\.?|sr\.?\s*no\.?|#|sl\.?\s*no\.?)$/i  // row counters, ignored
 
 export function detectColumns(headers: string[]): {
   referenceCol: number
   totalCostCol: number
   totalPcsCol: number
   dateCol: number
+  clientCol: number
   supplierCols: Array<{ name: string; index: number }>
   errors: string[]
 } {
@@ -19,29 +22,34 @@ export function detectColumns(headers: string[]): {
   let totalCostCol = -1
   let totalPcsCol  = -1
   let dateCol      = -1
+  let clientCol    = -1
   const supplierCols: Array<{ name: string; index: number }> = []
   const errors: string[] = []
 
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i].trim()
-    if (dateCol === -1 && DATE_ALIASES.test(h)) {
+    if (!h || SKIP_ALIASES.test(h)) {
+      // serial number column — ignore entirely
+    } else if (dateCol === -1 && DATE_ALIASES.test(h)) {
       dateCol = i
     } else if (referenceCol === -1 && REFERENCE_ALIASES.test(h)) {
       referenceCol = i
+    } else if (clientCol === -1 && CLIENT_ALIASES.test(h)) {
+      clientCol = i
     } else if (totalCostCol === -1 && COST_ALIASES.test(h)) {
       totalCostCol = i
     } else if (totalPcsCol === -1 && PCS_ALIASES.test(h)) {
       totalPcsCol = i
-    } else if (h.length > 0) {
+    } else {
       supplierCols.push({ name: h, index: i })
     }
   }
 
-  if (referenceCol === -1) errors.push('Could not identify a reference column (expected: AWB, Reference, Ref, or ID)')
+  if (referenceCol === -1) errors.push('Could not identify a reference column (expected: AWB No., Reference, Ref, or ID)')
   if (totalCostCol === -1) errors.push('Could not identify a cost column (expected: Total Cost, Cost, Amount, or Total Amount)')
   if (totalPcsCol  === -1) errors.push('Could not identify a pieces column (expected: Total PCS, PCS, Total Pieces, or Pieces)')
 
-  return { referenceCol, totalCostCol, totalPcsCol, dateCol, supplierCols, errors }
+  return { referenceCol, totalCostCol, totalPcsCol, dateCol, clientCol, supplierCols, errors }
 }
 
 // ── CSV tokeniser ────────────────────────────────────────────
@@ -87,7 +95,7 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
   if (nonEmpty.length === 0) return []
 
   const headers = parseCSVLine(nonEmpty[0]).map(h => h.trim())
-  const { referenceCol, totalCostCol, totalPcsCol, dateCol, supplierCols, errors } = detectColumns(headers)
+  const { referenceCol, totalCostCol, totalPcsCol, dateCol, clientCol, supplierCols, errors } = detectColumns(headers)
 
   if (errors.length > 0) {
     // Surface header errors as a single synthetic row so callers can report them
@@ -104,10 +112,11 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
     const raw: Record<string, string> = {}
     headers.forEach((h, i) => { raw[h] = (fields[i] ?? '').trim() })
 
-    const reference = (fields[referenceCol] ?? '').trim()
-    const costStr   = (fields[totalCostCol] ?? '').trim()
-    const pcsStr    = (fields[totalPcsCol]  ?? '').trim()
-    const dateStr   = dateCol !== -1 ? (fields[dateCol] ?? '').trim() : ''
+    const reference  = (fields[referenceCol] ?? '').trim()
+    const costStr    = (fields[totalCostCol] ?? '').trim()
+    const pcsStr     = (fields[totalPcsCol]  ?? '').trim()
+    const dateStr    = dateCol   !== -1 ? (fields[dateCol]   ?? '').trim() : ''
+    const clientName = clientCol !== -1 ? (fields[clientCol] ?? '').trim() : null
 
     const totalCost = parseFloat(costStr.replace(/,/g, ''))
     const totalPcs  = parseInt(pcsStr, 10)
@@ -124,9 +133,10 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
     rows.push({
       rowIndex: lineIdx,   // 1-based line number (header = 0, first data = 1)
       reference,
-      totalCost: isNaN(totalCost) ? 0 : totalCost,
-      totalPcs:  isNaN(totalPcs)  ? 0 : totalPcs,
+      totalCost:   isNaN(totalCost) ? 0 : totalCost,
+      totalPcs:    isNaN(totalPcs)  ? 0 : totalPcs,
       shipmentDate,
+      clientName:  clientName || null,
       suppliers,
       raw,
     })

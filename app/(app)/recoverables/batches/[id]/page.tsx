@@ -25,7 +25,7 @@ export default async function BatchDetailPage({ params }: { params: Promise<{ id
       .from('recoverable_allocations')
       .select('*')
       .eq('batch_id', id)
-      .order('supplier_name', { ascending: true }),
+      .order('customer_name', { ascending: true }),
   ])
 
   if (!batch) notFound()

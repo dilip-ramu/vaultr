@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, CheckCircle, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronLeft, CheckCircle, Loader2, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/components/shared/Toast'
 import CSVDropzone from './CSVDropzone'
 import SupplierColumnBadges from './SupplierColumnBadges'
@@ -33,6 +34,7 @@ export default function ImportPageClient() {
   const [file, setFile]   = useState<File | null>(null)
   const [preview, setPreview] = useState<PreviewData | null>(null)
   const [batchId, setBatchId] = useState<string | null>(null)
+  const [unmatchedCustomers, setUnmatchedCustomers] = useState<string[]>([])
   const [apiError, setApiError] = useState<string | null>(null)
 
   // Form fields
@@ -82,9 +84,10 @@ export default function ImportPageClient() {
 
     try {
       const res = await fetch('/api/recoverables/import', { method: 'POST', body: fd })
-      const data = await res.json() as { success?: boolean; batchId?: string; error?: string }
+      const data = await res.json() as { success?: boolean; batchId?: string; error?: string; unmatchedCustomers?: string[] }
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Import failed')
       setBatchId(data.batchId ?? null)
+      setUnmatchedCustomers(data.unmatchedCustomers ?? [])
       setStage('done')
       showToast('Import complete', 'success')
     } catch (err) {
@@ -122,32 +125,58 @@ export default function ImportPageClient() {
 
       {/* Done state */}
       {stage === 'done' && (
-        <div className="card text-center py-10 space-y-4">
-          <CheckCircle className="w-12 h-12 mx-auto" style={{ color: 'var(--income, #22c55e)' }} />
-          <div>
-            <p className="font-semibold text-lg" style={{ color: 'var(--text)' }}>Import complete</p>
-            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-              {preview?.summary?.referenceCount} references across {preview?.summary?.supplierCount} suppliers
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-            {batchId && (
+        <div className="space-y-4">
+          <div className="card text-center py-10 space-y-4">
+            <CheckCircle className="w-12 h-12 mx-auto" style={{ color: 'var(--income, #22c55e)' }} />
+            <div>
+              <p className="font-semibold text-lg" style={{ color: 'var(--text)' }}>Import complete</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+                {preview?.summary?.referenceCount} references across {preview?.summary?.supplierCount} customers
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              {batchId && (
+                <button
+                  onClick={() => router.push(`/recoverables/batches/${batchId}`)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+                  style={{ backgroundColor: 'var(--brand)' }}
+                >
+                  View Batch
+                </button>
+              )}
               <button
-                onClick={() => router.push(`/recoverables/batches/${batchId}`)}
-                className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
-                style={{ backgroundColor: 'var(--brand)' }}
+                onClick={() => router.push('/recoverables')}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium border"
+                style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}
               >
-                View Batch
+                Back to Dashboard
               </button>
-            )}
-            <button
-              onClick={() => router.push('/recoverables')}
-              className="px-5 py-2.5 rounded-xl text-sm font-medium border"
-              style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}
-            >
-              Back to Dashboard
-            </button>
+            </div>
           </div>
+
+          {unmatchedCustomers.length > 0 && (
+            <div
+              className="card flex items-start gap-3 p-4"
+              style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a' }}
+            >
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#d97706' }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
+                  {unmatchedCustomers.length} customer column{unmatchedCustomers.length > 1 ? 's' : ''} not matched
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#b45309' }}>
+                  {unmatchedCustomers.join(', ')}. Add them in Customers and set their CSV Alias to match.
+                </p>
+                <Link
+                  href="/customers"
+                  className="inline-block mt-2 text-xs font-semibold underline"
+                  style={{ color: '#d97706' }}
+                >
+                  Go to Customers →
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

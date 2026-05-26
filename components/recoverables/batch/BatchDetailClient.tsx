@@ -22,15 +22,15 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
   const [localAllocations, setLocalAllocations] = useState<RecoverableAllocation[]>(allocations)
   const [billingId, setBillingId] = useState<string | null>(null)
 
-  // Group allocations by supplier
-  const supplierMap = new Map<string, RecoverableAllocation[]>()
+  // Group allocations by customer
+  const customerMap = new Map<string, RecoverableAllocation[]>()
   for (const a of localAllocations) {
-    const list = supplierMap.get(a.supplier_name) ?? []
+    const list = customerMap.get(a.customer_name) ?? []
     list.push(a)
-    supplierMap.set(a.supplier_name, list)
+    customerMap.set(a.customer_name, list)
   }
 
-  const supplierSummary = Array.from(supplierMap.entries()).map(([name, allocs]) => ({
+  const supplierSummary = Array.from(customerMap.entries()).map(([name, allocs]) => ({
     name,
     totalPcs:         allocs.reduce((s, a) => s + a.pieces, 0),
     totalBase:        allocs.reduce((s, a) => s + a.base_cost, 0),
@@ -147,7 +147,7 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
 
       {/* ── Section 2: Supplier summary ── */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>By Supplier</h2>
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>By Customer</h2>
 
         {supplierSummary.length === 0 ? (
           <div className="card py-8 text-center">
@@ -160,7 +160,7 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
               <table className="min-w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Supplier', 'PCS', 'Base Cost', 'Recoverable', 'Status', ''].map(h => (
+                    {['Customer', 'PCS', 'Base Cost', 'Recoverable', 'Status', ''].map(h => (
                       <th key={h} className="text-left py-2 px-3 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
@@ -267,7 +267,7 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
                     <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
                       {shipAllocs.map(a => (
                         <div key={a.id} className="flex items-center justify-between text-xs gap-2">
-                          <span style={{ color: 'var(--text-muted)' }}>{a.supplier_name}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>{a.customer_name}</span>
                           <span style={{ color: 'var(--text-muted)' }}>{a.pieces} pcs</span>
                           <span style={{ color: 'var(--text)' }}>
                             ₹{Number(a.recoverable_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}

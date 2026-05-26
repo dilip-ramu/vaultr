@@ -4,15 +4,15 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-export function aggregateSupplierBalances(
+export function aggregateCustomerBalances(
   allocations: RecoverableAllocation[],
 ): SupplierBalance[] {
   const map = new Map<string, SupplierBalance>()
 
   for (const a of allocations) {
-    if (!map.has(a.supplier_name)) {
-      map.set(a.supplier_name, {
-        supplierName:    a.supplier_name,
+    if (!map.has(a.customer_name)) {
+      map.set(a.customer_name, {
+        customerName:    a.customer_name,
         customerId:      a.customer_id,
         pendingAmount:   0,
         billedAmount:    0,
@@ -23,7 +23,7 @@ export function aggregateSupplierBalances(
       })
     }
 
-    const entry = map.get(a.supplier_name)!
+    const entry = map.get(a.customer_name)!
     entry.allocationCount++
     entry.totalAmount = round2(entry.totalAmount + a.recoverable_amount)
 
@@ -31,7 +31,6 @@ export function aggregateSupplierBalances(
     else if (a.status === 'billed') entry.billedAmount = round2(entry.billedAmount + a.recoverable_amount)
     else if (a.status === 'paid')   entry.paidAmount   = round2(entry.paidAmount   + a.recoverable_amount)
 
-    // Keep the most recent activity timestamp
     const ts = a.updated_at ?? a.created_at
     if (ts && (!entry.lastActivity || ts > entry.lastActivity)) {
       entry.lastActivity = ts
@@ -56,14 +55,14 @@ export function calcDashboardStats(
     else if (a.status === 'paid')   totalPaid   = round2(totalPaid   + a.recoverable_amount)
   }
 
-  const supplierNames = new Set(allocations.map(a => a.supplier_name))
+  const customerNames = new Set(allocations.map(a => a.customer_name))
 
   return {
     totalPending,
     totalBilled,
     totalPaid,
-    batchCount:    batches.length,
-    supplierCount: supplierNames.size,
+    batchCount:     batches.length,
+    customerCount:  customerNames.size,
     currency,
   }
 }

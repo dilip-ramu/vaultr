@@ -6,14 +6,10 @@ import { transformToShipments, summarize } from '@/lib/recoverables/csv/transfor
 import type { ParsedShipment } from '@/lib/recoverables/types'
 
 export async function POST(req: NextRequest) {
-  // 1. Auth check — use the cookie-based client throughout.
-  // RLS policies allow authenticated users to insert/update/delete their own rows,
-  // so we don't need the admin/service-role client for DB operations.
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // 2. Parse FormData
   let formData: FormData
   try {
     formData = await req.formData()
@@ -32,15 +28,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No CSV file provided' }, { status: 400 })
   }
 
-  // 3. Parse CSV
   const csvText = await file.text()
   const supplierColumns = getSupplierColumns(csvText)
   const rows = parseCSVText(csvText)
 
-  // 4. Validate
   const { validRows, errors, isValid } = validateRows(rows, supplierColumns)
 
-  // 5. Preview mode or invalid: return without writing
   if (isPreview || !isValid) {
     const shipments = isValid ? transformToShipments(validRows, currency) : []
     const summary   = isValid ? summarize(shipments) : null
@@ -55,15 +48,41 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // 6. Full import — all DB writes use the authenticated user's session (supabase).
   let batchId: string | null = null
 
   try {
-    // a. Transform
     const shipments = transformToShipments(validRows, currency)
     const summary   = summarize(shipments)
 
-    // b. Upload CSV to Storage (best-effort — don't fail the import if storage fails)
+    // Build csv_alias → customer_id map for auto-linking allocations.
+    // Match is normalized (lowercase, no punctuation/spaces) so
+    // "SURIYAA KNITWEAR" matches "Suriyaa Knitwear", "netto aps & co." matches "NETTO APS CO" etc.
+    const aliasToCustomerId = new Map<string, string>()  // original CSV col → customer id
+    const unmatchedCustomers: string[] = []
+    if (supplierColumns.length > 0) {
+      const { data: allCustomers } = await supabase
+        .from('customers')
+        .select('id, name, csv_alias')
+        .eq('user_id', user.id)
+
+      // Build a map of normalised alias/name → customer id
+      const normToCustomerId = new Map<string, string>()
+      for (const c of allCustomers ?? []) {
+        if (c.csv_alias) normToCustomerId.set(normalise(c.csv_alias), c.id)
+        // Also fall back to matching on the customer's actual name
+        normToCustomerId.set(normalise(c.name), c.id)
+      }
+
+      for (const col of supplierColumns) {
+        const customerId = normToCustomerId.get(normalise(col))
+        if (customerId) {
+          aliasToCustomerId.set(col, customerId)
+        } else {
+          unmatchedCustomers.push(col)
+        }
+      }
+    }
+
     let storagePath: string | null = null
     try {
       storagePath = `recoverables/imports/${user.id}/${Date.now()}-${name}.csv`
@@ -78,7 +97,6 @@ export async function POST(req: NextRequest) {
       storagePath = null
     }
 
-    // c. Insert batch (status='pending')
     const { data: batchRow, error: batchErr } = await supabase
       .from('recoverable_import_batches')
       .insert({
@@ -96,7 +114,6 @@ export async function POST(req: NextRequest) {
     if (batchErr || !batchRow) throw new Error(`Failed to create batch: ${batchErr?.message}`)
     batchId = batchRow.id
 
-    // d. Batch insert shipments in chunks of 100
     const shipmentRows = shipments.map(s => ({
       user_id:        user.id,
       batch_id:       batchId,
@@ -105,6 +122,7 @@ export async function POST(req: NextRequest) {
       total_pieces:   s.totalPieces,
       per_piece_cost: s.perPieceCost,
       shipment_date:  s.shipmentDate ?? null,
+      client_name:    s.clientName ?? null,
     }))
 
     const shipmentIdMap = new Map<string, string>()
@@ -122,8 +140,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // e. Batch insert allocations in chunks of 200
-    const allocationRows = buildAllocationRows(shipments, shipmentIdMap, batchId!, user.id)
+    const allocationRows = buildAllocationRows(shipments, shipmentIdMap, batchId!, user.id, aliasToCustomerId)
 
     for (let i = 0; i < allocationRows.length; i += 200) {
       const chunk = allocationRows.slice(i, i + 200)
@@ -134,7 +151,6 @@ export async function POST(req: NextRequest) {
       if (allocErr) throw new Error(`Allocation insert failed: ${allocErr.message}`)
     }
 
-    // f. Update batch with final summary
     await supabase
       .from('recoverable_import_batches')
       .update({
@@ -147,12 +163,11 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', batchId)
 
-    return NextResponse.json({ success: true, batchId, summary })
+    return NextResponse.json({ success: true, batchId, summary, unmatchedCustomers })
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
 
-    // Mark batch as failed if it was created
     if (batchId) {
       await supabase
         .from('recoverable_import_batches')
@@ -166,11 +181,23 @@ export async function POST(req: NextRequest) {
 
 // ── Helpers ─────────────────────────────────────────────────
 
+// Strip punctuation, collapse whitespace, lowercase.
+// "SURIYAA KNITWEAR" → "suriyaa knitwear"
+// "Netto APS & Co. KG" → "netto aps co kg"
+function normalise(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function buildAllocationRows(
   shipments: ParsedShipment[],
   shipmentIdMap: Map<string, string>,
   batchId: string,
   userId: string,
+  aliasToCustomerId: Map<string, string>,
 ) {
   const rows = []
   for (const s of shipments) {
@@ -182,7 +209,8 @@ function buildAllocationRows(
         user_id:            userId,
         batch_id:           batchId,
         shipment_id:        shipmentId,
-        supplier_name:      a.supplierName,
+        customer_id:        aliasToCustomerId.get(a.supplierName) ?? null,
+        customer_name:      a.supplierName,
         pieces:             a.pieces,
         base_cost:          a.baseCost,
         markup_type:        a.markupType,

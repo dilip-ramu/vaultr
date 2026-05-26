@@ -32,6 +32,7 @@ export interface RecoverableShipment {
   total_cost: number
   total_pieces: number
   per_piece_cost: number
+  client_name: string | null
   source: string | null
   shipment_date: string | null
   destination: string | null
@@ -46,7 +47,7 @@ export interface RecoverableAllocation {
   batch_id: string
   shipment_id: string
   customer_id: string | null
-  supplier_name: string
+  customer_name: string
   pieces: number
   base_cost: number
   markup_type: MarkupType
@@ -68,6 +69,7 @@ export interface RawCSVRow {
   totalCost: number
   totalPcs: number
   shipmentDate: string | null        // yyyy-mm-dd or null
+  clientName: string | null          // consignee / client from CSV
   suppliers: Record<string, number>  // supplierName → pieces
   raw: Record<string, string>        // original values for error display
 }
@@ -104,6 +106,7 @@ export interface ParsedShipment {
   totalPieces: number
   perPieceCost: number
   shipmentDate: string | null
+  clientName: string | null
   allocations: ParsedAllocation[]
 }
 
@@ -120,7 +123,7 @@ export interface ProcessingResult {
 // ── Dashboard types ──────────────────────────────────────────
 
 export interface SupplierBalance {
-  supplierName: string
+  customerName: string
   customerId: string | null
   pendingAmount: number
   billedAmount: number
@@ -135,6 +138,60 @@ export interface DashboardStats {
   totalBilled: number
   totalPaid: number
   batchCount: number
-  supplierCount: number
+  customerCount: number
   currency: string
+}
+
+// ── Invoice types ────────────────────────────────────────────
+
+export type InvoiceStatus = 'draft' | 'sent' | 'overdue' | 'paid' | 'cancelled'
+
+export interface RecoverableInvoice {
+  id: string
+  user_id: string
+  invoice_number: string
+  customer_name: string
+  customer_id: string | null
+  customer_address: string | null
+  customer_gstin: string | null
+  customer_state: string | null
+  invoice_date: string
+  due_date: string | null
+  payment_terms: string | null
+  markup_type: string
+  markup_value: number
+  subtotal: number
+  cgst_rate: number
+  sgst_rate: number
+  cgst_amount: number
+  sgst_amount: number
+  total: number
+  paid_amount: number
+  balance_due: number
+  status: InvoiceStatus
+  notes: string | null
+  currency: string
+  sent_at: string | null
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface RecoverableInvoiceLine {
+  id: string
+  user_id: string
+  invoice_id: string
+  allocation_id: string | null
+  line_number: number
+  awb: string
+  shipment_date: string | null
+  hsn_sac: string | null
+  qty: number
+  base_rate: number
+  rate: number
+  amount: number
+  cgst_rate: number
+  cgst_amount: number
+  sgst_rate: number
+  sgst_amount: number
 }

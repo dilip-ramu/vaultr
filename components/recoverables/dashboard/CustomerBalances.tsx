@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle } from 'lucide-react'
 import type { SupplierBalance } from '@/lib/recoverables/types'
 
-interface SupplierBalancesProps {
+interface CustomerBalancesProps {
   balances: SupplierBalance[]
   currency: string
 }
@@ -14,7 +14,7 @@ function fmtAmount(n: number, currency: string) {
   return symbol + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function SupplierBalances({ balances, currency }: SupplierBalancesProps) {
+export default function CustomerBalances({ balances, currency }: CustomerBalancesProps) {
   const router = useRouter()
 
   if (balances.length === 0) {
