@@ -92,7 +92,6 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
 
         /* ── Header ── */
         .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-        .company-logo { height: 2cm; width: auto; display: block; }
         .company-name { font-size: 20px; font-weight: 700; }
         .tax-invoice-block { text-align: right; }
         .tax-invoice-block h2 { font-size: 16px; font-weight: 700; margin: 0 0 2px; }
@@ -171,7 +170,7 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
 
         {/* 1 — Header */}
         <div className="header">
-          <img src="/Contrast.png" alt={companyName} className="company-logo" />
+          <img src="/Contrast.png" alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
           <div className="tax-invoice-block">
             <h2>Tax Invoice</h2>
             <div className="invoice-number"># {invoice.invoice_number}</div>
@@ -332,8 +331,11 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
         )}
 
         {/* 12 — Signature */}
-        <div className="signature-block">
-          <img src="/signedcopy.png" alt="Authorized Signature" style={{ height: '3cm', width: 'auto' }} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <img src="/signedcopy.png" alt="Authorised Signature" style={{ height: '3cm', width: 'auto', display: 'block', marginLeft: 'auto' }} />
+            <div style={{ fontSize: '10.5px', marginTop: '4px' }}>Authorised Signature</div>
+          </div>
         </div>
 
       </div>
