@@ -41,7 +41,7 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
     }
 
     if (count! > 0) {
-      try { sessionStorage.removeItem('vaultr-deleted-tx-ids') } catch {}
+      try { sessionStorage.removeItem('inex-deleted-tx-ids') } catch {}
       setTxCount(null)
       alert(
         `Cannot delete "${account.name}" — it has ${count} linked transaction${count! > 1 ? 's' : ''}.\n\n` +

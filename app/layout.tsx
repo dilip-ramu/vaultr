@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Vaultr — Personal Finance',
+  title: 'InEx — Personal Finance',
   description: 'Your personal finance command centre',
   manifest: '/manifest.json',
   icons: {
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Vaultr',
+    title: 'InEx',
   },
 }
 

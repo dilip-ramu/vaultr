@@ -52,14 +52,14 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('vaultr-theme') as 'light' | 'dark') || 'light'
+      return (localStorage.getItem('inex-theme') as 'light' | 'dark') || 'light'
     }
     return 'light'
   })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('vaultr-theme', theme)
+    localStorage.setItem('inex-theme', theme)
   }, [theme])
 
   // iOS PWA fix: set --app-height to actual window.innerHeight.
@@ -122,8 +122,8 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             className={`flex items-center h-14 shrink-0 border-b ${collapsed ? 'justify-center' : 'justify-between px-4'}`}
             style={{ borderColor: 'var(--border)' }}
           >
-            {!collapsed && <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-6 w-auto object-contain" />}
-            {collapsed && <img src="/vaultr-logo.png" alt="Vaultr" className="w-7 h-7 object-contain" />}
+            {!collapsed && <img src="/vaultr-letter-logo.png" alt="InEx" className="h-6 w-auto object-contain" />}
+            {collapsed && <img src="/vaultr-logo.png" alt="InEx" className="w-7 h-7 object-contain" />}
             {!collapsed && (
               <button onClick={toggleCollapsed} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-muted)' }}>
                 <PanelLeftClose className="w-4 h-4" />
@@ -266,7 +266,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             </button>
             <img
               src="/vaultr-letter-logo.png"
-              alt="Vaultr"
+              alt="InEx"
               className="h-5 w-auto object-contain absolute left-1/2 -translate-x-1/2"
             />
             <Link href="/settings" className="w-10 h-10 flex items-center justify-center -mr-2">
@@ -327,7 +327,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
               className="flex items-center justify-between px-5 py-4 border-b"
               style={{ borderColor: 'var(--border)' }}
             >
-              <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-5 w-auto object-contain" />
+              <img src="/vaultr-letter-logo.png" alt="InEx" className="h-5 w-auto object-contain" />
               <button onClick={() => setMobileSidebarOpen(false)} style={{ color: 'var(--text-muted)' }}>
                 <X className="w-5 h-5" />
               </button>

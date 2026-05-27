@@ -270,7 +270,7 @@ export default function SettingsClient({ user, profile, household, members }: Pr
         </button>
       </div>
 
-      <p className="text-center text-xs text-gray-300 pb-4">Vaultr v0.2 · Built with ❤️</p>
+      <p className="text-center text-xs text-gray-300 pb-4">InEx v0.2 · Built with ❤️</p>
     </div>
   )
 }

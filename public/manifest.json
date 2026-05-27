@@ -1,6 +1,6 @@
 {
-  "name": "Vaultr",
-  "short_name": "Vaultr",
+  "name": "InEx",
+  "short_name": "InEx",
   "description": "Your personal finance command centre",
   "start_url": "/dashboard",
   "display": "standalone",

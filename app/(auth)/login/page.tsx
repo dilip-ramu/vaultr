@@ -40,7 +40,7 @@ export default function LoginPage() {
             <Vault className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="text-gray-500 mt-1 text-sm">Sign in to your Vaultr account</p>
+          <p className="text-gray-500 mt-1 text-sm">Sign in to your InEx account</p>
         </div>
 
         {/* Form */}

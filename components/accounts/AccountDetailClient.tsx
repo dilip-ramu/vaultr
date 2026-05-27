@@ -18,7 +18,7 @@ interface Props {
   builtinOverrides?: BuiltinTypeOverride[]
 }
 
-const DELETED_KEY = 'vaultr-deleted-tx-ids'
+const DELETED_KEY = 'inex-deleted-tx-ids'
 function getDeletedIds(): string[] {
   try { return JSON.parse(sessionStorage.getItem(DELETED_KEY) || '[]') } catch { return [] }
 }
