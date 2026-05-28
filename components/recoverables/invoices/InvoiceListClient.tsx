@@ -97,6 +97,7 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
   }
 
   return (
+    <>
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
       <div className="max-w-4xl mx-auto px-4 py-6">
 
@@ -268,5 +269,6 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
         onSaved={handlePaidSaved}
       />
     )}
+    </>
   )
 }
