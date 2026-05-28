@@ -147,7 +147,7 @@ export default function BilledRecoverablesClient({ initialInvoices }: Props) {
                     <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{inv.linked_customer_name ?? '—'}</td>
                     <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{inv.billed_invoice_ref ?? '—'}</td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-1 rounded-full text-xs font-medium" style={sc}>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: sc.bg, color: sc.text }}>
                         {RECOVERABLE_STATUS_LABELS[inv.recoverable_status ?? 'billed']}
                       </span>
                     </td>
@@ -196,7 +196,7 @@ export default function BilledRecoverablesClient({ initialInvoices }: Props) {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>₹{fmtAmt(Number(inv.amount))}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style={sc}>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: sc.bg, color: sc.text }}>
                       {RECOVERABLE_STATUS_LABELS[inv.recoverable_status ?? 'billed']}
                     </span>
                   </div>

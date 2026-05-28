@@ -201,7 +201,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
 
                         <div className="flex items-center gap-3 shrink-0">
                           <span className="text-base font-bold" style={{ color: 'var(--text)' }}>₹{fmtAmt(Number(inv.amount))}</span>
-                          <span className="px-2 py-1 rounded-full text-xs font-medium" style={sc}>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: sc.bg, color: sc.text }}>
                             {RECOVERABLE_STATUS_LABELS[inv.recoverable_status ?? 'pending_billing']}
                           </span>
 

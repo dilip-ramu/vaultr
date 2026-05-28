@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { computeInvoiceStatus } from '@/lib/suppliers/types'
+import { computeInvoiceStatus, type SupplierInvoiceStatus } from '@/lib/suppliers/types'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const status = computeInvoiceStatus({
     is_paid: Boolean(merged.is_paid),
     due_date: merged.due_date as string | null,
-    status: merged.status as string,
+    status: merged.status as SupplierInvoiceStatus,
   })
 
   // Auto-set recoverable_status when marking recoverable for first time
