@@ -36,6 +36,8 @@ export interface PayrollMonth {
   is_paid: boolean
   paid_at: string | null
   payment_account_id: string | null
+  income_transaction_id: string | null
+  forex_transaction_id: string | null
   created_at: string
 }
 

@@ -68,7 +68,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
 
   if (!month) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Delete associated salary transactions before removing the month
+  // Collect all transaction IDs to delete: salary entries + income + forex
+  const { data: fullMonth } = await supabase
+    .from('payroll_months')
+    .select('income_transaction_id, forex_transaction_id')
+    .eq('id', id).eq('user_id', user.id).single()
+
   const { data: entries } = await supabase
     .from('payroll_entries')
     .select('transaction_id')
@@ -76,7 +81,12 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
     .eq('user_id', user.id)
     .not('transaction_id', 'is', null)
 
-  const txIds = (entries ?? []).map(e => e.transaction_id).filter(Boolean)
+  const txIds = [
+    ...(entries ?? []).map(e => e.transaction_id),
+    fullMonth?.income_transaction_id,
+    fullMonth?.forex_transaction_id,
+  ].filter(Boolean) as string[]
+
   if (txIds.length > 0) {
     await supabase.from('transactions').delete().in('id', txIds).eq('user_id', user.id)
   }

@@ -59,6 +59,12 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
   const [finalizing, setFinalizing] = useState(false)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
 
+  // Income logging state
+  const [showIncomeModal, setShowIncomeModal] = useState(false)
+  const [incomeAccountId, setIncomeAccountId] = useState('')
+  const [loggingIncome, setLoggingIncome] = useState(false)
+  const [incomeError, setIncomeError] = useState<string | null>(null)
+
   // Per-row inline values (always visible, saved on blur)
   const [rowValues, setRowValues] = useState<Record<string, RowValues>>(() => {
     const map: Record<string, RowValues> = {}
@@ -157,6 +163,35 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
     } finally {
       setFinalizing(false)
     }
+  }
+
+  async function handleLogIncome() {
+    if (!incomeAccountId) { setIncomeError('Please select an account'); return }
+    setLoggingIncome(true)
+    setIncomeError(null)
+    try {
+      const res = await fetch(`/api/payroll/months/${month.id}/income`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: incomeAccountId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setIncomeError(data.error ?? 'Failed'); return }
+      setMonth(data.month)
+      setShowIncomeModal(false)
+    } catch {
+      setIncomeError('Network error')
+    } finally {
+      setLoggingIncome(false)
+    }
+  }
+
+  async function handleReverseIncome() {
+    if (!confirm('Delete the income and forex expense transactions for this month?')) return
+    const res = await fetch(`/api/payroll/months/${month.id}/income`, { method: 'DELETE' })
+    const data = await res.json()
+    if (res.ok) setMonth(data.month)
+    else alert(data.error ?? 'Failed to reverse')
   }
 
   const saveRow = useCallback(async (entry: PayrollEntry) => {
@@ -289,6 +324,32 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             <span className="text-xs text-gray-400">(auto-calculated)</span>
           </div>
         )}
+
+        {/* Income logging */}
+        {Number(month.received_inr) > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+            <div className="text-xs text-gray-500">
+              {month.income_transaction_id
+                ? '✓ Income & forex transactions logged'
+                : 'Log received amount as income and bank charges as expense'}
+            </div>
+            {month.income_transaction_id ? (
+              <button
+                onClick={handleReverseIncome}
+                className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors"
+              >
+                ↩ Reverse
+              </button>
+            ) : (
+              <button
+                onClick={() => { setShowIncomeModal(true); setIncomeError(null); setIncomeAccountId('') }}
+                className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors"
+              >
+                ↓ Log Income & Forex
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Generate / regenerate */}
@@ -397,6 +458,72 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           <p className="px-5 py-2 text-xs text-gray-400 border-t border-gray-100">
             Changes auto-save when you click out of a field.
           </p>
+        </div>
+      )}
+
+      {/* Log Income & Forex modal */}
+      {showIncomeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">Log Income & Forex</h2>
+              <button onClick={() => setShowIncomeModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {incomeError && (
+                <div className="bg-red-50 text-red-700 text-sm px-4 py-2 rounded-lg">{incomeError}</div>
+              )}
+
+              {/* Preview */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Income</span>
+                  <span className="font-semibold text-green-700">
+                    + Rs.{Number(month.received_inr).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-400 -mt-1">
+                  {month.description?.trim()
+                    ? month.description.trim()
+                    : `Billed: ${Number(month.billed_euros ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} EUR`}
+                </div>
+                {Number(month.bank_charges) > 0 && (
+                  <>
+                    <div className="border-t border-gray-200 pt-2 flex justify-between">
+                      <span className="text-gray-500">Bank Forex Charges</span>
+                      <span className="font-semibold text-red-600">
+                        − Rs.{Number(month.bank_charges).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Bank Account *</label>
+                <select
+                  value={incomeAccountId}
+                  onChange={e => setIncomeAccountId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select account…</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <button onClick={() => setShowIncomeModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+              <button
+                onClick={handleLogIncome}
+                disabled={loggingIncome}
+                className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+              >
+                {loggingIncome ? 'Logging…' : 'Log Transactions'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
