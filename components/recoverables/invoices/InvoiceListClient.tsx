@@ -35,9 +35,11 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function InvoiceListClient({ invoices }: Props) {
+export default function InvoiceListClient({ invoices: initialInvoices }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<FilterTab>('all')
+  const [invoices, setInvoices] = useState(initialInvoices)
+  const [markingPaid, setMarkingPaid] = useState<string | null>(null)
 
   const enriched = useMemo(
     () => invoices.map(inv => ({ ...inv, resolvedStatus: resolveStatus(inv) })),
@@ -57,12 +59,40 @@ export default function InvoiceListClient({ invoices }: Props) {
     return c
   }, [enriched])
 
+  const grandTotal = useMemo(
+    () => enriched.filter(inv => inv.resolvedStatus !== 'cancelled').reduce((s, inv) => s + inv.total, 0),
+    [enriched],
+  )
+
+  const pendingTotal = useMemo(
+    () => enriched.filter(inv => inv.resolvedStatus !== 'paid' && inv.resolvedStatus !== 'cancelled').reduce((s, inv) => s + inv.balance_due, 0),
+    [enriched],
+  )
+
+  async function handleMarkPaid(e: React.MouseEvent, invId: string) {
+    e.stopPropagation()
+    setMarkingPaid(invId)
+    try {
+      const res = await fetch(`/api/recoverables/invoices/${invId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'paid' }),
+      })
+      if (res.ok) {
+        const { invoice: updated } = await res.json()
+        setInvoices(prev => prev.map(inv => inv.id === invId ? updated : inv))
+      }
+    } finally {
+      setMarkingPaid(null)
+    }
+  }
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
       <div className="max-w-4xl mx-auto px-4 py-6">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Invoices</h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -77,6 +107,26 @@ export default function InvoiceListClient({ invoices }: Props) {
             + New Invoice
           </button>
         </div>
+
+        {/* Totals summary */}
+        {enriched.length > 0 && (
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div
+              className="rounded-xl p-3.5"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid var(--brand)' }}
+            >
+              <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Grand Total</p>
+              <p className="text-base font-bold" style={{ color: 'var(--text)' }}>{fmt(grandTotal)}</p>
+            </div>
+            <div
+              className="rounded-xl p-3.5"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid #F59E0B' }}
+            >
+              <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Pending</p>
+              <p className="text-base font-bold" style={{ color: '#D97706' }}>{fmt(pendingTotal)}</p>
+            </div>
+          </div>
+        )}
 
         {/* Filter tabs */}
         <div
@@ -125,51 +175,67 @@ export default function InvoiceListClient({ invoices }: Props) {
         ) : (
           <div className="flex flex-col gap-3">
             {filtered.map(inv => (
-              <button
+              <div
                 key={inv.id}
-                onClick={() => router.push(`/recoverables/invoices/${inv.id}`)}
-                className="rounded-xl p-4 text-left transition-opacity hover:opacity-80 active:opacity-60"
+                className="rounded-xl p-4"
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
-                        {inv.invoice_number}
-                      </span>
-                      <StatusBadge status={inv.resolvedStatus} />
-                    </div>
-                    <p
-                      className="text-sm mt-0.5 truncate"
-                      style={{ color: 'var(--text-muted)' }}
-                    >
-                      {inv.customer_name}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
-                      {fmt(inv.total)}
-                    </p>
-                    {inv.resolvedStatus === 'paid' ? (
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--income, #16a34a)' }}>Paid</p>
-                    ) : (
-                      <p className="text-xs mt-0.5" style={{ color: inv.resolvedStatus === 'overdue' ? '#b45309' : 'var(--text-muted)' }}>
-                        Due {inv.due_date ? fmtDate(inv.due_date) : '—'}
+                {/* Clickable area */}
+                <button
+                  onClick={() => router.push(`/recoverables/invoices/${inv.id}`)}
+                  className="w-full text-left"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
+                          {inv.invoice_number}
+                        </span>
+                        <StatusBadge status={inv.resolvedStatus} />
+                      </div>
+                      <p className="text-sm mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
+                        {inv.customer_name}
                       </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>
+                        {fmt(inv.total)}
+                      </p>
+                      {inv.resolvedStatus === 'paid' ? (
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--income, #16a34a)' }}>Paid</p>
+                      ) : (
+                        <p className="text-xs mt-0.5" style={{ color: inv.resolvedStatus === 'overdue' ? '#b45309' : 'var(--text-muted)' }}>
+                          Due {inv.due_date ? fmtDate(inv.due_date) : '—'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {fmtDate(inv.invoice_date)}
+                    </span>
+                    {inv.resolvedStatus !== 'paid' && inv.resolvedStatus !== 'cancelled' && (
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Balance: {fmt(inv.balance_due)}
+                      </span>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {fmtDate(inv.invoice_date)}
-                  </span>
-                  {inv.resolvedStatus !== 'paid' && inv.resolvedStatus !== 'cancelled' && (
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Balance: {fmt(inv.balance_due)}
-                    </span>
-                  )}
-                </div>
-              </button>
+                </button>
+
+                {/* Mark as Paid button — only for unpaid invoices */}
+                {inv.resolvedStatus !== 'paid' && inv.resolvedStatus !== 'cancelled' && (
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-2)' }}>
+                    <button
+                      onClick={e => handleMarkPaid(e, inv.id)}
+                      disabled={markingPaid === inv.id}
+                      className="w-full py-1.5 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                      style={{ background: 'rgba(22,163,74,0.1)', color: '#16a34a', border: '1px solid rgba(22,163,74,0.2)' }}
+                    >
+                      {markingPaid === inv.id ? 'Marking…' : '✓ Mark as Paid'}
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}

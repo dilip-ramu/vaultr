@@ -26,6 +26,7 @@ export default async function DashboardPage() {
     { data: budgetTx },
     { data: upcomingSubs },
     { data: historyTx },
+    { data: receivableInvoices },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -83,6 +84,12 @@ export default async function DashboardPage() {
       .gte('date', historyStart)
       .order('date', { ascending: false })
       .limit(300),
+    supabase
+      .from('recoverable_invoices')
+      .select('balance_due')
+      .eq('user_id', user!.id)
+      .in('status', ['sent', 'overdue'])
+      .gt('balance_due', 0),
   ])
 
   // Compute spent per category for budget widget
@@ -103,6 +110,8 @@ export default async function DashboardPage() {
     budgets,
     currentMonth: now,
   }).slice(0, 2)
+
+  const totalReceivables = (receivableInvoices ?? []).reduce((s, inv) => s + (inv.balance_due ?? 0), 0)
 
   // Compute monthly sub total for widget
   const subMonthlyTotal = (upcomingSubs ?? []).reduce((s: number, b: Bill) => {
@@ -125,6 +134,7 @@ export default async function DashboardPage() {
       upcomingSubs={(upcomingSubs ?? []) as Bill[]}
       subMonthlyTotal={subMonthlyTotal}
       topInsights={topInsights}
+      totalReceivables={totalReceivables}
     />
   )
 }

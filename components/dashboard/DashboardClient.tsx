@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   TrendingUp, TrendingDown, ChevronRight, Wallet,
-  ArrowLeftRight, ArrowRight
+  ArrowLeftRight, ArrowRight, ReceiptText
 } from 'lucide-react'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill, Category } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
@@ -26,9 +26,10 @@ interface Props {
   upcomingSubs?: Bill[]
   subMonthlyTotal?: number
   topInsights?: Insight[]
+  totalReceivables?: number
 }
 
-export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [], upcomingSubs = [], subMonthlyTotal = 0, topInsights = [] }: Props) {
+export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [], upcomingSubs = [], subMonthlyTotal = 0, topInsights = [], totalReceivables = 0 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
 
@@ -106,8 +107,8 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
         </p>
       </div>
 
-      {/* Monthly Summary — colored left border */}
-      <div className="grid grid-cols-3 gap-3 fade-in" style={{ animationDelay: '100ms' }}>
+      {/* Monthly Summary — 2×2 grid */}
+      <div className="grid grid-cols-2 gap-3 fade-in" style={{ animationDelay: '100ms' }}>
         <div
           className="rounded-2xl p-3.5"
           style={{
@@ -155,6 +156,23 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
           <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{formatCurrency(Math.abs(leftover))}</p>
           <p className="text-caption mt-0.5">{leftover >= 0 ? 'surplus' : 'deficit'}</p>
         </div>
+
+        <Link
+          href="/recoverables/invoices"
+          className="rounded-2xl p-3.5"
+          style={{
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderLeft: '4px solid #F59E0B',
+          }}
+        >
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <ReceiptText className="w-3.5 h-3.5" style={{ color: '#F59E0B' }} />
+            <p className="text-label" style={{ color: '#F59E0B' }}>Receivables</p>
+          </div>
+          <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{formatCurrency(totalReceivables)}</p>
+          <p className="text-caption mt-0.5">unpaid invoices</p>
+        </Link>
       </div>
 
       {/* Cash Flow Chart */}
