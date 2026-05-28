@@ -20,6 +20,10 @@ const EMPTY: Partial<Employee> = {
   pan_number: '',
   upi_id: '',
   joining_date: '',
+  date_of_birth: '',
+  address: '',
+  phone: '',
+  email: '',
   is_active: true,
 }
 
@@ -409,6 +413,58 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
                     onChange={e => setField('upi_id', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="name@upi"
+                  />
+                </div>
+
+                {/* Divider */}
+                <div className="col-span-2 border-t border-gray-100 pt-2">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Personal Details</p>
+                </div>
+
+                {/* Date of Birth */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={form.date_of_birth ?? ''}
+                    onChange={e => setField('date_of_birth', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={form.phone ?? ''}
+                    onChange={e => setField('phone', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="+91 99999 99999"
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Email ID</label>
+                  <input
+                    type="email"
+                    value={form.email ?? ''}
+                    onChange={e => setField('email', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="employee@example.com"
+                  />
+                </div>
+
+                {/* Address */}
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
+                  <textarea
+                    value={form.address ?? ''}
+                    onChange={e => setField('address', e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    placeholder="Street, City, State, PIN"
                   />
                 </div>
               </div>

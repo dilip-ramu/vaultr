@@ -12,6 +12,10 @@ export interface Employee {
   pan_number: string | null
   upi_id: string | null
   joining_date: string | null
+  date_of_birth: string | null
+  address: string | null
+  phone: string | null
+  email: string | null
   is_active: boolean
   created_at: string
 }
