@@ -32,8 +32,7 @@ function fmtInr(n: number, dp = 2) {
 
 function fmtDate(d: string | null) {
   if (!d) return '—'
-  const [y, m, day] = d.split('-')
-  return `${day}/${m}/${y?.slice(2)}`
+  return d
 }
 
 function fmtDateLong(d: string | null) {
