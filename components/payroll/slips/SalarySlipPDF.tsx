@@ -3,6 +3,17 @@ import {
 } from '@react-pdf/renderer'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 
+// Register LiberationSans — supports ₹ (U+20B9), professional look
+const origin = typeof window !== 'undefined' ? window.location.origin : ''
+Font.register({
+  family: 'LiberationSans',
+  fonts: [
+    { src: `${origin}/fonts/LiberationSans-Regular.ttf`, fontWeight: 'normal', fontStyle: 'normal' },
+    { src: `${origin}/fonts/LiberationSans-Bold.ttf`,    fontWeight: 'bold',   fontStyle: 'normal' },
+    { src: `${origin}/fonts/LiberationSans-Italic.ttf`,  fontWeight: 'normal', fontStyle: 'italic' },
+  ],
+})
+
 interface Props {
   entry: PayrollEntry
   month: PayrollMonth
@@ -12,45 +23,70 @@ interface Props {
 }
 
 const s = StyleSheet.create({
-  page:        { padding: 36, fontSize: 9, fontFamily: 'Helvetica', color: '#1a1a1a' },
+  page:        { padding: 36, fontSize: 9, fontFamily: 'LiberationSans', color: '#1a1a1a' },
   header:      { borderBottomWidth: 2, borderBottomColor: '#1a1a1a', paddingBottom: 8, marginBottom: 10, alignItems: 'center' },
-  company:     { fontSize: 14, fontFamily: 'Helvetica-Bold' },
+  company:     { fontSize: 14, fontFamily: 'LiberationSans', fontWeight: 'bold' },
   title:       { fontSize: 11, marginTop: 4 },
   subtitle:    { fontSize: 9, color: '#555', marginTop: 2 },
   grid2:       { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
   gridItem:    { width: '50%', marginBottom: 4 },
   label:       { color: '#777' },
-  value:       { fontFamily: 'Helvetica-Bold' },
+  value:       { fontFamily: 'LiberationSans', fontWeight: 'bold' },
   table:       { borderWidth: 1, borderColor: '#ccc', marginBottom: 8 },
   thead:       { flexDirection: 'row', backgroundColor: '#f0f0f0', borderBottomWidth: 1, borderBottomColor: '#ccc' },
   trow:        { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#ddd' },
   tlastrow:    { flexDirection: 'row' },
-  th:          { flex: 1, padding: 4, fontFamily: 'Helvetica-Bold', fontSize: 8 },
+  th:          { flex: 1, padding: 4, fontFamily: 'LiberationSans', fontWeight: 'bold', fontSize: 8 },
   td:          { flex: 1, padding: 4 },
   tdRight:     { flex: 1, padding: 4, textAlign: 'right' },
-  thRight:     { flex: 1, padding: 4, fontFamily: 'Helvetica-Bold', fontSize: 8, textAlign: 'right' },
+  thRight:     { flex: 1, padding: 4, fontFamily: 'LiberationSans', fontWeight: 'bold', fontSize: 8, textAlign: 'right' },
   totalBox:    { borderWidth: 2, borderColor: '#1a1a1a', padding: 10, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   netLabel:    { fontSize: 8, color: '#777' },
-  netAmount:   { fontSize: 16, fontFamily: 'Helvetica-Bold' },
+  netAmount:   { fontSize: 16, fontFamily: 'LiberationSans', fontWeight: 'bold' },
   netWords:    { fontSize: 7, color: '#555', marginTop: 3, fontStyle: 'italic' },
   bankSection: { borderTopWidth: 0.5, borderTopColor: '#ddd', paddingTop: 8, marginTop: 4 },
-  sectionHdr:  { fontFamily: 'Helvetica-Bold', fontSize: 8, marginBottom: 4 },
+  sectionHdr:  { fontFamily: 'LiberationSans', fontWeight: 'bold', fontSize: 8, marginBottom: 4 },
   footer:      { marginTop: 16, borderTopWidth: 0.5, borderTopColor: '#ddd', paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between' },
   footerText:  { fontSize: 7, color: '#aaa' },
 })
 
-function fmtInr(n: number) {
-  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const MONTHS_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+// Locale-free number formatter with Indian grouping (1,00,000)
+function fmtInr(n: number): string {
+  const [intPart, decPart] = n.toFixed(2).split('.')
+  const int = parseInt(intPart, 10)
+  let s = ''
+  if (int >= 1000) {
+    s = ',' + String(int).slice(-3)
+    let rem = Math.floor(int / 1000)
+    while (rem >= 100) {
+      s = ',' + String(rem).slice(-2) + s
+      rem = Math.floor(rem / 100)
+    }
+    s = String(rem) + s
+  } else {
+    s = String(int)
+  }
+  return s + '.' + decPart
 }
 
-function fmtDate(d: string | null) {
+// Safe date formatter — no locale dependency
+function fmtDate(d: string | null): string {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  const date = new Date(d)
+  if (isNaN(date.getTime())) return d
+  return `${String(date.getDate()).padStart(2, '0')} ${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`
 }
 
-function fmtMonth(m: string) {
+// Format "2025-05" → "May 2025"
+function fmtMonth(m: string): string {
+  if (!m || !m.includes('-')) return m ?? ''
   const [year, month] = m.split('-')
-  return new Date(Number(year), Number(month) - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const idx = parseInt(month, 10) - 1
+  if (idx < 0 || idx > 11) return m
+  return `${MONTHS_LONG[idx]} ${year}`
 }
 
 function amountToWords(amount: number): string {
@@ -136,10 +172,10 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
             <Text style={s.tdRight}></Text>
           </View>
           <View style={[s.trow, { backgroundColor: '#f8f8f8' }]}>
-            <Text style={[s.td, { fontFamily: 'Helvetica-Bold' }]}>Gross Earnings</Text>
-            <Text style={[s.tdRight, { fontFamily: 'Helvetica-Bold' }]}>{fmtInr(gross(entry))}</Text>
-            <Text style={[s.td, { fontFamily: 'Helvetica-Bold' }]}>Total Deductions</Text>
-            <Text style={[s.tdRight, { fontFamily: 'Helvetica-Bold' }]}>{fmtInr(totalDeductions(entry))}</Text>
+            <Text style={[s.td, { fontFamily: 'LiberationSans', fontWeight: 'bold' }]}>Gross Earnings</Text>
+            <Text style={[s.tdRight, { fontFamily: 'LiberationSans', fontWeight: 'bold' }]}>{fmtInr(gross(entry))}</Text>
+            <Text style={[s.td, { fontFamily: 'LiberationSans', fontWeight: 'bold' }]}>Total Deductions</Text>
+            <Text style={[s.tdRight, { fontFamily: 'LiberationSans', fontWeight: 'bold' }]}>{fmtInr(totalDeductions(entry))}</Text>
           </View>
         </View>
 
@@ -147,13 +183,13 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
         <View style={s.totalBox}>
           <View>
             <Text style={s.netLabel}>Net Salary Payable</Text>
-            <Text style={s.netAmount}>₹{fmtInr(Number(entry.final_payable))}</Text>
+            <Text style={s.netAmount}>₹ {fmtInr(Number(entry.final_payable))}</Text>
             <Text style={s.netWords}>{amountToWords(Number(entry.final_payable))}</Text>
           </View>
           {Number(entry.expended_rate) > 0 ? (
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontSize: 8, color: '#666' }}>Salary (€): €{Number(entry.salary_euro).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
-              <Text style={{ fontSize: 8, color: '#666' }}>Exchange Rate: ₹{Number(entry.expended_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} / €</Text>
+              <Text style={{ fontSize: 8, color: '#666' }}>Salary (EUR): {fmtInr(Number(entry.salary_euro))} EUR</Text>
+              <Text style={{ fontSize: 8, color: '#666' }}>Exchange Rate: ₹ {fmtInr(Number(entry.expended_rate))} / EUR</Text>
             </View>
           ) : null}
         </View>
@@ -173,7 +209,7 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
 
         {entry.notes ? (
           <View style={{ marginTop: 8 }}>
-            <Text style={{ fontSize: 8, color: '#555' }}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Note: </Text>{entry.notes}</Text>
+            <Text style={{ fontSize: 8, color: '#555' }}><Text style={{ fontFamily: 'LiberationSans', fontWeight: 'bold' }}>Note: </Text>{entry.notes}</Text>
           </View>
         ) : null}
 
