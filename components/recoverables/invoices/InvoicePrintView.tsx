@@ -32,9 +32,6 @@ function fmtInr(n: number, dp = 2) {
 
 function fmtDate(d: string | null) {
   if (!d) return '—'
-  // Convert ISO yyyy-mm-dd back to dd/mm/yy for display
-  const iso = d.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (iso) return `${iso[3]}/${iso[2]}/${iso[1].slice(2)}`
   return d
 }
 
@@ -253,9 +250,9 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
                 <td>
                   <div>{fmtDate(line.shipment_date)}</div>
                   {line.client_name && (
-                    <div style={{ fontWeight: 600 }}>{line.client_name}</div>
+                    <div style={{ fontWeight: 600 }}>Consignee: {line.client_name}</div>
                   )}
-                  <div className="awb-cell">{line.awb}</div>
+                  <div className="awb-cell">AWB: {line.awb}</div>
                 </td>
                 <td>{line.hsn_sac ?? settings?.hsn_sac ?? '996812'}</td>
                 <td className="right">{line.qty}</td>

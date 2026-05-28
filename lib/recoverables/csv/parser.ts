@@ -121,8 +121,8 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
     const totalCost = parseFloat(costStr.replace(/,/g, ''))
     const totalPcs  = parseInt(pcsStr, 10)
 
-    // Normalise date to ISO yyyy-mm-dd for DB storage
-    const shipmentDate = parseDate(dateStr)
+    // Store date as-is from CSV (column is TEXT in DB)
+    const shipmentDate = dateStr || null
 
     const suppliers: Record<string, number> = {}
     for (const { name, index } of supplierCols) {
