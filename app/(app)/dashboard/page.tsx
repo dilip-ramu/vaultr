@@ -143,7 +143,7 @@ export default async function DashboardPage() {
       subMonthlyTotal={subMonthlyTotal}
       topInsights={topInsights}
       totalReceivables={totalReceivables}
-      unbilledInvoices={(unbilledInvoices ?? []) as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
+      unbilledInvoices={(unbilledInvoices ?? []) as unknown as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
     />
   )
 }

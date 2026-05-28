@@ -57,11 +57,11 @@ const navSections: NavSection[] = [
     label: 'Business',
     items: [
       {
-        href: '/recoverables', label: 'Recoverables', icon: ArrowDownUp,
+        href: '/customers', label: 'Customers', icon: Users,
         subItems: [
-          { href: '/recoverables/invoices',  label: 'Invoices',  icon: FileText },
-          { href: '/recoverables/tds',       label: 'TDS',       icon: Receipt },
-          { href: '/recoverables/settings',  label: 'Settings',  icon: Settings },
+          { href: '/recoverables/invoices',  label: 'Invoices',     icon: FileText },
+          { href: '/recoverables/tds',       label: 'TDS',          icon: Receipt },
+          { href: '/recoverables/settings',  label: 'Settings',     icon: Settings },
         ],
       },
       {
@@ -74,7 +74,6 @@ const navSections: NavSection[] = [
           { href: '/suppliers/payments',     label: 'Payments',     icon: CreditCard },
         ],
       },
-      { href: '/customers', label: 'Customers', icon: Users },
     ],
   },
   {
