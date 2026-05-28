@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { RecoverableInvoice, RecoverableInvoiceLine, InvoiceStatus } from '@/lib/recoverables/types'
 import type { Customer } from '@/lib/types'
 import StatusBadge from '@/components/recoverables/shared/StatusBadge'
+import MarkPaidModal from './MarkPaidModal'
 
 interface SellerInfo {
   company_name: string | null
@@ -46,35 +47,42 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export default function InvoiceDetailClient({ invoice, lines, customer, sellerInfo }: Props) {
+export default function InvoiceDetailClient({ invoice: initialInvoice, lines, customer, sellerInfo }: Props) {
   const router = useRouter()
+  const [invoice, setInvoice] = useState(initialInvoice)
   const [busy, setBusy] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPayModal, setShowPayModal] = useState(false)
 
   const resolvedStatus = resolveStatus(invoice)
   const canMarkPaid   = resolvedStatus === 'sent' || resolvedStatus === 'overdue' || resolvedStatus === 'draft'
+  const canRevert     = resolvedStatus === 'paid'
   const canDelete     = resolvedStatus !== 'paid'
 
-  async function markPaid() {
+  async function handleRevert() {
+    if (!confirm('Mark this invoice as unpaid? The income transaction will remain — delete it manually from Transactions if needed.')) return
     setBusy(true)
     setError(null)
     try {
       const res = await fetch(`/api/recoverables/invoices/${invoice.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paid' }),
+        body: JSON.stringify({ revert: true }),
       })
-      if (!res.ok) {
-        const j = await res.json() as { error?: string }
-        throw new Error(j.error ?? 'Failed to mark paid')
-      }
-      router.refresh()
+      const data = await res.json() as { invoice?: RecoverableInvoice; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Failed to revert')
+      if (data.invoice) setInvoice(data.invoice)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
       setBusy(false)
     }
+  }
+
+  function handlePaidSaved(updated: RecoverableInvoice) {
+    setInvoice(updated)
+    setShowPayModal(false)
   }
 
   async function deleteInvoice() {
@@ -128,12 +136,22 @@ export default function InvoiceDetailClient({ invoice, lines, customer, sellerIn
         <div className="flex flex-wrap gap-2 mb-6">
           {canMarkPaid && (
             <button
-              onClick={markPaid}
+              onClick={() => setShowPayModal(true)}
               disabled={busy}
               className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ background: 'var(--income, #16a34a)', color: '#fff' }}
             >
-              {busy ? 'Saving…' : 'Mark as Paid'}
+              ✓ Record Payment
+            </button>
+          )}
+          {canRevert && (
+            <button
+              onClick={handleRevert}
+              disabled={busy}
+              className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
+              style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}
+            >
+              {busy ? 'Reverting…' : '↩ Mark as Unpaid'}
             </button>
           )}
           <button
@@ -309,6 +327,14 @@ export default function InvoiceDetailClient({ invoice, lines, customer, sellerIn
           </div>
         )}
       </div>
+
+      {showPayModal && (
+        <MarkPaidModal
+          invoice={invoice}
+          onClose={() => setShowPayModal(false)}
+          onSaved={handlePaidSaved}
+        />
+      )}
     </div>
   )
 }

@@ -26,16 +26,18 @@ function round2(n: number) {
   return Math.round(n * 100) / 100
 }
 
+type PaymentMode = 'full' | 'partial'
+
 export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
-  const [accounts, setAccounts]             = useState<Account[]>([])
-  const [accountId, setAccountId]           = useState('')
-  const [paymentDate, setPaymentDate]       = useState(new Date().toISOString().slice(0, 10))
-  const [paidAmount, setPaidAmount]         = useState(String(invoice.balance_due))
-  const [tdsAmount, setTdsAmount]           = useState('0')
-  const [adjAmount, setAdjAmount]           = useState('0')
-  const [adjNotes, setAdjNotes]             = useState('')
-  const [loading, setLoading]               = useState(false)
-  const [error, setError]                   = useState('')
+  const [accounts, setAccounts]       = useState<Account[]>([])
+  const [accountId, setAccountId]     = useState('')
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
+  const [mode, setMode]               = useState<PaymentMode>('full')
+  const [paidAmount, setPaidAmount]   = useState(String(invoice.balance_due))
+  const [adjAmount, setAdjAmount]     = useState('0')
+  const [adjNotes, setAdjNotes]       = useState('')
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState('')
 
   useEffect(() => {
     const supabase = createClient()
@@ -50,27 +52,33 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
       })
   }, [])
 
+  // When switching mode, reset amount to sensible default
+  function switchMode(m: PaymentMode) {
+    setMode(m)
+    setPaidAmount(m === 'full' ? String(invoice.balance_due) : '')
+    setAdjAmount('0')
+    setAdjNotes('')
+    setError('')
+  }
+
   const balance = invoice.balance_due
   const paid    = round2(parseFloat(paidAmount) || 0)
-  const tds     = round2(parseFloat(tdsAmount)  || 0)
   const adj     = round2(parseFloat(adjAmount)  || 0)
-  const accounted  = round2(paid + tds + adj)
-  const remaining  = round2(Math.max(0, balance - accounted))
-  const overAmount = accounted > balance + 0.01
+
+  // In full mode: TDS = balance - paid - adj  (auto-calculated, can be negative if overpaid)
+  // In partial mode: no TDS
+  const tds = mode === 'full' ? round2(Math.max(0, balance - paid - adj)) : 0
+
+  // Validation helpers
+  const overPaid    = mode === 'full' && paid + adj > balance + 0.01
+  const zeroPaid    = paid <= 0
+  const partialOver = mode === 'partial' && paid >= balance - 0.01 && paid > 0
 
   async function handleSubmit() {
-    if (!accountId && paid > 0) {
-      setError('Please select a bank account')
-      return
-    }
-    if (paid <= 0 && tds <= 0 && adj <= 0) {
-      setError('Enter at least one amount')
-      return
-    }
-    if (overAmount) {
-      setError(`Total (${fmt(accounted)}) exceeds balance due (${fmt(balance)})`)
-      return
-    }
+    if (!accountId) { setError('Please select a bank account'); return }
+    if (zeroPaid)   { setError('Enter an amount received'); return }
+    if (overPaid)   { setError(`Amount + adjustment (${fmt(paid + adj)}) exceeds balance due (${fmt(balance)})`); return }
+    if (partialOver){ setError('For a full settlement use "Full Payment" instead'); return }
 
     setLoading(true)
     setError('')
@@ -83,7 +91,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
           tdsAmount:        tds,
           adjustmentAmount: adj,
           adjustmentNotes:  adjNotes || null,
-          accountId:        paid > 0 ? accountId : null,
+          accountId,
           paymentDate,
         }),
       })
@@ -96,8 +104,6 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
       setLoading(false)
     }
   }
-
-  const fullySettled = remaining <= 0
 
   return (
     <div
@@ -133,6 +139,27 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
         >
           <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Balance Due</p>
           <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--text)' }}>{fmt(balance)}</p>
+        </div>
+
+        {/* Full / Partial toggle */}
+        <div
+          className="flex gap-1 p-1 rounded-xl"
+          style={{ background: 'var(--surface-2)' }}
+        >
+          {(['full', 'partial'] as PaymentMode[]).map(m => (
+            <button
+              key={m}
+              onClick={() => switchMode(m)}
+              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-colors"
+              style={
+                mode === m
+                  ? { background: 'var(--background)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }
+                  : { color: 'var(--text-muted)' }
+              }
+            >
+              {m === 'full' ? 'Full Payment' : 'Partial Payment'}
+            </button>
+          ))}
         </div>
 
         {/* Account */}
@@ -179,73 +206,66 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
             value={paidAmount}
             onChange={e => setPaidAmount(e.target.value)}
             className="w-full rounded-xl px-3 py-2.5 text-sm"
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+            style={{
+              background: 'var(--surface-2)',
+              border: `1px solid ${overPaid ? 'rgba(239,68,68,0.5)' : 'var(--border)'}`,
+              color: 'var(--text)',
+            }}
           />
-        </div>
-
-        {/* TDS */}
-        <div>
-          <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            TDS Deducted (₹)
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={tdsAmount}
-            onChange={e => setTdsAmount(e.target.value)}
-            className="w-full rounded-xl px-3 py-2.5 text-sm"
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
-          />
-        </div>
-
-        {/* Debit note / adjustment */}
-        <div>
-          <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            Debit Note / Adjustment (₹)
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={adjAmount}
-            onChange={e => setAdjAmount(e.target.value)}
-            className="w-full rounded-xl px-3 py-2.5 text-sm"
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
-          />
-          {adj > 0 && (
-            <input
-              type="text"
-              placeholder="Note — e.g. offset against CNTR-000008, returns, damage claim…"
-              value={adjNotes}
-              onChange={e => setAdjNotes(e.target.value)}
-              className="w-full rounded-xl px-3 py-2.5 text-sm mt-1.5"
-              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
-            />
+          {mode === 'full' && (
+            <p className="text-xs mt-1 px-1" style={{ color: 'var(--text-muted)' }}>
+              If less than balance due, the difference will be logged as TDS.
+            </p>
           )}
         </div>
+
+        {/* Adjustment — full payment mode only */}
+        {mode === 'full' && (
+          <div>
+            <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
+              Debit Note / Adjustment (₹) <span style={{ fontWeight: 400 }}>— optional</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={adjAmount}
+              onChange={e => setAdjAmount(e.target.value)}
+              className="w-full rounded-xl px-3 py-2.5 text-sm"
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+            />
+            {adj > 0 && (
+              <input
+                type="text"
+                placeholder="Note — e.g. offset against invoice, damage claim…"
+                value={adjNotes}
+                onChange={e => setAdjNotes(e.target.value)}
+                className="w-full rounded-xl px-3 py-2.5 text-sm mt-1.5"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              />
+            )}
+          </div>
+        )}
 
         {/* Live summary */}
         <div
           className="rounded-xl p-3.5 space-y-2 text-sm"
-          style={{ background: 'var(--surface-2)', border: `1px solid ${overAmount ? 'rgba(239,68,68,0.4)' : 'var(--border)'}` }}
+          style={{ background: 'var(--surface-2)', border: `1px solid ${overPaid ? 'rgba(239,68,68,0.4)' : 'var(--border)'}` }}
         >
-          {paid > 0 && (
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Received in bank</span>
-              <span style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paid)}</span>
-            </div>
-          )}
+          <div className="flex justify-between">
+            <span style={{ color: 'var(--text-muted)' }}>Received in bank</span>
+            <span style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paid)}</span>
+          </div>
           {tds > 0 && (
             <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>TDS deducted</span>
+              <span style={{ color: 'var(--text-muted)' }}>TDS (auto-calculated)</span>
               <span style={{ color: '#D97706', fontWeight: 600 }}>{fmt(tds)}</span>
             </div>
           )}
           {adj > 0 && (
             <div className="flex justify-between">
               <span style={{ color: 'var(--text-muted)' }}>
-                Adjustment{adjNotes ? ` — ${adjNotes.slice(0, 30)}` : ''}
+                Adjustment{adjNotes ? ` — ${adjNotes.slice(0, 28)}` : ''}
               </span>
               <span style={{ color: '#6366F1', fontWeight: 600 }}>{fmt(adj)}</span>
             </div>
@@ -254,11 +274,24 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
             className="flex justify-between pt-2 font-bold text-base"
             style={{
               borderTop: '1px solid var(--border)',
-              color: overAmount ? '#ef4444' : fullySettled ? '#16a34a' : '#D97706',
+              color: overPaid
+                ? '#ef4444'
+                : mode === 'full'
+                ? '#16a34a'
+                : '#D97706',
             }}
           >
-            <span>{overAmount ? 'Over by' : fullySettled ? 'Fully settled' : 'Remaining'}</span>
-            <span>{overAmount ? fmt(accounted - balance) : fmt(remaining)}</span>
+            {mode === 'full' ? (
+              <>
+                <span>Invoice will be marked Paid</span>
+                <span>✓</span>
+              </>
+            ) : (
+              <>
+                <span>Remaining after payment</span>
+                <span>{fmt(round2(Math.max(0, balance - paid)))}</span>
+              </>
+            )}
           </div>
         </div>
 
@@ -277,13 +310,13 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || overAmount}
+            disabled={loading || overPaid}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
             style={{ background: '#16a34a', color: '#fff' }}
           >
             {loading
               ? 'Saving…'
-              : fullySettled
+              : mode === 'full'
               ? '✓ Mark as Paid'
               : 'Record Partial Payment'}
           </button>
