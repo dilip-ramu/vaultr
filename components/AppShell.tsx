@@ -8,7 +8,8 @@ import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
-  Moon, Sun, Target, RefreshCw, Lightbulb, ArrowDownUp, FileText
+  Moon, Sun, Target, RefreshCw, Lightbulb, ArrowDownUp, FileText,
+  Banknote, UserSquare, CalendarClock, Clock, History
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -32,8 +33,13 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ class
   { href: '/bills',                    label: 'Bills',         icon: Receipt },
   { href: '/recoverables',             label: 'Recoverables',  icon: ArrowDownUp },
   { href: '/recoverables/invoices',    label: 'Invoices',      icon: FileText, indent: true },
-  { href: '/recoverables/tds',        label: 'TDS',           icon: Receipt,  indent: true },
-  { href: '/recoverables/settings',   label: 'Rec. Settings', icon: Settings, indent: true },
+  { href: '/recoverables/tds',         label: 'TDS',           icon: Receipt,  indent: true },
+  { href: '/recoverables/settings',    label: 'Rec. Settings', icon: Settings, indent: true },
+  { href: '/payroll',                  label: 'Payroll',        icon: Banknote },
+  { href: '/payroll/processing',       label: 'Monthly Processing', icon: CalendarClock, indent: true },
+  { href: '/payroll/staff',            label: 'Staff Particulars',  icon: UserSquare,    indent: true },
+  { href: '/payroll/slips',            label: 'Salary Slips',       icon: FileText,      indent: true },
+  { href: '/payroll/history',          label: 'Payroll History',    icon: History,       indent: true },
   { href: '/subscriptions',            label: 'Subscriptions', icon: RefreshCw },
   { href: '/customers',                label: 'Customers',     icon: Users },
   { href: '/insights',                 label: 'Insights',      icon: Lightbulb },
