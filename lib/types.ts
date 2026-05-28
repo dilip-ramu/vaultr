@@ -126,6 +126,7 @@ export interface Transaction {
   date: string
   notes: string | null
   bill_id: string | null
+  is_contrast_billed: boolean
   created_at: string
   account?: Account
   to_account?: Account

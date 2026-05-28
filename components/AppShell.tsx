@@ -64,6 +64,7 @@ const navSections: NavSection[] = [
           { href: '/suppliers/payments',     label: 'Payments',     icon: CreditCard },
         ],
       },
+      { href: '/contrast', label: 'Contrast Expenses', icon: ArrowDownUp },
     ],
   },
   {
