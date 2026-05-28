@@ -1,7 +1,12 @@
 -- ── Migration v15: Suppliers + Supplier Invoices Module ─────────────────────
+-- Drop tables first (safe in dev — no data yet) so IF NOT EXISTS can't hide
+-- a stale/incomplete schema from a previous partial run.
+DROP TABLE IF EXISTS supplier_invoices   CASCADE;
+DROP TABLE IF EXISTS suppliers           CASCADE;
+DROP TABLE IF EXISTS bulk_payment_batches CASCADE;
 
 -- ── bulk_payment_batches (created first — invoices FK references it) ─────────
-CREATE TABLE IF NOT EXISTS bulk_payment_batches (
+CREATE TABLE bulk_payment_batches (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   batch_reference  TEXT        NOT NULL,
@@ -14,6 +19,10 @@ CREATE TABLE IF NOT EXISTS bulk_payment_batches (
 );
 
 ALTER TABLE bulk_payment_batches ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "bpb_select" ON bulk_payment_batches;
+DROP POLICY IF EXISTS "bpb_insert" ON bulk_payment_batches;
+DROP POLICY IF EXISTS "bpb_update" ON bulk_payment_batches;
+DROP POLICY IF EXISTS "bpb_delete" ON bulk_payment_batches;
 CREATE POLICY "bpb_select" ON bulk_payment_batches FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "bpb_insert" ON bulk_payment_batches FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "bpb_update" ON bulk_payment_batches FOR UPDATE USING (auth.uid() = user_id);
@@ -22,7 +31,7 @@ GRANT ALL ON bulk_payment_batches TO authenticated;
 GRANT ALL ON bulk_payment_batches TO anon;
 
 -- ── suppliers ────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS suppliers (
+CREATE TABLE suppliers (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   supplier_code    TEXT,
@@ -46,6 +55,10 @@ CREATE TABLE IF NOT EXISTS suppliers (
 );
 
 ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "sup_select" ON suppliers;
+DROP POLICY IF EXISTS "sup_insert" ON suppliers;
+DROP POLICY IF EXISTS "sup_update" ON suppliers;
+DROP POLICY IF EXISTS "sup_delete" ON suppliers;
 CREATE POLICY "sup_select" ON suppliers FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "sup_insert" ON suppliers FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "sup_update" ON suppliers FOR UPDATE USING (auth.uid() = user_id);
@@ -56,7 +69,7 @@ GRANT ALL ON suppliers TO anon;
 -- ── supplier_invoices ────────────────────────────────────────────────────────
 -- status: pending | due | overdue | paid | partial | cancelled
 -- recoverable_status: pending_billing | billed | recovered | partial_recovery | written_off
-CREATE TABLE IF NOT EXISTS supplier_invoices (
+CREATE TABLE supplier_invoices (
   id                       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id                  UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   supplier_id              UUID        NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
@@ -91,6 +104,10 @@ CREATE TABLE IF NOT EXISTS supplier_invoices (
 );
 
 ALTER TABLE supplier_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "si_select" ON supplier_invoices;
+DROP POLICY IF EXISTS "si_insert" ON supplier_invoices;
+DROP POLICY IF EXISTS "si_update" ON supplier_invoices;
+DROP POLICY IF EXISTS "si_delete" ON supplier_invoices;
 CREATE POLICY "si_select" ON supplier_invoices FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "si_insert" ON supplier_invoices FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "si_update" ON supplier_invoices FOR UPDATE USING (auth.uid() = user_id);
