@@ -134,9 +134,8 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
           <View style={s.gridItem}><Text><Text style={s.label}>Employee Name: </Text><Text style={s.value}>{employee.name}</Text></Text></View>
           <View style={s.gridItem}><Text><Text style={s.label}>Employee ID: </Text><Text style={s.value}>{employee.employee_id}</Text></Text></View>
           <View style={s.gridItem}><Text><Text style={s.label}>Designation: </Text><Text style={s.value}>{employee.designation ?? '—'}</Text></Text></View>
-          <View style={s.gridItem}><Text><Text style={s.label}>Date of Joining: </Text><Text style={s.value}>{fmtDate(employee.joining_date)}</Text></Text></View>
+          {month.payment_date ? <View style={s.gridItem}><Text><Text style={s.label}>Date of Payment: </Text><Text style={s.value}>{fmtDate(month.payment_date)}</Text></Text></View> : null}
           {employee.pan_number ? <View style={s.gridItem}><Text><Text style={s.label}>PAN: </Text><Text style={s.value}>{employee.pan_number}</Text></Text></View> : null}
-          {month.payment_date ? <View style={s.gridItem}><Text><Text style={s.label}>Payment Date: </Text><Text style={s.value}>{fmtDate(month.payment_date)}</Text></Text></View> : null}
         </View>
 
         {/* Earnings / Deductions table */}
