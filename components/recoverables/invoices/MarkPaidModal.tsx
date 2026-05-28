@@ -97,6 +97,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to save'); return }
+      if (data.tdsError) { setError(`Payment saved, but TDS entry failed: ${data.tdsError}`); return }
       onSaved(data.invoice)
     } catch {
       setError('Network error — please try again')

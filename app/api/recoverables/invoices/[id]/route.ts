@@ -235,6 +235,7 @@ export async function PATCH(
   }
 
   // ── Log TDS / adjustment entry ────────────────────────────────────────
+  let tdsError: string | null = null
   if (tds > 0 || adj > 0) {
     const { error: tdsErr } = await supabase.from('recoverable_tds_entries').insert({
       user_id:           user.id,
@@ -250,7 +251,10 @@ export async function PATCH(
       payment_date:      paymentDate ?? new Date().toISOString().slice(0, 10),
       transaction_id:    transactionId,
     })
-    if (tdsErr) console.error('TDS insert error:', tdsErr.message)
+    if (tdsErr) {
+      console.error('TDS insert error:', tdsErr.message)
+      tdsError = tdsErr.message
+    }
   }
 
   // ── Mark allocations paid if fully settled ────────────────────────────
@@ -272,7 +276,7 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json({ invoice: updated, transactionId })
+  return NextResponse.json({ invoice: updated, transactionId, tdsError })
 }
 
 // ── DELETE /api/recoverables/invoices/[id] ────────────────────────────────

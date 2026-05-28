@@ -315,7 +315,14 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                             </div>
                             {entry.tds_amount > 0 && (
                               <div>
-                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>TDS Deducted</p>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                  TDS Deducted
+                                  {entry.invoice_total > 0 && (
+                                    <span style={{ color: '#D97706' }}>
+                                      {' '}({((entry.tds_amount / entry.invoice_total) * 100).toFixed(1)}%)
+                                    </span>
+                                  )}
+                                </p>
                                 <p className="text-sm font-bold" style={{ color: '#D97706' }}>{fmt(entry.tds_amount)}</p>
                               </div>
                             )}
