@@ -71,7 +71,7 @@ export async function PATCH(
 
   const { data: invoice } = await supabase
     .from('recoverable_invoices')
-    .select('id, total, balance_due, status, invoice_number, customer_name')
+    .select('id, total, balance_due, status, invoice_number, customer_name, transaction_id')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
@@ -98,6 +98,12 @@ export async function PATCH(
   if (body.revert) {
     const invoiceTotal = Number(invoice.total)
 
+    // Delete associated income transaction first
+    const txId = (invoice as { transaction_id?: string | null }).transaction_id
+    if (txId) {
+      await supabase.from('transactions').delete().eq('id', txId).eq('user_id', user.id)
+    }
+
     const { data: updated, error: e } = await supabase
       .from('recoverable_invoices')
       .update({
@@ -108,6 +114,7 @@ export async function PATCH(
         adjustment_notes:  null,
         balance_due:       invoiceTotal,
         paid_at:           null,
+        transaction_id:    null,
       })
       .eq('id', id)
       .select()
@@ -165,30 +172,7 @@ export async function PATCH(
   const newBalance = Math.max(0, Math.round((currentBalance - totalAccounted) * 100) / 100)
   const newStatus  = newBalance <= 0 ? 'paid' : 'sent'
 
-  const updatePayload: Record<string, unknown> = {
-    status:            newStatus,
-    paid_amount:       paid,
-    tds_amount:        tds,
-    adjustment_amount: adj,
-    adjustment_notes:  adjustmentNotes,
-    balance_due:       newBalance,
-  }
-  if (newStatus === 'paid') {
-    updatePayload.paid_at = paymentDate
-      ? new Date(paymentDate).toISOString()
-      : (paidAt ?? new Date().toISOString())
-  }
-
-  const { data: updated, error: updateErr } = await supabase
-    .from('recoverable_invoices')
-    .update(updatePayload)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
-
-  // ── Create income transaction ──────────────────────────────────────────
+  // ── Create income transaction first (we need the ID) ─────────────────
   let transactionId: string | null = null
   if (paid > 0 && accountId) {
     const txDate = paymentDate ?? new Date().toISOString().slice(0, 10)
@@ -210,6 +194,31 @@ export async function PATCH(
     if (tx) transactionId = (tx as { id: string }).id
   }
 
+  // ── Update invoice (store transaction_id so revert can delete it) ─────
+  const updatePayload: Record<string, unknown> = {
+    status:            newStatus,
+    paid_amount:       paid,
+    tds_amount:        tds,
+    adjustment_amount: adj,
+    adjustment_notes:  adjustmentNotes,
+    balance_due:       newBalance,
+    transaction_id:    transactionId,
+  }
+  if (newStatus === 'paid') {
+    updatePayload.paid_at = paymentDate
+      ? new Date(paymentDate).toISOString()
+      : (paidAt ?? new Date().toISOString())
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('recoverable_invoices')
+    .update(updatePayload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
   // ── Log TDS / adjustment entry ────────────────────────────────────────
   if (tds > 0 || adj > 0) {
     const { error: tdsErr } = await supabase.from('recoverable_tds_entries').insert({
@@ -225,7 +234,8 @@ export async function PATCH(
       account_id:        accountId ?? null,
       payment_date:      paymentDate ?? new Date().toISOString().slice(0, 10),
       transaction_id:    transactionId,
-      settled:           false,
+      // settled defaults to FALSE in DB — do not insert here to avoid failing
+      // if migration v12 hasn't run yet
     })
     if (tdsErr) console.error('TDS insert error:', tdsErr.message)
   }

@@ -44,8 +44,8 @@ export default function TDSClient({ entries: initialEntries }: Props) {
   const [settlingAll, setSettlingAll] = useState(false)
   const [error, setError] = useState('')
 
-  const pending  = useMemo(() => entries.filter(e => !e.settled), [entries])
-  const settled  = useMemo(() => entries.filter(e => e.settled),  [entries])
+  const pending  = useMemo(() => entries.filter(e => !e.settled),        [entries])
+  const settled  = useMemo(() => entries.filter(e => e.settled === true), [entries])
   const visible  = tab === 'pending' ? pending : settled
 
   const pendingTDS = useMemo(() => pending.reduce((s, e) => s + e.tds_amount, 0), [pending])
