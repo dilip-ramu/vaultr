@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Building2, Phone, Mail, Edit2, Trash2, ToggleLeft, ToggleRight, ChevronDown, ChevronUp } from 'lucide-react'
 import type { Supplier } from '@/lib/suppliers/types'
@@ -143,10 +143,9 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s, i) => (
-                  <>
+                {filtered.map((s) => (
+                  <Fragment key={s.id}>
                     <tr
-                      key={s.id}
                       className="hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
                       style={{
                         backgroundColor: 'var(--surface)',
@@ -231,7 +230,7 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

@@ -14,7 +14,7 @@ export default async function PendingRecoverablesPage() {
     .select('*, supplier:suppliers(id, name, supplier_code)')
     .eq('user_id', user.id)
     .eq('is_recoverable', true)
-    .not('recoverable_status', 'in', '("recovered","written_off")')
+    .not('recoverable_status', 'in', '(recovered,written_off)')
     .order('invoice_date', { ascending: false })
 
   return (
