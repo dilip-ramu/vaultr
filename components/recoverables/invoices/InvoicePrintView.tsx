@@ -32,6 +32,9 @@ function fmtInr(n: number, dp = 2) {
 
 function fmtDate(d: string | null) {
   if (!d) return '—'
+  // Convert ISO yyyy-mm-dd back to dd/mm/yy for display
+  const iso = d.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1].slice(2)}`
   return d
 }
 

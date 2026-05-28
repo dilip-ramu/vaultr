@@ -121,8 +121,8 @@ export function parseCSVText(csvText: string): RawCSVRow[] {
     const totalCost = parseFloat(costStr.replace(/,/g, ''))
     const totalPcs  = parseInt(pcsStr, 10)
 
-    // Store date exactly as it appears in the CSV
-    const shipmentDate = dateStr || null
+    // Normalise date to ISO yyyy-mm-dd for DB storage
+    const shipmentDate = parseDate(dateStr)
 
     const suppliers: Record<string, number> = {}
     for (const { name, index } of supplierCols) {
@@ -155,20 +155,18 @@ function parseDate(raw: string): string | null {
   // Already ISO: yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
 
-  // dd/mm/yyyy or dd-mm-yyyy
-  const dmy = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
-  if (dmy) {
-    const [, d, m, y] = dmy
+  // dd/mm/yyyy or dd-mm-yyyy (4-digit year)
+  const dmy4 = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
+  if (dmy4) {
+    const [, d, m, y] = dmy4
     return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
   }
 
-  // mm/dd/yyyy — only if day > 12 to disambiguate; otherwise assume dd/mm
-  // (handled above already with dd/mm/yyyy)
-
-  // Fallback: let Date parse it and re-serialise
-  const parsed = new Date(raw)
-  if (!isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10)
+  // dd/mm/yy or dd-mm-yy (2-digit year — assume 20xx)
+  const dmy2 = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/)
+  if (dmy2) {
+    const [, d, m, y] = dmy2
+    return `20${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
   }
 
   return null
