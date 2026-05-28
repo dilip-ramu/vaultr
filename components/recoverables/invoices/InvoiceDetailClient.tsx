@@ -61,7 +61,6 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
   const canDelete     = resolvedStatus !== 'paid'
 
   async function handleRevert() {
-    if (!confirm('Mark this invoice as unpaid? The associated income transaction will also be deleted.')) return
     setBusy(true)
     setError(null)
     try {

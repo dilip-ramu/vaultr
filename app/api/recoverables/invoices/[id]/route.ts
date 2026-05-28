@@ -98,7 +98,7 @@ export async function PATCH(
   if (body.revert) {
     const invoiceTotal = Number(invoice.total)
 
-    // Delete associated income transaction first
+    // Delete associated income transaction (works once v13 migration has run)
     const txId = (invoice as { transaction_id?: string | null }).transaction_id
     if (txId) {
       await supabase.from('transactions').delete().eq('id', txId).eq('user_id', user.id)
@@ -114,13 +114,19 @@ export async function PATCH(
         adjustment_notes:  null,
         balance_due:       invoiceTotal,
         paid_at:           null,
-        transaction_id:    null,
       })
       .eq('id', id)
       .select()
       .single()
 
     if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+
+    // Clear transaction_id (best-effort — only works after v13 migration)
+    await supabase
+      .from('recoverable_invoices')
+      .update({ transaction_id: null })
+      .eq('id', id)
+      .eq('user_id', user.id)
 
     // Revert allocations back to billed
     const { data: lines } = await supabase
@@ -172,7 +178,31 @@ export async function PATCH(
   const newBalance = Math.max(0, Math.round((currentBalance - totalAccounted) * 100) / 100)
   const newStatus  = newBalance <= 0 ? 'paid' : 'sent'
 
-  // ── Create income transaction first (we need the ID) ─────────────────
+  // ── Update invoice ────────────────────────────────────────────────────
+  const updatePayload: Record<string, unknown> = {
+    status:            newStatus,
+    paid_amount:       paid,
+    tds_amount:        tds,
+    adjustment_amount: adj,
+    adjustment_notes:  adjustmentNotes,
+    balance_due:       newBalance,
+  }
+  if (newStatus === 'paid') {
+    updatePayload.paid_at = paymentDate
+      ? new Date(paymentDate).toISOString()
+      : (paidAt ?? new Date().toISOString())
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('recoverable_invoices')
+    .update(updatePayload)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+  // ── Create income transaction ─────────────────────────────────────────
   let transactionId: string | null = null
   if (paid > 0 && accountId) {
     const txDate = paymentDate ?? new Date().toISOString().slice(0, 10)
@@ -194,30 +224,15 @@ export async function PATCH(
     if (tx) transactionId = (tx as { id: string }).id
   }
 
-  // ── Update invoice (store transaction_id so revert can delete it) ─────
-  const updatePayload: Record<string, unknown> = {
-    status:            newStatus,
-    paid_amount:       paid,
-    tds_amount:        tds,
-    adjustment_amount: adj,
-    adjustment_notes:  adjustmentNotes,
-    balance_due:       newBalance,
-    transaction_id:    transactionId,
+  // ── Store transaction_id on invoice (best-effort — needs migration v13) ─
+  if (transactionId) {
+    await supabase
+      .from('recoverable_invoices')
+      .update({ transaction_id: transactionId })
+      .eq('id', id)
+      .eq('user_id', user.id)
+    // ignore error — column may not exist yet if v13 migration hasn't run
   }
-  if (newStatus === 'paid') {
-    updatePayload.paid_at = paymentDate
-      ? new Date(paymentDate).toISOString()
-      : (paidAt ?? new Date().toISOString())
-  }
-
-  const { data: updated, error: updateErr } = await supabase
-    .from('recoverable_invoices')
-    .update(updatePayload)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
   // ── Log TDS / adjustment entry ────────────────────────────────────────
   if (tds > 0 || adj > 0) {
@@ -234,8 +249,6 @@ export async function PATCH(
       account_id:        accountId ?? null,
       payment_date:      paymentDate ?? new Date().toISOString().slice(0, 10),
       transaction_id:    transactionId,
-      // settled defaults to FALSE in DB — do not insert here to avoid failing
-      // if migration v12 hasn't run yet
     })
     if (tdsErr) console.error('TDS insert error:', tdsErr.message)
   }
