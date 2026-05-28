@@ -43,16 +43,6 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    id: 'finance',
-    label: 'Finance',
-    items: [
-      { href: '/bills',          label: 'Bills',          icon: Receipt },
-      { href: '/subscriptions',  label: 'Subscriptions',  icon: RefreshCw },
-      { href: '/budgets',        label: 'Budgets',        icon: Target },
-      { href: '/categories',     label: 'Categories',     icon: Tag },
-    ],
-  },
-  {
     id: 'business',
     label: 'Business',
     items: [
@@ -87,10 +77,20 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    id: 'finance',
+    label: 'Finance',
+    items: [
+      { href: '/bills',          label: 'Bills',          icon: Receipt },
+      { href: '/subscriptions',  label: 'Subscriptions',  icon: RefreshCw },
+      { href: '/budgets',        label: 'Budgets',        icon: Target },
+    ],
+  },
+  {
     id: 'tools',
     label: 'Tools',
     items: [
       { href: '/insights',       label: 'Insights',       icon: Lightbulb },
+      { href: '/categories',     label: 'Categories',     icon: Tag },
       { href: '/account-types',  label: 'Account Types',  icon: Layers },
       { href: '/currencies',     label: 'Currencies',     icon: DollarSign },
     ],
