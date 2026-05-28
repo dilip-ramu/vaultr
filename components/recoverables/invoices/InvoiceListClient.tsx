@@ -75,6 +75,27 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
     setModalInvoice(null)
   }
 
+  const [revertingId, setRevertingId] = useState<string | null>(null)
+
+  async function handleRevert(e: React.MouseEvent, invId: string) {
+    e.stopPropagation()
+    if (!confirm('Mark this invoice as unpaid? The income transaction will remain — delete it manually from Transactions if needed.')) return
+    setRevertingId(invId)
+    try {
+      const res = await fetch(`/api/recoverables/invoices/${invId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revert: true }),
+      })
+      if (res.ok) {
+        const { invoice: updated } = await res.json()
+        setInvoices(prev => prev.map(inv => inv.id === invId ? updated : inv))
+      }
+    } finally {
+      setRevertingId(null)
+    }
+  }
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
       <div className="max-w-4xl mx-auto px-4 py-6">
@@ -210,16 +231,27 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
                   </div>
                 </button>
 
-                {/* Record payment button — only for unpaid invoices */}
-                {inv.resolvedStatus !== 'paid' && inv.resolvedStatus !== 'cancelled' && (
+                {/* Record payment / revert buttons */}
+                {inv.resolvedStatus !== 'cancelled' && (
                   <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-2)' }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); setModalInvoice(inv) }}
-                      className="w-full py-1.5 rounded-lg text-xs font-semibold"
-                      style={{ background: 'rgba(22,163,74,0.1)', color: '#16a34a', border: '1px solid rgba(22,163,74,0.2)' }}
-                    >
-                      ✓ Record Payment
-                    </button>
+                    {inv.resolvedStatus === 'paid' ? (
+                      <button
+                        onClick={e => handleRevert(e, inv.id)}
+                        disabled={revertingId === inv.id}
+                        className="w-full py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                        style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
+                      >
+                        {revertingId === inv.id ? 'Reverting…' : '↩ Mark as Unpaid'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); setModalInvoice(inv) }}
+                        className="w-full py-1.5 rounded-lg text-xs font-semibold"
+                        style={{ background: 'rgba(22,163,74,0.1)', color: '#16a34a', border: '1px solid rgba(22,163,74,0.2)' }}
+                      >
+                        ✓ Record Payment
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

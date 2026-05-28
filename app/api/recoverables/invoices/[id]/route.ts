@@ -47,7 +47,8 @@ export async function GET(
 // ── PATCH /api/recoverables/invoices/[id] ─────────────────────────────────
 
 interface PatchBody {
-  status?: 'paid' | 'cancelled'
+  status?: 'paid' | 'cancelled' | 'sent'
+  revert?: boolean
   // Full payment recording
   paidAmount?:       number
   tdsAmount?:        number
@@ -92,6 +93,54 @@ export async function PATCH(
     paymentDate,
     paidAt,
   } = body
+
+  // ── Revert to unpaid ──────────────────────────────────────────────────
+  if (body.revert) {
+    const invoiceTotal = Number(invoice.total)
+
+    const { data: updated, error: e } = await supabase
+      .from('recoverable_invoices')
+      .update({
+        status:            'sent',
+        paid_amount:       0,
+        tds_amount:        0,
+        adjustment_amount: 0,
+        adjustment_notes:  null,
+        balance_due:       invoiceTotal,
+        paid_at:           null,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+
+    // Revert allocations back to billed
+    const { data: lines } = await supabase
+      .from('recoverable_invoice_lines')
+      .select('allocation_id')
+      .eq('invoice_id', id)
+
+    const allocationIds = (lines ?? [])
+      .map((l: { allocation_id: string | null }) => l.allocation_id)
+      .filter((v): v is string => v !== null)
+
+    if (allocationIds.length > 0) {
+      await supabase
+        .from('recoverable_allocations')
+        .update({ status: 'billed' })
+        .in('id', allocationIds)
+    }
+
+    // Remove TDS entries for this invoice
+    await supabase
+      .from('recoverable_tds_entries')
+      .delete()
+      .eq('invoice_id', id)
+      .eq('user_id', user.id)
+
+    return NextResponse.json({ invoice: updated })
+  }
 
   // ── Simple cancellation ────────────────────────────────────────────────
   if (status === 'cancelled') {
