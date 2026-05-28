@@ -483,9 +483,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                   </span>
                 </div>
                 <div className="text-xs text-gray-400 -mt-1">
-                  {month.description?.trim()
-                    ? month.description.trim()
-                    : `Billed: ${Number(month.billed_euros ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} EUR`}
+                  Business Income - {fmtMonth(month.payroll_month)}
                 </div>
                 {Number(month.bank_charges) > 0 && (
                   <>

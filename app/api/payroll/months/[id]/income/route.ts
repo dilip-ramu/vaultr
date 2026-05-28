@@ -34,10 +34,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const txDate = month.payment_date ?? new Date().toISOString().slice(0, 10)
 
-  // Income name = description if set, otherwise "Billed: {euros} EUR"
-  const incomeName = month.description?.trim()
-    ? month.description.trim()
-    : `Billed: ${Number(month.billed_euros ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} EUR`
+  // Income name = "Business Income - {Month Year}"
+  const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const [yr, mo] = month.payroll_month.split('-')
+  const monthLabel = `${MONTHS_LONG[parseInt(mo, 10) - 1]} ${yr}`
+  const incomeName = `Business Income - ${monthLabel}`
 
   // 1. Create income transaction
   const { data: incomeTx, error: incomeErr } = await supabase
