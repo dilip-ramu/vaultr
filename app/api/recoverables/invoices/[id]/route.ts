@@ -46,6 +46,19 @@ export async function GET(
 
 // ── PATCH /api/recoverables/invoices/[id] ─────────────────────────────────
 
+interface PatchBody {
+  status?: 'paid' | 'cancelled'
+  // Full payment recording
+  paidAmount?:       number
+  tdsAmount?:        number
+  adjustmentAmount?: number
+  adjustmentNotes?:  string | null
+  accountId?:        string
+  paymentDate?:      string
+  // Legacy
+  paidAt?:           string
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: RouteContext,
@@ -55,38 +68,66 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Fetch invoice to verify ownership and get current total
   const { data: invoice } = await supabase
     .from('recoverable_invoices')
-    .select('id, total, status')
+    .select('id, total, balance_due, status, invoice_number, customer_name')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  let body: { status: 'paid' | 'cancelled'; paidAmount?: number; paidAt?: string }
-  try {
-    body = await req.json()
-  } catch {
+  let body: PatchBody
+  try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { status, paidAmount, paidAt } = body
+  const {
+    status,
+    paidAmount    = 0,
+    tdsAmount     = 0,
+    adjustmentAmount = 0,
+    adjustmentNotes  = null,
+    accountId,
+    paymentDate,
+    paidAt,
+  } = body
 
-  if (status !== 'paid' && status !== 'cancelled') {
-    return NextResponse.json({ error: 'status must be paid or cancelled' }, { status: 400 })
+  // ── Simple cancellation ────────────────────────────────────────────────
+  if (status === 'cancelled') {
+    const { data: updated, error: e } = await supabase
+      .from('recoverable_invoices')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .select()
+      .single()
+    if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+    return NextResponse.json({ invoice: updated })
   }
 
-  const invoiceTotal = Number((invoice as { total: number }).total)
+  // ── Payment recording ──────────────────────────────────────────────────
+  const invoiceTotal  = Number(invoice.total)
+  const currentBalance = Number(invoice.balance_due)
 
-  const updatePayload: Record<string, unknown> = { status }
+  const paid = Number(paidAmount)       || 0
+  const tds  = Number(tdsAmount)        || 0
+  const adj  = Number(adjustmentAmount) || 0
+  const totalAccounted = paid + tds + adj
+  const newBalance = Math.max(0, Math.round((currentBalance - totalAccounted) * 100) / 100)
+  const newStatus  = newBalance <= 0 ? 'paid' : 'sent'
 
-  if (status === 'paid') {
-    const paid = paidAmount ?? invoiceTotal
-    updatePayload.paid_amount = paid
-    updatePayload.paid_at     = paidAt ?? new Date().toISOString()
-    updatePayload.balance_due = 0
+  const updatePayload: Record<string, unknown> = {
+    status:            newStatus,
+    paid_amount:       paid,
+    tds_amount:        tds,
+    adjustment_amount: adj,
+    adjustment_notes:  adjustmentNotes,
+    balance_due:       newBalance,
+  }
+  if (newStatus === 'paid') {
+    updatePayload.paid_at = paymentDate
+      ? new Date(paymentDate).toISOString()
+      : (paidAt ?? new Date().toISOString())
   }
 
   const { data: updated, error: updateErr } = await supabase
@@ -98,8 +139,48 @@ export async function PATCH(
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
 
-  // If paid, mark linked allocations as paid
-  if (status === 'paid') {
+  // ── Create income transaction ──────────────────────────────────────────
+  let transactionId: string | null = null
+  if (paid > 0 && accountId) {
+    const txDate = paymentDate ?? new Date().toISOString().slice(0, 10)
+    const { data: tx } = await supabase
+      .from('transactions')
+      .insert({
+        user_id:    user.id,
+        account_id: accountId,
+        type:       'income',
+        amount:     paid,
+        date:       txDate,
+        name:       `${invoice.invoice_number} – ${invoice.customer_name}`,
+        notes:      tds > 0 || adj > 0
+          ? `Invoice total ₹${invoiceTotal}${tds > 0 ? `, TDS ₹${tds}` : ''}${adj > 0 ? `, Adj ₹${adj}` : ''}`
+          : null,
+      })
+      .select('id')
+      .single()
+    if (tx) transactionId = (tx as { id: string }).id
+  }
+
+  // ── Log TDS / adjustment entry ────────────────────────────────────────
+  if (tds > 0 || adj > 0) {
+    await supabase.from('recoverable_tds_entries').insert({
+      user_id:           user.id,
+      invoice_id:        id,
+      invoice_number:    invoice.invoice_number,
+      customer_name:     invoice.customer_name,
+      invoice_total:     invoiceTotal,
+      paid_amount:       paid,
+      tds_amount:        tds,
+      adjustment_amount: adj,
+      adjustment_notes:  adjustmentNotes,
+      account_id:        accountId ?? null,
+      payment_date:      paymentDate ?? new Date().toISOString().slice(0, 10),
+      transaction_id:    transactionId,
+    })
+  }
+
+  // ── Mark allocations paid if fully settled ────────────────────────────
+  if (newStatus === 'paid') {
     const { data: lines } = await supabase
       .from('recoverable_invoice_lines')
       .select('allocation_id')
@@ -117,7 +198,7 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json({ invoice: updated })
+  return NextResponse.json({ invoice: updated, transactionId })
 }
 
 // ── DELETE /api/recoverables/invoices/[id] ────────────────────────────────

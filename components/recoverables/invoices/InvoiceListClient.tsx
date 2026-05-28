@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import type { RecoverableInvoice, InvoiceStatus } from '@/lib/recoverables/types'
 import StatusBadge from '@/components/recoverables/shared/StatusBadge'
+import MarkPaidModal from './MarkPaidModal'
 
 interface Props {
   invoices: RecoverableInvoice[]
@@ -39,7 +40,7 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
   const router = useRouter()
   const [tab, setTab] = useState<FilterTab>('all')
   const [invoices, setInvoices] = useState(initialInvoices)
-  const [markingPaid, setMarkingPaid] = useState<string | null>(null)
+  const [modalInvoice, setModalInvoice] = useState<RecoverableInvoice | null>(null)
 
   const enriched = useMemo(
     () => invoices.map(inv => ({ ...inv, resolvedStatus: resolveStatus(inv) })),
@@ -69,22 +70,9 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
     [enriched],
   )
 
-  async function handleMarkPaid(e: React.MouseEvent, invId: string) {
-    e.stopPropagation()
-    setMarkingPaid(invId)
-    try {
-      const res = await fetch(`/api/recoverables/invoices/${invId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'paid' }),
-      })
-      if (res.ok) {
-        const { invoice: updated } = await res.json()
-        setInvoices(prev => prev.map(inv => inv.id === invId ? updated : inv))
-      }
-    } finally {
-      setMarkingPaid(null)
-    }
+  function handlePaidSaved(updated: RecoverableInvoice) {
+    setInvoices(prev => prev.map(inv => inv.id === updated.id ? updated : inv))
+    setModalInvoice(null)
   }
 
   return (
@@ -222,16 +210,15 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
                   </div>
                 </button>
 
-                {/* Mark as Paid button — only for unpaid invoices */}
+                {/* Record payment button — only for unpaid invoices */}
                 {inv.resolvedStatus !== 'paid' && inv.resolvedStatus !== 'cancelled' && (
                   <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-2)' }}>
                     <button
-                      onClick={e => handleMarkPaid(e, inv.id)}
-                      disabled={markingPaid === inv.id}
-                      className="w-full py-1.5 rounded-lg text-xs font-semibold transition-opacity disabled:opacity-50"
+                      onClick={e => { e.stopPropagation(); setModalInvoice(inv) }}
+                      className="w-full py-1.5 rounded-lg text-xs font-semibold"
                       style={{ background: 'rgba(22,163,74,0.1)', color: '#16a34a', border: '1px solid rgba(22,163,74,0.2)' }}
                     >
-                      {markingPaid === inv.id ? 'Marking…' : '✓ Mark as Paid'}
+                      ✓ Record Payment
                     </button>
                   </div>
                 )}
@@ -241,5 +228,13 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
         )}
       </div>
     </div>
+
+    {modalInvoice && (
+      <MarkPaidModal
+        invoice={modalInvoice}
+        onClose={() => setModalInvoice(null)}
+        onSaved={handlePaidSaved}
+      />
+    )}
   )
 }

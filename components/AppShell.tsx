@@ -32,6 +32,7 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ class
   { href: '/bills',                    label: 'Bills',         icon: Receipt },
   { href: '/recoverables',             label: 'Recoverables',  icon: ArrowDownUp },
   { href: '/recoverables/invoices',    label: 'Invoices',      icon: FileText, indent: true },
+  { href: '/recoverables/tds',        label: 'TDS',           icon: Receipt,  indent: true },
   { href: '/recoverables/settings',   label: 'Rec. Settings', icon: Settings, indent: true },
   { href: '/subscriptions',            label: 'Subscriptions', icon: RefreshCw },
   { href: '/customers',                label: 'Customers',     icon: Users },
