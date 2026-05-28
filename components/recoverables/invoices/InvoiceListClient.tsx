@@ -79,7 +79,7 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
 
   async function handleRevert(e: React.MouseEvent, invId: string) {
     e.stopPropagation()
-    if (!confirm('Mark this invoice as unpaid? The income transaction will remain — delete it manually from Transactions if needed.')) return
+    if (!confirm('Mark this invoice as unpaid? The associated income transaction will also be deleted.')) return
     setRevertingId(invId)
     try {
       const res = await fetch(`/api/recoverables/invoices/${invId}`, {
