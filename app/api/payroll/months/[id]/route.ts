@@ -67,8 +67,21 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
     .from('payroll_months').select('id').eq('id', id).eq('user_id', user.id).single()
 
   if (!month) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  // Cascade in DB handles entries + salary_slips automatically
 
+  // Delete associated salary transactions before removing the month
+  const { data: entries } = await supabase
+    .from('payroll_entries')
+    .select('transaction_id')
+    .eq('payroll_month_id', id)
+    .eq('user_id', user.id)
+    .not('transaction_id', 'is', null)
+
+  const txIds = (entries ?? []).map(e => e.transaction_id).filter(Boolean)
+  if (txIds.length > 0) {
+    await supabase.from('transactions').delete().in('id', txIds).eq('user_id', user.id)
+  }
+
+  // DB cascade handles entries + salary_slips automatically
   const { error } = await supabase.from('payroll_months').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
