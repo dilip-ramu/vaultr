@@ -27,6 +27,7 @@ export default async function DashboardPage() {
     { data: upcomingSubs },
     { data: historyTx },
     { data: receivableInvoices },
+    { data: unbilledInvoices },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -90,6 +91,13 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .in('status', ['sent', 'overdue'])
       .gt('balance_due', 0),
+    supabase
+      .from('supplier_invoices')
+      .select('id, amount, invoice_date, linked_customer_name, supplier:suppliers(name)')
+      .eq('user_id', user!.id)
+      .eq('is_recoverable', true)
+      .eq('recoverable_status', 'pending_billing')
+      .order('invoice_date', { ascending: false }),
   ])
 
   // Compute spent per category for budget widget
@@ -135,6 +143,7 @@ export default async function DashboardPage() {
       subMonthlyTotal={subMonthlyTotal}
       topInsights={topInsights}
       totalReceivables={totalReceivables}
+      unbilledInvoices={(unbilledInvoices ?? []) as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
     />
   )
 }

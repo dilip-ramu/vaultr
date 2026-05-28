@@ -16,6 +16,25 @@ import TransactionItem from '../transactions/TransactionItem'
 
 const TransactionForm = dynamic(() => import('../transactions/TransactionForm'), { ssr: false })
 
+type UnbilledInvoice = { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }
+
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function getNextDueDate(dueDay: number): { dateStr: string; daysLeft: number } {
+  const today = new Date()
+  let dueDate: Date
+  if (today.getDate() <= dueDay) {
+    dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay)
+  } else {
+    dueDate = new Date(today.getFullYear(), today.getMonth() + 1, dueDay)
+  }
+  const daysLeft = Math.ceil((dueDate.getTime() - new Date().setHours(0,0,0,0)) / 86400000)
+  return {
+    dateStr: `${String(dueDay).padStart(2,'0')} ${MONTHS_SHORT[dueDate.getMonth()]} ${dueDate.getFullYear()}`,
+    daysLeft,
+  }
+}
+
 interface Props {
   accounts: Account[]
   recentTransactions: Transaction[]
@@ -27,11 +46,13 @@ interface Props {
   subMonthlyTotal?: number
   topInsights?: Insight[]
   totalReceivables?: number
+  unbilledInvoices?: UnbilledInvoice[]
 }
 
-export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [], upcomingSubs = [], subMonthlyTotal = 0, topInsights = [], totalReceivables = 0 }: Props) {
+export default function DashboardClient({ accounts, recentTransactions, monthlyTransactions, profile, builtinOverrides = [], budgets = [], upcomingSubs = [], subMonthlyTotal = 0, topInsights = [], totalReceivables = 0, unbilledInvoices = [] }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
+  const [financeTab, setFinanceTab] = useState<'unbilled' | 'credit'>('unbilled')
 
   const assetAccounts = accounts.filter(a => !['credit', 'loan'].includes(a.type) && a.include_in_net_worth)
   const liabilityAccounts = accounts.filter(a => ['credit', 'loan'].includes(a.type) && a.include_in_net_worth)
@@ -408,6 +429,107 @@ export default function DashboardClient({ accounts, recentTransactions, monthlyT
           </div>
         </div>
       )}
+
+      {/* Unbilled & Credit Cards widget */}
+      {(() => {
+        const creditAccounts = accounts.filter(a => a.type === 'credit')
+        if (unbilledInvoices.length === 0 && creditAccounts.length === 0) return null
+        const totalUnbilled = unbilledInvoices.reduce((s, i) => s + Number(i.amount), 0)
+        return (
+          <div className="fade-in" style={{ animationDelay: '222ms' }}>
+            {/* Tab bar */}
+            <div className="flex gap-1 p-1 rounded-xl mb-3 w-fit" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <button
+                onClick={() => setFinanceTab('unbilled')}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: financeTab === 'unbilled' ? 'var(--brand)' : 'transparent',
+                  color: financeTab === 'unbilled' ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                Unbilled {unbilledInvoices.length > 0 && <span className="ml-1 opacity-80">({unbilledInvoices.length})</span>}
+              </button>
+              <button
+                onClick={() => setFinanceTab('credit')}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: financeTab === 'credit' ? 'var(--brand)' : 'transparent',
+                  color: financeTab === 'credit' ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                Credit Cards {creditAccounts.length > 0 && <span className="ml-1 opacity-80">({creditAccounts.length})</span>}
+              </button>
+            </div>
+
+            {financeTab === 'unbilled' && (
+              unbilledInvoices.length === 0 ? (
+                <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No unbilled recoverable expenses</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  {unbilledInvoices.map((inv, i) => (
+                    <div key={inv.id} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: i < unbilledInvoices.length - 1 ? '1px solid var(--border-2)' : 'none' }}>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0" style={{ backgroundColor: 'rgba(245,158,11,0.1)' }}>
+                        📋
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+                          {inv.supplier?.name ?? '—'}
+                        </p>
+                        <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                          {inv.linked_customer_name ? `→ ${inv.linked_customer_name}` : 'No customer linked'}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold tabular-nums shrink-0" style={{ color: '#F59E0B' }}>
+                        {formatCurrency(Number(inv.amount))}
+                      </p>
+                    </div>
+                  ))}
+                  <div className="px-4 py-3 flex items-center justify-between" style={{ backgroundColor: 'rgba(245,158,11,0.06)', borderTop: '1px solid rgba(245,158,11,0.12)' }}>
+                    <p className="text-xs font-medium" style={{ color: '#F59E0B' }}>Total Unbilled</p>
+                    <p className="text-sm font-bold" style={{ color: '#F59E0B' }}>{formatCurrency(totalUnbilled)}</p>
+                  </div>
+                </div>
+              )
+            )}
+
+            {financeTab === 'credit' && (
+              creditAccounts.length === 0 ? (
+                <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No credit card accounts</p>
+                </div>
+              ) : (
+                <div className="rounded-2xl overflow-hidden shadow-sm" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  {creditAccounts.map((acc, i) => {
+                    const balance = Math.abs(acc.balance ?? 0)
+                    const due = acc.statement_due_day ? getNextDueDate(acc.statement_due_day) : null
+                    const dueColor = due ? (due.daysLeft <= 3 ? 'var(--expense)' : due.daysLeft <= 7 ? '#F59E0B' : 'var(--text-muted)') : 'var(--text-muted)'
+                    return (
+                      <div key={acc.id} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: i < creditAccounts.length - 1 ? '1px solid var(--border-2)' : 'none' }}>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0" style={{ backgroundColor: '#FFFBEB' }}>💳</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{acc.name}</p>
+                          {due ? (
+                            <p className="text-xs" style={{ color: dueColor }}>
+                              Due {due.dateStr} · {due.daysLeft <= 0 ? 'Overdue' : `${due.daysLeft}d left`}
+                            </p>
+                          ) : (
+                            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>No due date set</p>
+                          )}
+                        </div>
+                        <p className="text-sm font-bold tabular-nums shrink-0" style={{ color: balance > 0 ? 'var(--expense)' : 'var(--text-muted)' }}>
+                          {formatCurrency(balance)}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            )}
+          </div>
+        )
+      })()}
 
       {/* Debts & Liabilities */}
       {liabilityAccounts.length > 0 && (

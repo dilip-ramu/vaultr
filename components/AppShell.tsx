@@ -6,11 +6,12 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
-  Users, Settings, Plus, LogOut, ChevronRight,
+  Users, Settings, Plus, LogOut, ChevronRight, ChevronDown,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
-  Moon, Sun, Target, RefreshCw, Lightbulb, ArrowDownUp, FileText,
-  Banknote, UserSquare, CalendarClock, Clock, History,
-  Building2, PackageSearch, AlertCircle, CheckSquare2, CreditCard, BookOpen,
+  Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
+  Banknote, UserSquare, CalendarClock, History,
+  Building2, AlertCircle, CheckSquare2, CreditCard, BookOpen,
+  ArrowDownUp,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -19,7 +20,6 @@ import { ToastProvider } from '@/components/shared/Toast'
 import BillNotificationBanner from './bills/BillNotificationBanner'
 
 const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
-const QuickAddSheet = dynamic(() => import('./transactions/QuickAddSheet'), { ssr: false })
 
 interface AppShellProps {
   user: User
@@ -27,35 +27,178 @@ interface AppShellProps {
   children: React.ReactNode
 }
 
-const navItems: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; indent?: boolean }[] = [
-  { href: '/dashboard',                label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/accounts',                 label: 'Accounts',      icon: Wallet },
-  { href: '/transactions',             label: 'Transactions',  icon: ArrowLeftRight },
-  { href: '/bills',                    label: 'Bills',         icon: Receipt },
-  { href: '/recoverables',             label: 'Recoverables',  icon: ArrowDownUp },
-  { href: '/recoverables/invoices',    label: 'Invoices',      icon: FileText, indent: true },
-  { href: '/recoverables/tds',         label: 'TDS',           icon: Receipt,  indent: true },
-  { href: '/recoverables/settings',    label: 'Rec. Settings', icon: Settings, indent: true },
-  { href: '/payroll',                  label: 'Payroll',        icon: Banknote },
-  { href: '/payroll/processing',       label: 'Monthly Processing', icon: CalendarClock, indent: true },
-  { href: '/payroll/staff',            label: 'Staff Particulars',  icon: UserSquare,    indent: true },
-  { href: '/payroll/slips',            label: 'Salary Slips',       icon: FileText,      indent: true },
-  { href: '/payroll/history',          label: 'Payroll History',    icon: History,       indent: true },
-  { href: '/suppliers',                label: 'Suppliers',          icon: Building2 },
-  { href: '/suppliers/directory',      label: 'Directory',          icon: BookOpen,       indent: true },
-  { href: '/suppliers/invoices',       label: 'Invoices',           icon: FileText,       indent: true },
-  { href: '/suppliers/recoverables',   label: 'Pending Recoverables', icon: AlertCircle,  indent: true },
-  { href: '/suppliers/billed',         label: 'Billed Recoverables',  icon: CheckSquare2, indent: true },
-  { href: '/suppliers/payments',       label: 'Payment Tracking',   icon: CreditCard,     indent: true },
-  { href: '/subscriptions',            label: 'Subscriptions', icon: RefreshCw },
-  { href: '/customers',                label: 'Customers',     icon: Users },
-  { href: '/insights',                 label: 'Insights',      icon: Lightbulb },
-  { href: '/budgets',                  label: 'Budgets',       icon: Target },
-  { href: '/categories',               label: 'Categories',    icon: Tag },
-  { href: '/account-types',            label: 'Account Types', icon: Layers },
-  { href: '/currencies',               label: 'Currencies',    icon: DollarSign },
+// ── Nav data structure ──────────────────────────────────────────────────────
+
+type SubItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> }
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; subItems?: SubItem[] }
+type NavSection = { id: string; label?: string; items: NavItem[] }
+
+const navSections: NavSection[] = [
+  {
+    id: 'main',
+    items: [
+      { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
+      { href: '/accounts',     label: 'Accounts',     icon: Wallet },
+      { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+    ],
+  },
+  {
+    id: 'finance',
+    label: 'Finance',
+    items: [
+      { href: '/bills',          label: 'Bills',          icon: Receipt },
+      { href: '/subscriptions',  label: 'Subscriptions',  icon: RefreshCw },
+      { href: '/budgets',        label: 'Budgets',        icon: Target },
+      { href: '/categories',     label: 'Categories',     icon: Tag },
+    ],
+  },
+  {
+    id: 'business',
+    label: 'Business',
+    items: [
+      {
+        href: '/recoverables', label: 'Recoverables', icon: ArrowDownUp,
+        subItems: [
+          { href: '/recoverables/invoices',  label: 'Invoices',  icon: FileText },
+          { href: '/recoverables/tds',       label: 'TDS',       icon: Receipt },
+          { href: '/recoverables/settings',  label: 'Settings',  icon: Settings },
+        ],
+      },
+      {
+        href: '/suppliers', label: 'Suppliers', icon: Building2,
+        subItems: [
+          { href: '/suppliers/directory',    label: 'Directory',    icon: BookOpen },
+          { href: '/suppliers/invoices',     label: 'Invoices',     icon: FileText },
+          { href: '/suppliers/recoverables', label: 'Pending',      icon: AlertCircle },
+          { href: '/suppliers/billed',       label: 'Billed',       icon: CheckSquare2 },
+          { href: '/suppliers/payments',     label: 'Payments',     icon: CreditCard },
+        ],
+      },
+      { href: '/customers', label: 'Customers', icon: Users },
+    ],
+  },
+  {
+    id: 'payroll',
+    label: 'Payroll',
+    items: [
+      { href: '/payroll/processing', label: 'Monthly Processing', icon: CalendarClock },
+      { href: '/payroll/staff',      label: 'Staff Particulars',  icon: UserSquare },
+      { href: '/payroll/slips',      label: 'Salary Slips',       icon: FileText },
+      { href: '/payroll/history',    label: 'Payroll History',    icon: History },
+    ],
+  },
+  {
+    id: 'tools',
+    label: 'Tools',
+    items: [
+      { href: '/insights',       label: 'Insights',       icon: Lightbulb },
+      { href: '/account-types',  label: 'Account Types',  icon: Layers },
+      { href: '/currencies',     label: 'Currencies',     icon: DollarSign },
+    ],
+  },
 ]
 
+// ── Item active-state helper ────────────────────────────────────────────────
+
+function isItemActive(href: string, hasSubItems: boolean, pathname: string) {
+  if (hasSubItems) return pathname === href
+  return pathname === href || pathname.startsWith(href + '/')
+}
+
+// ── Single nav link ─────────────────────────────────────────────────────────
+
+function NavLink({
+  href, label, icon: Icon, isActive, indent = false, collapsed, onClick,
+}: {
+  href: string; label: string; icon: React.ComponentType<{ className?: string }>
+  isActive: boolean; indent?: boolean; collapsed: boolean; onClick?: () => void
+}) {
+  return (
+    <Link
+      href={href}
+      title={collapsed ? label : undefined}
+      onClick={onClick}
+      className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+        collapsed ? 'justify-center px-2.5' : indent ? 'pl-6 pr-2.5' : 'px-2.5'
+      }`}
+      style={{
+        backgroundColor: isActive ? 'var(--brand-light)' : 'transparent',
+        color: isActive ? 'var(--brand)' : 'var(--text-muted)',
+      }}
+    >
+      <Icon className={`shrink-0 ${indent ? 'w-[14px] h-[14px]' : 'w-[17px] h-[17px]'}`} />
+      {!collapsed && <span className="flex-1 truncate">{label}</span>}
+      {!collapsed && isActive && !indent && <ChevronRight className="w-3 h-3 shrink-0" />}
+    </Link>
+  )
+}
+
+// ── Section renderer ────────────────────────────────────────────────────────
+
+function SidebarSection({
+  section, pathname, collapsed, sectionOpen, onToggle, onItemClick,
+}: {
+  section: NavSection; pathname: string; collapsed: boolean
+  sectionOpen: boolean; onToggle: () => void; onItemClick?: () => void
+}) {
+  return (
+    <div>
+      {/* Section header */}
+      {section.label && !collapsed && (
+        <button
+          onClick={onToggle}
+          className="w-full flex items-center justify-between px-2.5 pt-3 pb-1 group"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>
+            {section.label}
+          </span>
+          {sectionOpen
+            ? <ChevronDown className="w-3 h-3" style={{ color: 'var(--text-faint)' }} />
+            : <ChevronRight className="w-3 h-3" style={{ color: 'var(--text-faint)' }} />}
+        </button>
+      )}
+
+      {/* Items — hidden when section is collapsed (but always show in icon-only mode) */}
+      {(sectionOpen || collapsed || !section.label) && (
+        <div className="space-y-0.5">
+          {section.items.map(item => {
+            const hasSubItems = !!(item.subItems?.length)
+            const active = isItemActive(item.href, hasSubItems, pathname)
+            const hasActiveChild = item.subItems?.some(s => pathname === s.href || pathname.startsWith(s.href + '/'))
+
+            return (
+              <div key={item.href}>
+                <NavLink
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={active || (hasSubItems && !!hasActiveChild)}
+                  collapsed={collapsed}
+                  onClick={onItemClick}
+                />
+                {/* Sub-items — always shown when section is open and sidebar is expanded */}
+                {!collapsed && item.subItems?.map(sub => (
+                  <NavLink
+                    key={sub.href}
+                    href={sub.href}
+                    label={sub.label}
+                    icon={sub.icon}
+                    isActive={pathname === sub.href || pathname.startsWith(sub.href + '/')}
+                    indent
+                    collapsed={false}
+                    onClick={onItemClick}
+                  />
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main shell ──────────────────────────────────────────────────────────────
 
 export default function AppShell({ user, profile, children }: AppShellProps) {
   const pathname = usePathname()
@@ -63,6 +206,11 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const [showAddTx, setShowAddTx] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+
+  // Per-section collapse state (only collapsible sections, not 'main')
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    finance: true, business: true, payroll: true, tools: true,
+  })
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -76,9 +224,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
     localStorage.setItem('inex-theme', theme)
   }, [theme])
 
-  // iOS PWA fix: set --app-height to actual window.innerHeight.
-  // CSS `position:fixed; bottom:0` is unreliable on iOS home screen apps —
-  // this bypasses that bug entirely.
   useEffect(() => {
     const setAppHeight = () => {
       document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)
@@ -92,11 +237,13 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
     }
   }, [])
 
-  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
-
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
     if (saved === 'true') setCollapsed(true)
+    const savedSections = localStorage.getItem('sidebar-sections')
+    if (savedSections) {
+      try { setOpenSections(JSON.parse(savedSections)) } catch { /* ignore */ }
+    }
   }, [])
 
   const toggleCollapsed = () => {
@@ -105,6 +252,16 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
       return !prev
     })
   }
+
+  const toggleSection = (id: string) => {
+    setOpenSections(prev => {
+      const next = { ...prev, [id]: !prev[id] }
+      localStorage.setItem('sidebar-sections', JSON.stringify(next))
+      return next
+    })
+  }
+
+  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -116,11 +273,39 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const initials = displayName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
   const avatarUrl = profile?.avatar_url
 
+  const sidebarNav = (onItemClick?: () => void) => (
+    <nav className="flex-1 px-2 py-2 overflow-y-auto space-y-0.5">
+      {navSections.map(section => (
+        <SidebarSection
+          key={section.id}
+          section={section}
+          pathname={pathname}
+          collapsed={collapsed}
+          sectionOpen={openSections[section.id] ?? true}
+          onToggle={() => toggleSection(section.id)}
+          onItemClick={onItemClick}
+        />
+      ))}
+
+      {/* Settings — always at bottom of nav */}
+      <div className={collapsed ? '' : 'pt-1'}>
+        <NavLink
+          href="/settings"
+          label="Settings"
+          icon={Settings}
+          isActive={pathname === '/settings' || pathname.startsWith('/settings/')}
+          collapsed={collapsed}
+          onClick={onItemClick}
+        />
+      </div>
+    </nav>
+  )
+
   return (
     <ToastProvider>
     <>
       {/* ══════════════════════════════════════
-          DESKTOP LAYOUT (md and above)
+          DESKTOP LAYOUT
           ══════════════════════════════════════ */}
       <div
         className="hidden md:flex overflow-hidden"
@@ -136,8 +321,8 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             className={`flex items-center h-14 shrink-0 border-b ${collapsed ? 'justify-center' : 'justify-between px-4'}`}
             style={{ borderColor: 'var(--border)' }}
           >
-            {!collapsed && <img src="/vaultr-letter-logo.png" alt="InEx" className="h-6 w-auto object-contain" />}
-            {collapsed && <img src="/vaultr-logo.png" alt="InEx" className="w-7 h-7 object-contain" />}
+            {!collapsed && <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-6 w-auto object-contain" />}
+            {collapsed && <img src="/vaultr-logo.png" alt="Vaultr" className="w-7 h-7 object-contain" />}
             {!collapsed && (
               <button onClick={toggleCollapsed} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-muted)' }}>
                 <PanelLeftClose className="w-4 h-4" />
@@ -155,46 +340,9 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             </button>
           )}
 
-          {/* Nav items */}
-          <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-            {navItems.map(({ href, label, icon: Icon, indent }) => {
-              // For parent items with sub-items, don't highlight when a sub-route is active
-              const hasSubItem = navItems.some(n => n.indent && n.href.startsWith(href + '/'))
-              const active = hasSubItem
-                ? pathname === href
-                : pathname === href || pathname.startsWith(href + '/')
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  title={collapsed ? label : undefined}
-                  className={`flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all ${collapsed ? 'justify-center px-2.5' : indent ? 'pl-6 pr-2.5' : 'px-2.5'}`}
-                  style={{
-                    backgroundColor: active ? 'var(--brand-light)' : 'transparent',
-                    color: active ? 'var(--brand)' : 'var(--text-muted)',
-                  }}
-                >
-                  <Icon className={`shrink-0 ${indent ? 'w-[15px] h-[15px]' : 'w-[18px] h-[18px]'}`} />
-                  {!collapsed && <span className="flex-1">{label}</span>}
-                  {!collapsed && active && <ChevronRight className="w-3.5 h-3.5" />}
-                </Link>
-              )
-            })}
-            <Link
-              href="/settings"
-              title={collapsed ? 'Settings' : undefined}
-              className={`flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-sm font-medium transition-all ${collapsed ? 'justify-center' : ''}`}
-              style={{
-                backgroundColor: pathname === '/settings' ? 'var(--brand-light)' : 'transparent',
-                color: pathname === '/settings' ? 'var(--brand)' : 'var(--text-muted)',
-              }}
-            >
-              <Settings className="w-[18px] h-[18px] shrink-0" />
-              {!collapsed && <span className="flex-1">Settings</span>}
-            </Link>
-          </nav>
+          {sidebarNav()}
 
-          {/* Dark mode toggle + Add Transaction */}
+          {/* Dark mode + Add Transaction */}
           <div className={`px-2 pb-2 space-y-1.5 ${collapsed ? 'flex flex-col items-center' : ''}`}>
             <button
               onClick={toggleTheme}
@@ -248,15 +396,11 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
       {/* ══════════════════════════════════════
           MOBILE LAYOUT
-          Nav is a flex child (NOT position:fixed) — fixes iOS PWA gap
           ══════════════════════════════════════ */}
       <div
         className="md:hidden flex flex-col overflow-hidden"
         style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
+          position: 'fixed', top: 0, left: 0, right: 0,
           height: 'var(--app-height, 100dvh)',
           backgroundColor: 'var(--bg)',
         }}
@@ -264,11 +408,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Mobile Header */}
         <header
           className="shrink-0 border-b"
-          style={{
-            backgroundColor: 'var(--surface)',
-            borderColor: 'var(--border)',
-            paddingTop: 'env(safe-area-inset-top, 0px)',
-          }}
+          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
           <div className="relative flex items-center justify-between px-4 h-12">
             <button
@@ -278,11 +418,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <img
-              src="/vaultr-letter-logo.png"
-              alt="InEx"
-              className="h-5 w-auto object-contain absolute left-1/2 -translate-x-1/2"
-            />
+            <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-5 w-auto object-contain absolute left-1/2 -translate-x-1/2" />
             <Link href="/settings" className="w-10 h-10 flex items-center justify-center -mr-2">
               <Avatar url={avatarUrl} initials={initials} size="sm" />
             </Link>
@@ -291,14 +427,9 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
         <BillNotificationBanner />
 
-        {/* Scrollable content */}
         <main
           className="flex-1 overflow-y-auto"
-          style={{
-            WebkitOverflowScrolling: 'touch' as never,
-            overscrollBehaviorY: 'contain',
-            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)',
-          }}
+          style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)' }}
         >
           {children}
         </main>
@@ -308,67 +439,70 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
           onClick={() => setShowAddTx(true)}
           className="tap-scale"
           style={{
-            position: 'fixed',
-            right: 20,
+            position: 'fixed', right: 20,
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)',
-            width: 56,
-            height: 56,
-            borderRadius: 18,
+            width: 56, height: 56, borderRadius: 18,
             backgroundColor: 'var(--brand)',
             boxShadow: '0 6px 20px rgba(99,102,241,0.45)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 40,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 40,
           }}
         >
           <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
         </button>
       </div>
 
-      {/* Mobile drawer overlay */}
+      {/* Mobile drawer */}
       {mobileSidebarOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-[2px]"
-            onClick={() => setMobileSidebarOpen(false)}
-          />
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px]" onClick={() => setMobileSidebarOpen(false)} />
           <aside
             className="relative flex flex-col w-[280px] h-full shadow-2xl slide-in-left"
             style={{ backgroundColor: 'var(--surface)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
           >
-            <div
-              className="flex items-center justify-between px-5 py-4 border-b"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <img src="/vaultr-letter-logo.png" alt="InEx" className="h-5 w-auto object-contain" />
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-5 w-auto object-contain" />
               <button onClick={() => setMobileSidebarOpen(false)} style={{ color: 'var(--text-muted)' }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-              {[...navItems, { href: '/settings', label: 'Settings', icon: Settings, indent: false }].map(({ href, label, icon: Icon, indent }) => {
-                const hasSubItem = navItems.some(n => n.indent && n.href.startsWith(href + '/'))
-                const active = hasSubItem
-                  ? pathname === href
-                  : pathname === href || pathname.startsWith(href + '/')
-                return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMobileSidebarOpen(false)}
-                  className={`flex items-center gap-3 py-3 rounded-xl text-sm font-medium transition-all ${indent ? 'pl-8 pr-3' : 'px-3'}`}
-                  style={{
-                    backgroundColor: active ? 'var(--brand-light)' : 'transparent',
-                    color: active ? 'var(--brand)' : 'var(--text-muted)',
-                  }}
-                >
-                  <Icon className={`shrink-0 ${indent ? 'w-[15px] h-[15px]' : 'w-[18px] h-[18px]'}`} />
-                  {label}
-                </Link>
-                )
-              })}
+            {/* Mobile nav — section headers always expanded in mobile drawer */}
+            <nav className="flex-1 px-3 py-2 overflow-y-auto">
+              {navSections.map(section => (
+                <div key={section.id} className="mb-1">
+                  {section.label && (
+                    <p className="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>
+                      {section.label}
+                    </p>
+                  )}
+                  <div className="space-y-0.5">
+                    {section.items.map(item => {
+                      const hasSubItems = !!(item.subItems?.length)
+                      const active = isItemActive(item.href, hasSubItems, pathname)
+                      const hasActiveChild = item.subItems?.some(s => pathname === s.href || pathname.startsWith(s.href + '/'))
+                      return (
+                        <div key={item.href}>
+                          <NavLink
+                            href={item.href} label={item.label} icon={item.icon}
+                            isActive={active || (hasSubItems && !!hasActiveChild)}
+                            collapsed={false}
+                            onClick={() => setMobileSidebarOpen(false)}
+                          />
+                          {item.subItems?.map(sub => (
+                            <NavLink
+                              key={sub.href} href={sub.href} label={sub.label} icon={sub.icon}
+                              isActive={pathname === sub.href || pathname.startsWith(sub.href + '/')}
+                              indent collapsed={false}
+                              onClick={() => setMobileSidebarOpen(false)}
+                            />
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+              <NavLink href="/settings" label="Settings" icon={Settings} isActive={pathname === '/settings'} collapsed={false} onClick={() => setMobileSidebarOpen(false)} />
             </nav>
 
             <div className="px-3 py-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
@@ -380,10 +514,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
                 {theme === 'dark' ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
                 {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               </button>
-              <div
-                className="flex items-center gap-3 px-3 py-3 rounded-xl"
-                style={{ backgroundColor: 'var(--surface-2)' }}
-              >
+              <div className="flex items-center gap-3 px-3 py-3 rounded-xl" style={{ backgroundColor: 'var(--surface-2)' }}>
                 <Avatar url={avatarUrl} initials={initials} size="sm" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{displayName}</p>
@@ -398,27 +529,19 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         </div>
       )}
 
-      {/* Desktop: full transaction form */}
       {showAddTx && (
         <TransactionForm onSaved={() => { setShowAddTx(false); router.refresh() }} onClose={() => setShowAddTx(false)} />
       )}
-
     </>
     </ToastProvider>
   )
 }
 
-// ── Shared Avatar component ────────────────────────────────────────
+// ── Shared Avatar ──────────────────────────────────────────────────────────
 export function Avatar({ url, initials, size = 'sm' }: { url?: string | null; initials: string; size?: 'sm' | 'md' | 'lg' }) {
   const sizes = { sm: 'w-8 h-8 text-xs', md: 'w-9 h-9 text-sm', lg: 'w-12 h-12 text-base' }
   if (url) {
-    return (
-      <img
-        src={url}
-        alt={initials}
-        className={`${sizes[size]} rounded-full object-cover ring-2 ring-white shrink-0`}
-      />
-    )
+    return <img src={url} alt={initials} className={`${sizes[size]} rounded-full object-cover ring-2 ring-white shrink-0`} />
   }
   return (
     <div className={`${sizes[size]} rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold shrink-0`}>

@@ -53,6 +53,7 @@ export interface Account {
   bank_address: string | null
   open_date: string | null
   closing_date: string | null
+  statement_due_day: number | null
   include_in_net_worth: boolean
   is_active: boolean
   created_at: string

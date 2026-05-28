@@ -28,6 +28,8 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
   const [avatarUrl, setAvatarUrl] = useState(account?.avatar_url ?? '')
   const [avatarUploading, setAvatarUploading] = useState(false)
 
+  const [statementDueDay, setStatementDueDay] = useState(account?.statement_due_day?.toString() ?? '')
+
   // Extended details
   const [accountNumber, setAccountNumber] = useState(account?.account_number ?? '')
   const [branch, setBranch] = useState(account?.branch ?? '')
@@ -89,6 +91,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       bank_address: bankAddress.trim() || null,
       open_date: openDate || null,
       closing_date: closingDate || null,
+      statement_due_day: (type === 'credit' && statementDueDay) ? parseInt(statementDueDay) : null,
     }
 
     let data, err
@@ -219,6 +222,23 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
               </select>
             </div>
           </div>
+
+          {/* Credit card due day */}
+          {type === 'credit' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Statement Due Day <span className="text-gray-400 font-normal">(day of month, e.g. 15)</span>
+              </label>
+              <input
+                type="number"
+                min="1" max="31"
+                value={statementDueDay}
+                onChange={e => setStatementDueDay(e.target.value)}
+                placeholder="e.g. 15"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              />
+            </div>
+          )}
 
           {/* Color */}
           <div>
