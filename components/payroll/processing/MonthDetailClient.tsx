@@ -16,9 +16,14 @@ interface Props {
   companyAddress?: string | null
 }
 
-function fmtMonth(m: string) {
-  const [year, month] = m.split('-')
-  return new Date(Number(year), Number(month) - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function fmtMonth(m: string): string {
+  if (!m) return ''
+  const parts = String(m).split('T')[0].split('-')
+  const mi = parseInt(parts[1] ?? '0', 10) - 1
+  if (isNaN(mi) || mi < 0 || mi > 11) return m
+  return `${MONTHS_LONG[mi]} ${parts[0]}`
 }
 
 function fmtInr(n: number) {

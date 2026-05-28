@@ -40,7 +40,8 @@
       "Bash(supabase status *)",
       "Bash(npx supabase *)",
       "Bash(psql --version)",
-      "Bash(supabase --version)"
+      "Bash(supabase --version)",
+      "Bash(npx next *)"
     ]
   }
 }

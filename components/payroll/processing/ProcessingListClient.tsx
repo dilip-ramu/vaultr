@@ -8,10 +8,24 @@ interface Props {
   months: PayrollMonth[]
 }
 
-function fmtMonth(m: string) {
-  const [year, month] = m.split('-')
-  const date = new Date(Number(year), Number(month) - 1)
-  return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function fmtMonth(m: string): string {
+  if (!m) return ''
+  const parts = String(m).split('T')[0].split('-')
+  const mi = parseInt(parts[1] ?? '0', 10) - 1
+  if (isNaN(mi) || mi < 0 || mi > 11) return m
+  return `${MONTHS_LONG[mi]} ${parts[0]}`
+}
+
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return '—'
+  const parts = String(d).split('T')[0].split('-')
+  if (parts.length < 3) return String(d)
+  const mi = parseInt(parts[1], 10) - 1
+  if (isNaN(mi) || mi < 0 || mi > 11) return String(d)
+  return `${parts[2]} ${MONTHS_SHORT[mi]} ${parts[0]}`
 }
 
 function fmtInr(n: number) {
@@ -103,7 +117,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                   )}
                   {m.payment_date && (
                     <div className="text-xs text-gray-400 mt-0.5">
-                      Payment: {new Date(m.payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      Payment: {fmtDate(m.payment_date)}
                     </div>
                   )}
                 </div>

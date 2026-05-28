@@ -143,9 +143,9 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
         <View style={s.table}>
           <View style={s.thead}>
             <Text style={s.th}>EARNINGS</Text>
-            <Text style={s.thRight}>AMOUNT (₹)</Text>
+            <Text style={s.thRight}>AMOUNT (Rs.)</Text>
             <Text style={s.th}>DEDUCTIONS</Text>
-            <Text style={s.thRight}>AMOUNT (₹)</Text>
+            <Text style={s.thRight}>AMOUNT (Rs.)</Text>
           </View>
           <View style={s.trow}>
             <Text style={s.td}>Basic Salary</Text>
@@ -183,13 +183,13 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
         <View style={s.totalBox}>
           <View>
             <Text style={s.netLabel}>Net Salary Payable</Text>
-            <Text style={s.netAmount}>₹ {fmtInr(Number(entry.final_payable))}</Text>
+            <Text style={s.netAmount}>Rs. {fmtInr(Number(entry.final_payable))}</Text>
             <Text style={s.netWords}>{amountToWords(Number(entry.final_payable))}</Text>
           </View>
           {Number(entry.expended_rate) > 0 ? (
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={{ fontSize: 8, color: '#666' }}>Salary (EUR): {fmtInr(Number(entry.salary_euro))} EUR</Text>
-              <Text style={{ fontSize: 8, color: '#666' }}>Exchange Rate: ₹ {fmtInr(Number(entry.expended_rate))} / EUR</Text>
+              <Text style={{ fontSize: 8, color: '#666' }}>Exchange Rate: Rs. {fmtInr(Number(entry.expended_rate))} / EUR</Text>
             </View>
           ) : null}
         </View>
