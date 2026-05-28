@@ -2,12 +2,18 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import type { PayrollMonth, PayrollEntry } from '@/lib/payroll/types'
+import type { PayrollMonth, PayrollEntry, Employee } from '@/lib/payroll/types'
 import { calcFinalPayable } from '@/lib/payroll/types'
+import MarkPaidModal from './MarkPaidModal'
+
+interface Account { id: string; name: string; type: string }
 
 interface Props {
   month: PayrollMonth
   entries: PayrollEntry[]
+  accounts: Account[]
+  companyName?: string | null
+  companyAddress?: string | null
 }
 
 function fmtMonth(m: string) {
@@ -27,10 +33,11 @@ type RowValues = {
   advance: number
 }
 
-export default function MonthDetailClient({ month: initialMonth, entries: initialEntries }: Props) {
+export default function MonthDetailClient({ month: initialMonth, entries: initialEntries, accounts, companyName, companyAddress }: Props) {
   const router = useRouter()
   const [month, setMonth] = useState(initialMonth)
   const [entries, setEntries] = useState(initialEntries)
+  const [showPayModal, setShowPayModal] = useState(false)
 
   // Summary bar state
   const [billedEuros, setBilledEuros] = useState(String(initialMonth.billed_euros || ''))
@@ -122,6 +129,14 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
     }
   }
 
+  async function handleUndoPay() {
+    if (!confirm('Reverse payment? This will delete all salary transactions for this month.')) return
+    const res = await fetch(`/api/payroll/months/${month.id}/pay`, { method: 'DELETE' })
+    const data = await res.json()
+    if (res.ok) { setMonth(data.month); router.refresh() }
+    else alert(data.error ?? 'Failed to reverse payment')
+  }
+
   async function handleFinalize() {
     if (!confirm(`Finalize payroll for ${fmtMonth(month.payroll_month)}?`)) return
     setFinalizing(true)
@@ -178,6 +193,11 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                   ✓ Finalized
                 </span>
               )}
+              {month.is_paid && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                  ✓ Paid
+                </span>
+              )}
             </div>
             <p className="text-sm text-gray-500 mt-0.5">Payroll processing</p>
           </div>
@@ -185,6 +205,8 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
         {entries.length > 0 && (
           <div className="flex items-center gap-3">
             {finalizeError && <span className="text-xs text-red-600">{finalizeError}</span>}
+
+            {/* Finalize / Re-finalize */}
             {!month.is_finalized ? (
               <button
                 onClick={handleFinalize}
@@ -193,13 +215,28 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
               >
                 {finalizing ? 'Finalizing…' : '✓ Finalize Payroll'}
               </button>
+            ) : !month.is_paid ? (
+              <>
+                <button
+                  onClick={handleFinalize}
+                  disabled={finalizing}
+                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {finalizing ? 'Saving…' : '↺ Re-finalize'}
+                </button>
+                <button
+                  onClick={() => setShowPayModal(true)}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  ₹ Mark as Paid
+                </button>
+              </>
             ) : (
               <button
-                onClick={handleFinalize}
-                disabled={finalizing}
-                className="px-5 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                onClick={handleUndoPay}
+                className="px-4 py-2 border border-red-200 text-red-500 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
               >
-                {finalizing ? 'Saving…' : '↺ Re-finalize'}
+                ↩ Undo Payment
               </button>
             )}
           </div>
@@ -356,6 +393,23 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             Changes auto-save when you click out of a field.
           </p>
         </div>
+      )}
+
+      {/* Mark as Paid modal */}
+      {showPayModal && (
+        <MarkPaidModal
+          month={month}
+          entries={entries.filter(e => e.employee) as (PayrollEntry & { employee: Employee })[]}
+          accounts={accounts}
+          companyName={companyName}
+          companyAddress={companyAddress}
+          onSuccess={(updatedMonth) => {
+            setMonth(updatedMonth)
+            setShowPayModal(false)
+            router.refresh()
+          }}
+          onClose={() => setShowPayModal(false)}
+        />
       )}
 
       {/* Salary slips link */}

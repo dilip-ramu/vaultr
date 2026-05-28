@@ -33,6 +33,9 @@ export interface PayrollMonth {
   description: string | null
   is_finalized: boolean
   finalized_at: string | null
+  is_paid: boolean
+  paid_at: string | null
+  payment_account_id: string | null
   created_at: string
 }
 
@@ -51,6 +54,7 @@ export interface PayrollEntry {
   advance: number
   final_payable: number
   notes: string | null
+  transaction_id: string | null
   created_at: string
   // joined from employees table
   employee?: Employee
