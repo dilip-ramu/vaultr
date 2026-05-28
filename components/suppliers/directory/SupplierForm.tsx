@@ -1,0 +1,239 @@
+'use client'
+
+import { useState } from 'react'
+import { X } from 'lucide-react'
+import type { Supplier, PaymentTerms } from '@/lib/suppliers/types'
+import { PAYMENT_TERMS_OPTIONS } from '@/lib/suppliers/types'
+
+interface Props {
+  supplier: Supplier | null
+  onSaved: (s: Supplier) => void
+  onClose: () => void
+}
+
+const EMPTY: Omit<Supplier, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
+  supplier_code: '',
+  name: '',
+  contact_person: '',
+  mobile: '',
+  email: '',
+  address: '',
+  gst_number: '',
+  pan_number: '',
+  bank_name: '',
+  account_number: '',
+  ifsc_swift: '',
+  payment_terms: '30',
+  custom_terms_days: null,
+  currency: 'INR',
+  notes: '',
+  is_active: true,
+}
+
+const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
+
+export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
+  const [form, setForm] = useState(supplier
+    ? { ...EMPTY, ...supplier }
+    : { ...EMPTY }
+  )
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = (k: keyof typeof EMPTY, v: unknown) => setForm(f => ({ ...f, [k]: v }))
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.name.trim()) { setError('Supplier name is required'); return }
+    setSaving(true); setError('')
+    try {
+      const payload = {
+        ...form,
+        supplier_code: form.supplier_code || null,
+        contact_person: form.contact_person || null,
+        mobile: form.mobile || null,
+        email: form.email || null,
+        address: form.address || null,
+        gst_number: form.gst_number || null,
+        pan_number: form.pan_number || null,
+        bank_name: form.bank_name || null,
+        account_number: form.account_number || null,
+        ifsc_swift: form.ifsc_swift || null,
+        notes: form.notes || null,
+        custom_terms_days: form.payment_terms === 'custom' ? Number(form.custom_terms_days) : null,
+      }
+      const url = supplier ? `/api/suppliers/${supplier.id}` : '/api/suppliers'
+      const method = supplier ? 'PATCH' : 'POST'
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Save failed'); return }
+      onSaved(data.supplier)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl" style={{ backgroundColor: 'var(--surface)' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+            {supplier ? 'Edit Supplier' : 'New Supplier'}
+          </h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--text-muted)' }}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {error && (
+            <div className="px-4 py-3 rounded-xl text-sm bg-red-50 text-red-600 border border-red-200">{error}</div>
+          )}
+
+          {/* Basic info */}
+          <Section title="Basic Information">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Supplier Name *" className="col-span-2">
+                <Input value={form.name} onChange={v => set('name', v)} placeholder="e.g. DHL Express" />
+              </Field>
+              <Field label="Supplier Code">
+                <Input value={form.supplier_code ?? ''} onChange={v => set('supplier_code', v)} placeholder="e.g. DHL-001" />
+              </Field>
+              <Field label="Contact Person">
+                <Input value={form.contact_person ?? ''} onChange={v => set('contact_person', v)} placeholder="Name" />
+              </Field>
+              <Field label="Mobile">
+                <Input value={form.mobile ?? ''} onChange={v => set('mobile', v)} placeholder="+91 98765 43210" />
+              </Field>
+              <Field label="Email">
+                <Input value={form.email ?? ''} onChange={v => set('email', v)} type="email" placeholder="accounts@supplier.com" />
+              </Field>
+              <Field label="Address" className="col-span-2">
+                <textarea
+                  value={form.address ?? ''}
+                  onChange={e => set('address', e.target.value)}
+                  placeholder="Full address"
+                  rows={2}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none resize-none"
+                  style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+              </Field>
+            </div>
+          </Section>
+
+          {/* Tax info */}
+          <Section title="Tax & Registration">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="GST Number">
+                <Input value={form.gst_number ?? ''} onChange={v => set('gst_number', v)} placeholder="22AAAAA0000A1Z5" />
+              </Field>
+              <Field label="PAN Number">
+                <Input value={form.pan_number ?? ''} onChange={v => set('pan_number', v)} placeholder="AAAAA0000A" />
+              </Field>
+            </div>
+          </Section>
+
+          {/* Payment & Banking */}
+          <Section title="Payment & Banking">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Payment Terms">
+                <select
+                  value={form.payment_terms}
+                  onChange={e => set('payment_terms', e.target.value as PaymentTerms)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+                >
+                  {PAYMENT_TERMS_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </Field>
+              {form.payment_terms === 'custom' && (
+                <Field label="Custom Days">
+                  <Input
+                    value={String(form.custom_terms_days ?? '')}
+                    onChange={v => set('custom_terms_days', v ? parseInt(v) : null)}
+                    type="number"
+                    placeholder="e.g. 90"
+                  />
+                </Field>
+              )}
+              <Field label="Currency">
+                <select
+                  value={form.currency}
+                  onChange={e => set('currency', e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+                >
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="Bank Name">
+                <Input value={form.bank_name ?? ''} onChange={v => set('bank_name', v)} placeholder="HDFC Bank" />
+              </Field>
+              <Field label="Account Number">
+                <Input value={form.account_number ?? ''} onChange={v => set('account_number', v)} placeholder="Account number" />
+              </Field>
+              <Field label="IFSC / SWIFT">
+                <Input value={form.ifsc_swift ?? ''} onChange={v => set('ifsc_swift', v)} placeholder="HDFC0001234" />
+              </Field>
+            </div>
+          </Section>
+
+          {/* Notes */}
+          <Section title="Notes">
+            <textarea
+              value={form.notes ?? ''}
+              onChange={e => set('notes', e.target.value)}
+              placeholder="Any notes about this supplier…"
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none resize-none"
+              style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+            />
+          </Section>
+
+          {/* Footer */}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ backgroundColor: 'var(--brand)' }}>
+              {saving ? 'Saving…' : supplier ? 'Save Changes' : 'Add Supplier'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function Input({ value, onChange, placeholder, type = 'text' }: { value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+      style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+    />
+  )
+}

@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import {
   Plus, Receipt, CheckCircle2, Clock, AlertCircle,
-  RefreshCw, Send, Inbox, Calendar, ChevronDown
+  RefreshCw, Send, Inbox, Calendar, ChevronDown, X, RotateCcw,
 } from 'lucide-react'
 import type { Bill, Account, Category, Customer, BillDirection } from '@/lib/types'
 import { PAYMENT_TERMS_LABELS } from '@/lib/types'
@@ -24,6 +24,10 @@ export default function BillsClient({ initialBills, accounts, categories, custom
   const [showForm, setShowForm] = useState(false)
   const [editBill, setEditBill] = useState<Bill | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid' | 'overdue'>('all')
+  const [payBill, setPayBill] = useState<Bill | null>(null)   // bill waiting for account selection
+  const [payAccountId, setPayAccountId] = useState('')
+  const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0])
+  const [payingSaving, setPayingSaving] = useState(false)
 
   const directionBills = useMemo(() =>
     bills.filter(b => (b.direction ?? 'received') === direction), [bills, direction])
@@ -48,28 +52,52 @@ export default function BillsClient({ initialBills, accounts, categories, custom
     setEditBill(null)
   }
 
-  const handleMarkPaid = async (bill: Bill) => {
-    const supabase = createClient()
-    const now = new Date().toISOString()
-    await supabase.from('bills').update({ status: 'paid', settled_at: now }).eq('id', bill.id)
-    setBills(prev => prev.map(b => b.id === bill.id ? { ...b, status: 'paid', settled_at: now } : b))
+  const handleMarkPaidClick = (bill: Bill) => {
+    setPayBill(bill)
+    setPayAccountId(bill.account_id ?? '')
+    setPayDate(new Date().toISOString().split('T')[0])
+  }
 
-    // Auto-create transaction for received bills
-    if (bill.direction !== 'sent') {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        await supabase.from('transactions').insert({
-          user_id: user.id,
-          account_id: bill.account_id,
-          category_id: bill.category_id,
-          type: 'expense',
-          amount: bill.amount,
-          date: new Date().toISOString().split('T')[0],
-          notes: `Bill paid: ${bill.name}`,
-          bill_id: bill.id,
-        })
+  const handleMarkPaidConfirm = async () => {
+    if (!payBill) return
+    if (!payAccountId && payBill.direction !== 'sent') return  // account required for received bills
+    setPayingSaving(true)
+    try {
+      const supabase = createClient()
+      const now = new Date().toISOString()
+      await supabase.from('bills').update({ status: 'paid', settled_at: now, account_id: payAccountId || payBill.account_id }).eq('id', payBill.id)
+      setBills(prev => prev.map(b => b.id === payBill.id ? { ...b, status: 'paid', settled_at: now, account_id: payAccountId || b.account_id } : b))
+
+      // Auto-create transaction for received bills
+      if (payBill.direction !== 'sent') {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          await supabase.from('transactions').insert({
+            user_id: user.id,
+            account_id: payAccountId,
+            category_id: payBill.category_id,
+            type: 'expense',
+            amount: payBill.amount,
+            date: payDate,
+            notes: `Bill paid: ${payBill.name}`,
+            bill_id: payBill.id,
+          })
+        }
       }
+      setPayBill(null)
+    } finally {
+      setPayingSaving(false)
     }
+  }
+
+  const handleMarkUnpaid = async (bill: Bill) => {
+    if (!confirm(`Mark "${bill.name}" as unpaid? This will also delete the linked expense transaction.`)) return
+    const supabase = createClient()
+    // Delete linked transactions
+    await supabase.from('transactions').delete().eq('bill_id', bill.id)
+    // Reset bill status
+    await supabase.from('bills').update({ status: 'pending', settled_at: null }).eq('id', bill.id)
+    setBills(prev => prev.map(b => b.id === bill.id ? { ...b, status: 'pending', settled_at: null } : b))
   }
 
   const handleDelete = async (id: string) => {
@@ -164,7 +192,8 @@ export default function BillsClient({ initialBills, accounts, categories, custom
             <BillCard
               key={bill.id}
               bill={bill}
-              onMarkPaid={handleMarkPaid}
+              onMarkPaid={handleMarkPaidClick}
+              onMarkUnpaid={handleMarkUnpaid}
               onEdit={b => { setEditBill(b); setShowForm(true) }}
               onDelete={handleDelete}
             />
@@ -183,14 +212,69 @@ export default function BillsClient({ initialBills, accounts, categories, custom
           onClose={() => { setShowForm(false); setEditBill(null) }}
         />
       )}
+
+      {/* Account selection modal for Mark as Paid */}
+      {payBill && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4" style={{ backgroundColor: 'var(--surface)' }}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Mark as Paid</h3>
+              <button onClick={() => setPayBill(null)} style={{ color: 'var(--text-muted)' }}><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{payBill.name}</p>
+            <p className="text-xl font-bold" style={{ color: 'var(--text)' }}>{formatCurrency(payBill.amount)}</p>
+
+            {payBill.direction !== 'sent' && (
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Bank Account *</label>
+                <select
+                  value={payAccountId}
+                  onChange={e => setPayAccountId(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+                >
+                  <option value="">Select account…</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Payment Date</label>
+              <input
+                type="date"
+                value={payDate}
+                onChange={e => setPayDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+              />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setPayBill(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >Cancel</button>
+              <button
+                onClick={handleMarkPaidConfirm}
+                disabled={payingSaving || (payBill.direction !== 'sent' && !payAccountId)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-500 disabled:opacity-50"
+              >
+                {payingSaving ? 'Saving…' : 'Confirm Paid'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Bill card ─────────────────────────────────────────────────────
-function BillCard({ bill, onMarkPaid, onEdit, onDelete }: {
+function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
   bill: Bill
   onMarkPaid: (b: Bill) => void
+  onMarkUnpaid: (b: Bill) => void
   onEdit: (b: Bill) => void
   onDelete: (id: string) => void
 }) {
@@ -290,6 +374,12 @@ function BillCard({ bill, onMarkPaid, onEdit, onDelete }: {
       )}
       {isPaid && (
         <div className="flex gap-2 px-4 pb-3.5">
+          <button
+            onClick={() => onMarkUnpaid(bill)}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600"
+          >
+            <RotateCcw className="w-3 h-3" /> Mark Unpaid
+          </button>
           <button onClick={() => onEdit(bill)} className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700">Edit</button>
           <button onClick={() => onDelete(bill.id)} className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-red-500">Delete</button>
         </div>
