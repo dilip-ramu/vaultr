@@ -30,6 +30,7 @@ export interface PayrollMonth {
   bank_charges: number
   effective_rate: number
   expended_rate: number
+  description: string | null
   is_finalized: boolean
   finalized_at: string | null
   created_at: string

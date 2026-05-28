@@ -1,8 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import SalarySlipPrint from './SalarySlipPrint'
+
+// Load PDF renderer lazily (large bundle, not needed on first paint)
+const SalarySlipPDFDownload = dynamic(() => import('./SalarySlipPDFDownload'), { ssr: false })
 
 interface EnrichedEntry extends PayrollEntry {
   month: PayrollMonth
@@ -17,33 +21,121 @@ interface Props {
 
 function fmtMonth(m: string) {
   const [year, month] = m.split('-')
-  const date = new Date(Number(year), Number(month) - 1)
-  return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  return new Date(Number(year), Number(month) - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
 }
 
 function fmtInr(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 }
 
+function slugName(name: string) {
+  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+}
+
+function slugMonth(m: string) {
+  const [year, month] = m.split('-')
+  const d = new Date(Number(year), Number(month) - 1)
+  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }).toLowerCase().replace(/\s+/g, '-')
+}
+
 export default function SlipsClient({ entries, companyName, companyAddress }: Props) {
   const [selectedEntry, setSelectedEntry] = useState<EnrichedEntry | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [downloading, setDownloading] = useState(false)
+
+  // Group by month
+  const byMonth: Record<string, EnrichedEntry[]> = {}
+  for (const e of entries) {
+    if (!byMonth[e.month.id]) byMonth[e.month.id] = []
+    byMonth[e.month.id].push(e)
+  }
+  const monthGroups = Object.values(byMonth)
+
+  function toggleEntry(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleGroup(group: EnrichedEntry[]) {
+    const allSelected = group.every(e => selected.has(e.id))
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allSelected) {
+        group.forEach(e => next.delete(e.id))
+      } else {
+        group.forEach(e => next.add(e.id))
+      }
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (selected.size === entries.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(entries.map(e => e.id)))
+    }
+  }
+
+  async function downloadSelected() {
+    const toDownload = entries.filter(e => selected.has(e.id))
+    if (!toDownload.length) return
+    setDownloading(true)
+    try {
+      const { pdf } = await import('@react-pdf/renderer')
+      const { SalarySlipDocument } = await import('./SalarySlipPDF')
+
+      for (const entry of toDownload) {
+        const doc = (
+          <SalarySlipDocument
+            entry={entry}
+            month={entry.month}
+            employee={entry.employee}
+            companyName={companyName}
+            companyAddress={companyAddress}
+          />
+        )
+        const blob = await pdf(doc).toBlob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${slugName(entry.employee.name)}-${slugMonth(entry.month.payroll_month)}.pdf`
+        a.click()
+        URL.revokeObjectURL(url)
+        // small delay between downloads so browser doesn't block them
+        await new Promise(r => setTimeout(r, 300))
+      }
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   if (selectedEntry) {
     return (
       <div>
         <div className="no-print flex items-center justify-between mb-6 max-w-2xl mx-auto">
-          <button
-            onClick={() => setSelectedEntry(null)}
-            className="text-gray-500 hover:text-gray-900 text-sm"
-          >
+          <button onClick={() => setSelectedEntry(null)} className="text-gray-500 hover:text-gray-900 text-sm">
             ← Back to list
           </button>
-          <button
-            onClick={() => window.print()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            🖨 Print Slip
-          </button>
+          <div className="flex items-center gap-3">
+            <SalarySlipPDFDownload
+              entry={selectedEntry}
+              month={selectedEntry.month}
+              employee={selectedEntry.employee}
+              companyName={companyName}
+              companyAddress={companyAddress}
+              filename={`${slugName(selectedEntry.employee.name)}-${slugMonth(selectedEntry.month.payroll_month)}.pdf`}
+            />
+            <button
+              onClick={() => window.print()}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+            >
+              🖨 Print
+            </button>
+          </div>
         </div>
         <SalarySlipPrint
           entry={selectedEntry}
@@ -56,20 +148,35 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
     )
   }
 
-  // Group by month
-  const byMonth: Record<string, EnrichedEntry[]> = {}
-  for (const e of entries) {
-    const key = e.month.id
-    if (!byMonth[key]) byMonth[key] = []
-    byMonth[key].push(e)
-  }
-  const monthGroups = Object.values(byMonth)
-
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Salary Slips</h1>
-        <p className="text-sm text-gray-500 mt-1">{entries.length} slip{entries.length !== 1 ? 's' : ''} across {monthGroups.length} month{monthGroups.length !== 1 ? 's' : ''}</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Salary Slips</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {entries.length} slip{entries.length !== 1 ? 's' : ''} across {monthGroups.length} month{monthGroups.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        {entries.length > 0 && (
+          <div className="flex items-center gap-3">
+            <button onClick={toggleAll} className="text-sm text-gray-500 hover:text-gray-900">
+              {selected.size === entries.length ? 'Deselect all' : 'Select all'}
+            </button>
+            {selected.size > 0 && (
+              <button
+                onClick={downloadSelected}
+                disabled={downloading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {downloading
+                  ? <><span className="animate-spin">⏳</span> Downloading…</>
+                  : <>⬇ Download {selected.size} slip{selected.size !== 1 ? 's' : ''}</>
+                }
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {entries.length === 0 ? (
@@ -81,16 +188,32 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
           {monthGroups.map(group => {
             const month = group[0].month
             const total = group.reduce((s, e) => s + Number(e.final_payable), 0)
+            const allGroupSelected = group.every(e => selected.has(e.id))
+            const someGroupSelected = group.some(e => selected.has(e.id))
+
             return (
               <div key={month.id}>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="font-semibold text-gray-800">{fmtMonth(month.payroll_month)}</h2>
-                  <span className="text-sm text-gray-500">Total: <span className="font-medium text-gray-900">{fmtInr(total)}</span></span>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={allGroupSelected}
+                      ref={el => { if (el) el.indeterminate = someGroupSelected && !allGroupSelected }}
+                      onChange={() => toggleGroup(group)}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                    />
+                    <h2 className="font-semibold text-gray-800">{fmtMonth(month.payroll_month)}</h2>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    Total: <span className="font-medium text-gray-900">{fmtInr(total)}</span>
+                  </span>
                 </div>
+
                 <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
+                        <th className="px-4 py-3 w-8"></th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary €</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary ₹</th>
@@ -102,13 +225,18 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                     <tbody className="divide-y divide-gray-100">
                       {group.map(entry => {
                         const adjustments =
-                          Number(entry.allowances) +
-                          Number(entry.overtime) +
-                          Number(entry.incentives) -
-                          Number(entry.deductions) -
-                          Number(entry.advance)
+                          Number(entry.allowances) + Number(entry.overtime) + Number(entry.incentives)
+                          - Number(entry.deductions) - Number(entry.advance)
                         return (
-                          <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
+                          <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${selected.has(entry.id) ? 'bg-blue-50' : ''}`}>
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={selected.has(entry.id)}
+                                onChange={() => toggleEntry(entry.id)}
+                                className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                              />
+                            </td>
                             <td className="px-4 py-3">
                               <div className="font-medium text-gray-900">{entry.employee?.name ?? '—'}</div>
                               <div className="text-xs text-gray-400">{entry.employee?.employee_id ?? ''}</div>

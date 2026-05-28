@@ -64,10 +64,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: month } = await supabase
-    .from('payroll_months').select('is_finalized').eq('id', id).eq('user_id', user.id).single()
+    .from('payroll_months').select('id').eq('id', id).eq('user_id', user.id).single()
 
   if (!month) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (month.is_finalized) return NextResponse.json({ error: 'Cannot delete a finalized payroll' }, { status: 400 })
+  // Cascade in DB handles entries + salary_slips automatically
 
   const { error } = await supabase.from('payroll_months').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

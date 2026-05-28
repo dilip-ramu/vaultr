@@ -24,6 +24,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
   const [showCreate, setShowCreate] = useState(false)
   const [newMonth, setNewMonth] = useState('')
   const [newPayDate, setNewPayDate] = useState('')
+  const [newDescription, setNewDescription] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -38,6 +39,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
         body: JSON.stringify({
           payroll_month: newMonth,
           payment_date: newPayDate || null,
+          description: newDescription.trim() || null,
         }),
       })
       const data = await res.json()
@@ -52,7 +54,9 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
 
   async function handleDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm('Delete this payroll month? This cannot be undone.')) return
+    const month = months.find(m => m.id === id)
+    const label = month?.is_finalized ? 'finalized payroll month (including all salary slips)' : 'payroll month'
+    if (!confirm(`Delete this ${label}? This cannot be undone.`)) return
     const res = await fetch(`/api/payroll/months/${id}`, { method: 'DELETE' })
     if (res.ok) {
       setMonths(prev => prev.filter(m => m.id !== id))
@@ -71,7 +75,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
           <p className="text-sm text-gray-500 mt-1">Create and manage payroll for each month</p>
         </div>
         <button
-          onClick={() => { setShowCreate(true); setCreateError(null) }}
+          onClick={() => { setShowCreate(true); setCreateError(null); setNewMonth(''); setNewPayDate(''); setNewDescription('') }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
         >
           + New Month
@@ -94,6 +98,9 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
               <div className="flex items-center gap-4">
                 <div>
                   <div className="font-semibold text-gray-900">{fmtMonth(m.payroll_month)}</div>
+                  {m.description && (
+                    <div className="text-sm text-gray-500 mt-0.5">{m.description}</div>
+                  )}
                   {m.payment_date && (
                     <div className="text-xs text-gray-400 mt-0.5">
                       Payment: {new Date(m.payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -119,14 +126,12 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                     <div className="text-sm font-mono text-gray-700">₹{Number(m.effective_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                   </div>
                 )}
-                {!m.is_finalized && (
-                  <button
-                    onClick={(e) => handleDelete(m.id, e)}
-                    className="text-xs text-red-400 hover:text-red-600 ml-2"
-                  >
-                    Delete
-                  </button>
-                )}
+                <button
+                  onClick={(e) => handleDelete(m.id, e)}
+                  className="text-xs text-red-400 hover:text-red-600 ml-2"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
@@ -160,6 +165,16 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                   type="date"
                   value={newPayDate}
                   onChange={e => setNewPayDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  value={newDescription}
+                  onChange={e => setNewDescription(e.target.value)}
+                  placeholder="e.g. Salary for March"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

@@ -21,11 +21,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: 'Expended Euro Rate is required' }, { status: 400 })
   }
 
-  // Verify month exists and is not finalized
+  // Verify month exists (finalized months can still be regenerated)
   const { data: month } = await supabase
     .from('payroll_months').select('*').eq('id', id).eq('user_id', user.id).single()
   if (!month) return NextResponse.json({ error: 'Month not found' }, { status: 404 })
-  if (month.is_finalized) return NextResponse.json({ error: 'Payroll is finalized' }, { status: 400 })
 
   // Fetch active employees
   const { data: employees } = await supabase
@@ -109,8 +108,18 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Suppress unused variable warning
-  void monthId
+  // If month is finalized, refresh the salary slip for this entry
+  const { data: monthData } = await supabase
+    .from('payroll_months').select('is_finalized').eq('id', monthId).eq('user_id', user.id).single()
+
+  if (monthData?.is_finalized) {
+    await supabase.from('salary_slips').delete().eq('payroll_entry_id', entry_id).eq('user_id', user.id)
+    await supabase.from('salary_slips').insert({
+      user_id: user.id,
+      payroll_entry_id: entry_id,
+      generated_at: new Date().toISOString(),
+    })
+  }
 
   return NextResponse.json({ entry: updated })
 }
