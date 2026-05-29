@@ -43,8 +43,10 @@ function cleanCsvField(s: string | null | undefined): string {
 function generateBankCSV(
   entries: PayrollEntry[],
   rowValues: Record<string, RowValues>,
-  senderInfo: string,
+  monthLabel: string,
 ): string {
+  // Columns: APO, Amount, Account Number, Beneficiary Name, INR, NFT, IFSC Code, Remarks
+  // No header row. Static prefills: APO="APO", INR="INR", NFT="NFT"
   const rows: string[][] = []
   for (const entry of entries) {
     const emp = entry.employee
@@ -58,13 +60,14 @@ function generateBankCSV(
     if (amount <= 0) continue
 
     rows.push([
-      cleanCsvField(emp.ifsc),
-      '10',   // 10 = savings account (Indian banking standard code)
+      'APO',
+      String(amount),
       cleanCsvField(emp.account_number),
       cleanCsvField(emp.name),
-      cleanCsvField(emp.address),
-      cleanCsvField(senderInfo),
-      String(amount),
+      'INR',
+      'NFT',
+      cleanCsvField(emp.ifsc),
+      cleanCsvField(`Salary ${monthLabel}`),
     ])
   }
 
@@ -606,7 +609,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => {
-                const csv = generateBankCSV(entries, rowValues, companyName ?? 'Contrast Company')
+                const csv = generateBankCSV(entries, rowValues, fmtMonth(month.payroll_month))
                 if (!csv) { alert('No eligible entries — check that employees have IFSC code and account number filled in.'); return }
                 const monthStr = fmtMonth(month.payroll_month).replace(/\s+/g, '_')
                 triggerCSVDownload(csv, `Bank_Transfer_${monthStr}.csv`)
