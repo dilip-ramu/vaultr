@@ -14,7 +14,7 @@ const EMPTY: Partial<Employee> = {
   designation: '',
   salary_euro: 0,
   account_number: '',
-  account_type: 'SB',
+  account_type: '10',
   ifsc: '',
   bank_name: '',
   branch: '',
@@ -360,11 +360,11 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
                     onChange={e => setField('account_type', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="SB">SB — Savings</option>
-                    <option value="CA">CA — Current</option>
-                    <option value="CC">CC — Cash Credit</option>
-                    <option value="NRE">NRE</option>
-                    <option value="NRO">NRO</option>
+                    <option value="10">10 — Savings</option>
+                    <option value="11">11 — Current</option>
+                    <option value="13">13 — Cash Credit</option>
+                    <option value="14">14 — NRE</option>
+                    <option value="15">15 — NRO</option>
                   </select>
                 </div>
 

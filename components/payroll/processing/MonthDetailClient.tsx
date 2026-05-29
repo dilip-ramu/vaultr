@@ -45,16 +45,6 @@ function generateBankCSV(
   rowValues: Record<string, RowValues>,
   senderInfo: string,
 ): string {
-  const headers = [
-    'IFSC Code',
-    'Account type',
-    'Account Number',
-    'Name of the Beneficiary',
-    'Address of the Beneficiary',
-    'Sender Information',
-    'Amount',
-  ]
-
   const rows: string[][] = []
   for (const entry of entries) {
     const emp = entry.employee
@@ -69,7 +59,7 @@ function generateBankCSV(
 
     rows.push([
       cleanCsvField(emp.ifsc),
-      cleanCsvField((emp as never as { account_type?: string }).account_type ?? 'SB'),
+      '10',   // 10 = savings account (Indian banking standard code)
       cleanCsvField(emp.account_number),
       cleanCsvField(emp.name),
       cleanCsvField(emp.address),
@@ -79,7 +69,7 @@ function generateBankCSV(
   }
 
   if (rows.length === 0) return ''
-  return [headers, ...rows].map(r => r.join(',')).join('\n')
+  return rows.map(r => r.join(',')).join('\n')
 }
 
 function triggerCSVDownload(content: string, filename: string) {
