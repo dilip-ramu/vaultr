@@ -38,7 +38,8 @@ export async function checkMailbox(opts: {
   await client.connect()
   const lock = await client.getMailboxLock('INBOX')
   try {
-    const seqNums = await client.search({ seen: false })
+    const searchResult = await client.search({ seen: false })
+    const seqNums: number[] = Array.isArray(searchResult) ? searchResult : []
     const toProcess = seqNums.slice(-100) // max 100 unseen
 
     for (const seq of toProcess) {
