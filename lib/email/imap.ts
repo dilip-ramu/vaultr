@@ -59,73 +59,77 @@ export async function checkMailbox(opts: {
         const subject = typeof parsed.subject === 'string' ? parsed.subject : '(no subject)'
         const receivedAt = parsed.date ?? new Date()
         const messageId = parsed.messageId ?? `${seq}@${emailAddress}`
-        const body = typeof parsed.text === 'string' ? parsed.text.slice(0, 2000) : ''
+        const body = typeof parsed.text === 'string' ? parsed.text.slice(0, 8000) : ''
 
-        // Only process emails that have PDF attachments — skip everything else
-        const attachments = parsed.attachments.filter(a => {
+        // Find PDFs that are real attachments (not inline images/logos/signatures)
+        const pdfAttachments = parsed.attachments.filter(a => {
           const ct = a.contentType.toLowerCase()
           const fn = (a.filename ?? '').toLowerCase()
-          return ct.includes('pdf') || fn.endsWith('.pdf')
+          const isPdf = ct.includes('pdf') || fn.endsWith('.pdf')
+          const isInline = a.contentDisposition === 'inline' || (a as Record<string, unknown>).related === true
+          return isPdf && !isInline
         })
 
-        if (attachments.length === 0) continue
+        // ONE record per email — skip if no PDF
+        if (pdfAttachments.length === 0) continue
 
-        for (const att of attachments) {
-          const attName = att.filename ?? null
+        // Pick the most relevant PDF: prefer one named invoice/bill, else first
+        const mainPdf = pdfAttachments.find(a => {
+          const fn = (a.filename ?? '').toLowerCase()
+          return fn.includes('invoice') || fn.includes('bill') || fn.includes('inv')
+        }) ?? pdfAttachments[0]
 
-          // Duplicate check
-          const { data: existing } = await supabase
-            .from('email_documents')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('sender_email', fromAddr)
-            .eq('email_message_id', messageId)
-            .eq('attachment_name', attName ?? '')
-            .maybeSingle()
+        const attName = mainPdf.filename ?? null
 
-          const isDup = !!existing
-          if (isDup) { result.duplicates++; continue }
+        // Duplicate check — one per message ID
+        const { data: existing } = await supabase
+          .from('email_documents')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('email_message_id', messageId)
+          .maybeSingle()
 
-          let attachmentUrl: string | null = null
-          let storagePath: string | null = null
+        if (existing) { result.duplicates++; continue }
 
-          if (att.content && attName) {
-            try {
-              const path = `${userId}/email-documents/${Date.now()}-${attName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-              const { error: upErr } = await supabase.storage
+        let attachmentUrl: string | null = null
+        let storagePath: string | null = null
+
+        if (mainPdf.content && attName) {
+          try {
+            const path = `${userId}/email-documents/${Date.now()}-${attName.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+            const { error: upErr } = await supabase.storage
+              .from('vaultr-attachments')
+              .upload(path, mainPdf.content, { contentType: 'application/pdf', upsert: false })
+
+            if (!upErr) {
+              storagePath = path
+              const { data: signed } = await supabase.storage
                 .from('vaultr-attachments')
-                .upload(path, att.content, { contentType: att.contentType, upsert: false })
-
-              if (!upErr) {
-                storagePath = path
-                const { data: signed } = await supabase.storage
-                  .from('vaultr-attachments')
-                  .createSignedUrl(path, 60 * 60 * 24 * 365)
-                attachmentUrl = signed?.signedUrl ?? null
-              }
-            } catch (e) {
-              result.errors.push(`Upload failed for ${attName}: ${(e as Error).message}`)
+                .createSignedUrl(path, 60 * 60 * 24 * 365)
+              attachmentUrl = signed?.signedUrl ?? null
             }
+          } catch (e) {
+            result.errors.push(`Upload failed for ${attName}: ${(e as Error).message}`)
           }
-
-          await supabase.from('email_documents').insert({
-            user_id: userId,
-            integration_id: integrationId,
-            sender_email: fromAddr,
-            sender_name: fromName || null,
-            email_subject: subject,
-            email_body: body || null,
-            attachment_name: attName,
-            attachment_url: attachmentUrl,
-            storage_path: storagePath,
-            received_at: receivedAt.toISOString(),
-            status: 'new',
-            is_duplicate: false,
-            email_message_id: messageId,
-          })
-
-          result.added++
         }
+
+        await supabase.from('email_documents').insert({
+          user_id: userId,
+          integration_id: integrationId,
+          sender_email: fromAddr,
+          sender_name: fromName || null,
+          email_subject: subject,
+          email_body: body || null,
+          attachment_name: attName,
+          attachment_url: attachmentUrl,
+          storage_path: storagePath,
+          received_at: receivedAt.toISOString(),
+          status: 'new',
+          is_duplicate: false,
+          email_message_id: messageId,
+        })
+
+        result.added++
 
         // Mark as seen after processing
         await client.messageFlagsAdd(String(seq), ['\\Seen'])

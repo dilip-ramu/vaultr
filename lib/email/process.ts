@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { extractFromPdf } from './extract'
+import { extractFromEmailBody } from './extract'
 
 export interface ProcessResult {
   status: 'invoice_created' | 'needs_review' | 'duplicate_suspected' | 'error'
@@ -46,8 +46,8 @@ export async function processEmailDocument(
     return { status: 'error', reason: 'Document not found' }
   }
 
-  if (!emailDoc.storage_path) {
-    return { status: 'needs_review', reason: 'No PDF attachment stored' }
+  if (!emailDoc.email_body?.trim()) {
+    return { status: 'needs_review', reason: 'No email body to extract from' }
   }
 
   // 2. Update status to 'processing'
@@ -56,14 +56,16 @@ export async function processEmailDocument(
     .update({ status: 'processing', processing_error: null })
     .eq('id', documentId)
 
-  // 3. Extract invoice data from PDF
-  const extracted = await extractFromPdf(emailDoc.storage_path, supabase)
+  // 3. Extract invoice data from the email body text (NOT the PDF)
+  // The email body is written by the supplier specifically to communicate
+  // invoice details — far more reliable than parsing the PDF.
+  const extracted = await extractFromEmailBody(emailDoc.email_body, emailDoc.sender_email ?? '')
 
   // 4. If extraction fails
   if (!extracted) {
     await supabase
       .from('email_documents')
-      .update({ status: 'needs_review', processing_error: 'Extraction failed' })
+      .update({ status: 'needs_review', processing_error: 'Could not extract invoice details from email body' })
       .eq('id', documentId)
     return { status: 'needs_review', reason: 'Extraction failed' }
   }

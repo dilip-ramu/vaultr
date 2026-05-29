@@ -1,5 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-
 export interface ExtractedInvoice {
   supplier_name: string | null
   invoice_number: string | null
@@ -14,51 +12,39 @@ export interface ExtractedInvoice {
 }
 
 /**
- * Downloads a PDF from Supabase Storage, extracts text with pdf-parse,
- * then calls Claude Haiku to extract structured invoice fields.
+ * Extracts structured invoice fields from the email body text using Claude.
+ * The email body is a reliable, human-written summary of the invoice —
+ * far safer than parsing a PDF which may contain multiple figures.
+ * The original PDF remains untouched as the official document.
  */
-export async function extractFromPdf(
-  storagePath: string,
-  supabase: SupabaseClient
+export async function extractFromEmailBody(
+  emailBody: string,
+  senderEmail: string,
 ): Promise<ExtractedInvoice | null> {
+  if (!emailBody?.trim()) return null
+
   try {
-    // 1. Download the PDF blob from storage
-    const { data: blob, error: downloadError } = await supabase.storage
-      .from('vaultr-attachments')
-      .download(storagePath)
+    // Truncate to 8000 chars — more than enough for any email body
+    const bodyText = emailBody.slice(0, 8000)
 
-    if (downloadError || !blob) {
-      console.error('[extract] Download failed:', downloadError?.message)
-      return null
-    }
+    const prompt = `You are extracting invoice details from a supplier email. The supplier sent this email to communicate invoice information. Extract the fields below and return ONLY valid JSON — no explanation, no markdown.
 
-    // 2. Convert Blob to Buffer for pdf-parse
-    const buffer = Buffer.from(await blob.arrayBuffer())
+Sender email: ${senderEmail}
 
-    // 3. Extract raw text with pdf-parse
-    let rawText = ''
-    try {
-      // Dynamic import to avoid SSR bundling issues
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfMod = await import('pdf-parse') as any
-      const pdfParse = pdfMod.default ?? pdfMod
-      const parsed = await pdfParse(buffer)
-      rawText = parsed.text ?? ''
-    } catch (pdfErr) {
-      console.error('[extract] pdf-parse error:', (pdfErr as Error).message)
-      // If text extraction fails entirely, return null
-      return null
-    }
+Email body:
+${bodyText}
 
-    if (!rawText.trim()) {
-      return null
-    }
-
-    // 4. Truncate text to a reasonable size for the LLM call
-    const truncatedText = rawText.slice(0, 4000)
-
-    // 5. Call Claude Haiku to extract structured fields
-    const prompt = `Extract invoice fields from this text and return ONLY valid JSON with keys: supplier_name, invoice_number, invoice_date (YYYY-MM-DD), due_date (YYYY-MM-DD), currency (3-letter code), amount (number), gst_amount (number), reference. Use null for missing fields.\n\nText:\n${truncatedText}`
+Return JSON with these keys (use null for any field not clearly stated):
+{
+  "supplier_name": "company name from email signature or sender",
+  "invoice_number": "invoice/bill number",
+  "invoice_date": "YYYY-MM-DD or null",
+  "due_date": "YYYY-MM-DD or null",
+  "currency": "3-letter code e.g. INR, USD, EUR",
+  "amount": number (total invoice amount, no currency symbol),
+  "gst_amount": number or null,
+  "reference": "PO number or reference number if present"
+}`
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -75,56 +61,44 @@ export async function extractFromPdf(
     })
 
     if (!res.ok) {
-      console.error('[extract] Anthropic API error:', res.status, await res.text())
+      console.error('[extract] Anthropic API error:', res.status)
       return null
     }
 
     const data = await res.json()
-    const text = data.content?.[0]?.text ?? '{}'
+    const text: string = data.content?.[0]?.text ?? '{}'
 
-    // 6. Parse JSON from Claude response (extract between first { and last })
+    // Extract JSON from between first { and last }
     let extracted: Record<string, unknown> = {}
     try {
-      const firstBrace = text.indexOf('{')
-      const lastBrace = text.lastIndexOf('}')
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const jsonStr = text.slice(firstBrace, lastBrace + 1)
-        extracted = JSON.parse(jsonStr)
+      const first = text.indexOf('{')
+      const last  = text.lastIndexOf('}')
+      if (first !== -1 && last > first) {
+        extracted = JSON.parse(text.slice(first, last + 1))
       }
-    } catch (parseErr) {
-      console.error('[extract] JSON parse error:', (parseErr as Error).message, 'text was:', text)
+    } catch {
       extracted = {}
     }
 
-    const supplier_name = typeof extracted.supplier_name === 'string' ? extracted.supplier_name : null
+    const supplier_name  = typeof extracted.supplier_name  === 'string' ? extracted.supplier_name  : null
     const invoice_number = typeof extracted.invoice_number === 'string' ? extracted.invoice_number : null
-    const invoice_date = typeof extracted.invoice_date === 'string' ? extracted.invoice_date : null
-    const due_date = typeof extracted.due_date === 'string' ? extracted.due_date : null
-    const currency = typeof extracted.currency === 'string' ? extracted.currency : null
-    const amount = (typeof extracted.amount === 'number' && !isNaN(extracted.amount)) ? extracted.amount : null
-    const gst_amount = (typeof extracted.gst_amount === 'number' && !isNaN(extracted.gst_amount)) ? extracted.gst_amount : null
-    const reference = typeof extracted.reference === 'string' ? extracted.reference : null
+    const invoice_date   = typeof extracted.invoice_date   === 'string' ? extracted.invoice_date   : null
+    const due_date       = typeof extracted.due_date       === 'string' ? extracted.due_date       : null
+    const currency       = typeof extracted.currency       === 'string' ? extracted.currency       : null
+    const reference      = typeof extracted.reference      === 'string' ? extracted.reference      : null
+    const amount     = typeof extracted.amount     === 'number' && !isNaN(extracted.amount as number)     ? extracted.amount as number     : null
+    const gst_amount = typeof extracted.gst_amount === 'number' && !isNaN(extracted.gst_amount as number) ? extracted.gst_amount as number : null
 
-    // 7. Calculate confidence based on key fields present
+    // Confidence: based on the 4 key fields that must be present
     const keyFields = [supplier_name, invoice_number, invoice_date, amount]
-    const presentCount = keyFields.filter(f => f !== null).length
-    let confidence: number
-    if (presentCount === 4) confidence = 1.0
-    else if (presentCount === 3) confidence = 0.75
-    else if (presentCount === 2) confidence = 0.5
-    else confidence = 0.25
+    const present   = keyFields.filter(f => f !== null).length
+    const confidence = present === 4 ? 1.0 : present === 3 ? 0.75 : present === 2 ? 0.5 : 0.25
 
     return {
-      supplier_name,
-      invoice_number,
-      invoice_date,
-      due_date,
-      currency,
-      amount,
-      gst_amount,
-      reference,
+      supplier_name, invoice_number, invoice_date, due_date,
+      currency, amount, gst_amount, reference,
       confidence,
-      raw_text: rawText,
+      raw_text: bodyText,   // store the email body text for audit
     }
   } catch (err) {
     console.error('[extract] Unexpected error:', (err as Error).message)
