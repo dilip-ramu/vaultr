@@ -66,6 +66,7 @@ function BillingCategoryCell({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,11 +83,15 @@ function BillingCategoryCell({
   const handleCreate = async () => {
     if (!search.trim()) return
     setCreating(true)
+    setCreateError('')
     try {
       const cat = await onCreateAndSelect(search.trim())
+      if (!cat?.id) throw new Error('Category creation failed — run migration v19 in Supabase first.')
       onSelect(cat)
       setSearch('')
       setOpen(false)
+    } catch (e) {
+      setCreateError((e as Error).message)
     } finally {
       setCreating(false)
     }
@@ -144,13 +149,16 @@ function BillingCategoryCell({
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="w-full px-3 py-2 text-xs text-left text-indigo-600 hover:bg-indigo-50 flex items-center gap-1.5"
+                className="w-full px-3 py-2 text-xs text-left text-indigo-600 hover:bg-indigo-50 flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Plus className="w-3 h-3" />
                 {creating ? 'Creating…' : `Create "${search.trim()}"`}
               </button>
             )}
-            {filtered.length === 0 && !canCreate && (
+            {createError && (
+              <p className="px-3 py-2 text-xs text-red-600 bg-red-50 border-t border-red-100">{createError}</p>
+            )}
+            {filtered.length === 0 && !canCreate && !createError && (
               <p className="px-3 py-2 text-xs text-gray-400">No categories found</p>
             )}
           </div>
@@ -229,7 +237,11 @@ export default function ContrastExpensesClient({
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     })
-    const cat = await res.json() as BillingCategory
+    const json = await res.json()
+    if (!res.ok) {
+      throw new Error(json.error ?? `Server error ${res.status}. Have you run migration v19 in Supabase?`)
+    }
+    const cat = json as BillingCategory
     setCategories(prev => [...prev.filter(c => c.id !== cat.id), cat].sort((a, b) => a.name.localeCompare(b.name)))
     return cat
   }
