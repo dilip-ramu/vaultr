@@ -114,9 +114,9 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
   const courierItems = data.items.filter(i => i.item_type === 'courier')
   const expenseItems = data.items.filter(i => i.item_type === 'expense')
 
-  // Table has 4 columns: Description | INR Amount | Rate | EUR Amount
-  // Salary rows: no INR / no rate (already in EUR)
-  // Courier + Expense rows: show INR source, rate, EUR result
+  // Table has 3 columns: Description | INR Amount | Amount (EUR)
+  // Salary rows: INR shown as "—" (already in EUR); forex rate shown in header meta only
+  // Courier + Expense rows: show INR source for reference, then EUR result
   const renderRow = (item: InvoiceItem, idx: number) => {
     const RowStyle = idx % 2 === 0 ? s.trow : s.trowAlt
     const isSalary = item.item_type === 'salary'
@@ -126,11 +126,8 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
         <Text style={[s.tdRight, { flex: 1.5 }]}>
           {isSalary ? '—' : (item.inr_source != null ? fmtInr(item.inr_source) : '—')}
         </Text>
-        <Text style={[s.tdRight, { flex: 1 }]}>
-          {isSalary ? '—' : (item.forex_rate ? `@ ${item.forex_rate.toFixed(2)}` : '—')}
-        </Text>
         <Text style={[s.tdRight, { flex: 1.5 }]}>
-          {/* amount_inr stores EUR billing amount */}
+          {/* amount_inr stores EUR billing amount (legacy field name) */}
           {fmtEur(item.amount_inr)}
         </Text>
       </View>
@@ -145,7 +142,7 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
         <View style={s.topRow}>
           <View>
             <Text style={{ fontSize: 14, fontWeight: 'bold' }}>
-              {data.company_name ?? 'YOUR COMPANY'}
+              DILIP TIRUPPUR RAMU
             </Text>
             <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Tiruppur, Tamil Nadu, India</Text>
             <Text style={{ fontSize: 8, color: '#666' }}>+91 99433 11021</Text>
@@ -193,10 +190,6 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
               <Text style={s.metaVal}>1 EUR = Rs. {data.forex_rate.toFixed(2)}</Text>
             </View>
           )}
-          <View style={s.metaBox}>
-            <Text style={s.metaLabel}>GST Rate</Text>
-            <Text style={s.metaVal}>18%</Text>
-          </View>
         </View>
 
         {/* ── Line Items Table ── */}
@@ -204,7 +197,6 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
           <View style={s.thead}>
             <Text style={[s.th, { flex: 3 }]}>Description</Text>
             <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>INR Amount</Text>
-            <Text style={[s.th, { flex: 1, textAlign: 'right' }]}>Rate</Text>
             <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Amount (EUR)</Text>
           </View>
 
@@ -261,7 +253,7 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
             <View style={s.bankCol}>
               <View style={s.bankRow}>
                 <Text style={s.bankKey}>Beneficiary Name</Text>
-                <Text style={s.bankVal}>{data.company_name ?? 'YOUR COMPANY'}</Text>
+                <Text style={s.bankVal}>DILIP TIRUPPUR RAMU</Text>
               </View>
               <View style={s.bankRow}>
                 <Text style={s.bankKey}>Account Number</Text>
@@ -294,7 +286,6 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
           <View style={s.signBox}>
             <Text style={s.signLabel}>Authorised Signature &amp; Date</Text>
           </View>
-          <Text style={s.footNote}>This is a computer-generated proforma invoice.</Text>
         </View>
 
       </Page>
