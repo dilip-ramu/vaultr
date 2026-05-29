@@ -141,11 +141,8 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
         {/* ── Header ── */}
         <View style={s.topRow}>
           <View>
-            <Text style={{ fontSize: 14, fontWeight: 'bold' }}>
-              DILIP TIRUPPUR RAMU
-            </Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold' }}>CONTRAST COMPANY</Text>
             <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Tiruppur, Tamil Nadu, India</Text>
-            <Text style={{ fontSize: 8, color: '#666' }}>+91 99433 11021</Text>
           </View>
           <View style={s.titleBlock}>
             <Text style={s.proforma}>PROFORMA INVOICE</Text>
@@ -155,6 +152,13 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
 
         {/* ── From / To ── */}
         <View style={s.addressRow}>
+          <View style={s.addressBox}>
+            <Text style={s.addrLabel}>Bill From</Text>
+            <Text style={s.addrName}>Contrast Company</Text>
+            <Text style={s.addrLine}>Contact: DILIP TIRUPPUR RAMU</Text>
+            <Text style={s.addrLine}>E-mail: dilip@contrast.dk</Text>
+            <Text style={s.addrLine}>Phone: +91 99433 11021</Text>
+          </View>
           <View style={s.addressBox}>
             <Text style={s.addrLabel}>Bill To</Text>
             <Text style={s.addrName}>Contrast Company A/S</Text>
@@ -253,7 +257,7 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
             <View style={s.bankCol}>
               <View style={s.bankRow}>
                 <Text style={s.bankKey}>Beneficiary Name</Text>
-                <Text style={s.bankVal}>DILIP TIRUPPUR RAMU</Text>
+                <Text style={s.bankVal}>CONTRAST COMPANY</Text>
               </View>
               <View style={s.bankRow}>
                 <Text style={s.bankKey}>Account Number</Text>
