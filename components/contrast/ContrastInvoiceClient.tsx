@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import {
   CheckCircle2, AlertCircle, Loader2,
-  Users, Truck, ReceiptText, FileText, Info, Plus, X, ArrowRight,
+  Users, Truck, ReceiptText, FileText, Info, Plus, X, ArrowRight, Building2, Minus,
 } from 'lucide-react'
 import type { ContrastInvoiceData } from './ContrastInvoicePDF'
 
@@ -62,6 +62,26 @@ interface ManualLine {
   amount: number    // EUR
 }
 
+interface FixedExpenseRow {
+  id: string
+  description: string
+  amount: number    // EUR
+}
+
+interface DeductionRow {
+  id: string
+  description: string
+  amount: number    // EUR (positive; stored as negative in items)
+}
+
+const DEFAULT_FIXED_EXPENSES: FixedExpenseRow[] = [
+  { id: 'rent',         description: 'Office Rent',   amount: 0 },
+  { id: 'housekeeping', description: 'House Keeping', amount: 0 },
+  { id: 'internet',     description: 'Internet',      amount: 0 },
+  { id: 'electricity',  description: 'Electricity',   amount: 0 },
+  { id: 'bank_charges', description: 'Bank Charges',  amount: 0 },
+]
+
 interface Props {
   employees: Employee[]
   courierInvoices: CourierInvoice[]
@@ -82,15 +102,23 @@ export default function ContrastInvoiceClient({
   const [isFinalized, setIsFinalized] = useState(false)
   const [error, setError] = useState('')
 
-  // Forex rate: INR per EUR (e.g. 92.50 means Rs. 92.50 = EUR 1)
+  // Forex rate: INR per EUR
   const [forexRate, setForexRate] = useState('')
   const forexRateNum = parseFloat(forexRate) || 0
   const hasValidRate = forexRateNum > 0
 
-  // Manual EUR lines (ad-hoc items not tracked in the system)
+  // Manual EUR lines
   const [manualLines, setManualLines] = useState<ManualLine[]>([])
   const [newDesc, setNewDesc] = useState('')
   const [newAmount, setNewAmount] = useState('')
+
+  // Fixed expenses (editable EUR amounts, pre-populated)
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpenseRow[]>(DEFAULT_FIXED_EXPENSES)
+
+  // Deductions
+  const [deductions, setDeductions] = useState<DeductionRow[]>([])
+  const [newDedDesc, setNewDedDesc] = useState('')
+  const [newDedAmount, setNewDedAmount] = useState('')
 
   // ── Selection state — all items selected by default ───────────────────────
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(
@@ -127,37 +155,40 @@ export default function ContrastInvoiceClient({
     return Object.values(map)
   }, [allExpenses])
 
-  // ── EUR Totals (selected items only) ─────────────────────────────────────
-  const salaryEurTotal = useMemo(
-    () => selectedEmployees.reduce((s, e) => s + (e.salary_euro || 0), 0),
-    [selectedEmployees]
-  )
-  const courierInrTotal = useMemo(
-    () => selectedCouriers.reduce((s, ci) => s + ci.total, 0),
-    [selectedCouriers]
-  )
-  const expenseInrTotal = useMemo(
-    () => allExpenses.reduce((s, e) => s + e.amount, 0),
-    [allExpenses]
-  )
+  // ── EUR Totals ─────────────────────────────────────────────────────────────
+  const salaryEurTotal  = useMemo(() => selectedEmployees.reduce((s, e) => s + (e.salary_euro || 0), 0), [selectedEmployees])
+  const courierInrTotal = useMemo(() => selectedCouriers.reduce((s, ci) => s + ci.total, 0), [selectedCouriers])
+  const expenseInrTotal = useMemo(() => allExpenses.reduce((s, e) => s + e.amount, 0), [allExpenses])
   const courierEurTotal = hasValidRate ? round2(courierInrTotal / forexRateNum) : 0
   const expenseEurTotal = hasValidRate ? round2(expenseInrTotal / forexRateNum) : 0
   const manualEurTotal  = useMemo(() => manualLines.reduce((s, l) => s + l.amount, 0), [manualLines])
-  const subtotalEur     = salaryEurTotal + courierEurTotal + expenseEurTotal + manualEurTotal
+  const fixedExpTotal   = useMemo(() => fixedExpenses.reduce((s, r) => s + (r.amount || 0), 0), [fixedExpenses])
+  const deductionTotal  = useMemo(() => deductions.reduce((s, r) => s + (r.amount || 0), 0), [deductions])
+  const subtotalEur     = salaryEurTotal + courierEurTotal + expenseEurTotal + manualEurTotal + fixedExpTotal - deductionTotal
   const gstEur          = round2(subtotalEur * 0.18)
   const grandTotalEur   = round2(subtotalEur + gstEur)
 
-  // ── Manual line helpers ───────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const addManualLine = () => {
     const amt = parseFloat(newAmount)
     if (!newDesc.trim() || isNaN(amt) || amt <= 0) return
     setManualLines(prev => [...prev, { description: newDesc.trim(), amount: amt }])
-    setNewDesc('')
-    setNewAmount('')
+    setNewDesc(''); setNewAmount('')
   }
   const removeManualLine = (i: number) => setManualLines(prev => prev.filter((_, idx) => idx !== i))
 
-  // ── Finalize: create draft → build items → finalize in one shot ───────────
+  const updateFixedExpense = (id: string, amount: number) =>
+    setFixedExpenses(prev => prev.map(r => r.id === id ? { ...r, amount } : r))
+
+  const addDeduction = () => {
+    const amt = parseFloat(newDedAmount)
+    if (!newDedDesc.trim() || isNaN(amt) || amt <= 0) return
+    setDeductions(prev => [...prev, { id: `ded-${Date.now()}`, description: newDedDesc.trim(), amount: amt }])
+    setNewDedDesc(''); setNewDedAmount('')
+  }
+  const removeDeduction = (id: string) => setDeductions(prev => prev.filter(r => r.id !== id))
+
+  // ── Finalize ──────────────────────────────────────────────────────────────
   const handleFinalize = async () => {
     if (!hasValidRate && (selectedCouriers.length > 0 || allExpenses.length > 0)) {
       setError('Enter the forex rate (INR per EUR) to convert courier charges and expenses.')
@@ -166,7 +197,6 @@ export default function ContrastInvoiceClient({
     setFinalizing(true)
     setError('')
     try {
-      // Step 1: Create draft invoice record
       const createRes = await fetch('/api/contrast/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -175,58 +205,34 @@ export default function ContrastInvoiceClient({
       if (!createRes.ok) throw new Error((await createRes.json()).error ?? 'Failed to create invoice')
       const inv = await createRes.json()
 
-      // Step 2: Build items snapshot (amounts stored as EUR in amount_inr field)
       let sortOrder = 0
       const items: ContrastInvoiceData['items'] = []
 
-      // Salary lines — EUR direct from employee.salary_euro
       for (const emp of selectedEmployees) {
-        items.push({
-          item_type: 'salary',
-          description: `Salary for ${emp.name}`,
-          salary_euro: emp.salary_euro,
-          amount_inr: round2(emp.salary_euro || 0),
-          sort_order: sortOrder++,
-        })
+        items.push({ item_type: 'salary', description: `Salary for ${emp.name}`, salary_euro: emp.salary_euro, amount_inr: round2(emp.salary_euro || 0), sort_order: sortOrder++ })
       }
-
-      // Courier lines — INR converted to EUR (from recoverable invoices)
       for (const ci of selectedCouriers) {
         const eurAmt = round2(ci.total / forexRateNum)
-        items.push({
-          item_type: 'courier',
-          description: `Courier Invoice ${ci.invoice_number}`,
-          amount_inr: eurAmt,
-          inr_source: ci.total,
-          forex_rate: forexRateNum,
-          sort_order: sortOrder++,
-        })
+        items.push({ item_type: 'courier', description: `Courier Invoice ${ci.invoice_number}`, amount_inr: eurAmt, inr_source: ci.total, forex_rate: forexRateNum, sort_order: sortOrder++ })
       }
-
-      // Expense lines — INR converted to EUR, grouped by billing category
       for (const cat of expenseByCategory) {
         const eurAmt = round2(cat.amountInr / forexRateNum)
-        items.push({
-          item_type: 'expense',
-          description: cat.name,
-          amount_inr: eurAmt,
-          inr_source: cat.amountInr,
-          forex_rate: forexRateNum,
-          sort_order: sortOrder++,
-        })
+        items.push({ item_type: 'expense', description: cat.name, amount_inr: eurAmt, inr_source: cat.amountInr, forex_rate: forexRateNum, sort_order: sortOrder++ })
       }
-
-      // Manual lines — EUR direct (user entered)
+      for (const fe of fixedExpenses) {
+        if ((fe.amount || 0) > 0) {
+          items.push({ item_type: 'fixed_expense', description: fe.description, amount_inr: round2(fe.amount), sort_order: sortOrder++ })
+        }
+      }
       for (const line of manualLines) {
-        items.push({
-          item_type: 'expense',
-          description: line.description,
-          amount_inr: line.amount,
-          sort_order: sortOrder++,
-        })
+        items.push({ item_type: 'expense', description: line.description, amount_inr: line.amount, sort_order: sortOrder++ })
+      }
+      for (const ded of deductions) {
+        if ((ded.amount || 0) > 0) {
+          items.push({ item_type: 'deduction', description: ded.description, amount_inr: -round2(ded.amount), sort_order: sortOrder++ })
+        }
       }
 
-      // Step 3: Finalize
       const finalRes = await fetch(`/api/contrast/invoices/${inv.id}/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -234,26 +240,13 @@ export default function ContrastInvoiceClient({
           items,
           transaction_ids: allExpenses.map(e => e.id),
           recoverable_invoice_ids: selectedCouriers.map(ci => ci.id),
-          salary_employees: selectedEmployees.map(e => ({
-            employee_id: e.id,
-            salary_euro: e.salary_euro,
-          })),
+          salary_employees: selectedEmployees.map(e => ({ employee_id: e.id, salary_euro: e.salary_euro })),
           invoice_month: currentMonth,
         }),
       })
       if (!finalRes.ok) throw new Error((await finalRes.json()).error ?? 'Finalize failed')
 
-      setInvoiceData({
-        invoice_number: inv.invoice_number,
-        invoice_month: currentMonth,
-        invoice_date: inv.invoice_date,
-        items,
-        subtotal: subtotalEur,
-        gst_amount: gstEur,
-        total: grandTotalEur,
-        company_name: companyName,
-        forex_rate: hasValidRate ? forexRateNum : undefined,
-      })
+      setInvoiceData({ invoice_number: inv.invoice_number, invoice_month: currentMonth, invoice_date: inv.invoice_date, items, subtotal: subtotalEur, gst_amount: gstEur, total: grandTotalEur, company_name: companyName, forex_rate: hasValidRate ? forexRateNum : undefined })
       setIsFinalized(true)
     } catch (e) {
       setError((e as Error).message)
@@ -263,7 +256,7 @@ export default function ContrastInvoiceClient({
   }
 
   const hasSalaries = selectedEmployees.length > 0
-  const hasAnything = allExpenses.length > 0 || selectedCouriers.length > 0 || hasSalaries || manualLines.length > 0
+  const hasAnything = allExpenses.length > 0 || selectedCouriers.length > 0 || hasSalaries || manualLines.length > 0 || fixedExpTotal > 0 || deductions.length > 0
   const needsRate   = !hasValidRate && (selectedCouriers.length > 0 || allExpenses.length > 0)
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -296,7 +289,7 @@ export default function ContrastInvoiceClient({
         </div>
       )}
 
-      {/* ── Forex Rate ───────────────────────────────────────────────────────── */}
+      {/* ── Forex Rate ── */}
       <div className={`bg-white border rounded-2xl p-5 shadow-sm ${needsRate ? 'border-amber-300' : 'border-gray-100'}`}>
         <div className="flex items-end gap-4">
           <div className="flex-1">
@@ -304,18 +297,13 @@ export default function ContrastInvoiceClient({
               Forex Rate <span className="text-xs font-normal text-gray-400">(INR per EUR)</span>
             </label>
             <p className="text-xs text-gray-400 mb-2">
-              Used to convert courier charges and expenses from INR to EUR. Salaries are already in EUR.
+              Used to convert courier charges and expenses from INR to EUR. Salaries and fixed expenses are already in EUR.
             </p>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">1 EUR =</span>
               <input
-                type="number"
-                value={forexRate}
-                onChange={e => setForexRate(e.target.value)}
-                placeholder="e.g. 92.50"
-                min="0"
-                step="0.01"
-                disabled={isFinalized}
+                type="number" value={forexRate} onChange={e => setForexRate(e.target.value)}
+                placeholder="e.g. 92.50" min="0" step="0.01" disabled={isFinalized}
                 className="w-36 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 disabled:opacity-50"
               />
               <span className="text-sm text-gray-500">INR</span>
@@ -333,17 +321,13 @@ export default function ContrastInvoiceClient({
             </div>
           )}
         </div>
-        {needsRate && (
-          <p className="mt-2 text-xs text-amber-600">
-            ⚠ Enter the forex rate to see EUR amounts for courier and expense lines.
-          </p>
-        )}
+        {needsRate && <p className="mt-2 text-xs text-amber-600">⚠ Enter the forex rate to see EUR amounts for courier and expense lines.</p>}
       </div>
 
-      {/* ── Sections ─────────────────────────────────────────────────────────── */}
+      {/* ── Sections ── */}
       <div className="space-y-3">
 
-        {/* ── Salaries — from Staff Particulars (active employees) ── */}
+        {/* Salaries */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-indigo-50">
             <Users className="w-4 h-4 text-indigo-600" />
@@ -363,27 +347,14 @@ export default function ContrastInvoiceClient({
               {employees.map(emp => {
                 const checked = selectedEmployeeIds.has(emp.id)
                 return (
-                  <div
-                    key={emp.id}
-                    className={`flex items-center px-5 py-3 gap-4 cursor-pointer hover:bg-gray-50 transition-colors ${!checked ? 'opacity-40' : ''}`}
-                    onClick={() => !isFinalized && toggleEmployee(emp.id)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleEmployee(emp.id)}
-                      disabled={isFinalized}
-                      onClick={e => e.stopPropagation()}
-                      className="w-4 h-4 accent-indigo-600 cursor-pointer"
-                    />
+                  <div key={emp.id} className={`flex items-center px-5 py-3 gap-4 cursor-pointer hover:bg-gray-50 transition-colors ${!checked ? 'opacity-40' : ''}`} onClick={() => !isFinalized && toggleEmployee(emp.id)}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleEmployee(emp.id)} disabled={isFinalized} onClick={e => e.stopPropagation()} className="w-4 h-4 accent-indigo-600 cursor-pointer" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-800">{emp.name}</p>
                       {emp.designation && <p className="text-xs text-gray-400">{emp.designation}</p>}
                     </div>
                     <span className="text-xs text-gray-400">EUR salary</span>
-                    <span className="text-sm font-medium text-gray-900 w-32 text-right">
-                      {fmtEur(emp.salary_euro || 0)}
-                    </span>
+                    <span className="text-sm font-medium text-gray-900 w-32 text-right">{fmtEur(emp.salary_euro || 0)}</span>
                   </div>
                 )
               })}
@@ -391,7 +362,7 @@ export default function ContrastInvoiceClient({
           )}
         </div>
 
-        {/* ── Courier charges — from Recoverable Invoices ── */}
+        {/* Courier charges */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-blue-50">
             <Truck className="w-4 h-4 text-blue-600" />
@@ -400,9 +371,7 @@ export default function ContrastInvoiceClient({
             {hasValidRate && selectedCouriers.length > 0 && (
               <span className="text-xs text-blue-400 ml-1">· {fmtInr(courierInrTotal)} → <strong>{fmtEur(courierEurTotal)}</strong></span>
             )}
-            <span className="ml-auto text-sm font-bold text-blue-700">
-              {hasValidRate ? fmtEur(courierEurTotal) : fmtInr(courierInrTotal)}
-            </span>
+            <span className="ml-auto text-sm font-bold text-blue-700">{hasValidRate ? fmtEur(courierEurTotal) : fmtInr(courierInrTotal)}</span>
           </div>
           {courierInvoices.length === 0 ? (
             <div className="px-5 py-4 text-sm text-gray-400">
@@ -414,29 +383,14 @@ export default function ContrastInvoiceClient({
               {courierInvoices.map(ci => {
                 const checked = selectedCourierIds.has(ci.id)
                 return (
-                  <div
-                    key={ci.id}
-                    className={`flex items-center px-5 py-3 gap-3 cursor-pointer hover:bg-gray-50 transition-colors ${!checked ? 'opacity-40' : ''}`}
-                    onClick={() => !isFinalized && toggleCourier(ci.id)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleCourier(ci.id)}
-                      disabled={isFinalized}
-                      onClick={e => e.stopPropagation()}
-                      className="w-4 h-4 accent-blue-600 cursor-pointer"
-                    />
+                  <div key={ci.id} className={`flex items-center px-5 py-3 gap-3 cursor-pointer hover:bg-gray-50 transition-colors ${!checked ? 'opacity-40' : ''}`} onClick={() => !isFinalized && toggleCourier(ci.id)}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleCourier(ci.id)} disabled={isFinalized} onClick={e => e.stopPropagation()} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-800">{ci.invoice_number}</p>
                       <p className="text-xs text-gray-400">{ci.invoice_date} · {ci.status}</p>
                     </div>
                     <span className="text-sm text-gray-500 w-28 text-right">{fmtInr(ci.total)}</span>
-                    {hasValidRate && (
-                      <span className="text-sm font-medium text-gray-900 w-28 text-right">
-                        {fmtEur(round2(ci.total / forexRateNum))}
-                      </span>
-                    )}
+                    {hasValidRate && <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtEur(round2(ci.total / forexRateNum))}</span>}
                   </div>
                 )
               })}
@@ -444,7 +398,7 @@ export default function ContrastInvoiceClient({
           )}
         </div>
 
-        {/* ── Operational expenses ── */}
+        {/* Operational expenses */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-purple-50">
             <FileText className="w-4 h-4 text-purple-600" />
@@ -453,9 +407,7 @@ export default function ContrastInvoiceClient({
             {hasValidRate && allExpenses.length > 0 && (
               <span className="text-xs text-purple-400 ml-1">· {fmtInr(expenseInrTotal)} → <strong>{fmtEur(expenseEurTotal)}</strong></span>
             )}
-            <span className="ml-auto text-sm font-bold text-purple-700">
-              {hasValidRate ? fmtEur(expenseEurTotal) : fmtInr(expenseInrTotal)}
-            </span>
+            <span className="ml-auto text-sm font-bold text-purple-700">{hasValidRate ? fmtEur(expenseEurTotal) : fmtInr(expenseInrTotal)}</span>
           </div>
           {allExpenses.length === 0 ? (
             <div className="px-5 py-4 text-sm text-gray-400">
@@ -469,18 +421,41 @@ export default function ContrastInvoiceClient({
                   <span className="flex-1 text-sm text-gray-800">{cat.name}</span>
                   <span className="text-xs text-gray-400 mr-4">{cat.ids.length} tx</span>
                   <span className="text-sm text-gray-500 w-28 text-right">{fmtInr(cat.amountInr)}</span>
-                  {hasValidRate && (
-                    <span className="text-sm font-medium text-gray-900 w-28 text-right">
-                      {fmtEur(round2(cat.amountInr / forexRateNum))}
-                    </span>
-                  )}
+                  {hasValidRate && <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtEur(round2(cat.amountInr / forexRateNum))}</span>}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* ── Additional / manual items ── */}
+        {/* Fixed Expenses */}
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-teal-50">
+            <Building2 className="w-4 h-4 text-teal-600" />
+            <span className="text-sm font-semibold text-teal-700">Fixed Expenses</span>
+            <span className="text-xs text-teal-400 ml-1">(enter in EUR)</span>
+            <span className="ml-auto text-sm font-bold text-teal-700">{fmtEur(fixedExpTotal)}</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {fixedExpenses.map(fe => (
+              <div key={fe.id} className="flex items-center px-5 py-2.5 gap-4">
+                <span className="flex-1 text-sm text-gray-800">{fe.description}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-400">EUR</span>
+                  <input
+                    type="number"
+                    value={fe.amount === 0 ? '' : fe.amount}
+                    onChange={e => updateFixedExpense(fe.id, parseFloat(e.target.value) || 0)}
+                    placeholder="0.00" min="0" step="0.01" disabled={isFinalized}
+                    className="w-32 px-3 py-1.5 text-sm text-right border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 disabled:opacity-50"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Additional / manual items */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-orange-50">
             <Plus className="w-4 h-4 text-orange-600" />
@@ -492,35 +467,13 @@ export default function ContrastInvoiceClient({
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <label className="block text-xs text-gray-500 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={newDesc}
-                  onChange={e => setNewDesc(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addManualLine()}
-                  placeholder="e.g. Office supplies paid by staff"
-                  disabled={isFinalized}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50"
-                />
+                <input type="text" value={newDesc} onChange={e => setNewDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="e.g. Office supplies paid by staff" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50" />
               </div>
               <div className="w-36">
                 <label className="block text-xs text-gray-500 mb-1">Amount (EUR)</label>
-                <input
-                  type="number"
-                  value={newAmount}
-                  onChange={e => setNewAmount(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addManualLine()}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                  disabled={isFinalized}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50"
-                />
+                <input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50" />
               </div>
-              <button
-                onClick={addManualLine}
-                disabled={!newDesc.trim() || !newAmount || parseFloat(newAmount) <= 0 || isFinalized}
-                className="flex items-center gap-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40"
-              >
+              <button onClick={addManualLine} disabled={!newDesc.trim() || !newAmount || parseFloat(newAmount) <= 0 || isFinalized} className="flex items-center gap-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40">
                 <Plus className="w-4 h-4" /> Add
               </button>
             </div>
@@ -530,11 +483,7 @@ export default function ContrastInvoiceClient({
                   <div key={i} className="flex items-center px-4 py-2.5 gap-3">
                     <span className="flex-1 text-sm text-gray-800">{line.description}</span>
                     <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtEur(line.amount)}</span>
-                    {!isFinalized && (
-                      <button onClick={() => removeManualLine(i)} className="text-gray-300 hover:text-red-400 transition-colors ml-1">
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
+                    {!isFinalized && <button onClick={() => removeManualLine(i)} className="text-gray-300 hover:text-red-400 transition-colors ml-1"><X className="w-4 h-4" /></button>}
                   </div>
                 ))}
               </div>
@@ -543,9 +492,50 @@ export default function ContrastInvoiceClient({
             )}
           </div>
         </div>
+
+        {/* Deductions */}
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-red-50">
+            <Minus className="w-4 h-4 text-red-500" />
+            <span className="text-sm font-semibold text-red-600">Deductions</span>
+            <span className="text-xs text-red-400 ml-1">(subtracted from total · enter in EUR)</span>
+            {deductionTotal > 0 && (
+              <span className="ml-auto text-sm font-bold text-red-600">− {fmtEur(deductionTotal)}</span>
+            )}
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-500 mb-1">Description</label>
+                <input type="text" value={newDedDesc} onChange={e => setNewDedDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="e.g. Advance adjustment" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 disabled:opacity-50" />
+              </div>
+              <div className="w-36">
+                <label className="block text-xs text-gray-500 mb-1">Amount (EUR)</label>
+                <input type="number" value={newDedAmount} onChange={e => setNewDedAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 disabled:opacity-50" />
+              </div>
+              <button onClick={addDeduction} disabled={!newDedDesc.trim() || !newDedAmount || parseFloat(newDedAmount) <= 0 || isFinalized} className="flex items-center gap-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40">
+                <Plus className="w-4 h-4" /> Add
+              </button>
+            </div>
+            {deductions.length > 0 ? (
+              <div className="divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                {deductions.map(ded => (
+                  <div key={ded.id} className="flex items-center px-4 py-2.5 gap-3">
+                    <span className="flex-1 text-sm text-gray-800">{ded.description}</span>
+                    <span className="text-sm font-medium text-red-600 w-28 text-right">− {fmtEur(ded.amount)}</span>
+                    {!isFinalized && <button onClick={() => removeDeduction(ded.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-1"><X className="w-4 h-4" /></button>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">Add deductions to subtract from the invoice total (e.g. advance adjustments).</p>
+            )}
+          </div>
+        </div>
+
       </div>
 
-      {/* ── EUR Grand Total ───────────────────────────────────────────────────── */}
+      {/* ── EUR Grand Total ── */}
       {hasAnything && (
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-100">
@@ -566,9 +556,19 @@ export default function ContrastInvoiceClient({
                 <span>{hasValidRate ? fmtEur(expenseEurTotal) : <span className="text-amber-500">enter rate ↑</span>}</span>
               </div>
             )}
+            {fixedExpTotal > 0 && (
+              <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
+                <span>Fixed Expenses</span><span>{fmtEur(fixedExpTotal)}</span>
+              </div>
+            )}
             {manualEurTotal > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
                 <span>Additional Items</span><span>{fmtEur(manualEurTotal)}</span>
+              </div>
+            )}
+            {deductionTotal > 0 && (
+              <div className="flex justify-between px-5 py-3 text-sm text-red-600">
+                <span>Deductions</span><span>− {fmtEur(deductionTotal)}</span>
               </div>
             )}
             <div className="flex justify-between px-5 py-3 text-sm font-medium text-gray-700">
@@ -599,7 +599,7 @@ export default function ContrastInvoiceClient({
         </div>
       )}
 
-      {/* ── Action ───────────────────────────────────────────────────────────── */}
+      {/* ── Action ── */}
       {!hasAnything ? (
         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center text-sm text-gray-400">
           Nothing to invoice.{' '}
@@ -617,12 +617,8 @@ export default function ContrastInvoiceClient({
               label="Download PDF"
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all"
             />
-            <a href="/contrast/history" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
-              View Invoice History →
-            </a>
-            <a href="/payroll/monthly" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
-              Monthly Processing →
-            </a>
+            <a href="/contrast/history" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">View Invoice History →</a>
+            <a href="/payroll/monthly" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">Monthly Processing →</a>
           </div>
         </div>
       ) : (
@@ -633,18 +629,13 @@ export default function ContrastInvoiceClient({
             title={needsRate ? 'Enter forex rate above to proceed' : undefined}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
           >
-            {finalizing
-              ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <ReceiptText className="w-4 h-4" />
-            }
+            {finalizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
             {finalizing ? 'Finalizing…' : 'Finalize Invoice'}
           </button>
           {needsRate ? (
             <p className="text-xs text-amber-600">Enter forex rate to enable</p>
           ) : (
-            <p className="text-xs text-gray-400">
-              Saves invoice · marks items billed · auto-creates payroll month · generates PDF
-            </p>
+            <p className="text-xs text-gray-400">Saves invoice · marks items billed · auto-creates payroll month · generates PDF</p>
           )}
         </div>
       )}

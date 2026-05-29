@@ -13,7 +13,7 @@ Font.register({
 })
 
 export interface InvoiceItem {
-  item_type: 'salary' | 'courier' | 'expense'
+  item_type: 'salary' | 'courier' | 'expense' | 'fixed_expense' | 'deduction'
   description: string
   salary_euro?: number | null   // salary lines: EUR amount
   expended_rate?: number | null // kept for DB compat, unused in display
@@ -46,7 +46,7 @@ function monthLabel(ym: string) {
 function fmtEur(n: number): string {
   const abs = Math.abs(n)
   const str = abs.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `EUR ${str}`
+  return n < 0 ? `(EUR ${str})` : `EUR ${str}`
 }
 
 function fmtInr(n: number): string {
@@ -110,24 +110,27 @@ const s = StyleSheet.create({
 })
 
 export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData }) {
-  const salaryItems  = data.items.filter(i => i.item_type === 'salary')
-  const courierItems = data.items.filter(i => i.item_type === 'courier')
-  const expenseItems = data.items.filter(i => i.item_type === 'expense')
+  const salaryItems       = data.items.filter(i => i.item_type === 'salary')
+  const courierItems      = data.items.filter(i => i.item_type === 'courier')
+  const expenseItems      = data.items.filter(i => i.item_type === 'expense')
+  const fixedExpenseItems = data.items.filter(i => i.item_type === 'fixed_expense')
+  const deductionItems    = data.items.filter(i => i.item_type === 'deduction')
 
   // Table has 3 columns: Description | INR Amount | Amount (EUR)
-  // Salary rows: INR shown as "—" (already in EUR); forex rate shown in header meta only
+  // Salary / fixed_expense / deduction rows: INR shown as "—"
   // Courier + Expense rows: show INR source for reference, then EUR result
   const renderRow = (item: InvoiceItem, idx: number) => {
     const RowStyle = idx % 2 === 0 ? s.trow : s.trowAlt
-    const isSalary = item.item_type === 'salary'
+    const noInr = item.item_type === 'salary' || item.item_type === 'fixed_expense' || item.item_type === 'deduction'
+    const isDeduction = item.item_type === 'deduction'
     return (
       <View key={idx} style={RowStyle}>
-        <Text style={[s.td, { flex: 3 }]}>{item.description}</Text>
+        <Text style={[s.td, { flex: 3 }, isDeduction ? { color: '#c0392b' } : {}]}>{item.description}</Text>
         <Text style={[s.tdRight, { flex: 1.5 }]}>
-          {isSalary ? '—' : (item.inr_source != null ? fmtInr(item.inr_source) : '—')}
+          {noInr ? '—' : (item.inr_source != null ? fmtInr(item.inr_source) : '—')}
         </Text>
-        <Text style={[s.tdRight, { flex: 1.5 }]}>
-          {/* amount_inr stores EUR billing amount (legacy field name) */}
+        <Text style={[s.tdRight, { flex: 1.5 }, isDeduction ? { color: '#c0392b' } : {}]}>
+          {/* amount_inr stores EUR billing amount (legacy field name); deductions are negative */}
           {fmtEur(item.amount_inr)}
         </Text>
       </View>
@@ -228,6 +231,24 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
                 <Text style={s.sectionCell}>OPERATIONAL EXPENSES</Text>
               </View>
               {expenseItems.map(renderRow)}
+            </>
+          )}
+
+          {fixedExpenseItems.length > 0 && (
+            <>
+              <View style={s.sectionRow}>
+                <Text style={s.sectionCell}>FIXED EXPENSES</Text>
+              </View>
+              {fixedExpenseItems.map(renderRow)}
+            </>
+          )}
+
+          {deductionItems.length > 0 && (
+            <>
+              <View style={[s.sectionRow, { backgroundColor: '#fff0f0' }]}>
+                <Text style={[s.sectionCell, { color: '#c0392b' }]}>DEDUCTIONS</Text>
+              </View>
+              {deductionItems.map(renderRow)}
             </>
           )}
         </View>
