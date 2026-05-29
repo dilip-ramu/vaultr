@@ -11,7 +11,7 @@ import {
   Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
   Building2, AlertCircle, CheckSquare2, CreditCard, BookOpen,
-  ArrowDownUp, ReceiptText, Globe,
+  ArrowDownUp, ReceiptText, Globe, Archive,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -101,6 +101,7 @@ const navSections: NavSection[] = [
       { href: '/categories',     label: 'Categories',     icon: Tag },
       { href: '/account-types',  label: 'Account Types',  icon: Layers },
       { href: '/currencies',     label: 'Currencies',     icon: DollarSign },
+      { href: '/downloads',      label: 'Export & Backup', icon: Archive },
     ],
   },
 ]

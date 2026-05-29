@@ -41,7 +41,8 @@
       "Bash(npx supabase *)",
       "Bash(psql --version)",
       "Bash(supabase --version)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(git reset *)"
     ]
   }
 }
