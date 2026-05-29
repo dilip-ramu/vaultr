@@ -195,13 +195,11 @@ export default function DownloadsClient() {
           // Only generate slips for finalized months (unfinalized = amounts not confirmed)
           if (!month.is_finalized) continue
           try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const slipProps = { entry, month, employee: emp, companyName: data.meta?.company_name ?? null, companyAddress: data.meta?.company_address ?? null } as any
             const slipBlob = await pdf(
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              React.createElement(SalarySlipDocument, {
-                entry, month, employee: emp,
-                companyName:    data.meta?.company_name    ?? null,
-                companyAddress: data.meta?.company_address ?? null,
-              }) as any
+              React.createElement(SalarySlipDocument as any, slipProps)
             ).toBlob()
             const safeName = String(emp.name ?? 'Employee').replace(/[/\\:*?"<>|,]+/g, '_')
             const monthStr = String(month.payroll_month ?? '')
