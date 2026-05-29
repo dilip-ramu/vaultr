@@ -44,10 +44,12 @@ export async function checkMailbox(opts: {
 
     for (const seq of toProcess) {
       try {
-        const msg = await client.fetchOne(String(seq), { source: true })
-        if (!msg?.source) continue
+        const msgResult = await client.fetchOne(String(seq), { source: true })
+        if (!msgResult || msgResult === false) continue
+        const msg = msgResult as { source: Buffer }
+        if (!msg.source) continue
 
-        const parsed = await simpleParser(msg.source as Buffer)
+        const parsed = await simpleParser(msg.source)
         const fromAddr = parsed.from?.value?.[0]?.address?.toLowerCase() ?? ''
         const fromName = parsed.from?.value?.[0]?.name ?? ''
 
