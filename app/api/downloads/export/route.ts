@@ -106,10 +106,17 @@ export async function POST(req: Request) {
     account_type:   (acMap[tx.account_id as string] as Row)?.type    ?? null,
   }))
 
-  // Enrich contrast expenses the same way
+  // Enrich contrast expenses — need billing category lookup too
+  const cbcRes = await supabase
+    .from('contrast_billing_categories')
+    .select('id, name')
+    .eq('user_id', user.id)
+  const cbcMap = Object.fromEntries((cbcRes.data ?? []).map((r: Row) => [r.id, r.name]))
+
   const contrast_expenses = (ceRes.data ?? []).map((tx: Row) => ({
     ...tx,
-    category_name: catMap[tx.category_id as string] ?? null,
+    category_name:         catMap[tx.category_id as string]                           ?? null,
+    billing_category_name: cbcMap[tx.contrast_billing_category_id as string]          ?? null,
   }))
 
   // ── Payroll: enrich entries with employee + month info ─────────────────────

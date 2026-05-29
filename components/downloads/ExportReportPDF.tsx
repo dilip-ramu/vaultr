@@ -200,10 +200,10 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         rows={supplier_invoices.map((inv: any) => [
           inv.invoice_number,
-          inv.supplier?.name ?? '—',
+          inv.supplier_name ?? inv.supplier?.name ?? '—',
           fmtDate(inv.invoice_date),
           fmtDate(inv.due_date),
-          fmtAmt(inv.total_amount, 'Rs.'),
+          fmtAmt(inv.amount, inv.currency === 'INR' ? 'Rs.' : (inv.currency + ' ')),
           inv.category ?? '—',
           inv.status,
         ])}
@@ -224,8 +224,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
         rows={contrast_expenses.map((e: any) => [
           fmtDate(e.date),
           e.name ?? '—',
-          e.category?.name ?? '—',
-          e.billing_category?.name ?? '—',
+          e.category_name ?? e.category?.name ?? '—',
+          e.billing_category_name ?? e.billing_category?.name ?? '—',
           fmtAmt(e.amount, 'Rs.'),
           e.notes ?? '',
         ])}

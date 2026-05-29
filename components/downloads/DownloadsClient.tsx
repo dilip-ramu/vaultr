@@ -71,10 +71,10 @@ function buildCSVs(data: Record<string, any[]>): Record<string, string> {
   )
 
   out['supplier_invoices'] = csv(
-    ['Invoice Number', 'Supplier', 'Invoice Date', 'Due Date', 'Total Amount', 'Category', 'Status'],
+    ['Invoice Number', 'Supplier', 'Invoice Date', 'Due Date', 'Amount', 'Currency', 'Category', 'Status'],
     rows('supplier_invoices', inv => [
       inv.invoice_number, safe(inv.supplier_name), fmtDate(inv.invoice_date), fmtDate(inv.due_date),
-      inv.total_amount, safe(inv.category), inv.status,
+      inv.amount, safe(inv.currency), safe(inv.category), inv.status,
     ])
   )
 
