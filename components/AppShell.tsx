@@ -11,7 +11,7 @@ import {
   Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
   Building2, AlertCircle, CheckSquare2, CreditCard, BookOpen,
-  ArrowDownUp, ReceiptText, Globe, Archive,
+  ArrowDownUp, ReceiptText, Globe, Archive, Mail, CheckCircle2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -75,6 +75,14 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    id: 'inbox',
+    label: 'Inbox',
+    items: [
+      { href: '/inbox/email-documents', label: 'Email Documents', icon: Mail },
+      { href: '/inbox/processed',        label: 'Processed',       icon: CheckCircle2 },
+    ],
+  },
+  {
     id: 'payroll',
     label: 'Payroll',
     items: [
@@ -101,7 +109,8 @@ const navSections: NavSection[] = [
       { href: '/categories',     label: 'Categories',     icon: Tag },
       { href: '/account-types',  label: 'Account Types',  icon: Layers },
       { href: '/currencies',     label: 'Currencies',     icon: DollarSign },
-      { href: '/downloads',      label: 'Export & Backup', icon: Archive },
+      { href: '/downloads',              label: 'Export & Backup', icon: Archive },
+      { href: '/settings/email-integration', label: 'Email Setup',    icon: Mail },
     ],
   },
 ]
@@ -217,7 +226,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
   // Per-section collapse state (only collapsible sections, not 'main')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    finance: true, business: true, payroll: true, tools: true,
+    finance: true, business: true, payroll: true, tools: true, inbox: true,
   })
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
