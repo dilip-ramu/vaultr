@@ -75,11 +75,11 @@ interface DeductionRow {
 }
 
 const DEFAULT_FIXED_EXPENSES: FixedExpenseRow[] = [
-  { id: 'rent',         description: 'Office Rent',   amount: 0 },
-  { id: 'housekeeping', description: 'House Keeping', amount: 0 },
-  { id: 'internet',     description: 'Internet',      amount: 0 },
-  { id: 'electricity',  description: 'Electricity',   amount: 0 },
-  { id: 'bank_charges', description: 'Bank Charges',  amount: 0 },
+  { id: 'rent',         description: 'Office Rent',   amount: 709.50 },
+  { id: 'housekeeping', description: 'House Keeping', amount: 205.06 },
+  { id: 'internet',     description: 'Internet',      amount: 224.09 },
+  { id: 'electricity',  description: 'Electricity',   amount: 109.82 },
+  { id: 'bank_charges', description: 'Bank Charges',  amount: 78 },
 ]
 
 interface Props {
