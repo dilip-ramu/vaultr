@@ -30,6 +30,70 @@ function fmtInr(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 }
 
+// ── Bank CSV helpers ──────────────────────────────────────────────────────────
+function cleanCsvField(s: string | null | undefined): string {
+  if (!s) return ''
+  return s
+    .replace(/[,\r\n]+/g, ' ')   // commas and newlines break CSV
+    .replace(/[₹€$£¥]/g, '')     // no currency symbols
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function generateBankCSV(
+  entries: PayrollEntry[],
+  rowValues: Record<string, RowValues>,
+  senderInfo: string,
+): string {
+  const headers = [
+    'IFSC Code',
+    'Account type',
+    'Account Number',
+    'Name of the Beneficiary',
+    'Address of the Beneficiary',
+    'Sender Information',
+    'Amount',
+  ]
+
+  const rows: string[][] = []
+  for (const entry of entries) {
+    const emp = entry.employee
+    if (!emp) continue
+    if (!emp.ifsc || !emp.account_number) continue
+
+    const v = rowValues[entry.id] ?? { allowances: 0, overtime: 0, incentives: 0, deductions: 0, advance: 0 }
+    const amount = Math.round(
+      calcFinalPayable(Number(entry.salary_inr), v.allowances, v.overtime, v.incentives, v.deductions, v.advance)
+    )
+    if (amount <= 0) continue
+
+    rows.push([
+      cleanCsvField(emp.ifsc),
+      cleanCsvField((emp as never as { account_type?: string }).account_type ?? 'SB'),
+      cleanCsvField(emp.account_number),
+      cleanCsvField(emp.name),
+      cleanCsvField(emp.address),
+      cleanCsvField(senderInfo),
+      String(amount),
+    ])
+  }
+
+  if (rows.length === 0) return ''
+  return [headers, ...rows].map(r => r.join(',')).join('\n')
+}
+
+function triggerCSVDownload(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 type RowValues = {
   allowances: number
   overtime: number
@@ -542,19 +606,32 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
         />
       )}
 
-      {/* Salary slips link */}
+      {/* Salary slips link + bank CSV download */}
       {month.is_finalized && entries.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex items-center justify-between">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex items-center justify-between gap-4">
           <div>
             <p className="font-medium text-green-800">Payroll finalized</p>
-            <p className="text-sm text-green-600 mt-0.5">Salary slips are ready to view and download</p>
+            <p className="text-sm text-green-600 mt-0.5">Salary slips ready · download bank transfer CSV for bulk payment</p>
           </div>
-          <button
-            onClick={() => router.push(`/payroll/slips?month=${month.id}`)}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-          >
-            View Salary Slips →
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={() => {
+                const csv = generateBankCSV(entries, rowValues, companyName ?? 'Contrast Company')
+                if (!csv) { alert('No eligible entries — check that employees have IFSC code and account number filled in.'); return }
+                const monthStr = fmtMonth(month.payroll_month).replace(/\s+/g, '_')
+                triggerCSVDownload(csv, `Bank_Transfer_${monthStr}.csv`)
+              }}
+              className="px-4 py-2 border border-green-400 text-green-700 bg-white rounded-lg text-sm font-medium hover:bg-green-50 transition-colors"
+            >
+              ↓ Bank Transfer CSV
+            </button>
+            <button
+              onClick={() => router.push(`/payroll/slips?month=${month.id}`)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            >
+              View Salary Slips →
+            </button>
+          </div>
         </div>
       )}
     </div>

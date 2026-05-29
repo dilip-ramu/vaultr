@@ -14,6 +14,7 @@ const EMPTY: Partial<Employee> = {
   designation: '',
   salary_euro: 0,
   account_number: '',
+  account_type: 'SB',
   ifsc: '',
   bank_name: '',
   branch: '',
@@ -349,6 +350,22 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Account number"
                   />
+                </div>
+
+                {/* Account Type */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Account Type</label>
+                  <select
+                    value={form.account_type ?? 'SB'}
+                    onChange={e => setField('account_type', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="SB">SB — Savings</option>
+                    <option value="CA">CA — Current</option>
+                    <option value="CC">CC — Cash Credit</option>
+                    <option value="NRE">NRE</option>
+                    <option value="NRO">NRO</option>
+                  </select>
                 </div>
 
                 {/* IFSC */}

@@ -6,6 +6,7 @@ export interface Employee {
   designation: string | null
   salary_euro: number
   account_number: string | null
+  account_type: string | null
   ifsc: string | null
   bank_name: string | null
   branch: string | null
