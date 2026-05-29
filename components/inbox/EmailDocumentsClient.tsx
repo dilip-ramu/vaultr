@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import {
   Mail, RefreshCw, ExternalLink, Download, Eye, EyeOff,
   CheckCircle2, Search, Filter, AlertTriangle, Inbox,
-  ChevronDown, X, FileText,
+  ChevronDown, X, FileText, Zap, ArrowUpRight,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
@@ -22,10 +22,18 @@ export interface EmailDocument {
   attachment_url: string | null
   storage_path: string | null
   received_at: string | null
-  status: 'new' | 'reviewed' | 'processed' | 'ignored'
+  status: 'new' | 'reviewed' | 'processed' | 'ignored' | 'processing' | 'invoice_created' | 'needs_review' | 'duplicate_suspected'
   is_duplicate: boolean
   email_message_id: string | null
   created_at: string
+  // extraction / processing fields
+  extraction_confidence: number | null
+  supplier_invoice_id: string | null
+  processing_error: string | null
+  extracted_supplier_name: string | null
+  extracted_invoice_number: string | null
+  extracted_amount: number | null
+  renamed_filename: string | null
 }
 
 interface SenderOption {
@@ -50,17 +58,24 @@ interface Props {
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG = {
-  new: { label: 'New', className: 'bg-blue-50 text-blue-700 border border-blue-200' },
-  reviewed: { label: 'Reviewed', className: 'bg-amber-50 text-amber-700 border border-amber-200' },
-  processed: { label: 'Processed', className: 'bg-green-50 text-green-700 border border-green-200' },
-  ignored: { label: 'Ignored', className: 'bg-gray-100 text-gray-500 border border-gray-200' },
+const STATUS_CONFIG: Record<EmailDocument['status'], { label: string; className: string }> = {
+  new:                  { label: 'New',               className: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  reviewed:             { label: 'Reviewed',          className: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  processed:            { label: 'Processed',         className: 'bg-green-50 text-green-700 border border-green-200' },
+  ignored:              { label: 'Ignored',           className: 'bg-gray-100 text-gray-500 border border-gray-200' },
+  processing:           { label: 'Processing',        className: 'bg-gray-100 text-gray-500 border border-gray-200' },
+  invoice_created:      { label: 'Invoice Created',   className: 'bg-green-50 text-green-700 border border-green-200' },
+  needs_review:         { label: 'Needs Review',      className: 'bg-red-50 text-red-700 border border-red-200' },
+  duplicate_suspected:  { label: 'Duplicate',         className: 'bg-orange-50 text-orange-700 border border-orange-200' },
 }
 
-function StatusBadge({ status }: { status: EmailDocument['status'] }) {
+function StatusBadge({ status, isProcessingRow }: { status: EmailDocument['status']; isProcessingRow?: boolean }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.new
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
+      {(status === 'processing' || isProcessingRow) && (
+        <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+      )}
       {cfg.label}
     </span>
   )
@@ -84,6 +99,8 @@ export default function EmailDocumentsClient({
   const [isPending, startTransition] = useTransition()
   const [expandedBody, setExpandedBody] = useState<string | null>(null)
   const [readDoc, setReadDoc] = useState<EmailDocument | null>(null)
+  // Track which rows are currently being processed
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
 
   // ── Derived counts ────────────────────────────────────────────────────────
 
@@ -148,6 +165,53 @@ export default function EmailDocumentsClient({
     }).catch(() => {
       setDocuments(prev => prev.map(d => d.id === id ? { ...d, status: d.status } : d))
     })
+  }
+
+  // ── Process document ──────────────────────────────────────────────────────
+
+  const handleProcess = async (docId: string) => {
+    setProcessingIds(prev => new Set(prev).add(docId))
+    // Optimistic: mark as processing
+    setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'processing' as const } : d))
+
+    try {
+      const res = await fetch(`/api/inbox/documents/${docId}/process`, { method: 'POST' })
+      const json = await res.json()
+
+      if (!res.ok) {
+        // Revert to 'new' on hard HTTP error
+        setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'new' as const } : d))
+        return
+      }
+
+      // Refresh this document's data from the server to get all updated fields
+      const docRes = await fetch(`/api/inbox/documents?status=all`)
+      const docJson = await docRes.json()
+      if (docJson.documents) {
+        setDocuments(docJson.documents)
+      } else {
+        // Fallback: update status from result
+        const resultStatus = json.result?.status as EmailDocument['status'] | undefined
+        if (resultStatus) {
+          setDocuments(prev =>
+            prev.map(d => d.id === docId ? {
+              ...d,
+              status: resultStatus,
+              supplier_invoice_id: json.result?.supplier_invoice_id ?? d.supplier_invoice_id,
+            } : d)
+          )
+        }
+      }
+    } catch {
+      // On network error, revert
+      setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'new' as const } : d))
+    } finally {
+      setProcessingIds(prev => {
+        const next = new Set(prev)
+        next.delete(docId)
+        return next
+      })
+    }
   }
 
   // ── Unique senders from docs ──────────────────────────────────────────────
@@ -285,6 +349,10 @@ export default function EmailDocumentsClient({
               <option value="reviewed">Reviewed</option>
               <option value="processed">Processed</option>
               <option value="ignored">Ignored</option>
+              <option value="processing">Processing</option>
+              <option value="invoice_created">Invoice Created</option>
+              <option value="needs_review">Needs Review</option>
+              <option value="duplicate_suspected">Duplicate</option>
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: 'var(--text-faint)' }} />
           </div>
@@ -348,159 +416,225 @@ export default function EmailDocumentsClient({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((doc, idx) => (
-                  <tr
-                    key={doc.id}
-                    style={{
-                      borderBottom: idx < filtered.length - 1 ? '1px solid var(--border)' : undefined,
-                    }}
-                    className="transition-colors hover:bg-[var(--surface-2)]"
-                  >
-                    {/* Date */}
-                    <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                      {doc.received_at
-                        ? format(parseISO(doc.received_at), 'dd MMM yyyy')
-                        : '—'}
-                      <div className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                        {doc.received_at ? format(parseISO(doc.received_at), 'HH:mm') : ''}
-                      </div>
-                    </td>
-
-                    {/* Sender */}
-                    <td className="px-4 py-3 max-w-[180px]">
-                      <div className="font-medium truncate" style={{ color: 'var(--text)' }}>
-                        {doc.sender_name || doc.sender_email}
-                      </div>
-                      {doc.sender_name && (
-                        <div className="text-xs truncate" style={{ color: 'var(--text-faint)' }}>
-                          {doc.sender_email}
+                {filtered.map((doc, idx) => {
+                  const isRowProcessing = processingIds.has(doc.id)
+                  return (
+                    <tr
+                      key={doc.id}
+                      style={{
+                        borderBottom: idx < filtered.length - 1 ? '1px solid var(--border)' : undefined,
+                        opacity: isRowProcessing ? 0.7 : 1,
+                      }}
+                      className="transition-colors hover:bg-[var(--surface-2)]"
+                    >
+                      {/* Date */}
+                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                        {doc.received_at
+                          ? format(parseISO(doc.received_at), 'dd MMM yyyy')
+                          : '—'}
+                        <div className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+                          {doc.received_at ? format(parseISO(doc.received_at), 'HH:mm') : ''}
                         </div>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Subject */}
-                    <td className="px-4 py-3 max-w-[220px]">
-                      <div className="flex items-start gap-2">
-                        <div>
-                          <p className="truncate font-medium" style={{ color: 'var(--text)' }}>
-                            {doc.email_subject || '(no subject)'}
-                          </p>
-                          {doc.is_duplicate && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200 mt-0.5">
-                              <AlertTriangle className="w-2.5 h-2.5" />
-                              Duplicate
-                            </span>
+                      {/* Sender */}
+                      <td className="px-4 py-3 max-w-[180px]">
+                        <div className="font-medium truncate" style={{ color: 'var(--text)' }}>
+                          {doc.sender_name || doc.sender_email}
+                        </div>
+                        {doc.sender_name && (
+                          <div className="text-xs truncate" style={{ color: 'var(--text-faint)' }}>
+                            {doc.sender_email}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Subject */}
+                      <td className="px-4 py-3 max-w-[220px]">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium" style={{ color: 'var(--text)' }}>
+                              {doc.email_subject || '(no subject)'}
+                            </p>
+                            {doc.is_duplicate && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200 mt-0.5">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                Duplicate
+                              </span>
+                            )}
+                            {/* Extracted details for processed docs */}
+                            {(doc.extracted_supplier_name || doc.extracted_invoice_number) && (
+                              <div className="mt-1 space-y-0.5">
+                                {doc.extracted_supplier_name && (
+                                  <p className="text-[10px] truncate" style={{ color: 'var(--text-faint)' }}>
+                                    {doc.extracted_supplier_name}
+                                  </p>
+                                )}
+                                {doc.extracted_invoice_number && (
+                                  <p className="text-[10px] font-mono" style={{ color: 'var(--text-faint)' }}>
+                                    #{doc.extracted_invoice_number}
+                                    {doc.extracted_amount != null ? ` · ${doc.extracted_amount}` : ''}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {/* Processing error */}
+                            {doc.status === 'needs_review' && doc.processing_error && (
+                              <p className="text-[10px] text-red-500 mt-0.5 truncate">
+                                {doc.processing_error}
+                              </p>
+                            )}
+                          </div>
+                          {doc.email_body && (
+                            <button
+                              onClick={() => setExpandedBody(expandedBody === doc.id ? null : doc.id)}
+                              className="shrink-0 mt-0.5"
+                              title="Toggle email body"
+                              style={{ color: 'var(--text-faint)' }}
+                            >
+                              {expandedBody === doc.id
+                                ? <EyeOff className="w-3.5 h-3.5" />
+                                : <Eye className="w-3.5 h-3.5" />}
+                            </button>
                           )}
                         </div>
-                        {doc.email_body && (
-                          <button
-                            onClick={() => setExpandedBody(expandedBody === doc.id ? null : doc.id)}
-                            className="shrink-0 mt-0.5"
-                            title="Toggle email body"
-                            style={{ color: 'var(--text-faint)' }}
+                        {expandedBody === doc.id && doc.email_body && (
+                          <div
+                            className="mt-2 p-2 rounded-lg text-xs whitespace-pre-wrap max-h-32 overflow-y-auto"
+                            style={{
+                              backgroundColor: 'var(--surface-2)',
+                              color: 'var(--text-muted)',
+                              borderLeft: '2px solid var(--border)',
+                            }}
                           >
-                            {expandedBody === doc.id
-                              ? <EyeOff className="w-3.5 h-3.5" />
-                              : <Eye className="w-3.5 h-3.5" />}
-                          </button>
+                            {doc.email_body}
+                          </div>
                         )}
-                      </div>
-                      {expandedBody === doc.id && doc.email_body && (
-                        <div
-                          className="mt-2 p-2 rounded-lg text-xs whitespace-pre-wrap max-h-32 overflow-y-auto"
-                          style={{
-                            backgroundColor: 'var(--surface-2)',
-                            color: 'var(--text-muted)',
-                            borderLeft: '2px solid var(--border)',
-                          }}
-                        >
-                          {doc.email_body}
+                      </td>
+
+                      {/* Attachment */}
+                      <td className="px-4 py-3 max-w-[160px]">
+                        {doc.attachment_name ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium"
+                            style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                            title={doc.renamed_filename ?? doc.attachment_name}
+                          >
+                            <Download className="w-3 h-3 shrink-0" />
+                            <span className="truncate max-w-[120px]">
+                              {doc.renamed_filename ?? doc.attachment_name}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>No attachment</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <StatusBadge status={doc.status} isProcessingRow={isRowProcessing} />
+                        {doc.extraction_confidence != null && doc.status !== 'new' && (
+                          <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-faint)' }}>
+                            {Math.round(doc.extraction_confidence * 100)}% confidence
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {doc.email_body && (
+                            <button
+                              onClick={() => setReadDoc(doc)}
+                              title="Read email message"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--surface-2)]"
+                              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                            >
+                              <FileText className="w-3 h-3" />
+                              Read
+                            </button>
+                          )}
+                          {doc.attachment_url && (
+                            <>
+                              <a
+                                href={doc.attachment_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="View attachment"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--surface-2)]"
+                                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                View
+                              </a>
+                              <a
+                                href={doc.attachment_url}
+                                download={doc.attachment_name ?? undefined}
+                                title="Download attachment"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--surface-2)]"
+                                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                              >
+                                <Download className="w-3 h-3" />
+                              </a>
+                            </>
+                          )}
+
+                          {/* Process button — only for 'new' docs with a stored attachment */}
+                          {doc.status === 'new' && doc.storage_path && !isRowProcessing && (
+                            <button
+                              onClick={() => handleProcess(doc.id)}
+                              title="Auto-process: extract and create invoice"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 transition-colors hover:bg-indigo-100"
+                            >
+                              <Zap className="w-3 h-3" />
+                              Process
+                            </button>
+                          )}
+
+                          {/* Loading state while processing */}
+                          {isRowProcessing && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200">
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                              Processing…
+                            </span>
+                          )}
+
+                          {/* View Invoice link */}
+                          {doc.status === 'invoice_created' && doc.supplier_invoice_id && (
+                            <a
+                              href="/suppliers/invoices"
+                              title="View the created invoice"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 transition-colors hover:bg-green-100"
+                            >
+                              <ArrowUpRight className="w-3 h-3" />
+                              View Invoice
+                            </a>
+                          )}
+
+                          {doc.status !== 'reviewed' && doc.status !== 'processed' && doc.status !== 'ignored' && doc.status !== 'invoice_created' && doc.status !== 'processing' && !isRowProcessing && (
+                            <button
+                              onClick={() => updateStatus(doc.id, 'reviewed')}
+                              title="Mark as reviewed"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 transition-colors hover:bg-amber-100"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              Review
+                            </button>
+                          )}
+                          {doc.status !== 'ignored' && !isRowProcessing && (
+                            <button
+                              onClick={() => updateStatus(doc.id, 'ignored')}
+                              title="Ignore document"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200 transition-colors hover:bg-gray-100"
+                            >
+                              <EyeOff className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
-                      )}
-                    </td>
-
-                    {/* Attachment */}
-                    <td className="px-4 py-3 max-w-[160px]">
-                      {doc.attachment_name ? (
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium"
-                          style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-muted)' }}
-                          title={doc.attachment_name}
-                        >
-                          <Download className="w-3 h-3 shrink-0" />
-                          <span className="truncate max-w-[120px]">{doc.attachment_name}</span>
-                        </span>
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--text-faint)' }}>No attachment</span>
-                      )}
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <StatusBadge status={doc.status} />
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        {doc.email_body && (
-                          <button
-                            onClick={() => setReadDoc(doc)}
-                            title="Read email message"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--surface-2)]"
-                            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                          >
-                            <FileText className="w-3 h-3" />
-                            Read
-                          </button>
-                        )}
-                        {doc.attachment_url && (
-                          <>
-                            <a
-                              href={doc.attachment_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="View attachment"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--surface-2)]"
-                              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              View
-                            </a>
-                            <a
-                              href={doc.attachment_url}
-                              download={doc.attachment_name ?? undefined}
-                              title="Download attachment"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--surface-2)]"
-                              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
-                            >
-                              <Download className="w-3 h-3" />
-                            </a>
-                          </>
-                        )}
-                        {doc.status !== 'reviewed' && doc.status !== 'processed' && doc.status !== 'ignored' && (
-                          <button
-                            onClick={() => updateStatus(doc.id, 'reviewed')}
-                            title="Mark as reviewed"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 transition-colors hover:bg-amber-100"
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            Review
-                          </button>
-                        )}
-                        {doc.status !== 'ignored' && (
-                          <button
-                            onClick={() => updateStatus(doc.id, 'ignored')}
-                            title="Ignore document"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200 transition-colors hover:bg-gray-100"
-                          >
-                            <EyeOff className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -553,7 +687,9 @@ export default function EmailDocumentsClient({
             {readDoc.attachment_name && (
               <div className="px-6 py-2 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)' }}>
                 <Download className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />
-                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{readDoc.attachment_name}</span>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                  {readDoc.renamed_filename ?? readDoc.attachment_name}
+                </span>
                 {readDoc.attachment_url && (
                   <a
                     href={readDoc.attachment_url}

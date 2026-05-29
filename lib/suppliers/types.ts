@@ -73,6 +73,11 @@ export interface SupplierInvoice {
   status: SupplierInvoiceStatus
   created_at: string
   updated_at: string
+  // auto-import from email
+  source_email_document_id: string | null
+  auto_imported: boolean | null
+  import_date: string | null
+  extraction_confidence: number | null
   // joined
   supplier?: Supplier
 }

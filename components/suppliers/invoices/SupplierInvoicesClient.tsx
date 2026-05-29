@@ -364,12 +364,19 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: sc.bg, color: sc.text }}>
-                          {INVOICE_STATUS_LABELS[inv.status]}
-                        </span>
-                        {inv.attachment_path && (
-                          <Paperclip className="w-3 h-3 inline-block ml-2" style={{ color: 'var(--text-muted)' }} />
-                        )}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: sc.bg, color: sc.text }}>
+                            {INVOICE_STATUS_LABELS[inv.status]}
+                          </span>
+                          {inv.auto_imported && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                              Auto
+                            </span>
+                          )}
+                          {inv.attachment_path && (
+                            <Paperclip className="w-3 h-3" style={{ color: 'var(--text-muted)' }} />
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
@@ -433,9 +440,16 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>₹{fmtAmt(Number(inv.amount))}</p>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: sc.bg, color: sc.text }}>
-                        {INVOICE_STATUS_LABELS[inv.status]}
-                      </span>
+                      <div className="flex items-center gap-1 mt-1 flex-wrap justify-end">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: sc.bg, color: sc.text }}>
+                          {INVOICE_STATUS_LABELS[inv.status]}
+                        </span>
+                        {inv.auto_imported && (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
+                            Auto
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
