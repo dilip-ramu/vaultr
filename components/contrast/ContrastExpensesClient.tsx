@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Download, CheckSquare, Square, Filter, ChevronDown,
   Paperclip, CheckCircle2, Circle, AlertCircle, FileText, X,
-  Plus, Tag, LayoutList, ArrowDownUp
+  Plus, Tag, LayoutList, ArrowDownUp, ReceiptText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -30,6 +30,7 @@ interface TxRaw {
 }
 
 type GroupMode = 'month' | 'billing_category' | 'status'
+type BilledFilter = 'all' | 'billed' | 'queued' | 'unbilled'
 
 interface Props {
   transactions: TxRaw[]
@@ -180,7 +181,7 @@ export default function ContrastExpensesClient({
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
-  const [filter, setFilter] = useState<'all' | 'billed' | 'unbilled'>('all')
+  const [filter, setFilter] = useState<BilledFilter>('all')
   const [groupMode, setGroupMode] = useState<GroupMode>('month')
 
   const months = useMemo(() => {
@@ -191,14 +192,20 @@ export default function ContrastExpensesClient({
   const filtered = useMemo(() => {
     return transactions.filter(t => {
       const monthOk = selectedMonth === 'all' || monthKey(t.date) === selectedMonth
-      const billedOk = filter === 'all' ? true : filter === 'billed' ? t.is_contrast_billed : !t.is_contrast_billed
+      const isQueued  = !t.is_contrast_billed && !!t.contrast_billing_category_id
+      const isUnqueued = !t.is_contrast_billed && !t.contrast_billing_category_id
+      const billedOk =
+        filter === 'all'     ? true :
+        filter === 'billed'  ? t.is_contrast_billed :
+        filter === 'queued'  ? isQueued :
+        /* unbilled */         isUnqueued
       return monthOk && billedOk
     })
   }, [transactions, selectedMonth, filter])
 
-  const totalAmount    = useMemo(() => filtered.reduce((s, t) => s + t.amount, 0), [filtered])
-  const billedAmount   = useMemo(() => filtered.filter(t => t.is_contrast_billed).reduce((s, t) => s + t.amount, 0), [filtered])
-  const unbilledAmount = totalAmount - billedAmount
+  const totalAmount   = useMemo(() => filtered.reduce((s, t) => s + t.amount, 0), [filtered])
+  const billedAmount  = useMemo(() => filtered.filter(t => t.is_contrast_billed).reduce((s, t) => s + t.amount, 0), [filtered])
+  const queuedAmount  = useMemo(() => filtered.filter(t => !t.is_contrast_billed && !!t.contrast_billing_category_id).reduce((s, t) => s + t.amount, 0), [filtered])
 
   const selectedAttachmentCount = useMemo(() =>
     filtered.filter(t => selectedIds.has(t.id)).reduce((s, t) => s + t.attachments.length, 0)
@@ -357,13 +364,15 @@ export default function ContrastExpensesClient({
           <p className="text-xs text-gray-500 mb-1">Total</p>
           <p className="text-lg font-bold text-gray-900">{fmtCurrency(totalAmount)}</p>
         </div>
+        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm">
+          <p className="text-xs text-indigo-500 mb-1 flex items-center gap-1">
+            <ReceiptText className="w-3 h-3" /> Queued for Invoice
+          </p>
+          <p className="text-lg font-bold text-indigo-700">{fmtCurrency(queuedAmount)}</p>
+        </div>
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-gray-500 mb-1">Billed</p>
           <p className="text-lg font-bold text-green-600">{fmtCurrency(billedAmount)}</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-          <p className="text-xs text-gray-500 mb-1">Unbilled</p>
-          <p className="text-lg font-bold text-amber-600">{fmtCurrency(unbilledAmount)}</p>
         </div>
       </div>
 
@@ -397,10 +406,19 @@ export default function ContrastExpensesClient({
 
         {/* Billed filter */}
         <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-          {(['all', 'unbilled', 'billed'] as const).map(f => (
+          {([
+            ['all',     'All'],
+            ['queued',  'Queued'],
+            ['billed',  'Billed'],
+            ['unbilled','Not queued'],
+          ] as [BilledFilter, string][]).map(([f, lbl]) => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                filter === f
+                  ? f === 'queued' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {lbl}
             </button>
           ))}
         </div>
@@ -561,21 +579,36 @@ export default function ContrastExpensesClient({
                           )}
                         </div>
 
-                        {/* Billed toggle */}
-                        <div className="w-20 flex justify-center shrink-0">
-                          <button
-                            onClick={() => markBilled([tx.id], !tx.is_contrast_billed)}
-                            disabled={isToggling}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                              tx.is_contrast_billed ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                            } ${isToggling ? 'opacity-50' : ''}`}
-                          >
-                            {isToggling
+                        {/* Status badge — 3 states: Billed / Queued / Not queued */}
+                        <div className="w-24 flex justify-center shrink-0">
+                          {(() => {
+                            const isQueued = !tx.is_contrast_billed && !!tx.contrast_billing_category_id
+                            const btnBase = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all'
+                            const btnColor = tx.is_contrast_billed
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : isQueued
+                                ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                                : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                            const icon = isToggling
                               ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                              : tx.is_contrast_billed ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />
-                            }
-                            {tx.is_contrast_billed ? 'Billed' : 'Unbilled'}
-                          </button>
+                              : tx.is_contrast_billed
+                                ? <CheckCircle2 className="w-3 h-3" />
+                                : isQueued
+                                  ? <ReceiptText className="w-3 h-3" />
+                                  : <Circle className="w-3 h-3" />
+                            const label = tx.is_contrast_billed ? 'Billed' : isQueued ? 'Queued' : 'Not queued'
+                            return (
+                              <button
+                                onClick={() => markBilled([tx.id], !tx.is_contrast_billed)}
+                                disabled={isToggling}
+                                title={isQueued ? 'Will be included in next invoice — click to mark billed manually' : undefined}
+                                className={`${btnBase} ${btnColor} ${isToggling ? 'opacity-50' : ''}`}
+                              >
+                                {icon}
+                                {label}
+                              </button>
+                            )
+                          })()}
                         </div>
                       </div>
                     )

@@ -32,8 +32,9 @@ export default async function ContrastInvoicePage() {
     .order('name')
   const contrastCustomer = contrastCustomers?.[0] ?? null
 
-  // All unbilled Contrast expenses (all months, with billing category)
-  const { data: allExpenses } = contrastPayee
+  // Queued expenses — only those WITH a billing category assigned
+  // (assigning a billing category in Contrast Expenses = queuing for invoice)
+  const { data: queuedExpenses } = contrastPayee
     ? await supabase
         .from('transactions')
         .select(`
@@ -46,8 +47,21 @@ export default async function ContrastInvoicePage() {
         .eq('payee_id', contrastPayee.id)
         .eq('is_contrast_billed', false)
         .is('contrast_invoice_id', null)
+        .not('contrast_billing_category_id', 'is', null)
         .order('date', { ascending: false })
     : { data: [] }
+
+  // Count of unbilled expenses WITHOUT a billing category (to show a nudge)
+  const { count: uncategorizedCount } = contrastPayee
+    ? await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user!.id)
+        .eq('payee_id', contrastPayee.id)
+        .eq('is_contrast_billed', false)
+        .is('contrast_invoice_id', null)
+        .is('contrast_billing_category_id', null)
+    : { count: 0 }
 
   // All unbilled courier bills for Contrast customer
   const { data: allCourierBills } = contrastCustomer
@@ -61,7 +75,7 @@ export default async function ContrastInvoicePage() {
         .order('due_date', { ascending: false })
     : { data: [] }
 
-  // All finalized payroll months — try without contrast_invoice_id first for resilience
+  // All finalized payroll months (resilient — no contrast_invoice_id column needed)
   const { data: payrollMonths } = await supabase
     .from('payroll_months')
     .select(`
@@ -77,10 +91,11 @@ export default async function ContrastInvoicePage() {
 
   return (
     <ContrastInvoiceClient
-      allExpenses={(allExpenses ?? []) as never[]}
+      allExpenses={(queuedExpenses ?? []) as never[]}
       allCourierBills={(allCourierBills ?? []) as never[]}
       payrollMonths={(payrollMonths ?? []) as never[]}
       companyName={profile?.full_name ?? ''}
+      uncategorizedCount={uncategorizedCount ?? 0}
     />
   )
 }
