@@ -4,7 +4,8 @@ import { useState, useTransition, useMemo } from 'react'
 import {
   Mail, RefreshCw, ExternalLink, Download, Eye, EyeOff,
   CheckCircle2, Search, Filter, AlertTriangle, Inbox,
-  ChevronDown, X, FileText, Zap, ArrowUpRight,
+  ChevronDown, X, FileText, Zap, ArrowUpRight, Trash2,
+  RotateCcw, Square, CheckSquare, MinusSquare,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 
@@ -99,8 +100,9 @@ export default function EmailDocumentsClient({
   const [isPending, startTransition] = useTransition()
   const [expandedBody, setExpandedBody] = useState<string | null>(null)
   const [readDoc, setReadDoc] = useState<EmailDocument | null>(null)
-  // Track which rows are currently being processed
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // ── Derived counts ────────────────────────────────────────────────────────
 
@@ -212,6 +214,46 @@ export default function EmailDocumentsClient({
         return next
       })
     }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+
+  const deleteDoc = async (id: string) => {
+    setDocuments(prev => prev.filter(d => d.id !== id))
+    setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s })
+    await fetch(`/api/inbox/documents/${id}`, { method: 'DELETE' })
+  }
+
+  // ── Bulk helpers ──────────────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map(d => d.id)))
+    }
+  }
+
+  const bulkUpdateStatus = async (status: EmailDocument['status']) => {
+    const ids = [...selectedIds]
+    setDocuments(prev => prev.map(d => ids.includes(d.id) ? { ...d, status } : d))
+    setSelectedIds(new Set())
+    await Promise.all(ids.map(id =>
+      fetch(`/api/inbox/documents/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+    ))
+  }
+
+  const bulkDelete = async () => {
+    const ids = [...selectedIds]
+    setDocuments(prev => prev.filter(d => !ids.includes(d.id)))
+    setSelectedIds(new Set())
+    await Promise.all(ids.map(id => fetch(`/api/inbox/documents/${id}`, { method: 'DELETE' })))
   }
 
   // ── Unique senders from docs ──────────────────────────────────────────────
@@ -384,6 +426,28 @@ export default function EmailDocumentsClient({
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <span className="text-sm font-medium mr-2" style={{ color: 'var(--text)' }}>{selectedIds.size} selected</span>
+          <button onClick={() => bulkUpdateStatus('new')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">
+            <RotateCcw className="w-3 h-3" /> Mark New
+          </button>
+          <button onClick={() => bulkUpdateStatus('reviewed')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors">
+            <CheckCircle2 className="w-3 h-3" /> Mark Reviewed
+          </button>
+          <button onClick={() => bulkUpdateStatus('ignored')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
+            <EyeOff className="w-3 h-3" /> Ignore
+          </button>
+          <button onClick={bulkDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors ml-auto">
+            <Trash2 className="w-3 h-3" /> Delete {selectedIds.size}
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="text-xs px-2 py-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors" style={{ color: 'var(--text-faint)' }}>
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div
         className="rounded-2xl border shadow-sm overflow-hidden"
@@ -404,6 +468,16 @@ export default function EmailDocumentsClient({
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {/* Select-all checkbox */}
+                  <th className="pl-4 pr-2 py-3" style={{ backgroundColor: 'var(--surface-2)', width: 36 }}>
+                    <button onClick={toggleSelectAll}>
+                      {selectedIds.size === filtered.length && filtered.length > 0
+                        ? <CheckSquare className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                        : selectedIds.size > 0
+                          ? <MinusSquare className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                          : <Square className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />}
+                    </button>
+                  </th>
                   {['Date', 'Sender', 'Subject', 'Attachment', 'Status', 'Actions'].map(h => (
                     <th
                       key={h}
@@ -418,15 +492,25 @@ export default function EmailDocumentsClient({
               <tbody>
                 {filtered.map((doc, idx) => {
                   const isRowProcessing = processingIds.has(doc.id)
+                  const isSelected = selectedIds.has(doc.id)
                   return (
                     <tr
                       key={doc.id}
                       style={{
                         borderBottom: idx < filtered.length - 1 ? '1px solid var(--border)' : undefined,
                         opacity: isRowProcessing ? 0.7 : 1,
+                        backgroundColor: isSelected ? 'var(--brand-light)' : undefined,
                       }}
                       className="transition-colors hover:bg-[var(--surface-2)]"
                     >
+                      {/* Checkbox */}
+                      <td className="pl-4 pr-2 py-3">
+                        <button onClick={() => toggleSelect(doc.id)}>
+                          {isSelected
+                            ? <CheckSquare className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                            : <Square className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />}
+                        </button>
+                      </td>
                       {/* Date */}
                       <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                         {doc.received_at
@@ -611,6 +695,15 @@ export default function EmailDocumentsClient({
                             </a>
                           )}
 
+                          {doc.status !== 'new' && !isRowProcessing && (
+                            <button
+                              onClick={() => updateStatus(doc.id, 'new')}
+                              title="Mark as new / unreviewed"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 transition-colors hover:bg-blue-100"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </button>
+                          )}
                           {doc.status !== 'reviewed' && doc.status !== 'processed' && doc.status !== 'ignored' && doc.status !== 'invoice_created' && doc.status !== 'processing' && !isRowProcessing && (
                             <button
                               onClick={() => updateStatus(doc.id, 'reviewed')}
@@ -630,6 +723,13 @@ export default function EmailDocumentsClient({
                               <EyeOff className="w-3 h-3" />
                             </button>
                           )}
+                          <button
+                            onClick={() => deleteDoc(doc.id)}
+                            title="Delete record"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-50 text-red-500 border border-red-200 transition-colors hover:bg-red-100"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       </td>
                     </tr>
