@@ -20,6 +20,11 @@ export async function PATCH(req: Request) {
   }
 
   const update: Record<string, unknown> = { is_contrast_billed: billed }
+  if (!billed) {
+    // When marking as unbilled, also clear any invoice link so the transaction
+    // reappears on the Invoice page and can be included in a future invoice.
+    update.contrast_invoice_id = null
+  }
   if (billing_category_id !== undefined) {
     update.contrast_billing_category_id = billing_category_id
   }

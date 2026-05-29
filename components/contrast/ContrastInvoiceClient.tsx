@@ -545,7 +545,17 @@ export default function ContrastInvoiceClient({
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{error}</div>
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 space-y-1">
+          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-xs text-red-500">
+            If expenses disappeared but no PDF was shown, check{' '}
+            <a href="/contrast/history" className="underline font-medium">Invoice History</a>
+            {' '}— the invoice may have saved successfully despite the error.
+            If it&apos;s not there, go to{' '}
+            <a href="/contrast" className="underline font-medium">Contrast Expenses</a>
+            {' '}and use &quot;Mark unbilled&quot; to restore any affected transactions.
+          </p>
+        </div>
       )}
 
       {/* ── Action ───────────────────────────────────────────────────────────── */}
