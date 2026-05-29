@@ -182,7 +182,35 @@ export default function DownloadsClient() {
         React.createElement(ExportReportPDF, { data }) as any
       ).toBlob()
 
-      // 4. Create ZIP
+      // 4. Download attachments
+      const attachments: { folder: string; filename: string; blob: Blob }[] = []
+      if (data.attachments?.length > 0) {
+        setStatusMsg(`Downloading ${data.attachments.length} attachment${data.attachments.length !== 1 ? 's' : ''}…`)
+        for (const att of data.attachments) {
+          if (!att.signed_url) continue
+          try {
+            const fileRes = await fetch(att.signed_url)
+            if (!fileRes.ok) continue
+            const blob = await fileRes.blob()
+
+            // Build a clean filename from parent record name
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const parentName: string = (att.transaction as any)?.name ?? (att.bill as any)?.name ?? 'attachment'
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const parentDate: string = (att.transaction as any)?.date ?? ''
+            const ext = (att.file_name as string).split('.').pop() ?? 'bin'
+            const safeName = parentName.replace(/[/\\:*?"<>|,\r\n]+/g, '_').trim()
+            const filename = parentDate ? `${safeName}_${parentDate}.${ext}` : `${safeName}.${ext}`
+            const folder = att.transaction_id ? '10_Attachments/Transactions' : '10_Attachments/Bills'
+
+            attachments.push({ folder, filename, blob })
+          } catch {
+            // Skip failed downloads silently
+          }
+        }
+      }
+
+      // 5. Create ZIP
       setStatus('zipping')
       setStatusMsg('Packing everything into a ZIP file…')
       const JSZip = (await import('jszip')).default
@@ -210,6 +238,11 @@ export default function DownloadsClient() {
         if (selected.has(key as ModuleKey) && csvFiles[key]) {
           root.file(path, csvFiles[key])
         }
+      }
+
+      // Add attachments to ZIP
+      for (const { folder, filename, blob } of attachments) {
+        root.file(`${folder}/${filename}`, blob)
       }
 
       const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' })
