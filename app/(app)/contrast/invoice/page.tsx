@@ -63,13 +63,14 @@ export default async function ContrastInvoicePage() {
         .is('contrast_billing_category_id', null)
     : { count: 0 }
 
-  // All unbilled courier bills for Contrast customer
+  // All unbilled courier bills sent TO Contrast customer (direction = 'sent')
   const { data: allCourierBills } = contrastCustomer
     ? await supabase
         .from('bills')
         .select('id, name, amount, due_date, status, contrast_invoice_id')
         .eq('user_id', user!.id)
         .eq('customer_id', contrastCustomer.id)
+        .eq('direction', 'sent')
         .eq('status', 'pending')
         .is('contrast_invoice_id', null)
         .order('due_date', { ascending: false })
