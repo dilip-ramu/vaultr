@@ -36,6 +36,7 @@ interface Props {
   billingCategories: BillingCategory[]
   payeeFound: boolean
   payeeName: string
+  migrationsRun?: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -162,7 +163,7 @@ function BillingCategoryCell({
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function ContrastExpensesClient({
   transactions: initialTx, billingCategories: initialCats,
-  payeeFound, payeeName
+  payeeFound, payeeName, migrationsRun = true,
 }: Props) {
   const [transactions, setTransactions] = useState<TxRaw[]>(initialTx)
   const [categories, setCategories] = useState<BillingCategory[]>(initialCats)
@@ -313,6 +314,17 @@ export default function ContrastExpensesClient({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5">
+
+      {/* Migration warning */}
+      {!migrationsRun && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex gap-3">
+          <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-800">
+            <strong>Run migrations v18 &amp; v19</strong> in Supabase to enable Billing Categories and Invoice tracking.
+            Transactions are shown in read-only mode until then.
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
