@@ -75,7 +75,8 @@ export default async function ContrastInvoicePage() {
         .order('due_date', { ascending: false })
     : { data: [] }
 
-  // All finalized payroll months (resilient — no contrast_invoice_id column needed)
+  // All payroll months — finalized OR not. Invoice is created before payroll
+  // is finalized (forex rate is only known after Contrast payment is received).
   const { data: payrollMonths } = await supabase
     .from('payroll_months')
     .select(`
@@ -86,7 +87,6 @@ export default async function ContrastInvoicePage() {
       )
     `)
     .eq('user_id', user!.id)
-    .eq('is_finalized', true)
     .order('payroll_month', { ascending: false })
 
   return (

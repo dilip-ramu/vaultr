@@ -39,9 +39,12 @@ export async function POST(
   await supabase.from('contrast_invoice_items').delete().eq('invoice_id', id)
 
   if (items.length > 0) {
+    // Only insert known DB columns — strip display-only fields (inr_source, forex_rate, etc.)
     const { error: itemErr } = await supabase
       .from('contrast_invoice_items')
-      .insert(items.map(it => ({ ...it, invoice_id: id })))
+      .insert(items.map(({ item_type, description, salary_euro, expended_rate, amount_inr, sort_order }) => ({
+        invoice_id: id, item_type, description, salary_euro, expended_rate, amount_inr, sort_order,
+      })))
     if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 500 })
   }
 

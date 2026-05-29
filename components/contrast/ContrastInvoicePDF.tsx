@@ -1,5 +1,5 @@
 import {
-  Document, Page, Text, View, StyleSheet, Font, Image,
+  Document, Page, Text, View, StyleSheet, Font,
 } from '@react-pdf/renderer'
 
 const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -15,9 +15,11 @@ Font.register({
 export interface InvoiceItem {
   item_type: 'salary' | 'courier' | 'expense'
   description: string
-  salary_euro?: number | null
-  expended_rate?: number | null
-  amount_inr: number
+  salary_euro?: number | null   // salary lines: EUR amount
+  expended_rate?: number | null // kept for DB compat, unused in display
+  amount_inr: number            // billing amount in EUR (field name legacy)
+  inr_source?: number | null    // original INR amount (courier/expense, display only)
+  forex_rate?: number | null    // rate used (courier/expense, display only)
   sort_order: number
 }
 
@@ -26,10 +28,11 @@ export interface ContrastInvoiceData {
   invoice_month: string   // "YYYY-MM"
   invoice_date: string
   items: InvoiceItem[]
-  subtotal: number
-  gst_amount: number
-  total: number
+  subtotal: number        // EUR
+  gst_amount: number      // EUR
+  total: number           // EUR
   company_name?: string
+  forex_rate?: number     // INR per EUR used for this invoice
 }
 
 const MONTHS_LONG = ['January','February','March','April','May','June',
@@ -38,6 +41,12 @@ const MONTHS_LONG = ['January','February','March','April','May','June',
 function monthLabel(ym: string) {
   const [y, m] = ym.split('-')
   return `${MONTHS_LONG[parseInt(m) - 1]} ${y}`
+}
+
+function fmtEur(n: number): string {
+  const abs = Math.abs(n)
+  const str = abs.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `EUR ${str}`
 }
 
 function fmtInr(n: number): string {
@@ -55,30 +64,21 @@ function fmtInr(n: number): string {
   return `Rs. ${s}.${dec}`
 }
 
-function fmtEuro(n: number): string {
-  return `EUR ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
 const s = StyleSheet.create({
   page:       { padding: 40, fontSize: 9, fontFamily: 'LiberationSans', color: '#1a1a1a', backgroundColor: '#ffffff' },
-  // Header
   topRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  logoBox:    { width: 80, height: 40 },
   titleBlock: { alignItems: 'flex-end' },
   proforma:   { fontSize: 18, fontWeight: 'bold', color: '#1a1a1a' },
   invNum:     { fontSize: 9, color: '#666', marginTop: 2 },
-  // From / To
   addressRow: { flexDirection: 'row', gap: 20, marginBottom: 14 },
   addressBox: { flex: 1, padding: 10, backgroundColor: '#f8f8f8', borderRadius: 4 },
   addrLabel:  { fontSize: 7, color: '#999', fontWeight: 'bold', marginBottom: 3, textTransform: 'uppercase' },
   addrName:   { fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
   addrLine:   { fontSize: 8, color: '#555', lineHeight: 1.4 },
-  // Meta row
   metaRow:    { flexDirection: 'row', gap: 8, marginBottom: 14 },
   metaBox:    { flex: 1, padding: 8, borderWidth: 0.5, borderColor: '#ddd', borderRadius: 4 },
   metaLabel:  { fontSize: 7, color: '#999', fontWeight: 'bold', marginBottom: 2 },
   metaVal:    { fontSize: 9, fontWeight: 'bold' },
-  // Table
   table:      { borderWidth: 0.5, borderColor: '#ccc', marginBottom: 10 },
   thead:      { flexDirection: 'row', backgroundColor: '#1a1a2e', borderBottomWidth: 0.5, borderBottomColor: '#ccc' },
   th:         { padding: 6, fontWeight: 'bold', fontSize: 8, color: '#ffffff' },
@@ -86,11 +86,8 @@ const s = StyleSheet.create({
   trowAlt:    { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#eee', backgroundColor: '#fafafa' },
   td:         { padding: 5, fontSize: 8 },
   tdRight:    { padding: 5, fontSize: 8, textAlign: 'right' },
-  tdCenter:   { padding: 5, fontSize: 8, textAlign: 'center' },
-  // Section dividers in table
   sectionRow: { flexDirection: 'row', backgroundColor: '#f0f4ff', borderBottomWidth: 0.5, borderBottomColor: '#ccc' },
   sectionCell:{ padding: 4, fontSize: 7, fontWeight: 'bold', color: '#3b4ac7', flex: 1 },
-  // Totals
   totalSection: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 14 },
   totalBox:     { width: 220 },
   totalRow:     { flexDirection: 'row', justifyContent: 'space-between', padding: 5, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
@@ -99,7 +96,6 @@ const s = StyleSheet.create({
   grandRow:     { flexDirection: 'row', justifyContent: 'space-between', padding: 7, backgroundColor: '#1a1a2e' },
   grandLabel:   { fontSize: 10, fontWeight: 'bold', color: '#fff' },
   grandVal:     { fontSize: 10, fontWeight: 'bold', color: '#fff' },
-  // Bank
   bankSection:  { borderTopWidth: 0.5, borderTopColor: '#ddd', paddingTop: 10, marginBottom: 10 },
   bankTitle:    { fontSize: 8, fontWeight: 'bold', marginBottom: 5, color: '#333' },
   bankGrid:     { flexDirection: 'row', gap: 16 },
@@ -107,7 +103,6 @@ const s = StyleSheet.create({
   bankRow:      { flexDirection: 'row', marginBottom: 3 },
   bankKey:      { fontSize: 7, color: '#999', width: 90 },
   bankVal:      { fontSize: 7, fontWeight: 'bold', color: '#1a1a1a', flex: 1 },
-  // Footer
   footer:     { marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 0.5, borderTopColor: '#ddd', paddingTop: 8 },
   signBox:    { width: 140, borderTopWidth: 1, borderTopColor: '#1a1a1a', paddingTop: 4 },
   signLabel:  { fontSize: 7, color: '#777' },
@@ -119,29 +114,25 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
   const courierItems = data.items.filter(i => i.item_type === 'courier')
   const expenseItems = data.items.filter(i => i.item_type === 'expense')
 
+  // Table has 4 columns: Description | INR Amount | Rate | EUR Amount
+  // Salary rows: no INR / no rate (already in EUR)
+  // Courier + Expense rows: show INR source, rate, EUR result
   const renderRow = (item: InvoiceItem, idx: number) => {
-    const isSalary = item.item_type === 'salary'
     const RowStyle = idx % 2 === 0 ? s.trow : s.trowAlt
+    const isSalary = item.item_type === 'salary'
     return (
       <View key={idx} style={RowStyle}>
         <Text style={[s.td, { flex: 3 }]}>{item.description}</Text>
-        {isSalary ? (
-          <>
-            <Text style={[s.tdRight, { flex: 1.5 }]}>
-              {item.salary_euro ? fmtEuro(item.salary_euro) : ''}
-            </Text>
-            <Text style={[s.tdRight, { flex: 1.5 }]}>
-              {item.expended_rate ? `@ ${item.expended_rate.toFixed(2)}` : ''}
-            </Text>
-            <Text style={[s.tdRight, { flex: 1.5 }]}>{fmtInr(item.amount_inr)}</Text>
-          </>
-        ) : (
-          <>
-            <Text style={[s.tdRight, { flex: 1.5 }]}>—</Text>
-            <Text style={[s.tdRight, { flex: 1.5 }]}>—</Text>
-            <Text style={[s.tdRight, { flex: 1.5 }]}>{fmtInr(item.amount_inr)}</Text>
-          </>
-        )}
+        <Text style={[s.tdRight, { flex: 1.5 }]}>
+          {isSalary ? '—' : (item.inr_source != null ? fmtInr(item.inr_source) : '—')}
+        </Text>
+        <Text style={[s.tdRight, { flex: 1 }]}>
+          {isSalary ? '—' : (item.forex_rate ? `@ ${item.forex_rate.toFixed(2)}` : '—')}
+        </Text>
+        <Text style={[s.tdRight, { flex: 1.5 }]}>
+          {/* amount_inr stores EUR billing amount */}
+          {fmtEur(item.amount_inr)}
+        </Text>
       </View>
     )
   }
@@ -178,7 +169,7 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
             <Text style={s.addrLabel}>Payment Terms</Text>
             <Text style={[s.addrName, { marginBottom: 4 }]}>Telegraphic Transfer (TT)</Text>
             <Text style={s.addrLabel}>For the Month of</Text>
-            <Text style={[s.addrName]}>{monthLabel(data.invoice_month)}</Text>
+            <Text style={s.addrName}>{monthLabel(data.invoice_month)}</Text>
           </View>
         </View>
 
@@ -194,8 +185,14 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
           </View>
           <View style={s.metaBox}>
             <Text style={s.metaLabel}>Currency</Text>
-            <Text style={s.metaVal}>INR (Indian Rupees)</Text>
+            <Text style={s.metaVal}>EUR (Euros)</Text>
           </View>
+          {data.forex_rate && (
+            <View style={s.metaBox}>
+              <Text style={s.metaLabel}>Forex Rate Used</Text>
+              <Text style={s.metaVal}>1 EUR = Rs. {data.forex_rate.toFixed(2)}</Text>
+            </View>
+          )}
           <View style={s.metaBox}>
             <Text style={s.metaLabel}>GST Rate</Text>
             <Text style={s.metaVal}>18%</Text>
@@ -204,15 +201,13 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
 
         {/* ── Line Items Table ── */}
         <View style={s.table}>
-          {/* Table header */}
           <View style={s.thead}>
             <Text style={[s.th, { flex: 3 }]}>Description</Text>
-            <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Euro</Text>
-            <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Rate</Text>
-            <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Amount (Rs.)</Text>
+            <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>INR Amount</Text>
+            <Text style={[s.th, { flex: 1, textAlign: 'right' }]}>Rate</Text>
+            <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Amount (EUR)</Text>
           </View>
 
-          {/* Salary section */}
           {salaryItems.length > 0 && (
             <>
               <View style={s.sectionRow}>
@@ -222,7 +217,6 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
             </>
           )}
 
-          {/* Courier section */}
           {courierItems.length > 0 && (
             <>
               <View style={s.sectionRow}>
@@ -232,7 +226,6 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
             </>
           )}
 
-          {/* Expenses section */}
           {expenseItems.length > 0 && (
             <>
               <View style={s.sectionRow}>
@@ -248,15 +241,15 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
           <View style={s.totalBox}>
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>Sub Total</Text>
-              <Text style={s.totalVal}>{fmtInr(data.subtotal)}</Text>
+              <Text style={s.totalVal}>{fmtEur(data.subtotal)}</Text>
             </View>
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>GST @ 18%</Text>
-              <Text style={s.totalVal}>{fmtInr(data.gst_amount)}</Text>
+              <Text style={s.totalVal}>{fmtEur(data.gst_amount)}</Text>
             </View>
             <View style={s.grandRow}>
               <Text style={s.grandLabel}>GRAND TOTAL</Text>
-              <Text style={s.grandVal}>{fmtInr(data.total)}</Text>
+              <Text style={s.grandVal}>{fmtEur(data.total)}</Text>
             </View>
           </View>
         </View>
@@ -296,14 +289,12 @@ export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData
           </View>
         </View>
 
-        {/* ── Footer / Signature ── */}
+        {/* ── Signature ── */}
         <View style={s.footer}>
           <View style={s.signBox}>
             <Text style={s.signLabel}>Authorised Signature &amp; Date</Text>
           </View>
-          <Text style={s.footNote}>
-            This is a computer-generated proforma invoice.
-          </Text>
+          <Text style={s.footNote}>This is a computer-generated proforma invoice.</Text>
         </View>
 
       </Page>

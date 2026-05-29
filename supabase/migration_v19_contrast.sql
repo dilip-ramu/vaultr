@@ -54,6 +54,24 @@ CREATE TABLE IF NOT EXISTS contrast_invoice_items (
   amount_inr      DECIMAL(15,2) NOT NULL,
   sort_order      INTEGER NOT NULL DEFAULT 0
 );
+ALTER TABLE contrast_invoice_items ENABLE ROW LEVEL SECURITY;
+-- Items don't have user_id; ownership is via the parent invoice
+CREATE POLICY "Users can manage items of their own invoices"
+  ON contrast_invoice_items FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM contrast_invoices ci
+      WHERE ci.id = contrast_invoice_items.invoice_id
+        AND ci.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM contrast_invoices ci
+      WHERE ci.id = contrast_invoice_items.invoice_id
+        AND ci.user_id = auth.uid()
+    )
+  );
 GRANT ALL ON TABLE contrast_invoice_items TO authenticated;
 GRANT ALL ON TABLE contrast_invoice_items TO anon;
 
