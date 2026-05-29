@@ -98,7 +98,7 @@ export async function POST(req: Request) {
 
     const urlMap: Record<string, string> = {}
     for (const su of (signedUrlData ?? [])) {
-      if (su.signedUrl) urlMap[su.path] = su.signedUrl
+      if (su.signedUrl && su.path) urlMap[su.path] = su.signedUrl
     }
 
     attachmentsWithUrls = filteredAttachments.map((att: Record<string, unknown>) => ({
