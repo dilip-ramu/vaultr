@@ -130,9 +130,9 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           fmtDate(t.date),
           t.type,
           t.name ?? '—',
-          t.category?.name ?? '—',
-          t.payee?.name ?? '—',
-          t.account?.name ?? '—',
+          t.category_name ?? '—',
+          t.payee_name ?? '—',
+          t.account_name ?? '—',
           fmtAmt(t.amount, t.currency === 'INR' ? 'Rs.' : (t.currency + ' ')),
         ])}
       />

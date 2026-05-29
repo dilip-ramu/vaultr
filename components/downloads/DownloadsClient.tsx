@@ -50,8 +50,8 @@ function buildCSVs(data: Record<string, any[]>): Record<string, string> {
   out['transactions'] = csv(
     ['Date', 'Type', 'Description', 'Category', 'Payee', 'Account', 'Account Type', 'Amount', 'Currency', 'Notes'],
     rows('transactions', t => [
-      fmtDate(t.date), t.type, t.name, safe(t.category?.name), safe(t.payee?.name),
-      safe(t.account?.name), safe(t.account?.type), t.amount, safe(t.currency), safe(t.notes),
+      fmtDate(t.date), t.type, t.name, safe(t.category_name), safe(t.payee_name),
+      safe(t.account_name), safe(t.account_type), t.amount, safe(t.currency), safe(t.notes),
     ])
   )
 
@@ -73,7 +73,7 @@ function buildCSVs(data: Record<string, any[]>): Record<string, string> {
   out['supplier_invoices'] = csv(
     ['Invoice Number', 'Supplier', 'Invoice Date', 'Due Date', 'Total Amount', 'Category', 'Status'],
     rows('supplier_invoices', inv => [
-      inv.invoice_number, safe(inv.supplier?.name), fmtDate(inv.invoice_date), fmtDate(inv.due_date),
+      inv.invoice_number, safe(inv.supplier_name), fmtDate(inv.invoice_date), fmtDate(inv.due_date),
       inv.total_amount, safe(inv.category), inv.status,
     ])
   )
@@ -81,7 +81,7 @@ function buildCSVs(data: Record<string, any[]>): Record<string, string> {
   out['contrast_expenses'] = csv(
     ['Date', 'Description', 'Category', 'Billing Category', 'Amount (INR)', 'Notes'],
     rows('contrast_expenses', e => [
-      fmtDate(e.date), e.name, safe(e.category?.name), safe(e.billing_category?.name), e.amount, safe(e.notes),
+      fmtDate(e.date), e.name, safe(e.category_name), safe(e.billing_category_name), e.amount, safe(e.notes),
     ])
   )
 
