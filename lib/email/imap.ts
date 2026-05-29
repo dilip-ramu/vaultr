@@ -44,12 +44,12 @@ export async function checkMailbox(opts: {
 
     for (const seq of toProcess) {
       try {
-        const msgResult = await client.fetchOne(String(seq), { source: true })
-        if (!msgResult || msgResult === false) continue
-        const msg = msgResult as { source: Buffer }
-        if (!msg.source) continue
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const msgResult = await client.fetchOne(String(seq), { source: true }) as any
+        if (!msgResult?.source) continue
+        const msgSource = msgResult.source as Buffer
 
-        const parsed = await simpleParser(msg.source)
+        const parsed = await simpleParser(msgSource)
         const fromAddr = parsed.from?.value?.[0]?.address?.toLowerCase() ?? ''
         const fromName = parsed.from?.value?.[0]?.name ?? ''
 
