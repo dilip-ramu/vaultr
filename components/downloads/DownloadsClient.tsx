@@ -171,7 +171,8 @@ export default function DownloadsClient() {
         import('react'),
       ])
       const pdfBlob2 = await pdf(
-        React.createElement(ExportReportPDF, { data })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        React.createElement(ExportReportPDF, { data }) as any
       ).toBlob()
 
       // 4. Create ZIP
