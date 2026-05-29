@@ -158,6 +158,13 @@ export default function DownloadsClient() {
       if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to fetch data')
       const data = await res.json()
 
+      // Surface any partial query failures
+      if (data.query_errors && Object.keys(data.query_errors).length > 0) {
+        console.warn('[Export] Some queries had errors:', data.query_errors)
+        const failedModules = Object.keys(data.query_errors).join(', ')
+        setError(`Warning: some modules had query errors and will export empty — ${failedModules}. Check console for details.`)
+      }
+
       // 2. Generate CSVs
       setStatus('generating')
       setStatusMsg('Building CSV files…')

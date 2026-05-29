@@ -12,16 +12,16 @@ export async function POST(req: Request) {
     txRes, acRes, riRes, siRes, ceRes, ciRes, peRes, stRes, blRes,
   ] = await Promise.all([
 
-    // Transactions
+    // Transactions — use * to avoid missing-column errors on optional fields
     supabase.from('transactions')
-      .select('id, date, type, name, amount, currency, notes, category:categories(name), payee:payees(name), account:accounts(name, type)')
+      .select('*, category:categories(name), payee:payees(name), account:accounts(name, type)')
       .eq('user_id', user.id)
       .gte('date', from).lte('date', to)
       .order('date', { ascending: false }),
 
-    // Bank accounts (point-in-time — no date filter)
+    // Bank accounts — use * so we get whatever columns exist
     supabase.from('accounts')
-      .select('id, name, type, balance, account_number, bank_name, currency, is_active')
+      .select('*')
       .eq('user_id', user.id)
       .order('name'),
 
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
     // Supplier invoices
     supabase.from('supplier_invoices')
-      .select('id, invoice_number, invoice_date, due_date, total_amount, status, category, supplier:suppliers(name)')
+      .select('*, supplier:suppliers(name)')
       .eq('user_id', user.id)
       .gte('invoice_date', from).lte('invoice_date', to)
       .order('invoice_date', { ascending: false }),
@@ -54,40 +54,53 @@ export async function POST(req: Request) {
       .gte('invoice_date', from).lte('invoice_date', to)
       .order('invoice_date', { ascending: false }),
 
-    // Payroll entries (joined to months, filtered by payroll_month)
+    // Payroll entries
     supabase.from('payroll_entries')
-      .select(`
-        salary_euro, expended_rate, salary_inr,
-        allowances, overtime, incentives, deductions, advance, final_payable,
-        employee:employees(name, employee_id, designation),
-        payroll_month:payroll_months(payroll_month, is_finalized, is_paid, payment_date)
-      `)
+      .select('*, employee:employees(name, employee_id, designation), payroll_month:payroll_months(payroll_month, is_finalized, is_paid, payment_date)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
 
-    // Staff (all employees — point-in-time)
+    // Staff — use * so new columns (account_type etc.) are included automatically
     supabase.from('employees')
-      .select('employee_id, name, designation, salary_euro, account_number, ifsc, bank_name, branch, is_active, joining_date')
+      .select('*')
       .eq('user_id', user.id)
       .order('name'),
 
     // Bills & subscriptions
     supabase.from('bills')
-      .select('id, name, amount, currency, due_date, status, notes, direction, frequency')
+      .select('*')
       .eq('user_id', user.id)
       .order('due_date', { ascending: false }),
   ])
 
+  // Log any query errors server-side for debugging
+  const errors: Record<string, string> = {}
+  if (txRes.error)  errors.transactions        = txRes.error.message
+  if (acRes.error)  errors.accounts            = acRes.error.message
+  if (riRes.error)  errors.recoverable_invoices = riRes.error.message
+  if (siRes.error)  errors.supplier_invoices   = siRes.error.message
+  if (ceRes.error)  errors.contrast_expenses   = ceRes.error.message
+  if (ciRes.error)  errors.contrast_invoices   = ciRes.error.message
+  if (peRes.error)  errors.payroll_entries     = peRes.error.message
+  if (stRes.error)  errors.staff               = stRes.error.message
+  if (blRes.error)  errors.bills               = blRes.error.message
+
+  if (Object.keys(errors).length > 0) {
+    console.error('[downloads/export] query errors:', errors)
+  }
+
   return NextResponse.json({
-    transactions:        txRes.data  ?? [],
-    accounts:            acRes.data  ?? [],
-    recoverable_invoices: riRes.data ?? [],
-    supplier_invoices:   siRes.data  ?? [],
-    contrast_expenses:   ceRes.data  ?? [],
-    contrast_invoices:   ciRes.data  ?? [],
-    payroll_entries:     peRes.data  ?? [],
-    staff:               stRes.data  ?? [],
-    bills:               blRes.data  ?? [],
+    transactions:         txRes.data  ?? [],
+    accounts:             acRes.data  ?? [],
+    recoverable_invoices: riRes.data  ?? [],
+    supplier_invoices:    siRes.data  ?? [],
+    contrast_expenses:    ceRes.data  ?? [],
+    contrast_invoices:    ciRes.data  ?? [],
+    payroll_entries:      peRes.data  ?? [],
+    staff:                stRes.data  ?? [],
+    bills:                blRes.data  ?? [],
     meta: { from, to, exported_at: new Date().toISOString() },
+    // Include query errors in response so the client can surface them
+    query_errors: Object.keys(errors).length > 0 ? errors : undefined,
   })
 }
