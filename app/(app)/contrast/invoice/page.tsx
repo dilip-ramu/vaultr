@@ -14,16 +14,15 @@ export default async function ContrastInvoicePage() {
     .eq('id', user!.id)
     .single()
 
-  // Get Contrast payee id (for expenses)
-  const { data: contrastPayees } = await supabase
-    .from('payees')
-    .select('id, name')
+  // ── Active employees (for salary lines) ───────────────────────────────────
+  const { data: employees } = await supabase
+    .from('employees')
+    .select('id, name, salary_euro, designation')
     .eq('user_id', user!.id)
-    .ilike('name', '%contrast%')
+    .eq('is_active', true)
     .order('name')
-  const contrastPayee = contrastPayees?.[0] ?? null
 
-  // Get Contrast customer id (for courier bills)
+  // ── Contrast customer (for recoverable invoice matching) ──────────────────
   const { data: contrastCustomers } = await supabase
     .from('customers')
     .select('id, name')
@@ -32,8 +31,30 @@ export default async function ContrastInvoicePage() {
     .order('name')
   const contrastCustomer = contrastCustomers?.[0] ?? null
 
-  // Queued expenses — only those WITH a billing category assigned
-  // (assigning a billing category in Contrast Expenses = queuing for invoice)
+  // ── Unlinked courier (recoverable) invoices for Contrast ──────────────────
+  // These are invoices in the Recoverables module sent to Contrast Company A/S
+  // that haven't been included in a proforma invoice yet.
+  const { data: courierInvoices } = contrastCustomer
+    ? await supabase
+        .from('recoverable_invoices')
+        .select('id, invoice_number, total, invoice_date, status, customer_name')
+        .eq('user_id', user!.id)
+        .eq('customer_id', contrastCustomer.id)
+        .is('contrast_invoice_id', null)
+        .not('status', 'eq', 'cancelled')
+        .order('invoice_date', { ascending: false })
+    : { data: [] }
+
+  // ── Contrast payee (for expense transactions) ─────────────────────────────
+  const { data: contrastPayees } = await supabase
+    .from('payees')
+    .select('id, name')
+    .eq('user_id', user!.id)
+    .ilike('name', '%contrast%')
+    .order('name')
+  const contrastPayee = contrastPayees?.[0] ?? null
+
+  // ── Queued expenses — categorized, unbilled ───────────────────────────────
   const { data: queuedExpenses } = contrastPayee
     ? await supabase
         .from('transactions')
@@ -51,7 +72,7 @@ export default async function ContrastInvoicePage() {
         .order('date', { ascending: false })
     : { data: [] }
 
-  // Count of unbilled expenses WITHOUT a billing category (to show a nudge)
+  // ── Count of uncategorized expenses (nudge banner) ────────────────────────
   const { count: uncategorizedCount } = contrastPayee
     ? await supabase
         .from('transactions')
@@ -63,38 +84,11 @@ export default async function ContrastInvoicePage() {
         .is('contrast_billing_category_id', null)
     : { count: 0 }
 
-  // All unbilled courier bills sent TO Contrast customer (direction = 'sent')
-  const { data: allCourierBills } = contrastCustomer
-    ? await supabase
-        .from('bills')
-        .select('id, name, amount, due_date, status, contrast_invoice_id')
-        .eq('user_id', user!.id)
-        .eq('customer_id', contrastCustomer.id)
-        .eq('direction', 'sent')
-        .eq('status', 'pending')
-        .is('contrast_invoice_id', null)
-        .order('due_date', { ascending: false })
-    : { data: [] }
-
-  // All payroll months — finalized OR not. Invoice is created before payroll
-  // is finalized (forex rate is only known after Contrast payment is received).
-  const { data: payrollMonths } = await supabase
-    .from('payroll_months')
-    .select(`
-      id, payroll_month, payment_date, billed_euros, expended_rate, is_finalized,
-      entries:payroll_entries(
-        id, salary_euro, expended_rate, salary_inr, final_payable,
-        employee:payroll_employees(id, name)
-      )
-    `)
-    .eq('user_id', user!.id)
-    .order('payroll_month', { ascending: false })
-
   return (
     <ContrastInvoiceClient
+      employees={(employees ?? []) as never[]}
+      courierInvoices={(courierInvoices ?? []) as never[]}
       allExpenses={(queuedExpenses ?? []) as never[]}
-      allCourierBills={(allCourierBills ?? []) as never[]}
-      payrollMonths={(payrollMonths ?? []) as never[]}
       companyName={profile?.full_name ?? ''}
       uncategorizedCount={uncategorizedCount ?? 0}
     />

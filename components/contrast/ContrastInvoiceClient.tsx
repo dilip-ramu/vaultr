@@ -29,32 +29,20 @@ function fmtInr(n: number) {
 function round2(n: number) { return Math.round(n * 100) / 100 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface PayrollEntry {
-  id: string
-  salary_euro: number
-  expended_rate: number
-  salary_inr: number
-  final_payable: number
-  employee: { id: string; name: string }
-}
-
-interface PayrollMonth {
-  id: string
-  payroll_month: string
-  payment_date: string | null
-  billed_euros: number
-  expended_rate: number
-  is_finalized: boolean
-  entries: PayrollEntry[]
-}
-
-interface CourierBill {
+interface Employee {
   id: string
   name: string
-  amount: number    // INR
-  due_date: string
+  salary_euro: number
+  designation?: string | null
+}
+
+interface CourierInvoice {
+  id: string
+  invoice_number: string
+  total: number      // INR
+  invoice_date: string
   status: string
-  contrast_invoice_id: string | null
+  customer_name?: string
 }
 
 interface ExpenseTx {
@@ -71,20 +59,20 @@ interface ExpenseTx {
 
 interface ManualLine {
   description: string
-  amount: number    // EUR (entered directly)
+  amount: number    // EUR
 }
 
 interface Props {
-  allExpenses: ExpenseTx[]        // categorized, unbilled
-  allCourierBills: CourierBill[]
-  payrollMonths: PayrollMonth[]
+  employees: Employee[]
+  courierInvoices: CourierInvoice[]
+  allExpenses: ExpenseTx[]
   companyName: string
   uncategorizedCount: number
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function ContrastInvoiceClient({
-  allExpenses, allCourierBills, payrollMonths, companyName, uncategorizedCount,
+  employees, courierInvoices, allExpenses, companyName, uncategorizedCount,
 }: Props) {
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -99,39 +87,34 @@ export default function ContrastInvoiceClient({
   const forexRateNum = parseFloat(forexRate) || 0
   const hasValidRate = forexRateNum > 0
 
-  // Manual EUR lines (staff paid / not in system)
+  // Manual EUR lines (ad-hoc items not tracked in the system)
   const [manualLines, setManualLines] = useState<ManualLine[]>([])
   const [newDesc, setNewDesc] = useState('')
   const [newAmount, setNewAmount] = useState('')
 
-  // Selection state — all items selected by default
+  // ── Selection state — all items selected by default ───────────────────────
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(
+    () => new Set(employees.map(e => e.id))
+  )
   const [selectedCourierIds, setSelectedCourierIds] = useState<Set<string>>(
-    () => new Set(allCourierBills.map(b => b.id))
-  )
-  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(
-    () => new Set(payrollMonths[0]?.entries?.map(e => e.id) ?? [])
+    () => new Set(courierInvoices.map(ci => ci.id))
   )
 
-  const allCouriers = allCourierBills
-  // Most recent payroll month (finalized or not — invoice comes before finalization)
-  const latestPayroll = payrollMonths.length > 0 ? payrollMonths[0] : null
-
-  // Selected subsets (what actually goes into the invoice)
+  const selectedEmployees = useMemo(
+    () => employees.filter(e => selectedEmployeeIds.has(e.id)),
+    [employees, selectedEmployeeIds]
+  )
   const selectedCouriers = useMemo(
-    () => allCouriers.filter(b => selectedCourierIds.has(b.id)),
-    [allCouriers, selectedCourierIds]
-  )
-  const selectedEntries = useMemo(
-    () => (latestPayroll?.entries ?? []).filter(e => selectedEntryIds.has(e.id)),
-    [latestPayroll, selectedEntryIds]
+    () => courierInvoices.filter(ci => selectedCourierIds.has(ci.id)),
+    [courierInvoices, selectedCourierIds]
   )
 
+  const toggleEmployee = (id: string) =>
+    setSelectedEmployeeIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   const toggleCourier = (id: string) =>
     setSelectedCourierIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
-  const toggleEntry = (id: string) =>
-    setSelectedEntryIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
 
-  // Expenses grouped by billing category
+  // ── Expenses grouped by billing category ─────────────────────────────────
   const expenseByCategory = useMemo(() => {
     const map: Record<string, { name: string; amountInr: number; ids: string[] }> = {}
     for (const e of allExpenses) {
@@ -144,16 +127,19 @@ export default function ContrastInvoiceClient({
     return Object.values(map)
   }, [allExpenses])
 
-  // ── EUR Totals (based on selected items only) ─────────────────────────────
-  // Salaries: already in EUR (salary_euro field)
-  const salaryEurTotal = useMemo(() =>
-    selectedEntries.reduce((s, e) => s + (e.salary_euro || 0), 0),
-    [selectedEntries]
+  // ── EUR Totals (selected items only) ─────────────────────────────────────
+  const salaryEurTotal = useMemo(
+    () => selectedEmployees.reduce((s, e) => s + (e.salary_euro || 0), 0),
+    [selectedEmployees]
   )
-  // INR totals (for display / reference)
-  const courierInrTotal = useMemo(() => selectedCouriers.reduce((s, b) => s + b.amount, 0), [selectedCouriers])
-  const expenseInrTotal = useMemo(() => allExpenses.reduce((s, e) => s + e.amount, 0), [allExpenses])
-  // EUR conversions
+  const courierInrTotal = useMemo(
+    () => selectedCouriers.reduce((s, ci) => s + ci.total, 0),
+    [selectedCouriers]
+  )
+  const expenseInrTotal = useMemo(
+    () => allExpenses.reduce((s, e) => s + e.amount, 0),
+    [allExpenses]
+  )
   const courierEurTotal = hasValidRate ? round2(courierInrTotal / forexRateNum) : 0
   const expenseEurTotal = hasValidRate ? round2(expenseInrTotal / forexRateNum) : 0
   const manualEurTotal  = useMemo(() => manualLines.reduce((s, l) => s + l.amount, 0), [manualLines])
@@ -171,7 +157,7 @@ export default function ContrastInvoiceClient({
   }
   const removeManualLine = (i: number) => setManualLines(prev => prev.filter((_, idx) => idx !== i))
 
-  // ── Finalize: create + finalize invoice in one shot ───────────────────────
+  // ── Finalize: create draft → build items → finalize in one shot ───────────
   const handleFinalize = async () => {
     if (!hasValidRate && (selectedCouriers.length > 0 || allExpenses.length > 0)) {
       setError('Enter the forex rate (INR per EUR) to convert courier charges and expenses.')
@@ -193,26 +179,26 @@ export default function ContrastInvoiceClient({
       let sortOrder = 0
       const items: ContrastInvoiceData['items'] = []
 
-      // Salary lines — EUR direct from salary_euro (selected entries only)
-      for (const entry of selectedEntries) {
+      // Salary lines — EUR direct from employee.salary_euro
+      for (const emp of selectedEmployees) {
         items.push({
           item_type: 'salary',
-          description: `Salary for ${entry.employee.name}`,
-          salary_euro: entry.salary_euro,
-          amount_inr: round2(entry.salary_euro || 0),   // stores EUR
+          description: `Salary for ${emp.name}`,
+          salary_euro: emp.salary_euro,
+          amount_inr: round2(emp.salary_euro || 0),
           sort_order: sortOrder++,
         })
       }
 
-      // Courier lines — INR converted to EUR (selected bills only)
-      for (const bill of selectedCouriers) {
-        const eurAmt = round2(bill.amount / forexRateNum)
+      // Courier lines — INR converted to EUR (from recoverable invoices)
+      for (const ci of selectedCouriers) {
+        const eurAmt = round2(ci.total / forexRateNum)
         items.push({
           item_type: 'courier',
-          description: `Courier Charges${bill.name ? ` – ${bill.name}` : ''}`,
-          amount_inr: eurAmt,          // stores EUR
-          inr_source: bill.amount,     // display only — stripped before DB insert
-          forex_rate: forexRateNum,    // display only — stripped before DB insert
+          description: `Courier Invoice ${ci.invoice_number}`,
+          amount_inr: eurAmt,
+          inr_source: ci.total,
+          forex_rate: forexRateNum,
           sort_order: sortOrder++,
         })
       }
@@ -223,9 +209,9 @@ export default function ContrastInvoiceClient({
         items.push({
           item_type: 'expense',
           description: cat.name,
-          amount_inr: eurAmt,          // stores EUR
-          inr_source: cat.amountInr,   // display only
-          forex_rate: forexRateNum,    // display only
+          amount_inr: eurAmt,
+          inr_source: cat.amountInr,
+          forex_rate: forexRateNum,
           sort_order: sortOrder++,
         })
       }
@@ -235,20 +221,24 @@ export default function ContrastInvoiceClient({
         items.push({
           item_type: 'expense',
           description: line.description,
-          amount_inr: line.amount,     // EUR
+          amount_inr: line.amount,
           sort_order: sortOrder++,
         })
       }
 
-      // Step 3: Finalize immediately
+      // Step 3: Finalize
       const finalRes = await fetch(`/api/contrast/invoices/${inv.id}/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items,
           transaction_ids: allExpenses.map(e => e.id),
-          bill_ids: selectedCouriers.map(b => b.id),
-          payroll_month_ids: latestPayroll && selectedEntries.length > 0 ? [latestPayroll.id] : [],
+          recoverable_invoice_ids: selectedCouriers.map(ci => ci.id),
+          salary_employees: selectedEmployees.map(e => ({
+            employee_id: e.id,
+            salary_euro: e.salary_euro,
+          })),
+          invoice_month: currentMonth,
         }),
       })
       if (!finalRes.ok) throw new Error((await finalRes.json()).error ?? 'Finalize failed')
@@ -272,7 +262,7 @@ export default function ContrastInvoiceClient({
     }
   }
 
-  const hasSalaries = selectedEntries.length > 0
+  const hasSalaries = selectedEmployees.length > 0
   const hasAnything = allExpenses.length > 0 || selectedCouriers.length > 0 || hasSalaries || manualLines.length > 0
   const needsRate   = !hasValidRate && (selectedCouriers.length > 0 || allExpenses.length > 0)
 
@@ -287,7 +277,9 @@ export default function ContrastInvoiceClient({
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Contrast Invoice</h1>
-          <p className="text-sm text-gray-500">Invoice in EUR — salaries direct, expenses converted via forex rate.</p>
+          <p className="text-sm text-gray-500">
+            Invoice for <strong>{monthLabel(currentMonth)}</strong> · EUR · salaries direct, expenses via forex rate
+          </p>
         </div>
       </div>
 
@@ -304,7 +296,7 @@ export default function ContrastInvoiceClient({
         </div>
       )}
 
-      {/* ── Forex Rate Input ──────────────────────────────────────────────────── */}
+      {/* ── Forex Rate ───────────────────────────────────────────────────────── */}
       <div className={`bg-white border rounded-2xl p-5 shadow-sm ${needsRate ? 'border-amber-300' : 'border-gray-100'}`}>
         <div className="flex items-end gap-4">
           <div className="flex-1">
@@ -334,9 +326,9 @@ export default function ContrastInvoiceClient({
               )}
             </div>
           </div>
-          {(allCouriers.length > 0 || allExpenses.length > 0) && hasValidRate && (
+          {(selectedCouriers.length > 0 || allExpenses.length > 0) && hasValidRate && (
             <div className="text-right text-xs text-gray-400 space-y-0.5 pb-2">
-              {allCouriers.length > 0 && <p>{fmtInr(courierInrTotal)} → {fmtEur(courierEurTotal)}</p>}
+              {selectedCouriers.length > 0 && <p>{fmtInr(courierInrTotal)} → {fmtEur(courierEurTotal)}</p>}
               {allExpenses.length > 0 && <p>{fmtInr(expenseInrTotal)} → {fmtEur(expenseEurTotal)}</p>}
             </div>
           )}
@@ -351,54 +343,46 @@ export default function ContrastInvoiceClient({
       {/* ── Sections ─────────────────────────────────────────────────────────── */}
       <div className="space-y-3">
 
-        {/* Salaries — already in EUR */}
+        {/* ── Salaries — from Staff Particulars (active employees) ── */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-indigo-50">
             <Users className="w-4 h-4 text-indigo-600" />
             <span className="text-sm font-semibold text-indigo-700">Salaries</span>
-            {latestPayroll && (
-              <span className="text-xs text-indigo-400 ml-1">({monthLabel(latestPayroll.payroll_month)})</span>
-            )}
-            {latestPayroll && !latestPayroll.is_finalized && (
-              <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg ml-1">
-                <AlertCircle className="w-3 h-3" />
-                Not yet finalized — finalize after receiving Contrast payment
-              </span>
-            )}
+            <span className="text-xs text-indigo-400 ml-1">({employees.length} active staff)</span>
+            <span className="text-xs text-indigo-300 ml-1">· payroll month auto-created on finalize</span>
             <span className="ml-auto text-sm font-bold text-indigo-700">{fmtEur(salaryEurTotal)}</span>
           </div>
-          {!latestPayroll ? (
+          {employees.length === 0 ? (
             <div className="flex items-center gap-2 px-5 py-4 text-sm text-gray-400">
               <Info className="w-4 h-4 text-gray-300" />
-              No payroll month found. Set up staff in Monthly Processing first.
-            </div>
-          ) : (latestPayroll.entries ?? []).length === 0 ? (
-            <div className="flex items-center gap-2 px-5 py-4 text-sm text-gray-400">
-              <Info className="w-4 h-4 text-gray-300" />
-              No entries for {monthLabel(latestPayroll.payroll_month)} — process payroll first.
+              No active staff found.{' '}
+              <a href="/payroll/staff" className="text-indigo-600 hover:underline ml-1">Add staff in Staff Particulars →</a>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {latestPayroll.entries.map(entry => {
-                const checked = selectedEntryIds.has(entry.id)
+              {employees.map(emp => {
+                const checked = selectedEmployeeIds.has(emp.id)
                 return (
                   <div
-                    key={entry.id}
+                    key={emp.id}
                     className={`flex items-center px-5 py-3 gap-4 cursor-pointer hover:bg-gray-50 transition-colors ${!checked ? 'opacity-40' : ''}`}
-                    onClick={() => !isFinalized && toggleEntry(entry.id)}
+                    onClick={() => !isFinalized && toggleEmployee(emp.id)}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleEntry(entry.id)}
+                      onChange={() => toggleEmployee(emp.id)}
                       disabled={isFinalized}
                       onClick={e => e.stopPropagation()}
                       className="w-4 h-4 accent-indigo-600 cursor-pointer"
                     />
-                    <span className="flex-1 text-sm text-gray-800">Salary for {entry.employee.name}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800">{emp.name}</p>
+                      {emp.designation && <p className="text-xs text-gray-400">{emp.designation}</p>}
+                    </div>
                     <span className="text-xs text-gray-400">EUR salary</span>
                     <span className="text-sm font-medium text-gray-900 w-32 text-right">
-                      {fmtEur(entry.salary_euro || 0)}
+                      {fmtEur(emp.salary_euro || 0)}
                     </span>
                   </div>
                 )
@@ -407,45 +391,50 @@ export default function ContrastInvoiceClient({
           )}
         </div>
 
-        {/* Courier charges — INR → EUR */}
+        {/* ── Courier charges — from Recoverable Invoices ── */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-blue-50">
             <Truck className="w-4 h-4 text-blue-600" />
             <span className="text-sm font-semibold text-blue-700">Courier Charges</span>
-            <span className="text-xs text-blue-400 ml-1">(all pending)</span>
-            {hasValidRate && allCouriers.length > 0 && (
+            <span className="text-xs text-blue-400 ml-1">(from Recoverables — Contrast invoices)</span>
+            {hasValidRate && selectedCouriers.length > 0 && (
               <span className="text-xs text-blue-400 ml-1">· {fmtInr(courierInrTotal)} → <strong>{fmtEur(courierEurTotal)}</strong></span>
             )}
             <span className="ml-auto text-sm font-bold text-blue-700">
               {hasValidRate ? fmtEur(courierEurTotal) : fmtInr(courierInrTotal)}
             </span>
           </div>
-          {allCouriers.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-gray-400">No pending courier charges linked to Contrast.</p>
+          {courierInvoices.length === 0 ? (
+            <div className="px-5 py-4 text-sm text-gray-400">
+              No pending courier invoices for Contrast.{' '}
+              <a href="/recoverables" className="text-indigo-600 hover:underline">Create in Recoverables →</a>
+            </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {allCouriers.map(bill => {
-                const checked = selectedCourierIds.has(bill.id)
+              {courierInvoices.map(ci => {
+                const checked = selectedCourierIds.has(ci.id)
                 return (
                   <div
-                    key={bill.id}
+                    key={ci.id}
                     className={`flex items-center px-5 py-3 gap-3 cursor-pointer hover:bg-gray-50 transition-colors ${!checked ? 'opacity-40' : ''}`}
-                    onClick={() => !isFinalized && toggleCourier(bill.id)}
+                    onClick={() => !isFinalized && toggleCourier(ci.id)}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleCourier(bill.id)}
+                      onChange={() => toggleCourier(ci.id)}
                       disabled={isFinalized}
                       onClick={e => e.stopPropagation()}
                       className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
-                    <span className="flex-1 text-sm text-gray-800">{bill.name || 'Courier Charge'}</span>
-                    <span className="text-xs text-gray-400">{bill.due_date}</span>
-                    <span className="text-sm text-gray-500 w-28 text-right">{fmtInr(bill.amount)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800">{ci.invoice_number}</p>
+                      <p className="text-xs text-gray-400">{ci.invoice_date} · {ci.status}</p>
+                    </div>
+                    <span className="text-sm text-gray-500 w-28 text-right">{fmtInr(ci.total)}</span>
                     {hasValidRate && (
                       <span className="text-sm font-medium text-gray-900 w-28 text-right">
-                        {fmtEur(round2(bill.amount / forexRateNum))}
+                        {fmtEur(round2(ci.total / forexRateNum))}
                       </span>
                     )}
                   </div>
@@ -455,7 +444,7 @@ export default function ContrastInvoiceClient({
           )}
         </div>
 
-        {/* Operational expenses — INR → EUR */}
+        {/* ── Operational expenses ── */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-purple-50">
             <FileText className="w-4 h-4 text-purple-600" />
@@ -491,7 +480,7 @@ export default function ContrastInvoiceClient({
           )}
         </div>
 
-        {/* Manual / additional lines — entered in EUR */}
+        {/* ── Additional / manual items ── */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-orange-50">
             <Plus className="w-4 h-4 text-orange-600" />
@@ -532,8 +521,7 @@ export default function ContrastInvoiceClient({
                 disabled={!newDesc.trim() || !newAmount || parseFloat(newAmount) <= 0 || isFinalized}
                 className="flex items-center gap-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40"
               >
-                <Plus className="w-4 h-4" />
-                Add
+                <Plus className="w-4 h-4" /> Add
               </button>
             </div>
             {manualLines.length > 0 ? (
@@ -551,7 +539,7 @@ export default function ContrastInvoiceClient({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-400">Add EUR amounts for items not tracked in Contrast Expenses.</p>
+              <p className="text-xs text-gray-400">Add EUR amounts for items not tracked in the system.</p>
             )}
           </div>
         </div>
@@ -601,12 +589,12 @@ export default function ContrastInvoiceClient({
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 space-y-1">
           <p className="text-sm text-red-700">{error}</p>
           <p className="text-xs text-red-500">
-            If expenses disappeared but no PDF was shown, check{' '}
+            If items disappeared but no PDF was shown, check{' '}
             <a href="/contrast/history" className="underline font-medium">Invoice History</a>
-            {' '}— the invoice may have saved successfully despite the error.
-            If it&apos;s not there, go to{' '}
+            {' '}— the invoice may have saved despite the error.
+            If not there, go to{' '}
             <a href="/contrast" className="underline font-medium">Contrast Expenses</a>
-            {' '}and use &quot;Mark unbilled&quot; to restore any affected transactions.
+            {' '}and use &quot;Mark unbilled&quot; to restore transactions.
           </p>
         </div>
       )}
@@ -621,7 +609,7 @@ export default function ContrastInvoiceClient({
         <div className="bg-green-50 border border-green-200 rounded-2xl p-5 space-y-3">
           <div className="flex items-center gap-2 text-green-700 font-semibold text-sm">
             <CheckCircle2 className="w-5 h-5" />
-            Invoice finalized — all items marked as billed. Finalize payroll after receiving payment.
+            Invoice finalized — payroll month created, all items marked as billed. Finalize payroll after receiving payment.
           </div>
           <div className="flex items-center gap-3">
             <ContrastInvoicePDFDownload
@@ -632,13 +620,16 @@ export default function ContrastInvoiceClient({
             <a href="/contrast/history" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
               View Invoice History →
             </a>
+            <a href="/payroll/monthly" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">
+              Monthly Processing →
+            </a>
           </div>
         </div>
       ) : (
         <div className="flex items-center gap-3">
           <button
             onClick={handleFinalize}
-            disabled={finalizing || (needsRate)}
+            disabled={finalizing || needsRate}
             title={needsRate ? 'Enter forex rate above to proceed' : undefined}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
           >
@@ -652,7 +643,7 @@ export default function ContrastInvoiceClient({
             <p className="text-xs text-amber-600">Enter forex rate to enable</p>
           ) : (
             <p className="text-xs text-gray-400">
-              Saves invoice · marks all items billed · generates EUR PDF
+              Saves invoice · marks items billed · auto-creates payroll month · generates PDF
             </p>
           )}
         </div>

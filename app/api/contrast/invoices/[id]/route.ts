@@ -55,9 +55,9 @@ export async function DELETE(
     .eq('contrast_invoice_id', id)
     .eq('user_id', user.id)
 
-  // 2. Unlink courier bills
+  // 2. Unlink courier (recoverable) invoices
   await supabase
-    .from('bills')
+    .from('recoverable_invoices')
     .update({ contrast_invoice_id: null })
     .eq('contrast_invoice_id', id)
     .eq('user_id', user.id)
