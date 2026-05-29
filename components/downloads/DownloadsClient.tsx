@@ -43,79 +43,75 @@ function safe(v: any) { return v ?? '' }
 function buildCSVs(data: Record<string, any[]>): Record<string, string> {
   const out: Record<string, string> = {}
 
-  // Transactions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = (key: string, fn: (r: any) => (string | number | null | undefined)[]) =>
+    (data[key] ?? []).map(fn)
+
   out['transactions'] = csv(
     ['Date', 'Type', 'Description', 'Category', 'Payee', 'Account', 'Account Type', 'Amount', 'Currency', 'Notes'],
-    data.transactions?.map((t: never & { date: string; type: string; name: string; category?: { name: string }; payee?: { name: string }; account?: { name: string; type: string }; amount: number; currency: string; notes: string | null }) => [
+    rows('transactions', t => [
       fmtDate(t.date), t.type, t.name, safe(t.category?.name), safe(t.payee?.name),
       safe(t.account?.name), safe(t.account?.type), t.amount, safe(t.currency), safe(t.notes),
-    ]) ?? []
+    ])
   )
 
-  // Accounts
   out['accounts'] = csv(
     ['Account Name', 'Type', 'Currency', 'Balance', 'Account Number', 'Bank', 'Active'],
-    data.accounts?.map((a: never & { name: string; type: string; currency: string; balance: number; account_number: string | null; bank_name: string | null; is_active: boolean }) => [
+    rows('accounts', a => [
       a.name, a.type, safe(a.currency), a.balance, safe(a.account_number), safe(a.bank_name), a.is_active ? 'Yes' : 'No',
-    ]) ?? []
+    ])
   )
 
-  // Recoverable invoices
   out['recoverable_invoices'] = csv(
     ['Invoice Number', 'Customer', 'Invoice Date', 'Due Date', 'Total (INR)', 'Status', 'Notes'],
-    data.recoverable_invoices?.map((inv: never & { invoice_number: string; customer_name: string; invoice_date: string; due_date: string | null; total: number; status: string; notes: string | null }) => [
+    rows('recoverable_invoices', inv => [
       inv.invoice_number, inv.customer_name, fmtDate(inv.invoice_date), fmtDate(inv.due_date),
       inv.total, inv.status, safe(inv.notes),
-    ]) ?? []
+    ])
   )
 
-  // Supplier invoices
   out['supplier_invoices'] = csv(
     ['Invoice Number', 'Supplier', 'Invoice Date', 'Due Date', 'Total Amount', 'Category', 'Status'],
-    data.supplier_invoices?.map((inv: never & { invoice_number: string; supplier?: { name: string }; invoice_date: string; due_date: string | null; total_amount: number; category: string | null; status: string }) => [
+    rows('supplier_invoices', inv => [
       inv.invoice_number, safe(inv.supplier?.name), fmtDate(inv.invoice_date), fmtDate(inv.due_date),
       inv.total_amount, safe(inv.category), inv.status,
-    ]) ?? []
+    ])
   )
 
-  // Contrast expenses
   out['contrast_expenses'] = csv(
     ['Date', 'Description', 'Category', 'Billing Category', 'Amount (INR)', 'Notes'],
-    data.contrast_expenses?.map((e: never & { date: string; name: string; category?: { name: string }; billing_category?: { name: string }; amount: number; notes: string | null }) => [
+    rows('contrast_expenses', e => [
       fmtDate(e.date), e.name, safe(e.category?.name), safe(e.billing_category?.name), e.amount, safe(e.notes),
-    ]) ?? []
+    ])
   )
 
-  // Contrast invoices
   out['contrast_invoices'] = csv(
     ['Invoice Number', 'Month', 'Invoice Date', 'Subtotal (EUR)', 'GST (EUR)', 'Total (EUR)', 'Status', 'Notes'],
-    data.contrast_invoices?.map((inv: never & { invoice_number: string; invoice_month: string; invoice_date: string; subtotal: number; gst_amount: number; total: number; status: string; notes: string | null }) => [
+    rows('contrast_invoices', inv => [
       inv.invoice_number, inv.invoice_month, fmtDate(inv.invoice_date),
       inv.subtotal, inv.gst_amount, inv.total, inv.status, safe(inv.notes),
-    ]) ?? []
+    ])
   )
 
-  // Payroll entries
   out['payroll'] = csv(
     ['Month', 'Employee', 'Employee ID', 'Designation', 'Salary (EUR)', 'Exchange Rate', 'Salary (INR)', 'Allowances', 'Overtime', 'Incentives', 'Deductions', 'Advance', 'Net Payable (INR)', 'Finalized', 'Paid', 'Payment Date'],
-    data.payroll_entries?.map((e: never & { salary_euro: number; expended_rate: number; salary_inr: number; allowances: number; overtime: number; incentives: number; deductions: number; advance: number; final_payable: number; employee?: { name: string; employee_id: string; designation: string | null }; payroll_month?: { payroll_month: string; is_finalized: boolean; is_paid: boolean; payment_date: string | null } }) => [
+    rows('payroll_entries', e => [
       safe(e.payroll_month?.payroll_month), safe(e.employee?.name), safe(e.employee?.employee_id),
       safe(e.employee?.designation), e.salary_euro, e.expended_rate, e.salary_inr,
       e.allowances, e.overtime, e.incentives, e.deductions, e.advance, e.final_payable,
       e.payroll_month?.is_finalized ? 'Yes' : 'No',
       e.payroll_month?.is_paid ? 'Yes' : 'No',
       fmtDate(e.payroll_month?.payment_date),
-    ]) ?? []
+    ])
   )
 
-  // Staff
   out['staff'] = csv(
     ['Name', 'Employee ID', 'Designation', 'Salary (EUR)', 'Bank', 'Branch', 'Account Number', 'IFSC', 'Active', 'Joining Date'],
-    data.staff?.map((emp: never & { name: string; employee_id: string; designation: string | null; salary_euro: number; bank_name: string | null; branch: string | null; account_number: string | null; ifsc: string | null; is_active: boolean; joining_date: string | null }) => [
+    rows('staff', emp => [
       emp.name, emp.employee_id, safe(emp.designation), emp.salary_euro,
       safe(emp.bank_name), safe(emp.branch), safe(emp.account_number),
       safe(emp.ifsc), emp.is_active ? 'Yes' : 'No', fmtDate(emp.joining_date),
-    ]) ?? []
+    ])
   )
 
   // Bills

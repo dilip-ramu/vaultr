@@ -125,7 +125,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Account',     flex: 1.5 },
           { label: 'Amount',      flex: 1.2, align: 'right' },
         ]}
-        rows={transactions.map((t: never & { date: string; type: string; name: string; category?: { name: string }; payee?: { name: string }; account?: { name: string }; amount: number; currency: string }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={transactions.map((t: any) => [
           fmtDate(t.date),
           t.type,
           t.name ?? '—',
@@ -148,7 +149,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Balance',        flex: 1.2, align: 'right' },
           { label: 'Active',         flex: 0.7 },
         ]}
-        rows={accounts.map((a: never & { name: string; type: string; currency: string; account_number: string | null; bank_name: string | null; balance: number; is_active: boolean }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={accounts.map((a: any) => [
           a.name,
           a.type,
           a.currency ?? 'INR',
@@ -171,7 +173,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Status',       flex: 1 },
           { label: 'Notes',        flex: 2 },
         ]}
-        rows={recoverable_invoices.map((inv: never & { invoice_number: string; customer_name: string; invoice_date: string; due_date: string | null; total: number; status: string; notes: string | null }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={recoverable_invoices.map((inv: any) => [
           inv.invoice_number,
           inv.customer_name,
           fmtDate(inv.invoice_date),
@@ -194,7 +197,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Category',     flex: 1.5 },
           { label: 'Status',       flex: 1 },
         ]}
-        rows={supplier_invoices.map((inv: never & { invoice_number: string; supplier?: { name: string }; invoice_date: string; due_date: string | null; total_amount: number; category: string | null; status: string }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={supplier_invoices.map((inv: any) => [
           inv.invoice_number,
           inv.supplier?.name ?? '—',
           fmtDate(inv.invoice_date),
@@ -216,7 +220,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Amount (INR)',      flex: 1.5, align: 'right' },
           { label: 'Notes',            flex: 2 },
         ]}
-        rows={contrast_expenses.map((e: never & { date: string; name: string; category?: { name: string }; billing_category?: { name: string }; amount: number; notes: string | null }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={contrast_expenses.map((e: any) => [
           fmtDate(e.date),
           e.name ?? '—',
           e.category?.name ?? '—',
@@ -238,7 +243,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Total',        flex: 1.2, align: 'right' },
           { label: 'Status',       flex: 1 },
         ]}
-        rows={contrast_invoices.map((inv: never & { invoice_number: string; invoice_month: string; invoice_date: string; subtotal: number; gst_amount: number; total: number; status: string }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={contrast_invoices.map((inv: any) => [
           inv.invoice_number,
           inv.invoice_month,
           fmtDate(inv.invoice_date),
@@ -262,7 +268,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Net',        flex: 1.5, align: 'right' },
           { label: 'Paid',       flex: 0.7 },
         ]}
-        rows={payroll_entries.map((e: never & { salary_euro: number; expended_rate: number; salary_inr: number; allowances: number; overtime: number; incentives: number; deductions: number; advance: number; final_payable: number; employee?: { name: string }; payroll_month?: { payroll_month: string; is_paid: boolean } }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={payroll_entries.map((e: any) => {
           const adj = (Number(e.allowances) + Number(e.overtime) + Number(e.incentives)) - (Number(e.deductions) + Number(e.advance))
           return [
             e.payroll_month?.payroll_month ?? '—',
@@ -290,7 +297,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'IFSC',          flex: 1.2 },
           { label: 'Active',        flex: 0.7 },
         ]}
-        rows={staff.map((emp: never & { name: string; employee_id: string; designation: string | null; salary_euro: number; bank_name: string | null; account_number: string | null; ifsc: string | null; is_active: boolean }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={staff.map((emp: any) => [
           emp.name,
           emp.employee_id,
           emp.designation ?? '—',
@@ -314,7 +322,8 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           { label: 'Status',     flex: 1 },
           { label: 'Notes',      flex: 2 },
         ]}
-        rows={bills.map((b: never & { name: string; direction: string; frequency: string | null; due_date: string | null; amount: number; currency: string; status: string; notes: string | null }) => [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows={bills.map((b: any) => [
           b.name,
           b.direction,
           b.frequency ?? '—',
