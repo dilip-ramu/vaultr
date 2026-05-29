@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS contrast_billing_categories (
 ALTER TABLE contrast_billing_categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can CRUD own contrast billing categories"
   ON contrast_billing_categories FOR ALL USING (auth.uid() = user_id);
+GRANT ALL ON TABLE contrast_billing_categories TO authenticated;
+GRANT ALL ON TABLE contrast_billing_categories TO anon;
 
 -- Seed common categories (user will add their own too)
 -- (These are inserted per-user on first use in the app, not here)
@@ -38,6 +40,8 @@ CREATE TABLE IF NOT EXISTS contrast_invoices (
 ALTER TABLE contrast_invoices ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can CRUD own contrast invoices"
   ON contrast_invoices FOR ALL USING (auth.uid() = user_id);
+GRANT ALL ON TABLE contrast_invoices TO authenticated;
+GRANT ALL ON TABLE contrast_invoices TO anon;
 
 -- Line items stored for the invoice (snapshot at time of generation)
 CREATE TABLE IF NOT EXISTS contrast_invoice_items (
@@ -50,6 +54,8 @@ CREATE TABLE IF NOT EXISTS contrast_invoice_items (
   amount_inr      DECIMAL(15,2) NOT NULL,
   sort_order      INTEGER NOT NULL DEFAULT 0
 );
+GRANT ALL ON TABLE contrast_invoice_items TO authenticated;
+GRANT ALL ON TABLE contrast_invoice_items TO anon;
 
 -- Track which transactions/payroll months were billed against which invoice
 ALTER TABLE transactions
