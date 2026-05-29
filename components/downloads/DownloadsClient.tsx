@@ -117,10 +117,10 @@ function buildCSVs(data: Record<string, any[]>): Record<string, string> {
   // Bills
   out['bills'] = csv(
     ['Name', 'Direction', 'Frequency', 'Due Date', 'Amount', 'Currency', 'Status', 'Notes'],
-    data.bills?.map((b: never & { name: string; direction: string; frequency: string | null; due_date: string | null; amount: number; currency: string; status: string; notes: string | null }) => [
+    rows('bills', b => [
       b.name, b.direction, safe(b.frequency), fmtDate(b.due_date),
       b.amount, safe(b.currency), b.status, safe(b.notes),
-    ]) ?? []
+    ])
   )
 
   return out
