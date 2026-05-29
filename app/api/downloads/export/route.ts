@@ -119,10 +119,11 @@ export async function POST(req: Request) {
     billing_category_name: cbcMap[tx.contrast_billing_category_id as string]          ?? null,
   }))
 
-  // ── Payroll: enrich entries with employee + month info ─────────────────────
-  const [empRes, pmRes] = await Promise.all([
-    supabase.from('employees').select('id, name, employee_id, designation').eq('user_id', user.id),
-    supabase.from('payroll_months').select('id, payroll_month, is_finalized, is_paid, payment_date').eq('user_id', user.id),
+  // ── Payroll: enrich entries with full employee + month info ───────────────
+  const [empRes, pmRes, settingsRes] = await Promise.all([
+    supabase.from('employees').select('*').eq('user_id', user.id),          // full row — needed for salary slips
+    supabase.from('payroll_months').select('*').eq('user_id', user.id),     // full row
+    supabase.from('recoverable_invoice_settings').select('company_name, company_address').eq('user_id', user.id).maybeSingle(),
   ])
   const empMap = Object.fromEntries((empRes.data ?? []).map((r: Row) => [r.id, r]))
   const pmMap  = Object.fromEntries((pmRes.data  ?? []).map((r: Row) => [r.id, r]))
@@ -205,7 +206,11 @@ export async function POST(req: Request) {
     staff:                stRes.data  ?? [],
     bills:                blRes.data  ?? [],
     attachments:          attachmentsWithUrls,
-    meta: { from, to, exported_at: new Date().toISOString() },
+    meta: {
+      from, to, exported_at: new Date().toISOString(),
+      company_name:    settingsRes.data?.company_name    ?? null,
+      company_address: settingsRes.data?.company_address ?? null,
+    },
     query_errors: Object.keys(errors).length > 0 ? errors : undefined,
   })
 }

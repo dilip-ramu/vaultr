@@ -170,17 +170,45 @@ export default function DownloadsClient() {
       setStatusMsg('Building CSV files…')
       const csvFiles = buildCSVs(data)
 
-      // 3. Generate PDF
+      // 3. Generate main report PDF + individual salary slips
       setStatusMsg('Generating PDF report…')
-      const [{ pdf }, { default: ExportReportPDF }, React] = await Promise.all([
+      const [{ pdf }, { default: ExportReportPDF }, { SalarySlipDocument }, React] = await Promise.all([
         import('@react-pdf/renderer'),
         import('./ExportReportPDF'),
+        import('../payroll/slips/SalarySlipPDF'),
         import('react'),
       ])
       const pdfBlob2 = await pdf(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         React.createElement(ExportReportPDF, { data }) as any
       ).toBlob()
+
+      // Generate individual salary slip PDFs
+      const salarySlipFiles: { name: string; blob: Blob }[] = []
+      const entries = (data.payroll_entries ?? []) as Record<string, unknown>[]
+      if (entries.length > 0) {
+        setStatusMsg(`Generating ${entries.length} salary slip${entries.length !== 1 ? 's' : ''}…`)
+        for (const entry of entries) {
+          const emp = entry.employee as Record<string, unknown> | null
+          const month = entry.payroll_month as Record<string, unknown> | null
+          if (!emp || !month) continue
+          // Only generate slips for finalized months (unfinalized = amounts not confirmed)
+          if (!month.is_finalized) continue
+          try {
+            const slipBlob = await pdf(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              React.createElement(SalarySlipDocument, {
+                entry, month, employee: emp,
+                companyName:    data.meta?.company_name    ?? null,
+                companyAddress: data.meta?.company_address ?? null,
+              }) as any
+            ).toBlob()
+            const safeName = String(emp.name ?? 'Employee').replace(/[/\\:*?"<>|,]+/g, '_')
+            const monthStr = String(month.payroll_month ?? '')
+            salarySlipFiles.push({ name: `SalarySlip_${safeName}_${monthStr}.pdf`, blob: slipBlob })
+          } catch { /* skip individual failures */ }
+        }
+      }
 
       // 4. Download attachments
       const attachments: { folder: string; filename: string; blob: Blob }[] = []
@@ -193,12 +221,10 @@ export default function DownloadsClient() {
             if (!fileRes.ok) continue
             const blob = await fileRes.blob()
 
-            // Build a clean filename from parent record name
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const parentName: string = (att.transaction as any)?.name ?? (att.bill as any)?.name ?? 'attachment'
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const parentDate: string = (att.transaction as any)?.date ?? ''
-            const ext = (att.file_name as string).split('.').pop() ?? 'bin'
+            // parent_name and parent_date are set by the API from the lookup maps
+            const parentName: string = String(att.parent_name ?? 'attachment')
+            const parentDate: string = String(att.parent_date ?? '')
+            const ext = String(att.file_name ?? 'file').split('.').pop() ?? 'bin'
             const safeName = parentName.replace(/[/\\:*?"<>|,\r\n]+/g, '_').trim()
             const filename = parentDate ? `${safeName}_${parentDate}.${ext}` : `${safeName}.${ext}`
             const folder = att.transaction_id ? '10_Attachments/Transactions' : '10_Attachments/Bills'
@@ -238,6 +264,11 @@ export default function DownloadsClient() {
         if (selected.has(key as ModuleKey) && csvFiles[key]) {
           root.file(path, csvFiles[key])
         }
+      }
+
+      // Add salary slips to ZIP
+      for (const { name, blob } of salarySlipFiles) {
+        root.file(`07_Salary_Slips/${name}`, blob)
       }
 
       // Add attachments to ZIP
