@@ -29,7 +29,7 @@ const s = StyleSheet.create({
   totalRow:    { flexDirection: 'row', justifyContent: 'flex-end', padding: '5 6', borderTopWidth: 1, borderTopColor: '#ccc', marginTop: 4 },
   totalLabel:  { fontSize: 8, fontWeight: 'bold', marginRight: 8 },
   totalVal:    { fontSize: 8, fontWeight: 'bold', color: '#1a1a2e' },
-  noData:      { padding: 12, fontSize: 8, color: '#999', fontStyle: 'italic' },
+  noData:      { padding: 12, fontSize: 8, color: '#999' },
   divider:     { marginVertical: 10, borderTopWidth: 0.5, borderTopColor: '#ddd' },
   pageNum:     { position: 'absolute', bottom: 16, right: 36, fontSize: 7, color: '#bbb' },
 })
