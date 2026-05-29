@@ -66,7 +66,7 @@ export async function checkMailbox(opts: {
           const ct = a.contentType.toLowerCase()
           const fn = (a.filename ?? '').toLowerCase()
           const isPdf = ct.includes('pdf') || fn.endsWith('.pdf')
-          const isInline = a.contentDisposition === 'inline' || (a as Record<string, unknown>).related === true
+          const isInline = a.contentDisposition === 'inline' || (a as unknown as Record<string, unknown>).related === true
           return isPdf && !isInline
         })
 
