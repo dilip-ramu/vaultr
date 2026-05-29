@@ -72,7 +72,7 @@ function generateBankCSV(
   }
 
   if (rows.length === 0) return ''
-  return rows.map(r => r.join(',')).join('\n')
+  return rows.map(r => r.join(',') + ';').join('\n')
 }
 
 function triggerCSVDownload(content: string, filename: string) {
