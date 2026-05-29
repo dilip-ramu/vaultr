@@ -611,8 +611,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
               onClick={() => {
                 const csv = generateBankCSV(entries, rowValues, fmtMonth(month.payroll_month))
                 if (!csv) { alert('No eligible entries — check that employees have IFSC code and account number filled in.'); return }
-                const monthStr = fmtMonth(month.payroll_month).replace(/\s+/g, '_')
-                triggerCSVDownload(csv, `Bank_Transfer_${monthStr}.csv`)
+                triggerCSVDownload(csv, 'BULK.csv')
               }}
               className="px-4 py-2 border border-green-400 text-green-700 bg-white rounded-lg text-sm font-medium hover:bg-green-50 transition-colors"
             >
