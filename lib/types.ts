@@ -127,6 +127,8 @@ export interface Transaction {
   notes: string | null
   bill_id: string | null
   is_contrast_billed: boolean
+  contrast_billing_category_id: string | null
+  contrast_invoice_id: string | null
   created_at: string
   account?: Account
   to_account?: Account
@@ -292,6 +294,41 @@ export interface Budget {
   spent?: number
   remaining?: number
   percentage?: number
+}
+
+// ── Contrast module types ─────────────────────────────────────────────────────
+
+export interface ContrastBillingCategory {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+}
+
+export interface ContrastInvoice {
+  id: string
+  user_id: string
+  invoice_number: string
+  invoice_month: string   // "YYYY-MM"
+  invoice_date: string
+  status: 'draft' | 'finalized'
+  subtotal: number
+  gst_amount: number
+  total: number
+  notes: string | null
+  finalized_at: string | null
+  created_at: string
+}
+
+export interface ContrastInvoiceItem {
+  id: string
+  invoice_id: string
+  item_type: 'salary' | 'courier' | 'expense'
+  description: string
+  salary_euro: number | null
+  expended_rate: number | null
+  amount_inr: number
+  sort_order: number
 }
 
 export const EMOJI_MAP: Record<string, string> = {

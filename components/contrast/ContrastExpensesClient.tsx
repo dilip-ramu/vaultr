@@ -1,40 +1,39 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Download, CheckSquare, Square, Filter, ChevronDown,
-  Paperclip, CheckCircle2, Circle, AlertCircle, FileText, X
+  Paperclip, CheckCircle2, Circle, AlertCircle, FileText, X,
+  Plus, Tag, LayoutList, ArrowDownUp
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/utils'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AttachmentRaw {
-  id: string
-  file_name: string
-  file_path: string
-  content_type: string | null
-  file_size: number | null
+  id: string; file_name: string; file_path: string
+  content_type: string | null; file_size: number | null
 }
 
+interface BillingCategory { id: string; name: string }
+
 interface TxRaw {
-  id: string
-  name: string | null
-  amount: number
-  date: string
-  type: string
-  notes: string | null
-  is_contrast_billed: boolean
+  id: string; name: string | null; amount: number; date: string
+  type: string; notes: string | null; is_contrast_billed: boolean
+  contrast_billing_category_id: string | null; contrast_invoice_id: string | null
   created_at: string
   account: { id: string; name: string; color: string; type: string } | null
   category: { id: string; name: string; icon: string; color: string } | null
+  billing_category: BillingCategory | null
   attachments: AttachmentRaw[]
 }
 
+type GroupMode = 'month' | 'billing_category' | 'status'
+
 interface Props {
   transactions: TxRaw[]
+  billingCategories: BillingCategory[]
   payeeFound: boolean
   payeeName: string
 }
@@ -43,86 +42,203 @@ interface Props {
 function fmtDate(d: string) {
   const parts = d.split('-')
   if (parts.length < 3) return d
-  const [y, m, day] = parts
-  return `${day} ${MONTHS[parseInt(m) - 1]} ${y}`
+  return `${parts[2]} ${MONTHS[parseInt(parts[1]) - 1]} ${parts[0]}`
 }
-
-function monthKey(d: string) { return d.slice(0, 7) } // "YYYY-MM"
+function monthKey(d: string) { return d.slice(0, 7) }
 function monthLabel(key: string) {
   const [y, m] = key.split('-')
   return `${MONTHS[parseInt(m) - 1]} ${y}`
 }
-
-function fileExt(name: string) {
-  return name.split('.').pop()?.toLowerCase() ?? ''
+function fmtCurrency(n: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n)
 }
 
-function fileSizeLabel(bytes: number | null) {
-  if (!bytes) return ''
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`
+// ── Billing Category Dropdown ─────────────────────────────────────────────────
+function BillingCategoryCell({
+  value, categories, onSelect, onCreateAndSelect,
+}: {
+  value: BillingCategory | null
+  categories: BillingCategory[]
+  onSelect: (cat: BillingCategory | null) => void
+  onCreateAndSelect: (name: string) => Promise<BillingCategory>
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [creating, setCreating] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+  const canCreate = search.trim() && !categories.some(c => c.name.toLowerCase() === search.trim().toLowerCase())
+
+  const handleCreate = async () => {
+    if (!search.trim()) return
+    setCreating(true)
+    try {
+      const cat = await onCreateAndSelect(search.trim())
+      onSelect(cat)
+      setSearch('')
+      setOpen(false)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all max-w-[140px] ${
+          value
+            ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+        }`}
+      >
+        <Tag className="w-3 h-3 shrink-0" />
+        <span className="truncate">{value?.name ?? 'Add category'}</span>
+        <ChevronDown className="w-3 h-3 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-30 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+          <div className="px-3 py-2 border-b border-gray-100">
+            <input
+              autoFocus
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search or create…"
+              className="w-full text-xs px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg outline-none"
+              onKeyDown={e => { if (e.key === 'Enter' && canCreate) handleCreate() }}
+            />
+          </div>
+          <div className="max-h-44 overflow-y-auto">
+            {value && (
+              <button
+                onClick={() => { onSelect(null); setOpen(false) }}
+                className="w-full px-3 py-2 text-xs text-left text-red-500 hover:bg-red-50"
+              >
+                Remove category
+              </button>
+            )}
+            {filtered.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => { onSelect(cat); setOpen(false); setSearch('') }}
+                className={`w-full px-3 py-2 text-xs text-left hover:bg-gray-50 ${
+                  value?.id === cat.id ? 'font-semibold text-purple-700' : 'text-gray-700'
+                }`}
+              >
+                {cat.name}
+              </button>
+            ))}
+            {canCreate && (
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="w-full px-3 py-2 text-xs text-left text-indigo-600 hover:bg-indigo-50 flex items-center gap-1.5"
+              >
+                <Plus className="w-3 h-3" />
+                {creating ? 'Creating…' : `Create "${search.trim()}"`}
+              </button>
+            )}
+            {filtered.length === 0 && !canCreate && (
+              <p className="px-3 py-2 text-xs text-gray-400">No categories found</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
-export default function ContrastExpensesClient({ transactions: initialTx, payeeFound, payeeName }: Props) {
+// ── Main Component ─────────────────────────────────────────────────────────────
+export default function ContrastExpensesClient({
+  transactions: initialTx, billingCategories: initialCats,
+  payeeFound, payeeName
+}: Props) {
   const [transactions, setTransactions] = useState<TxRaw[]>(initialTx)
+  const [categories, setCategories] = useState<BillingCategory[]>(initialCats)
   const [selectedMonth, setSelectedMonth] = useState<string>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<'all' | 'billed' | 'unbilled'>('all')
+  const [groupMode, setGroupMode] = useState<GroupMode>('month')
 
-  // Unique months in data
   const months = useMemo(() => {
     const keys = new Set(transactions.map(t => monthKey(t.date)))
     return Array.from(keys).sort().reverse()
   }, [transactions])
 
-  // Filtered list
   const filtered = useMemo(() => {
     return transactions.filter(t => {
       const monthOk = selectedMonth === 'all' || monthKey(t.date) === selectedMonth
-      const billedOk =
-        filter === 'all' ? true :
-        filter === 'billed' ? t.is_contrast_billed :
-        !t.is_contrast_billed
+      const billedOk = filter === 'all' ? true : filter === 'billed' ? t.is_contrast_billed : !t.is_contrast_billed
       return monthOk && billedOk
     })
   }, [transactions, selectedMonth, filter])
 
-  // Totals
-  const totalAmount = useMemo(() => filtered.reduce((s, t) => s + t.amount, 0), [filtered])
-  const billedAmount = useMemo(() => filtered.filter(t => t.is_contrast_billed).reduce((s, t) => s + t.amount, 0), [filtered])
+  const totalAmount    = useMemo(() => filtered.reduce((s, t) => s + t.amount, 0), [filtered])
+  const billedAmount   = useMemo(() => filtered.filter(t => t.is_contrast_billed).reduce((s, t) => s + t.amount, 0), [filtered])
   const unbilledAmount = totalAmount - billedAmount
 
-  // Total attachments in selection
-  const selectedAttachmentCount = useMemo(() => {
-    return filtered
-      .filter(t => selectedIds.has(t.id))
-      .reduce((s, t) => s + t.attachments.length, 0)
-  }, [filtered, selectedIds])
+  const selectedAttachmentCount = useMemo(() =>
+    filtered.filter(t => selectedIds.has(t.id)).reduce((s, t) => s + t.attachments.length, 0)
+  , [filtered, selectedIds])
+
+  // ── Grouping ───────────────────────────────────────────────────────────────
+  const groups = useMemo(() => {
+    const map = new Map<string, { label: string; items: TxRaw[] }>()
+    for (const t of filtered) {
+      let key = ''
+      let label = ''
+      if (groupMode === 'month') {
+        key = monthKey(t.date); label = monthLabel(key)
+      } else if (groupMode === 'billing_category') {
+        key = t.contrast_billing_category_id ?? '__none__'
+        label = t.billing_category?.name ?? 'No Billing Category'
+      } else {
+        key = t.is_contrast_billed ? 'billed' : 'unbilled'
+        label = t.is_contrast_billed ? 'Billed' : 'Unbilled'
+      }
+      if (!map.has(key)) map.set(key, { label, items: [] })
+      map.get(key)!.items.push(t)
+    }
+    return Array.from(map.entries()).map(([key, val]) => ({ key, ...val }))
+  }, [filtered, groupMode])
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const allSelected = filtered.length > 0 && filtered.every(t => selectedIds.has(t.id))
   const someSelected = selectedIds.size > 0
+  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(filtered.map(t => t.id)))
+  const toggleOne = (id: string) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  const toggleAll = () => {
-    if (allSelected) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(filtered.map(t => t.id)))
-    }
+  // ── Billing category actions ───────────────────────────────────────────────
+  const createAndSelectCategory = async (name: string): Promise<BillingCategory> => {
+    const res = await fetch('/api/contrast/billing-categories', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    const cat = await res.json() as BillingCategory
+    setCategories(prev => [...prev.filter(c => c.id !== cat.id), cat].sort((a, b) => a.name.localeCompare(b.name)))
+    return cat
   }
 
-  const toggleOne = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
+  const assignBillingCategory = async (txId: string, cat: BillingCategory | null) => {
+    await fetch('/api/transactions/contrast-billed', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [txId], billed: transactions.find(t => t.id === txId)?.is_contrast_billed ?? false, billing_category_id: cat?.id ?? null }),
     })
+    setTransactions(prev => prev.map(t => t.id === txId ? { ...t, contrast_billing_category_id: cat?.id ?? null, billing_category: cat } : t))
   }
 
   // ── Mark billed / unbilled ─────────────────────────────────────────────────
@@ -130,14 +246,11 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
     setTogglingIds(new Set(ids))
     try {
       const res = await fetch('/api/transactions/contrast-billed', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids, billed }),
       })
       if (!res.ok) throw new Error((await res.json()).error ?? 'Failed')
-      setTransactions(prev =>
-        prev.map(t => ids.includes(t.id) ? { ...t, is_contrast_billed: billed } : t)
-      )
+      setTransactions(prev => prev.map(t => ids.includes(t.id) ? { ...t, is_contrast_billed: billed } : t))
       setSelectedIds(new Set())
     } catch (e) {
       alert('Could not update: ' + (e as Error).message)
@@ -146,83 +259,43 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
     }
   }
 
-  const toggleOneBilled = (id: string, current: boolean) => markBilled([id], !current)
-
   // ── Bulk attachment download ───────────────────────────────────────────────
   const downloadSelected = async () => {
-    const txsWithAttachments = filtered
-      .filter(t => selectedIds.has(t.id) && t.attachments.length > 0)
-
-    if (txsWithAttachments.length === 0) {
-      alert('No attachments found in selected transactions.')
-      return
-    }
-
+    const txsWithAttachments = filtered.filter(t => selectedIds.has(t.id) && t.attachments.length > 0)
+    if (txsWithAttachments.length === 0) { alert('No attachments in selection.'); return }
     setDownloading(true)
     const supabase = createClient()
-
     try {
-      // Gather all attachments with signed URLs
-      const allItems: { url: string; name: string }[] = []
       for (const tx of txsWithAttachments) {
         for (const att of tx.attachments) {
-          const { data } = await supabase.storage
-            .from('vaultr-attachments')
-            .createSignedUrl(att.file_path, 3600)
-          if (data?.signedUrl) {
-            // Prefix with tx date + name for clarity
-            const prefix = `${tx.date}_${(tx.name ?? 'tx').replace(/[^a-zA-Z0-9]/g, '_')}`
-            allItems.push({ url: data.signedUrl, name: `${prefix}_${att.file_name}` })
-          }
+          const { data } = await supabase.storage.from('vaultr-attachments').createSignedUrl(att.file_path, 3600)
+          if (!data?.signedUrl) continue
+          await new Promise<void>(resolve => setTimeout(async () => {
+            try {
+              const blob = await (await fetch(data.signedUrl)).blob()
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url; a.download = `${tx.date}_${att.file_name}`
+              document.body.appendChild(a); a.click()
+              document.body.removeChild(a); URL.revokeObjectURL(url)
+            } catch { window.open(data.signedUrl, '_blank') }
+            resolve()
+          }, 300))
         }
       }
-
-      if (allItems.length === 0) {
-        alert('Could not generate download links.')
-        return
-      }
-
-      // Download one by one (browser handles multiple sequential downloads)
-      for (const item of allItems) {
-        await new Promise<void>((resolve) => {
-          setTimeout(async () => {
-            try {
-              const res = await fetch(item.url)
-              const blob = await res.blob()
-              const blobUrl = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = blobUrl
-              a.download = item.name
-              document.body.appendChild(a)
-              a.click()
-              document.body.removeChild(a)
-              URL.revokeObjectURL(blobUrl)
-            } catch {
-              window.open(item.url, '_blank')
-            }
-            resolve()
-          }, 300) // small stagger to avoid browser blocking multiple downloads
-        })
-      }
-    } catch (e) {
-      alert('Download failed: ' + (e as Error).message)
-    } finally {
-      setDownloading(false)
-    }
+    } catch (e) { alert('Download failed: ' + (e as Error).message) }
+    finally { setDownloading(false) }
   }
 
-  // ── No payee found state ───────────────────────────────────────────────────
+  // ── No payee found ─────────────────────────────────────────────────────────
   if (!payeeFound) {
     return (
-      <div className="p-6 md:p-8 max-w-2xl mx-auto">
+      <div className="p-6 max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
             <FileText className="w-5 h-5 text-purple-600" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Contrast Expenses</h1>
-            <p className="text-sm text-gray-500">Transactions linked to Contrast</p>
-          </div>
+          <h1 className="text-xl font-bold text-gray-900">Contrast Expenses</h1>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex gap-4">
           <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
@@ -230,7 +303,6 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
             <p className="font-medium text-amber-800">No "Contrast" payee found</p>
             <p className="text-sm text-amber-700 mt-1">
               Create a payee named <strong>Contrast</strong> and link it to transactions to see them here.
-              You can add payees when creating or editing a transaction.
             </p>
           </div>
         </div>
@@ -238,8 +310,9 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
     )
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
@@ -249,9 +322,7 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900">Contrast Expenses</h1>
-            <p className="text-sm text-gray-500">
-              {filtered.length} transaction{filtered.length !== 1 ? 's' : ''} · payee: {payeeName}
-            </p>
+            <p className="text-sm text-gray-500">{filtered.length} transactions · payee: {payeeName}</p>
           </div>
         </div>
       </div>
@@ -260,19 +331,19 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-gray-500 mb-1">Total</p>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(totalAmount)}</p>
+          <p className="text-lg font-bold text-gray-900">{fmtCurrency(totalAmount)}</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-gray-500 mb-1">Billed</p>
-          <p className="text-lg font-bold text-green-600">{formatCurrency(billedAmount)}</p>
+          <p className="text-lg font-bold text-green-600">{fmtCurrency(billedAmount)}</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-gray-500 mb-1">Unbilled</p>
-          <p className="text-lg font-bold text-amber-600">{formatCurrency(unbilledAmount)}</p>
+          <p className="text-lg font-bold text-amber-600">{fmtCurrency(unbilledAmount)}</p>
         </div>
       </div>
 
-      {/* Filters row */}
+      {/* Filters + grouping */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Month picker */}
         <div className="relative">
@@ -286,18 +357,13 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
           </button>
           {showMonthPicker && (
             <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-[160px] py-1">
-              <button
-                onClick={() => { setSelectedMonth('all'); setShowMonthPicker(false) }}
-                className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-50 ${selectedMonth === 'all' ? 'font-semibold text-purple-600' : 'text-gray-700'}`}
-              >
+              <button onClick={() => { setSelectedMonth('all'); setShowMonthPicker(false) }}
+                className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-50 ${selectedMonth === 'all' ? 'font-semibold text-purple-600' : 'text-gray-700'}`}>
                 All months
               </button>
               {months.map(m => (
-                <button
-                  key={m}
-                  onClick={() => { setSelectedMonth(m); setShowMonthPicker(false) }}
-                  className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-50 ${selectedMonth === m ? 'font-semibold text-purple-600' : 'text-gray-700'}`}
-                >
+                <button key={m} onClick={() => { setSelectedMonth(m); setShowMonthPicker(false) }}
+                  className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-50 ${selectedMonth === m ? 'font-semibold text-purple-600' : 'text-gray-700'}`}>
                   {monthLabel(m)}
                 </button>
               ))}
@@ -308,201 +374,204 @@ export default function ContrastExpensesClient({ transactions: initialTx, payeeF
         {/* Billed filter */}
         <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
           {(['all', 'unbilled', 'billed'] as const).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                filter === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {f.charAt(0).toUpperCase() + f.slice(1)}
             </button>
           ))}
         </div>
 
-        {/* Spacer */}
+        {/* Group by */}
+        <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
+          <LayoutList className="w-3.5 h-3.5 text-gray-400 ml-1" />
+          {([['month', 'Month'], ['billing_category', 'Category'], ['status', 'Status']] as [GroupMode, string][]).map(([g, lbl]) => (
+            <button key={g} onClick={() => setGroupMode(g)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${groupMode === g ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1" />
 
-        {/* Bulk actions (shown when selection active) */}
+        {/* Bulk actions */}
         {someSelected && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-gray-500">{selectedIds.size} selected</span>
-
-            {/* Download */}
-            <button
-              onClick={downloadSelected}
-              disabled={downloading || selectedAttachmentCount === 0}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                selectedAttachmentCount === 0
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-              }`}
-              title={selectedAttachmentCount === 0 ? 'No attachments in selection' : `Download ${selectedAttachmentCount} attachment${selectedAttachmentCount !== 1 ? 's' : ''}`}
-            >
-              {downloading
-                ? <span className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
-                : <Download className="w-3.5 h-3.5" />
-              }
+            <button onClick={downloadSelected} disabled={downloading || selectedAttachmentCount === 0}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${selectedAttachmentCount === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
+              {downloading ? <span className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               {downloading ? 'Downloading…' : `Download (${selectedAttachmentCount})`}
             </button>
-
-            {/* Mark as billed */}
-            <button
-              onClick={() => markBilled(Array.from(selectedIds), true)}
-              disabled={togglingIds.size > 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-xl text-xs font-medium transition-all disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Mark billed
+            <button onClick={() => markBilled(Array.from(selectedIds), true)} disabled={togglingIds.size > 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-xl text-xs font-medium disabled:opacity-50">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Mark billed
             </button>
-
-            {/* Mark as unbilled */}
-            <button
-              onClick={() => markBilled(Array.from(selectedIds), false)}
-              disabled={togglingIds.size > 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-xl text-xs font-medium transition-all disabled:opacity-50"
-            >
-              <Circle className="w-3.5 h-3.5" />
-              Mark unbilled
+            <button onClick={() => markBilled(Array.from(selectedIds), false)} disabled={togglingIds.size > 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-xl text-xs font-medium disabled:opacity-50">
+              <Circle className="w-3.5 h-3.5" /> Mark unbilled
             </button>
-
-            {/* Clear selection */}
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-            >
+            <button onClick={() => setSelectedIds(new Set())} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-
-        {/* Table header */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
-          <button onClick={toggleAll} className="shrink-0 text-gray-400 hover:text-gray-600">
-            {allSelected
-              ? <CheckSquare className="w-4 h-4 text-purple-600" />
-              : <Square className="w-4 h-4" />
-            }
-          </button>
-          <span className="text-xs font-medium text-gray-500 flex-1">Transaction</span>
-          <span className="text-xs font-medium text-gray-500 w-24 text-right hidden sm:block">Amount</span>
-          <span className="text-xs font-medium text-gray-500 w-24 text-center hidden md:block">Attachments</span>
-          <span className="text-xs font-medium text-gray-500 w-20 text-center">Status</span>
+      {/* Grouped table */}
+      {filtered.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl py-16 text-center text-gray-400">
+          <FileText className="w-8 h-8 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No transactions found</p>
         </div>
-
-        {filtered.length === 0 ? (
-          <div className="py-16 text-center text-gray-400">
-            <FileText className="w-8 h-8 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No transactions found</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {filtered.map(tx => {
-              const isSelected = selectedIds.has(tx.id)
-              const isToggling = togglingIds.has(tx.id)
-              return (
-                <div
-                  key={tx.id}
-                  className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors ${isSelected ? 'bg-purple-50/50' : ''}`}
-                >
-                  {/* Checkbox */}
-                  <button
-                    onClick={() => toggleOne(tx.id)}
-                    className="shrink-0 text-gray-400 hover:text-purple-600"
-                  >
-                    {isSelected
-                      ? <CheckSquare className="w-4 h-4 text-purple-600" />
-                      : <Square className="w-4 h-4" />
-                    }
-                  </button>
-
-                  {/* Main info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {tx.name ?? tx.category?.name ?? 'Expense'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-400">{fmtDate(tx.date)}</span>
-                      {tx.account && (
-                        <span
-                          className="text-xs px-1.5 py-0.5 rounded-md font-medium"
-                          style={{
-                            backgroundColor: `${tx.account.color}18`,
-                            color: tx.account.color,
-                          }}
-                        >
-                          {tx.account.name}
-                        </span>
-                      )}
-                      {tx.notes && (
-                        <span className="text-xs text-gray-400 italic truncate max-w-[120px]">{tx.notes}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Amount */}
-                  <div className="w-24 text-right hidden sm:block shrink-0">
-                    <span className={`text-sm font-semibold ${tx.type === 'income' ? 'text-green-600' : 'text-gray-900'}`}>
-                      {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
-                    </span>
-                  </div>
-
-                  {/* Attachments count */}
-                  <div className="w-24 hidden md:flex items-center justify-center shrink-0">
-                    {tx.attachments.length > 0 ? (
-                      <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
-                        <Paperclip className="w-3 h-3" />
-                        {tx.attachments.length}
-                        <span className="text-gray-400 text-xs">
-                          {tx.attachments.map(a => fileExt(a.file_name)).join(', ')}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-300">—</span>
-                    )}
-                  </div>
-
-                  {/* Billed toggle */}
-                  <div className="w-20 flex justify-center shrink-0">
-                    <button
-                      onClick={() => toggleOneBilled(tx.id, tx.is_contrast_billed)}
-                      disabled={isToggling}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                        tx.is_contrast_billed
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
-                      } ${isToggling ? 'opacity-50' : ''}`}
-                    >
-                      {isToggling ? (
-                        <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                      ) : tx.is_contrast_billed ? (
-                        <CheckCircle2 className="w-3 h-3" />
-                      ) : (
-                        <Circle className="w-3 h-3" />
-                      )}
-                      {tx.is_contrast_billed ? 'Billed' : 'Unbilled'}
+      ) : (
+        <div className="space-y-4">
+          {groups.map(group => {
+            const groupTotal = group.items.reduce((s, t) => s + t.amount, 0)
+            return (
+              <div key={group.key} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+                {/* Group header */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => {
+                      const groupIds = group.items.map(t => t.id)
+                      const allGroupSelected = groupIds.every(id => selectedIds.has(id))
+                      setSelectedIds(prev => {
+                        const n = new Set(prev)
+                        allGroupSelected ? groupIds.forEach(id => n.delete(id)) : groupIds.forEach(id => n.add(id))
+                        return n
+                      })
+                    }} className="text-gray-400 hover:text-gray-600">
+                      {group.items.every(t => selectedIds.has(t.id))
+                        ? <CheckSquare className="w-4 h-4 text-purple-600" />
+                        : <Square className="w-4 h-4" />
+                      }
                     </button>
+                    <span className="text-sm font-semibold text-gray-700">{group.label}</span>
+                    <span className="text-xs text-gray-400">({group.items.length})</span>
                   </div>
+                  <span className="text-sm font-bold text-gray-900">{fmtCurrency(groupTotal)}</span>
                 </div>
-              )
-            })}
-          </div>
-        )}
 
-        {/* Footer totals */}
-        {filtered.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
-            <span className="text-xs text-gray-500">
-              {filtered.length} transactions · {filtered.reduce((s, t) => s + t.attachments.length, 0)} attachments
-            </span>
-            <span className="text-sm font-bold text-gray-900">{formatCurrency(totalAmount)}</span>
-          </div>
-        )}
-      </div>
+                {/* Column headers */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-gray-50/50 border-b border-gray-100 text-xs font-medium text-gray-400">
+                  <div className="w-4" />
+                  <span className="flex-1">Transaction</span>
+                  <span className="w-28 hidden md:block">Tx Category</span>
+                  <span className="w-36 hidden lg:block">Billing Category</span>
+                  <span className="w-24 text-right hidden sm:block">Amount</span>
+                  <span className="w-24 hidden md:block text-center">Attachments</span>
+                  <span className="w-20 text-center">Status</span>
+                </div>
+
+                {/* Rows */}
+                <div className="divide-y divide-gray-50">
+                  {group.items.map(tx => {
+                    const isSelected = selectedIds.has(tx.id)
+                    const isToggling = togglingIds.has(tx.id)
+                    return (
+                      <div key={tx.id} className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors ${isSelected ? 'bg-purple-50/50' : ''}`}>
+                        {/* Checkbox */}
+                        <button onClick={() => toggleOne(tx.id)} className="shrink-0 text-gray-400 hover:text-purple-600">
+                          {isSelected ? <CheckSquare className="w-4 h-4 text-purple-600" /> : <Square className="w-4 h-4" />}
+                        </button>
+
+                        {/* Main info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {tx.name ?? tx.category?.name ?? 'Expense'}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-gray-400">{fmtDate(tx.date)}</span>
+                            {tx.account && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-md font-medium"
+                                style={{ backgroundColor: `${tx.account.color}18`, color: tx.account.color }}>
+                                {tx.account.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Tx Category (read-only) */}
+                        <div className="w-28 hidden md:block shrink-0">
+                          {tx.category ? (
+                            <span className="text-xs px-2 py-1 rounded-lg font-medium"
+                              style={{ backgroundColor: `${tx.category.color}18`, color: tx.category.color }}>
+                              {tx.category.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </div>
+
+                        {/* Billing Category (editable dropdown) */}
+                        <div className="w-36 hidden lg:block shrink-0">
+                          <BillingCategoryCell
+                            value={tx.billing_category}
+                            categories={categories}
+                            onSelect={(cat) => assignBillingCategory(tx.id, cat)}
+                            onCreateAndSelect={async (name) => {
+                              const cat = await createAndSelectCategory(name)
+                              await assignBillingCategory(tx.id, cat)
+                              return cat
+                            }}
+                          />
+                        </div>
+
+                        {/* Amount */}
+                        <div className="w-24 text-right hidden sm:block shrink-0">
+                          <span className={`text-sm font-semibold ${tx.type === 'income' ? 'text-green-600' : 'text-gray-900'}`}>
+                            {tx.type === 'income' ? '+' : '-'}{fmtCurrency(tx.amount)}
+                          </span>
+                        </div>
+
+                        {/* Attachments */}
+                        <div className="w-24 hidden md:flex items-center justify-center shrink-0">
+                          {tx.attachments.length > 0 ? (
+                            <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
+                              <Paperclip className="w-3 h-3" />
+                              {tx.attachments.length}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </div>
+
+                        {/* Billed toggle */}
+                        <div className="w-20 flex justify-center shrink-0">
+                          <button
+                            onClick={() => markBilled([tx.id], !tx.is_contrast_billed)}
+                            disabled={isToggling}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                              tx.is_contrast_billed ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                            } ${isToggling ? 'opacity-50' : ''}`}
+                          >
+                            {isToggling
+                              ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                              : tx.is_contrast_billed ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />
+                            }
+                            {tx.is_contrast_billed ? 'Billed' : 'Unbilled'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Grand footer */}
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-100 rounded-2xl shadow-sm">
+          <span className="text-xs text-gray-500">
+            {filtered.length} transactions · {filtered.reduce((s, t) => s + t.attachments.length, 0)} attachments
+          </span>
+          <span className="text-sm font-bold text-gray-900">{fmtCurrency(totalAmount)}</span>
+        </div>
+      )}
     </div>
   )
 }

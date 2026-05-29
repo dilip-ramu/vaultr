@@ -11,7 +11,7 @@ import {
   Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
   Building2, AlertCircle, CheckSquare2, CreditCard, BookOpen,
-  ArrowDownUp,
+  ArrowDownUp, ReceiptText, Globe,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -64,7 +64,14 @@ const navSections: NavSection[] = [
           { href: '/suppliers/payments',     label: 'Payments',     icon: CreditCard },
         ],
       },
-      { href: '/contrast', label: 'Contrast Expenses', icon: ArrowDownUp },
+      {
+        href: '/contrast', label: 'Contrast Company A/S', icon: Globe,
+        subItems: [
+          { href: '/contrast',         label: 'Expenses',        icon: ArrowDownUp },
+          { href: '/contrast/invoice', label: 'Invoice',         icon: ReceiptText },
+          { href: '/contrast/history', label: 'Invoice History', icon: History },
+        ],
+      },
     ],
   },
   {
