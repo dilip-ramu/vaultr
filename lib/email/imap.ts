@@ -61,18 +61,14 @@ export async function checkMailbox(opts: {
         const messageId = parsed.messageId ?? `${seq}@${emailAddress}`
         const body = typeof parsed.text === 'string' ? parsed.text.slice(0, 2000) : ''
 
-        // Process PDF/image attachments
+        // Only process emails that have PDF attachments — skip everything else
         const attachments = parsed.attachments.filter(a => {
           const ct = a.contentType.toLowerCase()
           const fn = (a.filename ?? '').toLowerCase()
-          return ct.includes('pdf') || ct.includes('image') || fn.endsWith('.pdf') ||
-            fn.endsWith('.jpg') || fn.endsWith('.jpeg') || fn.endsWith('.png')
+          return ct.includes('pdf') || fn.endsWith('.pdf')
         })
 
-        if (attachments.length === 0) {
-          // If no attachments, still store email as a document with null attachment
-          attachments.push({ filename: null, content: null, contentType: 'text/plain', size: 0 } as never)
-        }
+        if (attachments.length === 0) continue
 
         for (const att of attachments) {
           const attName = att.filename ?? null
