@@ -39,7 +39,9 @@ export async function extractFromPdf(
     let rawText = ''
     try {
       // Dynamic import to avoid SSR bundling issues
-      const pdfParse = (await import('pdf-parse')).default
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfMod = await import('pdf-parse') as any
+      const pdfParse = pdfMod.default ?? pdfMod
       const parsed = await pdfParse(buffer)
       rawText = parsed.text ?? ''
     } catch (pdfErr) {
