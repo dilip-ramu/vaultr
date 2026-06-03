@@ -32,7 +32,7 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('account_balances').select('id, name, color, type, custom_type_id, custom_type_name, custom_type_color').eq('is_active', true).order('name'),
+      supabase.from('account_balances').select('id, name, color, type, avatar_url, custom_type_id, custom_type_name, custom_type_color, custom_type_icon').eq('is_active', true).order('name'),
       supabase.from('categories').select('*').order('name'),
     ]).then(([{ data: accs }, { data: cats }]) => {
       setAccounts((accs ?? []) as Account[])

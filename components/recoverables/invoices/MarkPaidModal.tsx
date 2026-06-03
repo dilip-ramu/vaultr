@@ -10,9 +10,11 @@ interface Account {
   name: string
   type: string
   color?: string | null
+  avatar_url?: string | null
   custom_type_id?: string | null
   custom_type_name?: string | null
   custom_type_color?: string | null
+  custom_type_icon?: string | null
 }
 
 interface Props {
@@ -48,7 +50,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
     const supabase = createClient()
     supabase
       .from('account_balances')
-      .select('id, name, type, color, custom_type_id, custom_type_name, custom_type_color')
+      .select('id, name, type, color, avatar_url, custom_type_id, custom_type_name, custom_type_color, custom_type_icon')
       .not('type', 'in', '(credit,loan)')
       .then(({ data }) => {
         const list = data ?? []

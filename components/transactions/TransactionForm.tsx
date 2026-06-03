@@ -3,14 +3,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown } from 'lucide-react'
 import type { Transaction, Account, Category, TransactionType, Payee } from '@/lib/types'
-import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayString } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import FileUpload from '../shared/FileUpload'
 import BottomSheet from '../shared/BottomSheet'
 import AccountChipPicker from '../shared/AccountChipPicker'
-import { Avatar } from '../AppShell'
 
 interface Props {
   transaction?: Transaction | null
@@ -523,56 +521,6 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   )
 }
 
-function AccountChip({ account, selected, onSelect }: {
-  account: Account
-  selected: boolean
-  onSelect: (id: string) => void
-}) {
-  const config = ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other
-  const accentColor = account.custom_type_color ?? account.color ?? config.color
-  const bgColor = account.custom_type_color ? `${account.custom_type_color}18` : config.bgColor
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(account.id)}
-      className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all ${
-        selected
-          ? 'bg-white shadow-sm scale-[1.02]'
-          : 'bg-gray-50 border-transparent hover:bg-white hover:shadow-sm'
-      }`}
-      style={selected ? { borderColor: accentColor } : {}}
-    >
-      {account.avatar_url ? (
-        <Avatar url={account.avatar_url} initials={account.name.slice(0, 2).toUpperCase()} size="sm" />
-      ) : (
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0"
-          style={{ backgroundColor: bgColor }}
-        >
-          {getAccountEmoji(account.type)}
-        </div>
-      )}
-      <div className="flex items-center gap-1.5">
-        <span
-          className="w-2 h-2 rounded-full shrink-0"
-          style={{ backgroundColor: accentColor }}
-        />
-        <span className={`text-sm font-medium whitespace-nowrap ${selected ? 'text-gray-900' : 'text-gray-600'}`}>
-          {account.name}
-        </span>
-      </div>
-    </button>
-  )
-}
-
-function getAccountEmoji(type: string): string {
-  const map: Record<string, string> = {
-    checking: '🏦', savings: '🐷', credit: '💳',
-    cash: '💵', investment: '📈', loan: '🏛️', other: '💰',
-  }
-  return map[type] ?? '💰'
-}
 
 function getCategoryEmoji(icon: string): string {
   const map: Record<string, string> = {

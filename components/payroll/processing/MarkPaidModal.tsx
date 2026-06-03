@@ -10,9 +10,11 @@ interface Account {
   name: string
   type: string
   color?: string | null
+  avatar_url?: string | null
   custom_type_id?: string | null
   custom_type_name?: string | null
   custom_type_color?: string | null
+  custom_type_icon?: string | null
 }
 
 interface Props {
