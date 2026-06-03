@@ -16,8 +16,9 @@ export default async function BudgetsPage() {
 
   const [
     { data: rawBudgets },
-    { data: monthTx },
+    { data: monthTxRaw },
     { data: expenseCategories },
+    { data: contrastPayee },
   ] = await Promise.all([
     supabase
       .from('budgets')
@@ -26,10 +27,9 @@ export default async function BudgetsPage() {
       .eq('is_active', true),
     supabase
       .from('transactions')
-      .select('category_id, amount')
+      .select('category_id, amount, payee_id')
       .eq('user_id', user!.id)
       .eq('type', 'expense')
-      .eq('is_contrast_billed', false)
       .not('category_id', 'is', null)
       .gte('date', startOfMonth)
       .lte('date', endOfMonth),
@@ -39,13 +39,27 @@ export default async function BudgetsPage() {
       .eq('user_id', user!.id)
       .eq('type', 'expense')
       .order('name'),
+    // Find the "Contrast" payee so we can exclude it from budget spending
+    supabase
+      .from('payees')
+      .select('id')
+      .eq('user_id', user!.id)
+      .ilike('name', 'contrast')
+      .maybeSingle(),
   ])
+
+  const contrastPayeeId = contrastPayee?.id ?? null
+
+  // Exclude contrast-billed transactions and the Contrast payee
+  const monthTx = (monthTxRaw ?? []).filter(tx =>
+    !contrastPayeeId || tx.payee_id !== contrastPayeeId
+  )
 
   // Compute spent per category
   const spentMap: Record<string, number> = {}
-  for (const tx of monthTx ?? []) {
+  for (const tx of monthTx) {
     if (tx.category_id) {
-      spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + tx.amount
+      spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + Number(tx.amount)
     }
   }
 
@@ -63,6 +77,7 @@ export default async function BudgetsPage() {
       expenseCategories={expenseCategories ?? []}
       currentMonth={month}
       currentYear={year}
+      contrastPayeeId={contrastPayeeId}
     />
   )
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Plus, Target, AlertTriangle, RotateCcw, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Target, AlertTriangle, RotateCcw, Pencil, Trash2, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import type { Budget, Category } from '@/lib/types'
 import { EMOJI_MAP } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
@@ -15,51 +15,66 @@ interface Props {
   expenseCategories: Category[]
   currentMonth: number
   currentYear: number
+  contrastPayeeId: string | null
 }
 
-export default function BudgetsClient({ budgets: initial, expenseCategories, currentMonth, currentYear }: Props) {
+interface BudgetTx {
+  id: string
+  name: string | null
+  amount: number
+  date: string
+  notes: string | null
+  payee?: { name: string } | null
+  category?: { name: string; icon: string; color: string } | null
+}
+
+function periodRange(period: string, month: number, year: number) {
+  if (period === 'monthly') {
+    const from = `${year}-${String(month).padStart(2, '0')}-01`
+    const to   = new Date(year, month, 0).toISOString().split('T')[0]
+    return { from, to }
+  }
+  if (period === 'yearly') {
+    return { from: `${year}-01-01`, to: `${year}-12-31` }
+  }
+  // weekly: current Mon–Sun
+  const d = new Date()
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+  const from = d.toISOString().split('T')[0]
+  const sun = new Date(d); sun.setDate(d.getDate() + 6)
+  return { from, to: sun.toISOString().split('T')[0] }
+}
+
+export default function BudgetsClient({
+  budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeId,
+}: Props) {
   const [budgets, setBudgets] = useState<Budget[]>(initial)
   const [showForm, setShowForm] = useState(false)
   const [editBudget, setEditBudget] = useState<Budget | undefined>()
+  const [detailBudget, setDetailBudget] = useState<Budget | null>(null)
+  const [detailTxs, setDetailTxs] = useState<BudgetTx[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const handleSaved = async (saved: Budget) => {
     const existing = budgets.find(b => b.id === saved.id)
-
     let spent = existing?.spent ?? 0
 
-    // For brand-new budgets the client has no spending data yet — fetch it
     if (!existing) {
       const supabase = createClient()
-      const now = new Date()
-      const y = currentYear
-      const m = currentMonth
-
-      let from: string, to: string
-      if (saved.period === 'monthly') {
-        from = `${y}-${String(m).padStart(2, '0')}-01`
-        to   = new Date(y, m, 0).toISOString().split('T')[0]
-      } else if (saved.period === 'yearly') {
-        from = `${y}-01-01`
-        to   = `${y}-12-31`
-      } else {
-        // weekly: current Mon → Sun
-        const d = new Date(now)
-        d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
-        from = d.toISOString().split('T')[0]
-        const sun = new Date(d); sun.setDate(d.getDate() + 6)
-        to = sun.toISOString().split('T')[0]
-      }
+      const { from, to } = periodRange(saved.period, currentMonth, currentYear)
 
       const { data } = await supabase
         .from('transactions')
-        .select('amount')
+        .select('amount, payee_id')
         .eq('type', 'expense')
-        .eq('is_contrast_billed', false)
         .eq('category_id', saved.category_id)
         .gte('date', from)
         .lte('date', to)
 
-      spent = (data ?? []).reduce((s, t) => s + Number(t.amount), 0)
+      const rows = (data ?? []).filter(t =>
+        !contrastPayeeId || t.payee_id !== contrastPayeeId
+      )
+      spent = rows.reduce((s, t) => s + Number(t.amount), 0)
     }
 
     const effective = saved.amount + (saved.rollover ? saved.rollover_amount : 0)
@@ -85,6 +100,29 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
     setBudgets(prev => prev.filter(b => b.id !== id))
   }
 
+  const openDetail = async (b: Budget) => {
+    setDetailBudget(b)
+    setDetailTxs([])
+    setDetailLoading(true)
+    const supabase = createClient()
+    const { from, to } = periodRange(b.period, currentMonth, currentYear)
+
+    const { data } = await supabase
+      .from('transactions')
+      .select('id, name, amount, date, notes, payee_id, payee:payees(name), category:categories(name,icon,color)')
+      .eq('type', 'expense')
+      .eq('category_id', b.category_id)
+      .gte('date', from)
+      .lte('date', to)
+      .order('date', { ascending: false })
+
+    const filtered = ((data ?? []) as unknown as (BudgetTx & { payee_id: string | null })[])
+      .filter(t => !contrastPayeeId || t.payee_id !== contrastPayeeId)
+
+    setDetailTxs(filtered)
+    setDetailLoading(false)
+  }
+
   const openEdit = (b: Budget) => {
     setEditBudget(b)
     setShowForm(true)
@@ -92,7 +130,6 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
 
   const overspent = budgets.filter(b => (b.percentage ?? 0) > 100)
 
-  // Health score: avg(min(remaining/amount,1)) across all budgets, 0-100
   const healthScore = budgets.length === 0 ? 100 : Math.round(
     (budgets.reduce((sum, b) => {
       const eff = b.amount + (b.rollover ? b.rollover_amount : 0)
@@ -100,11 +137,7 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
     }, 0) / budgets.length) * 100
   )
 
-  const healthColor = healthScore > 70
-    ? 'var(--income)'
-    : healthScore >= 40
-    ? '#F59E0B'
-    : 'var(--expense)'
+  const healthColor = healthScore > 70 ? 'var(--income)' : healthScore >= 40 ? '#F59E0B' : 'var(--expense)'
 
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -122,8 +155,7 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95"
           style={{ backgroundColor: 'var(--brand)', color: '#fff' }}
         >
-          <Plus className="w-4 h-4" />
-          Add Budget
+          <Plus className="w-4 h-4" /> Add Budget
         </button>
       </div>
 
@@ -145,12 +177,9 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
         </div>
       )}
 
-      {/* Health score card */}
+      {/* Health score */}
       {budgets.length > 0 && (
-        <div
-          className="rounded-2xl p-5 shadow-sm"
-          style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
+        <div className="rounded-2xl p-5 shadow-sm" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-label mb-1" style={{ color: 'var(--text-faint)' }}>Budget Health</p>
@@ -159,34 +188,20 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
                 {healthScore > 70 ? 'On track — great job!' : healthScore >= 40 ? 'Watch your spending' : 'Overspending in multiple areas'}
               </p>
             </div>
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ backgroundColor: `${healthColor}18` }}
-            >
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${healthColor}18` }}>
               <Target className="w-8 h-8" style={{ color: healthColor }} />
             </div>
           </div>
-
-          {/* Mini progress bar */}
           <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-2)' }}>
-            <div
-              className="h-2 rounded-full transition-all"
-              style={{ width: `${healthScore}%`, backgroundColor: healthColor }}
-            />
+            <div className="h-2 rounded-full transition-all" style={{ width: `${healthScore}%`, backgroundColor: healthColor }} />
           </div>
         </div>
       )}
 
       {/* Budget cards */}
       {budgets.length === 0 ? (
-        <div
-          className="rounded-2xl p-8 text-center"
-          style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
-            style={{ backgroundColor: 'var(--brand-light)' }}
-          >
+        <div className="rounded-2xl p-8 text-center" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'var(--brand-light)' }}>
             <Target className="w-7 h-7" style={{ color: 'var(--brand)' }} />
           </div>
           <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text)' }}>No budgets yet</p>
@@ -201,7 +216,101 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
         </div>
       ) : (
         <div className="space-y-3">
-          {budgets.map(b => <BudgetCard key={b.id} budget={b} onEdit={openEdit} onDelete={handleDelete} />)}
+          {budgets.map(b => (
+            <BudgetCard
+              key={b.id}
+              budget={b}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              onOpen={openDetail}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Budget detail sheet */}
+      {detailBudget && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center md:justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={() => setDetailBudget(null)} />
+          <div
+            className="relative w-full md:max-w-lg flex flex-col"
+            style={{
+              backgroundColor: 'var(--surface)',
+              borderRadius: '28px 28px 0 0',
+              maxHeight: '90dvh',
+            }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 md:hidden shrink-0">
+              <div className="w-10 h-1 rounded-full" style={{ backgroundColor: 'var(--border)' }} />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+              <button onClick={() => setDetailBudget(null)} className="w-8 h-8 flex items-center justify-center rounded-xl" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>
+                  {detailBudget.category?.name ?? 'Budget'}
+                </p>
+                <p className="text-xs capitalize" style={{ color: 'var(--text-muted)' }}>{detailBudget.period} transactions</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>{formatCurrency(detailBudget.spent ?? 0)}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>of {formatCurrency(detailBudget.amount)}</p>
+              </div>
+            </div>
+
+            {/* Mini progress bar */}
+            <div className="mx-5 my-3 h-1.5 rounded-full overflow-hidden shrink-0" style={{ backgroundColor: 'var(--surface-2)' }}>
+              {(() => {
+                const pct = detailBudget.percentage ?? 0
+                const bar = pct < 70 ? 'var(--income)' : pct < 90 ? '#F59E0B' : 'var(--expense)'
+                return <div className="h-1.5 rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: bar }} />
+              })()}
+            </div>
+
+            {/* Transaction list */}
+            <div className="overflow-y-auto flex-1 min-h-0 px-5 pb-6">
+              {detailLoading ? (
+                <div className="py-12 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</div>
+              ) : detailTxs.length === 0 ? (
+                <div className="py-12 text-center">
+                  <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>No transactions yet</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Expenses in this category will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-0 divide-y" style={{ borderColor: 'var(--border-2)' }}>
+                  {detailTxs.map(tx => (
+                    <div key={tx.id} className="flex items-center gap-3 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
+                          {tx.name ?? tx.category?.name ?? 'Expense'}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                            {new Date(tx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          </span>
+                          {tx.payee && (
+                            <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                              · {(tx.payee as unknown as { name: string }).name}
+                            </span>
+                          )}
+                          {tx.notes && (
+                            <span className="text-xs truncate" style={{ color: 'var(--text-faint)' }}>· {tx.notes}</span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold tabular-nums shrink-0" style={{ color: 'var(--expense)' }}>
+                        -{formatCurrency(Number(tx.amount))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -219,28 +328,25 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
   )
 }
 
-function BudgetCard({ budget: b, onEdit, onDelete }: {
+function BudgetCard({ budget: b, onEdit, onDelete, onOpen }: {
   budget: Budget
   onEdit: (b: Budget) => void
   onDelete: (id: string) => void
+  onOpen: (b: Budget) => void
 }) {
   const spent = b.spent ?? 0
   const effective = b.amount + (b.rollover ? b.rollover_amount : 0)
   const pct = b.percentage ?? 0
   const overspent = pct > 100
 
-  const barColor = pct < 70
-    ? 'var(--income)'
-    : pct < 90
-    ? '#F59E0B'
-    : 'var(--expense)'
-
+  const barColor = pct < 70 ? 'var(--income)' : pct < 90 ? '#F59E0B' : 'var(--expense)'
   const emoji = EMOJI_MAP[b.category?.icon ?? ''] ?? '💸'
 
   return (
     <div
-      className="rounded-2xl p-4 shadow-sm"
+      className="rounded-2xl p-4 shadow-sm cursor-pointer transition-all active:scale-[0.99]"
       style={{ backgroundColor: 'var(--surface)', border: `1px solid ${overspent ? 'rgba(239,68,68,0.3)' : 'var(--border)'}` }}
+      onClick={() => onOpen(b)}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-center gap-2.5">
@@ -264,36 +370,31 @@ function BudgetCard({ budget: b, onEdit, onDelete }: {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {overspent && (
-            <span
-              className="px-2 py-0.5 rounded-lg text-[10px] font-bold mr-1"
-              style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--expense)' }}
-            >
+            <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold mr-1" style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--expense)' }}>
               OVER
             </span>
           )}
           <button
-            onClick={() => onEdit(b)}
+            onClick={e => { e.stopPropagation(); onEdit(b) }}
             className="w-7 h-7 flex items-center justify-center rounded-lg"
             style={{ color: 'var(--text-faint)' }}
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => onDelete(b.id)}
+            onClick={e => { e.stopPropagation(); onDelete(b.id) }}
             className="w-7 h-7 flex items-center justify-center rounded-lg"
             style={{ color: 'var(--text-faint)' }}
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
+          <ChevronRight className="w-4 h-4 ml-0.5" style={{ color: 'var(--text-faint)' }} />
         </div>
       </div>
 
       {/* Progress bar */}
       <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ backgroundColor: 'var(--surface-2)' }}>
-        <div
-          className="h-1.5 rounded-full transition-all"
-          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }}
-        />
+        <div className="h-1.5 rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
       </div>
 
       {/* Amounts */}
@@ -303,9 +404,7 @@ function BudgetCard({ budget: b, onEdit, onDelete }: {
           {' '}of {formatCurrency(effective)}
         </p>
         <p className="text-xs font-medium" style={{ color: overspent ? 'var(--expense)' : 'var(--text-faint)' }}>
-          {overspent
-            ? `${formatCurrency(Math.abs(b.remaining ?? 0))} over`
-            : `${formatCurrency(b.remaining ?? 0)} left`}
+          {overspent ? `${formatCurrency(Math.abs(b.remaining ?? 0))} over` : `${formatCurrency(b.remaining ?? 0)} left`}
         </p>
       </div>
     </div>
