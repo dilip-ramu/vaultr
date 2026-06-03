@@ -2,14 +2,13 @@
 
 import { useState, useRef } from 'react'
 import { X, Check, Camera } from 'lucide-react'
-import type { Category, CategoryType } from '@/lib/types'
+import type { Category } from '@/lib/types'
 import { CATEGORY_ICONS, ACCOUNT_COLORS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
 
 interface Props {
   category: Category | null
-  defaultType: CategoryType
   onSaved: (category: Category) => void
   onClose: () => void
 }
@@ -23,12 +22,12 @@ const ICON_EMOJI_MAP: Record<string, string> = {
   'dollar-sign': '💵', 'percent': '💹', 'laptop': '💻', 'more-horizontal': '•',
 }
 
-export default function CategoryForm({ category, defaultType, onSaved, onClose }: Props) {
+export default function CategoryForm({ category, onSaved, onClose }: Props) {
   const isEdit = !!category
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const [name, setName] = useState(category?.name ?? '')
-  const [type, setType] = useState<CategoryType>(category?.type ?? defaultType)
+  const type = 'expense' as const  // unified — income uses the same list
   const [icon, setIcon] = useState(category?.icon ?? 'more-horizontal')
   const [color, setColor] = useState(category?.color ?? ACCOUNT_COLORS[0])
   const [avatarUrl, setAvatarUrl] = useState(category?.avatar_url ?? '')
@@ -122,24 +121,6 @@ export default function CategoryForm({ category, defaultType, onSaved, onClose }
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               />
             </div>
-          </div>
-
-          {/* Type */}
-          <div className="flex bg-gray-100 rounded-xl p-1">
-            <button
-              type="button"
-              onClick={() => setType('expense')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${type === 'expense' ? 'bg-white shadow-sm text-red-500' : 'text-gray-500'}`}
-            >
-              Expense
-            </button>
-            <button
-              type="button"
-              onClick={() => setType('income')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${type === 'income' ? 'bg-white shadow-sm text-green-500' : 'text-gray-500'}`}
-            >
-              Income
-            </button>
           </div>
 
           {/* Icon picker */}
