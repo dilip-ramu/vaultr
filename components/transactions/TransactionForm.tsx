@@ -53,6 +53,10 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const [newPayeeType, setNewPayeeType] = useState<'personal' | 'business' | 'other'>('personal')
   const payeeRef = useRef<HTMLDivElement>(null)
 
+  // Category search state
+  const [categorySearch, setCategorySearch] = useState('')
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
+
   // Currency dropdown state
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false)
   const [currencySearch, setCurrencySearch] = useState('')
@@ -384,26 +388,90 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
             </div>
           )}
 
-          {/* Category */}
+          {/* Category — searchable dropdown */}
           {type !== 'transfer' && (
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
-              <div className="relative">
-                <select
-                  value={categoryId}
-                  onChange={e => setCategoryId(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm appearance-none outline-none pr-8"
-                  style={{ color: 'var(--text)' }}
-                >
-                  <option value="">No category</option>
-                  {filteredCategories.map(cat => (
-                    <option key={cat.id} value={cat.id}>
-                      {getCategoryEmoji(cat.icon)}  {cat.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
-              </div>
+
+              {/* Trigger button */}
+              <button
+                type="button"
+                onClick={() => { setShowCategoryDropdown(true); setCategorySearch('') }}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center gap-2 text-left"
+                style={{ color: categoryId ? 'var(--text)' : 'var(--text-muted)' }}
+              >
+                {(() => {
+                  const sel = filteredCategories.find(c => c.id === categoryId)
+                  return sel
+                    ? <><span>{getCategoryEmoji(sel.icon)}</span><span className="flex-1 truncate">{sel.name}</span></>
+                    : <span className="flex-1">No category</span>
+                })()}
+                <ChevronDown className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
+              </button>
+
+              {/* Dropdown */}
+              {showCategoryDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowCategoryDropdown(false)} />
+                  <div
+                    className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl shadow-lg overflow-hidden"
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                  >
+                    {/* Search input */}
+                    <div className="p-2 border-b" style={{ borderColor: 'var(--border)' }}>
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+                        <input
+                          autoFocus
+                          type="text"
+                          value={categorySearch}
+                          onChange={e => setCategorySearch(e.target.value)}
+                          placeholder="Search categories…"
+                          className="w-full pl-8 pr-3 py-2 rounded-lg text-sm outline-none"
+                          style={{ background: 'var(--surface-2)', color: 'var(--text)' }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Results */}
+                    <div className="max-h-52 overflow-y-auto">
+                      {/* Clear option */}
+                      {categoryId && !categorySearch && (
+                        <button
+                          type="button"
+                          onClick={() => { setCategoryId(''); setShowCategoryDropdown(false) }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          <X className="w-3.5 h-3.5" /> Clear category
+                        </button>
+                      )}
+                      {filteredCategories
+                        .filter(c => !categorySearch || c.name.toLowerCase().includes(categorySearch.toLowerCase()))
+                        .map(cat => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => { setCategoryId(cat.id); setShowCategoryDropdown(false) }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left"
+                            style={{
+                              background: cat.id === categoryId ? `${cat.color}18` : undefined,
+                              color: 'var(--text)',
+                            }}
+                          >
+                            <span className="text-base shrink-0">{getCategoryEmoji(cat.icon)}</span>
+                            <span className="flex-1">{cat.name}</span>
+                            {cat.id === categoryId && <span className="text-xs" style={{ color: 'var(--brand)' }}>✓</span>}
+                          </button>
+                        ))
+                      }
+                      {filteredCategories.filter(c => !categorySearch || c.name.toLowerCase().includes(categorySearch.toLowerCase())).length === 0 && (
+                        <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>No categories match "{categorySearch}"</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
