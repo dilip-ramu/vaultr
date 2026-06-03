@@ -76,14 +76,23 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const sup = singleInvoice
-          ? (singleInvoice.supplier as unknown as Supplier)
-          : null
-        // For personal bills (no supplier), fall back to invoice_number or payee_name
-        const displayName = (singleInvoice as unknown as Record<string, unknown>)?.payee_name as string | undefined
-        const txName = isSingle
-          ? `${sup?.name ?? displayName ?? 'Supplier'} — ${singleInvoice?.invoice_number ?? 'Invoice'}`
-          : `Supplier payments — ${invoiceIds.length} invoices`
+        // Build name from unique supplier names across all selected invoices
+        const uniqueNames = [
+          ...new Set(
+            invoices.map(inv => {
+              const s = inv.supplier as unknown as Supplier
+              return s?.name ?? (inv as unknown as Record<string, unknown>).payee_name as string | undefined ?? null
+            }).filter(Boolean) as string[]
+          ),
+        ]
+        const nameStr = uniqueNames.length === 0
+          ? 'Supplier'
+          : uniqueNames.length === 1
+            ? uniqueNames[0]
+            : uniqueNames.length === 2
+              ? `${uniqueNames[0]} and ${uniqueNames[1]}`
+              : `${uniqueNames.slice(0, -1).join(', ')} and ${uniqueNames.at(-1)}`
+        const txName = `${nameStr} payment`
 
         const { data: tx } = await supabase.from('transactions').insert({
           user_id: user.id,
