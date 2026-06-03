@@ -75,7 +75,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   const [filterSupplier, setFilterSupplier]     = useState('')
   const [filterRecoverable, setFilterRecoverable] = useState('')
   const [filterRecStatus, setFilterRecStatus]   = useState('')
-  const [filterRecurring, setFilterRecurring]   = useState(false)
+  const [filterRecurring, setFilterRecurring]   = useState(() => searchParams.get('recurring') === 'true')
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
