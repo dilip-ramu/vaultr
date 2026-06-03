@@ -227,3 +227,49 @@ input:focus, select:focus, textarea:focus {
 @layer base {
   input, select, textarea { font-size: max(16px, 1rem); }
 }
+
+/* ── Dark mode compat ────────────────────────────────────────────────────────
+   Many older components use hardcoded Tailwind colors (bg-white, text-gray-*)
+   instead of CSS variables. These overrides correct them universally so every
+   dialog, form, and card respects the dark theme without per-file rewrites.
+   Specificity: [data-theme="dark"] .class = 0-1-1-0, beats Tailwind's 0-0-1-0.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .bg-white              { background-color: var(--surface)   !important; }
+[data-theme="dark"] .bg-gray-50            { background-color: var(--surface-2)  !important; }
+[data-theme="dark"] .bg-gray-100           { background-color: var(--surface-2)  !important; }
+[data-theme="dark"] .bg-gray-200           { background-color: var(--border)     !important; }
+
+[data-theme="dark"] .border-gray-50,
+[data-theme="dark"] .border-gray-100,
+[data-theme="dark"] .border-gray-200       { border-color: var(--border)         !important; }
+
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-gray-700         { color: var(--text)                  !important; }
+
+[data-theme="dark"] .text-gray-600,
+[data-theme="dark"] .text-gray-500         { color: var(--text-muted)            !important; }
+
+[data-theme="dark"] .text-gray-400,
+[data-theme="dark"] .text-gray-300         { color: var(--text-faint)            !important; }
+
+[data-theme="dark"] .hover\:bg-white:hover      { background-color: var(--surface)  !important; }
+[data-theme="dark"] .hover\:bg-gray-50:hover    { background-color: var(--surface-2) !important; }
+[data-theme="dark"] .hover\:bg-gray-100:hover   { background-color: var(--surface-2) !important; }
+[data-theme="dark"] .hover\:text-gray-600:hover { color: var(--text-muted)           !important; }
+[data-theme="dark"] .hover\:text-gray-900:hover { color: var(--text)                 !important; }
+
+/* Shadows use the dark shadow token */
+[data-theme="dark"] .shadow-sm { box-shadow: 0 1px 3px var(--shadow) !important; }
+[data-theme="dark"] .shadow    { box-shadow: 0 2px 8px var(--shadow) !important; }
+[data-theme="dark"] .shadow-lg { box-shadow: 0 8px 24px var(--shadow) !important; }
+[data-theme="dark"] .shadow-xl { box-shadow: 0 12px 32px var(--shadow) !important; }
+
+/* Divide lines (used in table rows, lists) */
+[data-theme="dark"] .divide-gray-100 > * + *,
+[data-theme="dark"] .divide-gray-200 > * + * { border-color: var(--border) !important; }
+
+/* Ring (focus outlines) */
+[data-theme="dark"] .ring-gray-100,
+[data-theme="dark"] .ring-gray-200 { --tw-ring-color: var(--border) !important; }

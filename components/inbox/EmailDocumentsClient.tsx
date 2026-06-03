@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Mail, RefreshCw, ExternalLink, Download, Eye, EyeOff,
   CheckCircle2, Search, Filter, AlertTriangle, Inbox,
@@ -104,7 +104,8 @@ export default function EmailDocumentsClient({
   const [search, setSearch] = useState('')
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isCheckingBackground, setIsCheckingBackground] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [expandedBody, setExpandedBody] = useState<string | null>(null)
   const [readDoc, setReadDoc] = useState<EmailDocument | null>(null)
   const [reviewDoc, setReviewDoc] = useState<EmailDocument | null>(null)
@@ -144,30 +145,80 @@ export default function EmailDocumentsClient({
     })
   }, [tabDocs, statusFilter, senderFilter, search])
 
-  // ── Check now ─────────────────────────────────────────────────────────────
+  // ── Background polling ────────────────────────────────────────────────────
 
-  const handleCheckNow = () => {
-    setCheckResult(null)
-    setCheckError(null)
-    startTransition(async () => {
+  // Poll documents every 6 s while a background check is in progress.
+  // Also watch last_checked_at on the integration — when it advances the check is done.
+  useEffect(() => {
+    if (!isCheckingBackground) {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+      return
+    }
+
+    let lastCheckedAt: string | null = null
+    let consecutiveSameCount = 0
+    const STOP_AFTER = 30 // ~3 min at 6 s intervals
+
+    const tick = async () => {
       try {
-        const res = await fetch('/api/inbox/check', { method: 'POST' })
-        const json = await res.json()
-        if (!res.ok) {
-          setCheckError(json.error ?? 'Failed to check mailbox')
-          return
-        }
-        setCheckResult(json.result)
-        // Refresh all non-ignored docs; invoiced ones stay only in their tab
+        // Refresh document list
         const docsRes = await fetch('/api/inbox/documents?status=all')
         const docsJson = await docsRes.json()
         if (docsJson.documents) {
           setDocuments((docsJson.documents as EmailDocument[]).filter(d => d.status !== 'ignored'))
         }
-      } catch (e) {
-        setCheckError((e as Error).message)
+
+        // Check integration last_checked_at to detect completion
+        const intRes = await fetch('/api/inbox/integrations')
+        const intJson = await intRes.json()
+        const newLastChecked: string | null = intJson.integration?.last_checked_at ?? null
+
+        if (newLastChecked && newLastChecked !== lastCheckedAt) {
+          if (lastCheckedAt !== null) {
+            // last_checked_at advanced → check is complete
+            setIsCheckingBackground(false)
+            setCheckResult({ checked: 0, added: 0, duplicates: 0, errors: [] }) // triggers success banner
+          }
+          lastCheckedAt = newLastChecked
+          consecutiveSameCount = 0
+        } else {
+          consecutiveSameCount++
+          if (consecutiveSameCount >= STOP_AFTER) {
+            // Timeout — stop polling after ~3 min regardless
+            setIsCheckingBackground(false)
+          }
+        }
+      } catch { /* ignore transient errors */ }
+    }
+
+    // Start immediately, then repeat
+    tick()
+    pollRef.current = setInterval(tick, 6000)
+
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    }
+  }, [isCheckingBackground])
+
+  // ── Check now ─────────────────────────────────────────────────────────────
+
+  const handleCheckNow = async () => {
+    setCheckResult(null)
+    setCheckError(null)
+    try {
+      const res = await fetch('/api/inbox/check', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        setCheckError(json.error ?? 'Failed to check mailbox')
+        return
       }
-    })
+      // API returns immediately with { started: true } — kick off background polling
+      if (json.started) {
+        setIsCheckingBackground(true)
+      }
+    } catch (e) {
+      setCheckError((e as Error).message)
+    }
   }
 
   // ── Status update ─────────────────────────────────────────────────────────
@@ -355,12 +406,12 @@ export default function EmailDocumentsClient({
           {showCheckNow && (
             <button
               onClick={handleCheckNow}
-              disabled={isPending}
+              disabled={isCheckingBackground}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
               style={{ backgroundColor: 'var(--brand)' }}
             >
-              <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
-              {isPending ? 'Checking...' : 'Check Now'}
+              <RefreshCw className={`w-4 h-4 ${isCheckingBackground ? 'animate-spin' : ''}`} />
+              {isCheckingBackground ? 'Checking…' : 'Check Now'}
             </button>
           )}
         </div>
@@ -405,15 +456,25 @@ export default function EmailDocumentsClient({
         )
       })()}
 
+      {/* Background-check banner */}
+      {isCheckingBackground && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-center gap-3">
+          <RefreshCw className="w-4 h-4 text-blue-500 shrink-0 animate-spin" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-blue-800">Checking email in background</p>
+            <p className="text-sm text-blue-600 mt-0.5">New documents will appear here automatically. You can navigate freely.</p>
+          </div>
+          <button onClick={() => setIsCheckingBackground(false)} className="text-blue-400 hover:text-blue-600 text-lg leading-none">&times;</button>
+        </div>
+      )}
+
       {/* Check result banner */}
-      {checkResult && (
+      {checkResult && !isCheckingBackground && (
         <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-green-800">Mailbox checked successfully</p>
-            <p className="text-sm text-green-700 mt-0.5">
-              Scanned {checkResult.checked} emails — {checkResult.added} new documents added, {checkResult.duplicates} duplicates skipped
-            </p>
+            <p className="text-sm font-semibold text-green-800">Mailbox check complete</p>
+            <p className="text-sm text-green-700 mt-0.5">Document list refreshed — any new emails have been added.</p>
             {checkResult.errors.length > 0 && (
               <ul className="mt-1 space-y-0.5">
                 {checkResult.errors.map((e, i) => (
@@ -422,12 +483,7 @@ export default function EmailDocumentsClient({
               </ul>
             )}
           </div>
-          <button
-            onClick={() => setCheckResult(null)}
-            className="text-green-500 hover:text-green-700 text-lg leading-none"
-          >
-            &times;
-          </button>
+          <button onClick={() => setCheckResult(null)} className="text-green-500 hover:text-green-700 text-lg leading-none">&times;</button>
         </div>
       )}
 
@@ -439,12 +495,7 @@ export default function EmailDocumentsClient({
             <p className="text-sm font-semibold text-red-800">Check failed</p>
             <p className="text-sm text-red-700 mt-0.5">{checkError}</p>
           </div>
-          <button
-            onClick={() => setCheckError(null)}
-            className="text-red-400 hover:text-red-600 text-lg leading-none"
-          >
-            &times;
-          </button>
+          <button onClick={() => setCheckError(null)} className="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
         </div>
       )}
 

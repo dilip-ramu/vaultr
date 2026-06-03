@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { checkMailbox } from '@/lib/email/imap'
 
-// POST — trigger manual mailbox check
+// POST — trigger manual mailbox check (returns immediately; work runs in background via after())
 export async function POST(_req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,26 +33,31 @@ export async function POST(_req: NextRequest) {
 
   const monitoredEmails = senders.map(s => s.email)
 
-  try {
-    const result = await checkMailbox({
-      userId: user.id,
-      integrationId: integration.id,
-      emailAddress: integration.email_address,
-      encryptedPassword: integration.encrypted_password,
-      encryptionIv: integration.encryption_iv,
-      monitoredEmails,
-      supabase,
-    })
+  // Run the mailbox check AFTER the response is sent so the browser is never blocked.
+  // after() keeps the serverless function alive until the callback completes.
+  after(async () => {
+    try {
+      await checkMailbox({
+        userId: user.id,
+        integrationId: integration.id,
+        emailAddress: integration.email_address,
+        encryptedPassword: integration.encrypted_password,
+        encryptionIv: integration.encryption_iv,
+        monitoredEmails,
+        supabase,
+      })
+    } catch (e) {
+      console.error('[inbox/check] Background mailbox check failed:', e)
+    } finally {
+      // Update last_checked_at regardless of outcome
+      await supabase
+        .from('email_integrations')
+        .update({ last_checked_at: new Date().toISOString() })
+        .eq('id', integration.id)
+        .eq('user_id', user.id)
+    }
+  })
 
-    // Update last_checked_at
-    await supabase
-      .from('email_integrations')
-      .update({ last_checked_at: new Date().toISOString() })
-      .eq('id', integration.id)
-      .eq('user_id', user.id)
-
-    return NextResponse.json({ result })
-  } catch (e) {
-    return NextResponse.json({ error: `Mailbox check failed: ${(e as Error).message}` }, { status: 500 })
-  }
+  // Return immediately — client will poll for results
+  return NextResponse.json({ started: true })
 }
