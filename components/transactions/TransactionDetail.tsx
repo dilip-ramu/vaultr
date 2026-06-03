@@ -39,7 +39,6 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
   const amountColor  = tx.type === 'income' ? '#16a34a' : tx.type === 'expense' ? '#dc2626' : '#3b82f6'
   const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔'
 
-  // paddingTop pushes the sheet below the AppShell header on mobile regardless of env() resolution
   return (
     <div
       className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center"
@@ -48,7 +47,7 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
 
-      {/* Sheet — maxHeight 100% is relative to the container's content area (viewport minus paddingTop) */}
+      {/* Sheet */}
       <div
         className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl flex flex-col slide-up"
         style={{
@@ -102,7 +101,7 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
         <div
           className="flex-1 overflow-y-auto px-5 py-5 space-y-5"
           style={{
-            overscrollBehavior: 'contain',          // prevents iOS page scroll bleed-through
+            overscrollBehavior: 'contain',
             backgroundColor: 'var(--surface)',
           }}
         >
