@@ -232,7 +232,8 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
 
           {/* Name */}
@@ -298,22 +299,18 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               {type === 'transfer' ? 'From Account' : 'Account'}
             </label>
-            <div className="flex flex-wrap gap-2">
-              {accounts.map(a => (
-                <AccountChip key={a.id} account={a} selected={accountId === a.id} onSelect={setAccountId} />
-              ))}
-            </div>
+            <GroupedAccountChips accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
             {!accountId && <p className="text-xs text-red-400 mt-1">Please select an account</p>}
           </div>
 
           {type === 'transfer' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">To Account</label>
-              <div className="flex flex-wrap gap-2">
-                {accounts.filter(a => a.id !== accountId).map(a => (
-                  <AccountChip key={a.id} account={a} selected={toAccountId === a.id} onSelect={setToAccountId} />
-                ))}
-              </div>
+              <GroupedAccountChips
+                accounts={accounts.filter(a => a.id !== accountId)}
+                selectedId={toAccountId}
+                onSelect={setToAccountId}
+              />
               {!toAccountId && <p className="text-xs text-red-400 mt-1">Please select a destination account</p>}
             </div>
           )}
@@ -426,11 +423,15 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
             transactionId={isEdit ? transaction!.id : undefined}
             existingAttachments={transaction?.attachments ?? []}
           />
+        </div>
 
+        {/* Sticky submit button — always visible, never requires scrolling */}
+        <div className="shrink-0 px-6 pb-6 pt-3" style={{ borderTop: '1px solid var(--border-2)' }}>
           <button type="submit" disabled={saving}
             className={`w-full text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60 ${activeType.color}`}>
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : `Add ${activeType.label}`}
           </button>
+        </div>
         </form>
 
       {/* Currency picker modal */}
@@ -518,6 +519,57 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
         </div>
       )}
     </BottomSheet>
+  )
+}
+
+// ── Type order for grouping ───────────────────────────────────────────────────
+const ACCOUNT_TYPE_ORDER = ['checking', 'savings', 'credit', 'cash', 'investment', 'loan', 'other']
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  checking: 'Checking', savings: 'Savings', credit: 'Credit Card',
+  cash: 'Cash', investment: 'Investment', loan: 'Loan', other: 'Other',
+}
+
+function GroupedAccountChips({ accounts, selectedId, onSelect }: {
+  accounts: Account[]
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  const groups = useMemo(() => {
+    const map = new Map<string, Account[]>()
+    const sorted = [...accounts].sort((a, b) => a.name.localeCompare(b.name))
+    for (const acc of sorted) {
+      const key = acc.type ?? 'other'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(acc)
+    }
+    // Return groups in the canonical type order
+    return ACCOUNT_TYPE_ORDER
+      .filter(t => map.has(t))
+      .map(t => ({ type: t, label: ACCOUNT_TYPE_LABELS[t] ?? t, accounts: map.get(t)! }))
+  }, [accounts])
+
+  if (groups.length === 0) return null
+
+  // If all accounts are the same type, skip the group header
+  const showHeaders = groups.length > 1
+
+  return (
+    <div className="space-y-2">
+      {groups.map(g => (
+        <div key={g.type}>
+          {showHeaders && (
+            <p className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-faint)' }}>
+              {g.label}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {g.accounts.map(a => (
+              <AccountChip key={a.id} account={a} selected={selectedId === a.id} onSelect={onSelect} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 

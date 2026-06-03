@@ -9,12 +9,13 @@ import TransactionDetail from './TransactionDetail'
 
 interface Props {
   transaction: Transaction
+  isFirst?: boolean
   isLast: boolean
   onEdit: (tx: Transaction) => void
   onDelete: (id: string) => void
 }
 
-export default function TransactionItem({ transaction: tx, isLast, onEdit, onDelete }: Props) {
+export default function TransactionItem({ transaction: tx, isFirst, isLast, onEdit, onDelete }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   const account = tx.account as Account | undefined
@@ -40,7 +41,7 @@ export default function TransactionItem({ transaction: tx, isLast, onEdit, onDel
     <>
       <div
         onClick={() => setShowDetail(true)}
-        className={`flex items-center gap-3 px-4 cursor-pointer transition-colors active:bg-[var(--surface-2)] ${!isLast ? 'border-b' : ''}`}
+        className={`flex items-center gap-3 px-4 cursor-pointer transition-colors active:bg-[var(--surface-2)] ${isFirst ? 'rounded-t-2xl' : ''} ${isLast ? 'rounded-b-2xl' : 'border-b'}`}
         style={{
           minHeight: 64,
           paddingTop: 12,

@@ -20,7 +20,7 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Props)
 
       {/* Sheet */}
       <div
-        className="relative w-full md:max-w-md slide-up overflow-hidden"
+        className="relative w-full md:max-w-md slide-up flex flex-col"
         style={{
           backgroundColor: 'var(--surface)',
           borderRadius: '24px 24px 0 0',

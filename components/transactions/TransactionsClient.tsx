@@ -209,11 +209,12 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
                   )}
                 </p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                 {txs.map((tx, i) => (
                   <TransactionItem
                     key={tx.id}
                     transaction={tx}
+                    isFirst={i === 0}
                     isLast={i === txs.length - 1}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
