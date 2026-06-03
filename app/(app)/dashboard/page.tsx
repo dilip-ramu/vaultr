@@ -28,6 +28,7 @@ export default async function DashboardPage() {
     { data: historyTx },
     { data: receivableInvoices },
     { data: unbilledInvoices },
+    { data: contrastPayee },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
       .eq('is_active', true),
     supabase
       .from('transactions')
-      .select('category_id, amount')
+      .select('category_id, amount, payee_id')
       .eq('user_id', user!.id)
       .eq('type', 'expense')
       .not('category_id', 'is', null)
@@ -98,12 +99,21 @@ export default async function DashboardPage() {
       .eq('is_recoverable', true)
       .eq('recoverable_status', 'pending_billing')
       .order('invoice_date', { ascending: false }),
+    supabase
+      .from('payees')
+      .select('id')
+      .eq('user_id', user!.id)
+      .ilike('name', 'contrast')
+      .maybeSingle(),
   ])
 
-  // Compute spent per category for budget widget
+  // Compute spent per category for budget widget — exclude Contrast payee
+  const contrastPayeeId = contrastPayee?.id ?? null
   const spentMap: Record<string, number> = {}
   for (const tx of budgetTx ?? []) {
-    if (tx.category_id) spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + tx.amount
+    if (!tx.category_id) continue
+    if (contrastPayeeId && tx.payee_id === contrastPayeeId) continue
+    spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + Number(tx.amount)
   }
   const budgets: Budget[] = (rawBudgets ?? []).map(b => {
     const spent = spentMap[b.category_id] ?? 0
