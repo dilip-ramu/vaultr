@@ -214,6 +214,8 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   const [showForm, setShowForm]           = useState(false)
   const [editing, setEditing]             = useState<InvoiceExt | null>(null)
   const [showBulkPay, setShowBulkPay]     = useState(false)
+  // payingIds is independent of checkbox selection — avoids overwriting multi-select
+  const [payingIds, setPayingIds]         = useState<Set<string>>(new Set())
   const [linksModal, setLinksModal]       = useState<InvoiceExt | null>(null)
   const [selected, setSelected]       = useState<Set<string>>(new Set())
   const [search, setSearch]           = useState(() => searchParams.get('search') ?? '')
@@ -320,7 +322,8 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   // ── Per-row quick actions ─────────────────────────────────────────────────
 
   function handleQuickPay(inv: InvoiceExt) {
-    setSelected(new Set([inv.id]))
+    // Pay just this row — don't touch the checkbox selection
+    setPayingIds(new Set([inv.id]))
     setShowBulkPay(true)
   }
 
@@ -390,6 +393,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
 
   function handleBulkPayDone() {
     setShowBulkPay(false)
+    setPayingIds(new Set())
     setSelected(new Set())
     router.refresh()
   }
@@ -788,7 +792,13 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           <div className="flex flex-wrap gap-2 flex-1">
             {selUnpaidCount > 0 && (
               <button
-                onClick={() => setShowBulkPay(true)}
+                onClick={() => {
+                  // Snapshot the current selection into payingIds
+                  setPayingIds(new Set(
+                    invoices.filter(i => selected.has(i.id) && !i.is_paid).map(i => i.id)
+                  ))
+                  setShowBulkPay(true)
+                }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
                 style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.25)' }}
               >
@@ -1255,11 +1265,11 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       )}
       {showBulkPay && (
         <BulkPayModal
-          invoiceIds={[...selected]}
-          invoices={invoices.filter(i => selected.has(i.id)) as SupplierInvoice[]}
+          invoiceIds={[...payingIds]}
+          invoices={invoices.filter(i => payingIds.has(i.id)) as SupplierInvoice[]}
           accounts={accounts}
           onDone={handleBulkPayDone}
-          onClose={() => setShowBulkPay(false)}
+          onClose={() => { setShowBulkPay(false); setPayingIds(new Set()) }}
         />
       )}
       {linksModal && (
