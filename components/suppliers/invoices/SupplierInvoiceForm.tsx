@@ -27,6 +27,9 @@ const EMPTY = {
   is_paid: false,
   payment_date: '',
   payment_reference: '',
+  is_recurring: false,
+  recurrence_interval: 'monthly' as 'daily' | 'weekly' | 'monthly' | 'yearly',
+  recurrence_end_date: '',
   attachment_path: null as string | null,
   attachment_name: null as string | null,
   attachment_size: null as number | null,
@@ -60,6 +63,9 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
     attachment_path: invoice.attachment_path,
     attachment_name: invoice.attachment_name,
     attachment_size: invoice.attachment_size,
+    is_recurring: invoice.is_recurring ?? false,
+    recurrence_interval: invoice.recurrence_interval ?? 'monthly',
+    recurrence_end_date: invoice.recurrence_end_date ?? '',
   } : { ...EMPTY })
 
   const [saving, setSaving] = useState(false)
@@ -150,6 +156,9 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
         attachment_path: form.attachment_path,
         attachment_name: form.attachment_name,
         attachment_size: form.attachment_size,
+        is_recurring: form.is_recurring,
+        recurrence_interval: form.is_recurring ? form.recurrence_interval : null,
+        recurrence_end_date: form.is_recurring && form.recurrence_end_date ? form.recurrence_end_date : null,
       }
 
       const url = invoice ? `/api/supplier-invoices/${invoice.id}` : '/api/supplier-invoices'
@@ -262,6 +271,48 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
               style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
             />
           </Field>
+
+          {/* Recurring */}
+          <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2, var(--bg))' }}>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                onClick={() => set('is_recurring', !form.is_recurring)}
+                className="w-10 h-6 rounded-full relative transition-colors"
+                style={{ backgroundColor: form.is_recurring ? 'var(--brand)' : 'var(--border)' }}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_recurring ? 'translate-x-5' : 'translate-x-1'}`} />
+              </div>
+              <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Recurring / Subscription</span>
+            </label>
+            {form.is_recurring && (
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Frequency</label>
+                  <select
+                    value={form.recurrence_interval}
+                    onChange={e => set('recurrence_interval', e.target.value as typeof form.recurrence_interval)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                    style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>End Date (optional)</label>
+                  <input
+                    type="date"
+                    value={form.recurrence_end_date}
+                    onChange={e => set('recurrence_end_date', e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                    style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Attachment */}
           <div>

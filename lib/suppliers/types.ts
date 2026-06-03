@@ -66,6 +66,9 @@ export interface SupplierInvoice {
   recoverable_notes: string | null
   billed_invoice_ref: string | null
   recovered_date: string | null
+  is_recurring: boolean
+  recurrence_interval: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
+  recurrence_end_date: string | null
   is_paid: boolean
   payment_date: string | null
   payment_reference: string | null

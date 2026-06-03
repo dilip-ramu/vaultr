@@ -98,9 +98,7 @@ const navSections: NavSection[] = [
     id: 'finance',
     label: 'Finance',
     items: [
-      { href: '/bills',         label: 'Bills',         icon: Receipt },
-      { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
-      { href: '/budgets',       label: 'Budgets',       icon: Target },
+      { href: '/budgets', label: 'Budgets', icon: Target },
     ],
   },
   {

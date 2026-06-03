@@ -314,70 +314,75 @@ export default function SubscriptionsClient({
 
       {/* Pay confirmation modal */}
       {payBill && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm">
           <div
-            className="w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4"
-            style={{ backgroundColor: 'var(--surface)' }}
+            className="w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col"
+            style={{ backgroundColor: 'var(--surface)', maxHeight: '80dvh' }}
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Mark as Paid</h3>
-              <button onClick={() => setPayBill(null)} style={{ color: 'var(--text-muted)' }}>✕</button>
-            </div>
-
-            <div>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{payBill.name}</p>
-              <p className="text-xl font-bold mt-0.5" style={{ color: 'var(--text)' }}>{formatCurrency(payBill.amount)}</p>
-            </div>
-
-            {/* Account — show picker only if not already set */}
-            <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
-                {payBill.account_id ? 'Account' : 'Select Account *'}
-              </label>
-              {payBill.account_id
-                ? (
-                  // Account already set — show it, allow changing
-                  <AccountChipPicker
-                    accounts={accounts}
-                    selectedId={payAccountId}
-                    onSelect={setPayAccountId}
-                  />
-                ) : (
-                  <AccountChipPicker
-                    accounts={accounts}
-                    selectedId={payAccountId}
-                    onSelect={setPayAccountId}
-                  />
-                )
-              }
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Payment Date</label>
-              <input
-                type="date"
-                value={payDate}
-                onChange={e => setPayDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
-                style={{ backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
-              />
-            </div>
-
-            <div className="flex gap-3 pt-1">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
+              <div>
+                <h3 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Mark as Paid</h3>
+                <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  {payBill.name} · {formatCurrency(payBill.amount)}
+                </p>
+              </div>
               <button
                 onClick={() => setPayBill(null)}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium border"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                className="w-8 h-8 flex items-center justify-center rounded-xl shrink-0"
+                style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
               >
-                Cancel
+                <X className="w-4 h-4" />
               </button>
-              <button
-                onClick={handlePayConfirm}
-                disabled={payingSaving || !payAccountId}
-                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-500 disabled:opacity-50"
-              >
-                {payingSaving ? 'Saving…' : 'Confirm Paid'}
-              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1 px-5 pb-5 space-y-4">
+              {/* Account */}
+              {payBill.account_id ? (
+                // Account already set — no picker, just show it
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'var(--surface-2)' }}>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Paying from</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                    {accounts.find(a => a.id === payBill.account_id)?.name ?? 'Saved account'}
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Select Account *</label>
+                  <AccountChipPicker accounts={accounts} selectedId={payAccountId} onSelect={setPayAccountId} />
+                </div>
+              )}
+
+              {/* Date */}
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Payment Date</label>
+                <input
+                  type="date"
+                  value={payDate}
+                  onChange={e => setPayDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPayBill(null)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePayConfirm}
+                  disabled={payingSaving || !payAccountId}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-500 disabled:opacity-50"
+                >
+                  {payingSaving ? 'Saving…' : 'Confirm Paid'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

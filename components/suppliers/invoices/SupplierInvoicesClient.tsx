@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Search, Pencil, X, Paperclip, ChevronDown, ChevronUp,
-  AlertTriangle, CheckCircle2, Clock, Circle, CheckSquare, Square,
+  AlertTriangle, CheckCircle2, Clock, Circle, CheckSquare, Square, RefreshCw,
 } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
 import { computeInvoiceStatus, INVOICE_CATEGORIES, RECOVERABLE_STATUS_LABELS, INVOICE_STATUS_LABELS } from '@/lib/suppliers/types'
@@ -73,6 +73,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
   const [filterSupplier, setFilterSupplier]     = useState('')
   const [filterRecoverable, setFilterRecoverable] = useState('')
   const [filterRecStatus, setFilterRecStatus]   = useState('')
+  const [filterRecurring, setFilterRecurring]   = useState(false)
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
     if (filterRecoverable === 'yes' && !inv.is_recoverable) return false
     if (filterRecoverable === 'no' && inv.is_recoverable) return false
     if (filterRecStatus && inv.recoverable_status !== filterRecStatus) return false
+    if (filterRecurring && !inv.is_recurring) return false
     if (search) {
       const q = search.toLowerCase()
       const sup = (inv.supplier as unknown as Supplier)?.name ?? ''
@@ -218,7 +220,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
     }
   }
 
-  const hasFilters = filterSupplier || filterRecoverable || filterRecStatus
+  const hasFilters = filterSupplier || filterRecoverable || filterRecStatus || filterRecurring
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -440,7 +442,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
 
       {showFilters && (
         <div
-          className="rounded-xl border p-4 grid grid-cols-1 sm:grid-cols-3 gap-3"
+          className="rounded-xl border p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
         >
           <div className="space-y-1">
@@ -471,10 +473,26 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
               {Object.entries(REC_STATUS).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
             </select>
           </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type</label>
+            <button
+              type="button"
+              onClick={() => setFilterRecurring(r => !r)}
+              className="w-full px-3 py-2 rounded-lg border text-sm text-left flex items-center gap-2"
+              style={{
+                background: filterRecurring ? 'rgba(42,122,80,0.08)' : 'var(--surface-2)',
+                borderColor: filterRecurring ? 'var(--brand)' : 'var(--border)',
+                color: filterRecurring ? 'var(--brand)' : 'var(--text-muted)',
+              }}
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              {filterRecurring ? 'Recurring only' : 'All types'}
+            </button>
+          </div>
           {hasFilters && (
-            <div className="sm:col-span-3 flex justify-end">
+            <div className="sm:col-span-4 flex justify-end">
               <button
-                onClick={() => { setFilterSupplier(''); setFilterRecoverable(''); setFilterRecStatus('') }}
+                onClick={() => { setFilterSupplier(''); setFilterRecoverable(''); setFilterRecStatus(''); setFilterRecurring(false) }}
                 className="text-xs flex items-center gap-1"
                 style={{ color: 'var(--text-muted)' }}
               >
@@ -583,6 +601,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
                           <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
                             style={{ background: 'rgba(42,122,80,0.1)', color: 'var(--brand)' }}>
                             Email
+                          </span>
+                        )}
+                        {inv.is_recurring && (
+                          <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                            style={{ background: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>
+                            <RefreshCw className="w-2.5 h-2.5" /> {inv.recurrence_interval ?? 'Recurring'}
                           </span>
                         )}
                       </td>
