@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, ChevronDown, Search } from 'lucide-react'
 import type { Bill, Account, Category, Customer, RecurrenceInterval, PaymentTerms, BillDirection } from '@/lib/types'
 import { PAYMENT_TERMS_LABELS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayString } from '@/lib/utils'
+import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import FileUpload from '../shared/FileUpload'
+import AccountChipPicker from '../shared/AccountChipPicker'
 
 interface Props {
   bill: Bill | null
@@ -23,7 +25,16 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
 
   const [direction, setDirection] = useState<BillDirection>(bill?.direction ?? defaultDirection)
   const [name, setName] = useState(bill?.name ?? '')
-  const [amount, setAmount] = useState(bill?.amount?.toString() ?? '')
+  const [currency, setCurrency] = useState(bill?.original_currency ?? 'INR')
+  const [amount, setAmount] = useState(
+    bill?.original_currency && bill.original_currency !== 'INR' && bill.original_amount
+      ? bill.original_amount.toString()
+      : bill?.amount?.toString() ?? ''
+  )
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false)
+  const [currencySearch, setCurrencySearch] = useState('')
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null)
+  const [loadingRate, setLoadingRate] = useState(false)
   const [accountId, setAccountId] = useState(bill?.account_id ?? '')
   const [categoryId, setCategoryId] = useState(bill?.category_id ?? '')
   const [customerId, setCustomerId] = useState(bill?.customer_id ?? '')
@@ -37,20 +48,62 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    if (currency === 'INR') { setExchangeRate(null); return }
+    setLoadingRate(true)
+    const supabase = createClient()
+    supabase
+      .from('currency_rates')
+      .select('expended_rate, market_rate')
+      .eq('currency', currency)
+      .order('effective_from', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setExchangeRate(data.expended_rate ?? data.market_rate)
+        } else {
+          fetch('/api/exchange-rates').then(r => r.json()).then(j => {
+            const r = j.rates?.[currency]
+            if (r) setExchangeRate(r * 1.05)
+          }).catch(() => {})
+        }
+        setLoadingRate(false)
+      })
+  }, [currency])
+
+  const inrAmount = (() => {
+    const n = parseFloat(amount)
+    if (isNaN(n) || n <= 0) return null
+    if (currency === 'INR') return n
+    if (!exchangeRate) return null
+    return n * exchangeRate
+  })()
+
+  const filteredCurrencies = CURRENCIES.filter(c =>
+    c.code.toLowerCase().includes(currencySearch.toLowerCase()) ||
+    c.name.toLowerCase().includes(currencySearch.toLowerCase())
+  )
+
   const expenseCats = categories.filter(c => c.type === 'expense')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name || !amount || !accountId) { setError('Name, amount and account are required'); return }
+    if (currency !== 'INR' && !inrAmount) { setError('No exchange rate found for ' + currency + '. Set it in Currencies.'); return }
     setSaving(true)
     setError('')
 
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
+    const finalAmount = inrAmount ?? parseFloat(amount)
     const payload = {
       name: name.trim(),
-      amount: parseFloat(amount),
+      amount: finalAmount,
+      original_currency: currency,
+      original_amount: currency !== 'INR' ? parseFloat(amount) : null,
+      exchange_rate_used: currency !== 'INR' ? exchangeRate : null,
       direction,
       account_id: accountId,
       category_id: categoryId || null,
@@ -119,21 +172,35 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">₹</span>
-                <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min="0.01" step="0.01"
-                  inputMode="decimal" autoComplete="off" enterKeyHint="done"
-                  placeholder="0.00" className="w-full pl-7 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          {/* Amount + Currency */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Amount</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowCurrencyPicker(true)}
+                className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shrink-0 min-w-[80px]">
+                <span>{getCurrencyMeta(currency).flag}</span>
+                <span>{currency}</span>
+                <ChevronDown className="w-3 h-3 text-gray-400" />
+              </button>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min="0.01" step="0.01"
+                inputMode="decimal" autoComplete="off" enterKeyHint="done"
+                placeholder="0.00" className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" />
+            </div>
+            {currency !== 'INR' && amount && (
+              <div className="mt-1.5 px-3 py-1.5 rounded-xl text-xs" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                {loadingRate ? 'Fetching rate…' : inrAmount
+                  ? <>{parseFloat(amount).toFixed(2)} {currency} × ₹{exchangeRate?.toFixed(2)} = <strong>₹{inrAmount.toFixed(2)}</strong></>
+                  : <span className="text-amber-600">No rate for {currency}. Set it in Currencies.</span>
+                }
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Due Date</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required
-                className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
-            </div>
+            )}
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Due Date</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required
+              className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
           </div>
 
           {/* Payment Terms */}
@@ -171,11 +238,8 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
           {/* Account */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Account</label>
-            <select value={accountId} onChange={e => setAccountId(e.target.value)} required
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
-              <option value="">Select account…</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
+            <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
+            {!accountId && <p className="text-xs text-red-400 mt-1">Please select an account</p>}
           </div>
 
           {/* Category */}
@@ -244,6 +308,45 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : direction === 'sent' ? 'Create Invoice' : 'Add Bill'}
           </button>
         </form>
+
+        {/* Currency picker modal */}
+        {showCurrencyPicker && (
+          <div className="absolute inset-0 z-10 flex flex-col rounded-t-3xl md:rounded-2xl overflow-hidden"
+            style={{ background: 'var(--surface)' }}>
+            <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+                <input autoFocus value={currencySearch} onChange={e => setCurrencySearch(e.target.value)}
+                  placeholder="Search currency…"
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+              </div>
+              <button onClick={() => { setShowCurrencyPicker(false); setCurrencySearch('') }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg"
+                style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {['INR', ...filteredCurrencies.filter(c => c.code !== 'INR').map(c => c.code)].map(code => {
+                const meta = getCurrencyMeta(code)
+                return (
+                  <button key={code} type="button"
+                    onClick={() => { setCurrency(code); setShowCurrencyPicker(false); setCurrencySearch('') }}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-left"
+                    style={{ background: currency === code ? 'var(--brand-light)' : undefined }}>
+                    <span className="text-lg">{meta.flag}</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{meta.code}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{meta.name}</p>
+                    </div>
+                    {currency === code && <span className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Selected</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

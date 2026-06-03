@@ -3,11 +3,16 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { PayrollMonth, PayrollEntry, Employee } from '@/lib/payroll/types'
+import AccountChipPicker from '@/components/shared/AccountChipPicker'
 
 interface Account {
   id: string
   name: string
   type: string
+  color?: string | null
+  custom_type_id?: string | null
+  custom_type_name?: string | null
+  custom_type_color?: string | null
 }
 
 interface Props {
@@ -167,16 +172,8 @@ export default function MarkPaidModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Debit from Account *</label>
-                <select
-                  value={accountId}
-                  onChange={e => setAccountId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {accounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Debit from Account *</label>
+                <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
               </div>
 
               <div>

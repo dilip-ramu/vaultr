@@ -6,7 +6,7 @@ import type { PayrollMonth, PayrollEntry, Employee } from '@/lib/payroll/types'
 import { calcFinalPayable } from '@/lib/payroll/types'
 import MarkPaidModal from './MarkPaidModal'
 
-interface Account { id: string; name: string; type: string }
+interface Account { id: string; name: string; type: string; color?: string | null; custom_type_id?: string | null; custom_type_name?: string | null; custom_type_color?: string | null }
 
 interface Props {
   month: PayrollMonth

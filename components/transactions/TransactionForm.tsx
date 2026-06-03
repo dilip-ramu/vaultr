@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown } from 'lucide-react'
 import type { Transaction, Account, Category, TransactionType, Payee } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
@@ -9,6 +9,7 @@ import { getTodayString } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import FileUpload from '../shared/FileUpload'
 import BottomSheet from '../shared/BottomSheet'
+import AccountChipPicker from '../shared/AccountChipPicker'
 import { Avatar } from '../AppShell'
 
 interface Props {
@@ -299,14 +300,14 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               {type === 'transfer' ? 'From Account' : 'Account'}
             </label>
-            <GroupedAccountChips accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
+            <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
             {!accountId && <p className="text-xs text-red-400 mt-1">Please select an account</p>}
           </div>
 
           {type === 'transfer' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">To Account</label>
-              <GroupedAccountChips
+              <AccountChipPicker
                 accounts={accounts.filter(a => a.id !== accountId)}
                 selectedId={toAccountId}
                 onSelect={setToAccountId}
@@ -519,57 +520,6 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
         </div>
       )}
     </BottomSheet>
-  )
-}
-
-// ── Type order for grouping ───────────────────────────────────────────────────
-const ACCOUNT_TYPE_ORDER = ['checking', 'savings', 'credit', 'cash', 'investment', 'loan', 'other']
-const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  checking: 'Checking', savings: 'Savings', credit: 'Credit Card',
-  cash: 'Cash', investment: 'Investment', loan: 'Loan', other: 'Other',
-}
-
-function GroupedAccountChips({ accounts, selectedId, onSelect }: {
-  accounts: Account[]
-  selectedId: string
-  onSelect: (id: string) => void
-}) {
-  const groups = useMemo(() => {
-    const map = new Map<string, Account[]>()
-    const sorted = [...accounts].sort((a, b) => a.name.localeCompare(b.name))
-    for (const acc of sorted) {
-      const key = acc.type ?? 'other'
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(acc)
-    }
-    // Return groups in the canonical type order
-    return ACCOUNT_TYPE_ORDER
-      .filter(t => map.has(t))
-      .map(t => ({ type: t, label: ACCOUNT_TYPE_LABELS[t] ?? t, accounts: map.get(t)! }))
-  }, [accounts])
-
-  if (groups.length === 0) return null
-
-  // If all accounts are the same type, skip the group header
-  const showHeaders = groups.length > 1
-
-  return (
-    <div className="space-y-2">
-      {groups.map(g => (
-        <div key={g.type}>
-          {showHeaders && (
-            <p className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-faint)' }}>
-              {g.label}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {g.accounts.map(a => (
-              <AccountChip key={a.id} account={a} selected={selectedId === a.id} onSelect={onSelect} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
   )
 }
 

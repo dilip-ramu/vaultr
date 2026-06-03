@@ -25,8 +25,8 @@ export default async function MonthDetailPage({ params }: PageProps) {
       .eq('payroll_month_id', id)
       .eq('user_id', user.id)
       .order('created_at', { ascending: true }),
-    supabase.from('accounts')
-      .select('id, name, type')
+    supabase.from('account_balances')
+      .select('id, name, type, color, custom_type_id, custom_type_name, custom_type_color')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('name'),

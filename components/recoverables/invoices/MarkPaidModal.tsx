@@ -3,11 +3,16 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { RecoverableInvoice } from '@/lib/recoverables/types'
+import AccountChipPicker from '@/components/shared/AccountChipPicker'
 
 interface Account {
   id: string
   name: string
   type: string
+  color?: string | null
+  custom_type_id?: string | null
+  custom_type_name?: string | null
+  custom_type_color?: string | null
 }
 
 interface Props {
@@ -43,7 +48,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
     const supabase = createClient()
     supabase
       .from('account_balances')
-      .select('id, name, type')
+      .select('id, name, type, color, custom_type_id, custom_type_name, custom_type_color')
       .not('type', 'in', '(credit,loan)')
       .then(({ data }) => {
         const list = data ?? []
@@ -168,17 +173,10 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
           <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
             Received In Account
           </label>
-          <select
-            value={accountId}
-            onChange={e => setAccountId(e.target.value)}
-            className="w-full rounded-xl px-3 py-2.5 text-sm"
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
-          >
-            {accounts.length === 0 && <option value="">Loading…</option>}
-            {accounts.map(a => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
+          {accounts.length === 0
+            ? <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>
+            : <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
+          }
         </div>
 
         {/* Date */}

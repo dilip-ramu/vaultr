@@ -5,6 +5,7 @@ import { X, ChevronRight, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Account, Category, Transaction } from '@/lib/types'
 import { EMOJI_MAP } from '@/lib/types'
+import AccountChipPicker from '../shared/AccountChipPicker'
 
 interface Props {
   onSaved: (tx: Transaction) => void
@@ -31,7 +32,7 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
   useEffect(() => {
     const supabase = createClient()
     Promise.all([
-      supabase.from('accounts').select('id, name, color, type, is_active').eq('is_active', true).order('name'),
+      supabase.from('account_balances').select('id, name, color, type, custom_type_id, custom_type_name, custom_type_color').eq('is_active', true).order('name'),
       supabase.from('categories').select('*').order('name'),
     ]).then(([{ data: accs }, { data: cats }]) => {
       setAccounts((accs ?? []) as Account[])
@@ -252,22 +253,11 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
               {/* Account chips */}
               <div>
                 <p className="text-label mb-2" style={{ color: 'var(--text-muted)' }}>Account</p>
-                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                  {accounts.map(acc => (
-                    <button
-                      key={acc.id}
-                      onClick={() => setAccountId(acc.id)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium shrink-0 transition-all"
-                      style={{
-                        backgroundColor: accountId === acc.id ? `${acc.color}26` : 'var(--surface-2)',
-                        color: accountId === acc.id ? acc.color : 'var(--text-muted)',
-                        border: `1.5px solid ${accountId === acc.id ? acc.color + '60' : 'transparent'}`,
-                      }}
-                    >
-                      {acc.name}
-                    </button>
-                  ))}
-                </div>
+                <AccountChipPicker
+                  accounts={accounts}
+                  selectedId={accountId ?? ''}
+                  onSelect={setAccountId}
+                />
               </div>
 
               {/* Note */}

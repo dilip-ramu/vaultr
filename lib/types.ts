@@ -168,6 +168,9 @@ export interface Bill {
   customer_id: string | null
   name: string
   amount: number
+  original_currency: string
+  original_amount: number | null
+  exchange_rate_used: number | null
   due_date: string
   direction: BillDirection
   payment_terms: PaymentTerms | null
