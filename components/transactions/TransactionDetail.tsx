@@ -39,8 +39,8 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
   const amountColor  = tx.type === 'income' ? '#16a34a' : tx.type === 'expense' ? '#dc2626' : '#3b82f6'
   const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔'
 
+  // paddingTop pushes the sheet below the AppShell header on mobile regardless of env() resolution
   return (
-    {/* paddingTop pushes the sheet below the AppShell header on mobile regardless of env() resolution */}
     <div
       className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center"
       style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 56px)' }}
