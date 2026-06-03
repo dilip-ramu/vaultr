@@ -115,193 +115,181 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
       style={{ background: 'rgba(0,0,0,0.55)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div
-        className="w-full max-w-md rounded-2xl p-5 space-y-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col"
+        style={{ background: 'var(--surface)', maxHeight: '90dvh' }}
       >
-        {/* Title */}
-        <div className="flex items-start justify-between">
+        {/* Header — fixed */}
+        <div className="flex items-start justify-between px-5 py-4 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
           <div>
-            <h2 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Record Payment</h2>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Record Payment</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               {invoice.invoice_number} · {invoice.customer_name}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-lg"
+            className="w-8 h-8 flex items-center justify-center rounded-xl"
             style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}
           >
             ✕
           </button>
         </div>
 
-        {/* Balance pill */}
-        <div
-          className="rounded-xl p-3 text-center"
-          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-        >
-          <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Balance Due</p>
-          <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--text)' }}>{fmt(balance)}</p>
-        </div>
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+          {/* Balance pill */}
+          <div
+            className="rounded-xl p-3 text-center"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+          >
+            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Balance Due</p>
+            <p className="text-2xl font-bold mt-0.5" style={{ color: 'var(--text)' }}>{fmt(balance)}</p>
+          </div>
 
-        {/* Full / Partial toggle */}
-        <div
-          className="flex gap-1 p-1 rounded-xl"
-          style={{ background: 'var(--surface-2)' }}
-        >
-          {(['full', 'partial'] as PaymentMode[]).map(m => (
-            <button
-              key={m}
-              onClick={() => switchMode(m)}
-              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-colors"
-              style={
-                mode === m
-                  ? { background: 'var(--background)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }
-                  : { color: 'var(--text-muted)' }
-              }
-            >
-              {m === 'full' ? 'Full Payment' : 'Partial Payment'}
-            </button>
-          ))}
-        </div>
+          {/* Full / Partial toggle */}
+          <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--surface-2)' }}>
+            {(['full', 'partial'] as PaymentMode[]).map(m => (
+              <button
+                key={m}
+                onClick={() => switchMode(m)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold transition-colors"
+                style={
+                  mode === m
+                    ? { background: 'var(--background)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }
+                    : { color: 'var(--text-muted)' }
+                }
+              >
+                {m === 'full' ? 'Full Payment' : 'Partial Payment'}
+              </button>
+            ))}
+          </div>
 
-        {/* Account */}
-        <div>
-          <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            Received In Account
-          </label>
-          {accounts.length === 0
-            ? <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>
-            : <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
-          }
-        </div>
-
-        {/* Date */}
-        <div>
-          <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            Payment Date
-          </label>
-          <input
-            type="date"
-            value={paymentDate}
-            onChange={e => setPaymentDate(e.target.value)}
-            className="w-full rounded-xl px-3 py-2.5 text-sm"
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
-          />
-        </div>
-
-        {/* Amount received */}
-        <div>
-          <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
-            Amount Received (₹)
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={paidAmount}
-            onChange={e => setPaidAmount(e.target.value)}
-            className="w-full rounded-xl px-3 py-2.5 text-sm"
-            style={{
-              background: 'var(--surface-2)',
-              border: `1px solid ${overPaid ? 'rgba(239,68,68,0.5)' : 'var(--border)'}`,
-              color: 'var(--text)',
-            }}
-          />
-          {mode === 'full' && (
-            <p className="text-xs mt-1 px-1" style={{ color: 'var(--text-muted)' }}>
-              If less than balance due, the difference will be logged as TDS.
-            </p>
-          )}
-        </div>
-
-        {/* Adjustment — full payment mode only */}
-        {mode === 'full' && (
+          {/* Account */}
           <div>
             <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
-              Debit Note / Adjustment (₹) <span style={{ fontWeight: 400 }}>— optional</span>
+              Received In Account
+            </label>
+            {accounts.length === 0
+              ? <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>
+              : <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
+            }
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>Payment Date</label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={e => setPaymentDate(e.target.value)}
+              className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+            />
+          </div>
+
+          {/* Amount received */}
+          <div>
+            <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
+              Amount Received (₹)
             </label>
             <input
               type="number"
               min="0"
               step="0.01"
-              value={adjAmount}
-              onChange={e => setAdjAmount(e.target.value)}
-              className="w-full rounded-xl px-3 py-2.5 text-sm"
-              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              value={paidAmount}
+              onChange={e => setPaidAmount(e.target.value)}
+              className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
+              style={{
+                background: 'var(--surface-2)',
+                border: `1px solid ${overPaid ? 'rgba(239,68,68,0.5)' : 'var(--border)'}`,
+                color: 'var(--text)',
+              }}
             />
-            {adj > 0 && (
+            {mode === 'full' && (
+              <p className="text-xs mt-1 px-1" style={{ color: 'var(--text-muted)' }}>
+                If less than balance due, the difference will be logged as TDS.
+              </p>
+            )}
+          </div>
+
+          {/* Adjustment — full payment mode only */}
+          {mode === 'full' && (
+            <div>
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                Debit Note / Adjustment (₹) <span style={{ fontWeight: 400 }}>— optional</span>
+              </label>
               <input
-                type="text"
-                placeholder="Note — e.g. offset against invoice, damage claim…"
-                value={adjNotes}
-                onChange={e => setAdjNotes(e.target.value)}
-                className="w-full rounded-xl px-3 py-2.5 text-sm mt-1.5"
+                type="number"
+                min="0"
+                step="0.01"
+                value={adjAmount}
+                onChange={e => setAdjAmount(e.target.value)}
+                className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
               />
-            )}
-          </div>
-        )}
+              {adj > 0 && (
+                <input
+                  type="text"
+                  placeholder="Note — e.g. offset against invoice, damage claim…"
+                  value={adjNotes}
+                  onChange={e => setAdjNotes(e.target.value)}
+                  className="w-full rounded-xl px-3 py-2.5 text-sm mt-1.5 outline-none"
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                />
+              )}
+            </div>
+          )}
 
-        {/* Live summary */}
-        <div
-          className="rounded-xl p-3.5 space-y-2 text-sm"
-          style={{ background: 'var(--surface-2)', border: `1px solid ${overPaid ? 'rgba(239,68,68,0.4)' : 'var(--border)'}` }}
-        >
-          <div className="flex justify-between">
-            <span style={{ color: 'var(--text-muted)' }}>Received in bank</span>
-            <span style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paid)}</span>
-          </div>
-          {tds > 0 && (
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>TDS (auto-calculated)</span>
-              <span style={{ color: '#D97706', fontWeight: 600 }}>{fmt(tds)}</span>
-            </div>
-          )}
-          {adj > 0 && (
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>
-                Adjustment{adjNotes ? ` — ${adjNotes.slice(0, 28)}` : ''}
-              </span>
-              <span style={{ color: 'var(--brand)', fontWeight: 600 }}>{fmt(adj)}</span>
-            </div>
-          )}
+          {/* Live summary */}
           <div
-            className="flex justify-between pt-2 font-bold text-base"
-            style={{
-              borderTop: '1px solid var(--border)',
-              color: overPaid
-                ? '#ef4444'
-                : mode === 'full'
-                ? '#16a34a'
-                : '#D97706',
-            }}
+            className="rounded-xl p-3.5 space-y-2 text-sm"
+            style={{ background: 'var(--surface-2)', border: `1px solid ${overPaid ? 'rgba(239,68,68,0.4)' : 'var(--border)'}` }}
           >
-            {mode === 'full' ? (
-              <>
-                <span>Invoice will be marked Paid</span>
-                <span>✓</span>
-              </>
-            ) : (
-              <>
-                <span>Remaining after payment</span>
-                <span>{fmt(round2(Math.max(0, balance - paid)))}</span>
-              </>
+            <div className="flex justify-between">
+              <span style={{ color: 'var(--text-muted)' }}>Received in bank</span>
+              <span style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paid)}</span>
+            </div>
+            {tds > 0 && (
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--text-muted)' }}>TDS (auto-calculated)</span>
+                <span style={{ color: '#D97706', fontWeight: 600 }}>{fmt(tds)}</span>
+              </div>
             )}
+            {adj > 0 && (
+              <div className="flex justify-between">
+                <span style={{ color: 'var(--text-muted)' }}>
+                  Adjustment{adjNotes ? ` — ${adjNotes.slice(0, 28)}` : ''}
+                </span>
+                <span style={{ color: 'var(--brand)', fontWeight: 600 }}>{fmt(adj)}</span>
+              </div>
+            )}
+            <div
+              className="flex justify-between pt-2 font-bold text-base"
+              style={{
+                borderTop: '1px solid var(--border)',
+                color: overPaid ? '#ef4444' : mode === 'full' ? '#16a34a' : '#D97706',
+              }}
+            >
+              {mode === 'full' ? (
+                <><span>Invoice will be marked Paid</span><span>✓</span></>
+              ) : (
+                <><span>Remaining after payment</span><span>{fmt(round2(Math.max(0, balance - paid)))}</span></>
+              )}
+            </div>
           </div>
+
+          {error && (
+            <p className="text-xs font-medium px-1" style={{ color: '#ef4444' }}>{error}</p>
+          )}
         </div>
 
-        {error && (
-          <p className="text-xs font-medium px-1" style={{ color: '#ef4444' }}>{error}</p>
-        )}
-
-        {/* Actions */}
-        <div className="flex gap-2 pt-1">
+        {/* Footer — fixed */}
+        <div className="flex gap-2 px-5 py-4 border-t shrink-0" style={{ borderColor: 'var(--border)' }}>
           <button
             onClick={onClose}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
@@ -315,11 +303,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
             style={{ background: '#16a34a', color: '#fff' }}
           >
-            {loading
-              ? 'Saving…'
-              : mode === 'full'
-              ? '✓ Mark as Paid'
-              : 'Record Partial Payment'}
+            {loading ? 'Saving…' : mode === 'full' ? '✓ Mark as Paid' : 'Record Partial Payment'}
           </button>
         </div>
       </div>

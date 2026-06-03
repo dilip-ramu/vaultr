@@ -71,7 +71,7 @@ const REC_STATUS: Record<string, { label: string; bg: string; text: string }> = 
 function RowActions({
   inv,
   onPay, onUnpay, onMarkBilled, onMarkPending, onMarkSettled, onMarkNotSettled,
-  onShowLinks, onEdit, onDelete,
+  onShowLinks, onSkipAutoPay, onStopAutoPay, onEdit, onDelete,
 }: {
   inv: InvoiceExt
   onPay: (inv: InvoiceExt) => void
@@ -81,6 +81,8 @@ function RowActions({
   onMarkSettled: (inv: InvoiceExt) => void
   onMarkNotSettled: (inv: InvoiceExt) => void
   onShowLinks: (inv: InvoiceExt) => void
+  onSkipAutoPay: (inv: InvoiceExt) => void
+  onStopAutoPay: (inv: InvoiceExt) => void
   onEdit: (inv: InvoiceExt) => void
   onDelete: (id: string) => void
 }) {
@@ -153,6 +155,29 @@ function RowActions({
           >
             <Link2 className="w-3 h-3" /> Customer Invoices
           </button>
+        )}
+        {/* Auto-pay controls */}
+        {inv.is_recurring && inv.auto_pay_account_id && (
+          <>
+            <button
+              onClick={() => onSkipAutoPay(inv)}
+              className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+              style={{
+                background: inv.skip_next_autopay ? 'rgba(245,158,11,0.1)' : 'rgba(107,114,128,0.08)',
+                color: inv.skip_next_autopay ? '#b45309' : '#6b7280',
+                border: `1px solid ${inv.skip_next_autopay ? 'rgba(245,158,11,0.3)' : 'rgba(107,114,128,0.2)'}`,
+              }}
+            >
+              {inv.skip_next_autopay ? 'Skip set ✓' : 'Skip next'}
+            </button>
+            <button
+              onClick={() => onStopAutoPay(inv)}
+              className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+              style={{ background: 'rgba(239,68,68,0.06)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.15)' }}
+            >
+              Stop auto-pay
+            </button>
+          </>
         )}
       </div>
       {/* Edit / delete */}
@@ -453,6 +478,33 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           : i
       ))
       setSelected(new Set())
+    }
+  }
+
+  async function handleSkipNextAutoPay(inv: InvoiceExt) {
+    const res = await fetch(`/api/supplier-invoices/${inv.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skip_next_autopay: !inv.skip_next_autopay }),
+    })
+    if (res.ok) {
+      setInvoices(prev => prev.map(i =>
+        i.id === inv.id ? { ...i, skip_next_autopay: !inv.skip_next_autopay } : i
+      ))
+    }
+  }
+
+  async function handleStopAutoPay(inv: InvoiceExt) {
+    if (!confirm(`Stop auto-pay for "${displayName(inv)}"?`)) return
+    const res = await fetch(`/api/supplier-invoices/${inv.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_pay_account_id: null, skip_next_autopay: false }),
+    })
+    if (res.ok) {
+      setInvoices(prev => prev.map(i =>
+        i.id === inv.id ? { ...i, auto_pay_account_id: null, skip_next_autopay: false } : i
+      ))
     }
   }
 
@@ -913,6 +965,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                             <RefreshCw className="w-2.5 h-2.5" /> {inv.recurrence_interval ?? 'Recurring'}
                           </span>
                         )}
+                        {inv.is_recurring && inv.auto_pay_account_id && (
+                          <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                            style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a' }}>
+                            ⚡ Auto-pay{inv.skip_next_autopay ? ' (skip)' : ''}
+                          </span>
+                        )}
                       </td>
 
                       {/* Dates */}
@@ -989,6 +1047,8 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                           onMarkSettled={handleQuickMarkSettled}
                           onMarkNotSettled={handleQuickMarkNotSettled}
                           onShowLinks={setLinksModal}
+                          onSkipAutoPay={handleSkipNextAutoPay}
+                          onStopAutoPay={handleStopAutoPay}
                           onEdit={i => { setEditing(i); setShowForm(true) }}
                           onDelete={handleDelete}
                         />

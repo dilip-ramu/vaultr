@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X, CheckCircle2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { X, CheckCircle2, Paperclip, Upload } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
 import AccountChipPicker, { type PickerAccount } from '@/components/shared/AccountChipPicker'
 import { createClient } from '@/lib/supabase/client'
@@ -27,9 +27,12 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
   const [batchReference, setBatchReference] = useState(`BATCH-${new Date().toISOString().slice(0, 10)}`)
   const [createBatch, setCreateBatch]       = useState(invoiceIds.length > 1)
   const [notes, setNotes]                   = useState('')
+  const [proofFile, setProofFile]           = useState<File | null>(null)
+  const [enableAutoPay, setEnableAutoPay]   = useState(false)
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
   const [done, setDone]                     = useState(false)
+  const fileInputRef                        = useRef<HTMLInputElement>(null)
 
   const invoiceTotal = invoices.reduce((s, i) => s + Number(i.amount), 0)
   const charges      = parseFloat(bankCharges) || 0
@@ -38,6 +41,8 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
 
   const isSingle = invoiceIds.length === 1
   const singleInvoice = isSingle ? invoices[0] : null
+  const allRecurring = invoices.every(inv => inv.is_recurring)
+  const intervalLabel = invoices[0]?.recurrence_interval ?? 'monthly'
 
   // Auto-derive default category: for single invoice use supplier's default;
   // for multi, use it only if all selected invoices share the same supplier category
@@ -114,22 +119,60 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
           category_id: defaultCategoryId ?? null,
         }).select('id').single()
 
-        // Copy invoice attachments to the transaction (all invoices with attachments)
+        // Copy invoice attachments + payment proof to the transaction
         if (tx?.id) {
-          const attachmentRows = invoices
-            .filter(inv => inv.attachment_path && inv.attachment_name)
-            .map(inv => ({
+          const attachmentRows: {
+            user_id: string; transaction_id: string
+            file_path: string; file_name: string; file_size: number | null; content_type: string | null
+          }[] = []
+
+          // Invoice PDFs
+          for (const inv of invoices.filter(i => i.attachment_path && i.attachment_name)) {
+            attachmentRows.push({
               user_id: user.id,
               transaction_id: tx.id,
               file_path: inv.attachment_path!,
               file_name: inv.attachment_name!,
               file_size: inv.attachment_size ?? null,
               content_type: null,
-            }))
+            })
+          }
+
+          // Payment proof (uploaded now)
+          if (proofFile) {
+            const ext  = proofFile.name.split('.').pop() ?? 'bin'
+            const rand = Math.random().toString(36).slice(2, 8)
+            const path = `${user.id}/payment-proofs/${Date.now()}-${rand}.${ext}`
+            const { error: upErr } = await supabase.storage
+              .from('vaultr-attachments')
+              .upload(path, proofFile, { contentType: proofFile.type, upsert: false })
+            if (!upErr) {
+              attachmentRows.push({
+                user_id: user.id,
+                transaction_id: tx.id,
+                file_path: path,
+                file_name: proofFile.name,
+                file_size: proofFile.size,
+                content_type: proofFile.type || null,
+              })
+            }
+          }
+
           if (attachmentRows.length > 0) {
             await supabase.from('attachments').insert(attachmentRows)
           }
         }
+      }
+
+      // 3. Enable auto-pay if requested (save account on the invoice)
+      if (enableAutoPay && allRecurring && accountId) {
+        await Promise.all(invoiceIds.map(id =>
+          fetch(`/api/supplier-invoices/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auto_pay_account_id: accountId }),
+          })
+        ))
       }
 
       setDone(true)
@@ -198,6 +241,32 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
           <Field label="Debit from Account *">
             <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
           </Field>
+
+          {/* Auto-pay toggle — only shown for recurring invoices */}
+          {allRecurring && accountId && (
+            <label
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer"
+              style={{
+                background: enableAutoPay ? 'rgba(42,122,80,0.08)' : 'var(--surface-2)',
+                border: `1px solid ${enableAutoPay ? 'var(--brand)' : 'var(--border)'}`,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={enableAutoPay}
+                onChange={e => setEnableAutoPay(e.target.checked)}
+                className="rounded"
+              />
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                  Auto-pay future occurrences
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                  Debit this account automatically every {intervalLabel} — no confirmation needed
+                </p>
+              </div>
+            </label>
+          )}
 
           {/* Payment date */}
           <Field label="Payment Date *">
@@ -290,6 +359,46 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
               className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none resize-none"
               style={{ backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
             />
+          </Field>
+
+          {/* Payment proof attachment */}
+          <Field label="Payment Proof">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf,.jpg,.jpeg,.png,.webp"
+              className="hidden"
+              onChange={e => setProofFile(e.target.files?.[0] ?? null)}
+            />
+            {proofFile ? (
+              <div
+                className="flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm"
+                style={{ backgroundColor: 'var(--surface-2)', borderColor: 'var(--brand)' }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Paperclip className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+                  <span className="truncate text-xs" style={{ color: 'var(--text)' }}>{proofFile.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setProofFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                  className="ml-2 shrink-0"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-sm"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >
+                <Upload className="w-4 h-4" />
+                Attach screenshot / receipt
+              </button>
+            )}
           </Field>
 
           <div className="flex gap-3 pt-1">

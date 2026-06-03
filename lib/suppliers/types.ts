@@ -70,6 +70,8 @@ export interface SupplierInvoice {
   is_recurring: boolean
   recurrence_interval: 'daily' | 'weekly' | 'monthly' | 'yearly' | null
   recurrence_end_date: string | null
+  auto_pay_account_id: string | null
+  skip_next_autopay: boolean
   is_paid: boolean
   payment_date: string | null
   payment_reference: string | null
