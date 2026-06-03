@@ -10,7 +10,7 @@ async function InvoicesContent() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: invoices }, { data: suppliers }] = await Promise.all([
+  const [{ data: invoices }, { data: suppliers }, { data: accounts }] = await Promise.all([
     supabase
       .from('supplier_invoices')
       .select('*, supplier:suppliers(id, name, supplier_code)')
@@ -22,12 +22,19 @@ async function InvoicesContent() {
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('name'),
+    supabase
+      .from('account_balances')
+      .select('id, name, type, color, avatar_url, custom_type_id, custom_type_name, custom_type_color, custom_type_icon')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .order('name'),
   ])
 
   return (
     <SupplierInvoicesClient
       initialInvoices={invoices ?? []}
       suppliers={suppliers ?? []}
+      accounts={accounts ?? []}
     />
   )
 }

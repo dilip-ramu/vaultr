@@ -7,6 +7,7 @@ import {
   AlertTriangle, CheckCircle2, Clock, Circle, CheckSquare, Square, RefreshCw,
 } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
+import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { computeInvoiceStatus, INVOICE_CATEGORIES, RECOVERABLE_STATUS_LABELS, INVOICE_STATUS_LABELS } from '@/lib/suppliers/types'
 import SupplierInvoiceForm from './SupplierInvoiceForm'
 import BulkPayModal from './BulkPayModal'
@@ -14,6 +15,7 @@ import BulkPayModal from './BulkPayModal'
 interface Props {
   initialInvoices: SupplierInvoice[]
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
+  accounts: PickerAccount[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,7 +57,7 @@ const REC_STATUS: Record<string, { label: string; bg: string; text: string }> = 
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SupplierInvoicesClient({ initialInvoices, suppliers }: Props) {
+export default function SupplierInvoicesClient({ initialInvoices, suppliers, accounts }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -817,6 +819,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers }: P
         <BulkPayModal
           invoiceIds={[...selected]}
           invoices={invoices.filter(i => selected.has(i.id))}
+          accounts={accounts}
           onDone={handleBulkPayDone}
           onClose={() => setShowBulkPay(false)}
         />
