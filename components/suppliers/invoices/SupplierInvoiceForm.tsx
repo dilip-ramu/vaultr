@@ -21,7 +21,7 @@ const EMPTY = {
   currency: 'INR',
   category: '',
   notes: '',
-  is_recoverable: false,
+  is_recoverable: true,
   linked_customer_name: '',
   recoverable_status: 'pending_billing',
   is_paid: false,

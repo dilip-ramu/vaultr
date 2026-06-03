@@ -5,9 +5,10 @@ import {
   Mail, RefreshCw, ExternalLink, Download, Eye, EyeOff,
   CheckCircle2, Search, Filter, AlertTriangle, Inbox,
   ChevronDown, X, FileText, Zap, ArrowUpRight, Trash2,
-  RotateCcw, Square, CheckSquare, MinusSquare,
+  RotateCcw, Square, CheckSquare, MinusSquare, ClipboardCheck,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import ReviewModal from './ReviewModal'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,11 @@ export interface EmailDocument {
   processing_error: string | null
   extracted_supplier_name: string | null
   extracted_invoice_number: string | null
+  extracted_invoice_date: string | null
+  extracted_due_date: string | null
+  extracted_currency: string | null
   extracted_amount: number | null
+  extracted_gst_amount: number | null
   renamed_filename: string | null
 }
 
@@ -92,6 +97,8 @@ export default function EmailDocumentsClient({
   showCheckNow = true,
 }: Props) {
   const [documents, setDocuments] = useState<EmailDocument[]>(initialDocuments)
+  // pageTab separates active (not invoiced) vs invoiced docs
+  const [pageTab, setPageTab] = useState<'active' | 'needs_review' | 'reviewed' | 'invoiced'>('active')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [senderFilter, setSenderFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
@@ -100,6 +107,9 @@ export default function EmailDocumentsClient({
   const [isPending, startTransition] = useTransition()
   const [expandedBody, setExpandedBody] = useState<string | null>(null)
   const [readDoc, setReadDoc] = useState<EmailDocument | null>(null)
+  const [reviewDoc, setReviewDoc] = useState<EmailDocument | null>(null)
+  const [confirmRedoDoc, setConfirmRedoDoc] = useState<EmailDocument | null>(null)
+  const [redoing, setRedoing] = useState(false)
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set())
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -110,8 +120,17 @@ export default function EmailDocumentsClient({
 
   // ── Filtered documents ────────────────────────────────────────────────────
 
+  // Tab-level filter first, then search/sender filters within each tab
+  const tabDocs = useMemo(() => {
+    if (pageTab === 'invoiced')     return documents.filter(d => d.status === 'invoice_created')
+    if (pageTab === 'needs_review') return documents.filter(d => d.status === 'needs_review' || d.status === 'duplicate_suspected')
+    if (pageTab === 'reviewed')     return documents.filter(d => d.status === 'reviewed' || d.status === 'processed')
+    // active: everything except invoice_created (the default)
+    return documents.filter(d => d.status !== 'invoice_created')
+  }, [documents, pageTab])
+
   const filtered = useMemo(() => {
-    return documents.filter(doc => {
+    return tabDocs.filter(doc => {
       if (statusFilter !== 'all' && doc.status !== statusFilter) return false
       if (senderFilter !== 'all' && doc.sender_email !== senderFilter) return false
       if (search) {
@@ -123,7 +142,7 @@ export default function EmailDocumentsClient({
       }
       return true
     })
-  }, [documents, statusFilter, senderFilter, search])
+  }, [tabDocs, statusFilter, senderFilter, search])
 
   // ── Check now ─────────────────────────────────────────────────────────────
 
@@ -139,10 +158,12 @@ export default function EmailDocumentsClient({
           return
         }
         setCheckResult(json.result)
-        // Refresh documents list
+        // Refresh all non-ignored docs; invoiced ones stay only in their tab
         const docsRes = await fetch('/api/inbox/documents?status=all')
         const docsJson = await docsRes.json()
-        if (docsJson.documents) setDocuments(docsJson.documents)
+        if (docsJson.documents) {
+          setDocuments((docsJson.documents as EmailDocument[]).filter(d => d.status !== 'ignored'))
+        }
       } catch (e) {
         setCheckError((e as Error).message)
       }
@@ -152,7 +173,8 @@ export default function EmailDocumentsClient({
   // ── Status update ─────────────────────────────────────────────────────────
 
   const updateStatus = (id: string, status: EmailDocument['status']) => {
-    // Optimistic update
+    // Capture old status before optimistic update so we can revert correctly
+    const oldStatus = documents.find(d => d.id === id)?.status ?? 'new'
     setDocuments(prev => prev.map(d => d.id === id ? { ...d, status } : d))
 
     fetch(`/api/inbox/documents/${id}`, {
@@ -161,11 +183,10 @@ export default function EmailDocumentsClient({
       body: JSON.stringify({ status }),
     }).then(res => {
       if (!res.ok) {
-        // Revert on failure
-        setDocuments(prev => prev.map(d => d.id === id ? { ...d, status: d.status } : d))
+        setDocuments(prev => prev.map(d => d.id === id ? { ...d, status: oldStatus } : d))
       }
     }).catch(() => {
-      setDocuments(prev => prev.map(d => d.id === id ? { ...d, status: d.status } : d))
+      setDocuments(prev => prev.map(d => d.id === id ? { ...d, status: oldStatus } : d))
     })
   }
 
@@ -214,6 +235,44 @@ export default function EmailDocumentsClient({
         return next
       })
     }
+  }
+
+  // ── Redo (mark as new) — with confirmation + delete linked invoice ────────
+
+  const handleConfirmRedo = async () => {
+    if (!confirmRedoDoc) return
+    setRedoing(true)
+    const doc = confirmRedoDoc
+
+    // Delete linked supplier invoice if present
+    if (doc.supplier_invoice_id) {
+      await fetch(`/api/inbox/documents/${doc.id}/redo`, { method: 'POST' })
+    }
+
+    // Reset document to 'new'
+    const oldStatus = doc.status
+    setDocuments(prev => prev.map(d => d.id === doc.id
+      ? { ...d, status: 'new' as const, supplier_invoice_id: null, processing_error: null }
+      : d
+    ))
+    fetch(`/api/inbox/documents/${doc.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'new' }),
+    }).catch(() => {
+      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, status: oldStatus } : d))
+    })
+
+    setRedoing(false)
+    setConfirmRedoDoc(null)
+  }
+
+  // ── Review approved ──────────────────────────────────────────────────────
+
+  const handleApproved = (docId: string, _invoiceId: string) => {
+    // Remove from the list immediately — once approved the email has served its purpose
+    setDocuments(prev => prev.filter(d => d.id !== docId))
+    setReviewDoc(null)
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -306,6 +365,45 @@ export default function EmailDocumentsClient({
           )}
         </div>
       </div>
+
+      {/* Status tabs */}
+      {(() => {
+        const tabs = [
+          { key: 'active'       as const, label: 'Active',       count: documents.filter(d => d.status !== 'invoice_created').length },
+          { key: 'needs_review' as const, label: 'Needs Review', count: documents.filter(d => d.status === 'needs_review' || d.status === 'duplicate_suspected').length },
+          { key: 'reviewed'     as const, label: 'Reviewed',     count: documents.filter(d => d.status === 'reviewed' || d.status === 'processed').length },
+          { key: 'invoiced'     as const, label: 'Invoiced',     count: documents.filter(d => d.status === 'invoice_created').length },
+        ]
+        return (
+          <div className="flex gap-1 p-1 rounded-xl overflow-x-auto" style={{ background: 'var(--surface-2)' }}>
+            {tabs.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setPageTab(t.key)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors"
+                style={
+                  pageTab === t.key
+                    ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }
+                    : { color: 'var(--text-muted)' }
+                }
+              >
+                {t.label}
+                {t.count > 0 && (
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: pageTab === t.key ? 'var(--brand)' : 'var(--border)',
+                      color: pageTab === t.key ? '#fff' : 'var(--text-muted)',
+                    }}
+                  >
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Check result banner */}
       {checkResult && (
@@ -663,15 +761,27 @@ export default function EmailDocumentsClient({
                             </>
                           )}
 
-                          {/* Process button — only for 'new' docs with a stored attachment */}
-                          {doc.status === 'new' && doc.storage_path && !isRowProcessing && (
+                          {/* Process / Retry button */}
+                          {(doc.status === 'new' || doc.status === 'needs_review') && doc.storage_path && !isRowProcessing && (
                             <button
                               onClick={() => handleProcess(doc.id)}
                               title="Auto-process: extract and create invoice"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 transition-colors hover:bg-indigo-100"
                             >
                               <Zap className="w-3 h-3" />
-                              Process
+                              {doc.status === 'needs_review' ? 'Retry' : 'Process'}
+                            </button>
+                          )}
+
+                          {/* Review button — always available for docs with an attachment */}
+                          {doc.storage_path && !isRowProcessing && doc.status !== 'invoice_created' && doc.status !== 'ignored' && (
+                            <button
+                              onClick={() => setReviewDoc(doc)}
+                              title="Review extracted data side-by-side with the email"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 transition-colors hover:bg-violet-100"
+                            >
+                              <ClipboardCheck className="w-3 h-3" />
+                              Review
                             </button>
                           )}
 
@@ -683,10 +793,10 @@ export default function EmailDocumentsClient({
                             </span>
                           )}
 
-                          {/* View Invoice link */}
-                          {doc.status === 'invoice_created' && doc.supplier_invoice_id && (
+                          {/* View Invoice link — search for the specific invoice by number */}
+                          {(doc.status === 'invoice_created' || (doc.supplier_invoice_id && doc.status === 'needs_review')) && doc.supplier_invoice_id && (
                             <a
-                              href="/suppliers/invoices"
+                              href={`/suppliers/invoices?search=${encodeURIComponent(doc.extracted_invoice_number ?? doc.supplier_invoice_id)}`}
                               title="View the created invoice"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 transition-colors hover:bg-green-100"
                             >
@@ -697,21 +807,11 @@ export default function EmailDocumentsClient({
 
                           {doc.status !== 'new' && !isRowProcessing && (
                             <button
-                              onClick={() => updateStatus(doc.id, 'new')}
-                              title="Mark as new / unreviewed"
+                              onClick={() => setConfirmRedoDoc(doc)}
+                              title="Redo — reset to new (will delete linked invoice)"
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 transition-colors hover:bg-blue-100"
                             >
                               <RotateCcw className="w-3 h-3" />
-                            </button>
-                          )}
-                          {doc.status !== 'reviewed' && doc.status !== 'processed' && doc.status !== 'ignored' && doc.status !== 'invoice_created' && doc.status !== 'processing' && !isRowProcessing && (
-                            <button
-                              onClick={() => updateStatus(doc.id, 'reviewed')}
-                              title="Mark as reviewed"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 transition-colors hover:bg-amber-100"
-                            >
-                              <CheckCircle2 className="w-3 h-3" />
-                              Review
                             </button>
                           )}
                           {doc.status !== 'ignored' && !isRowProcessing && (
@@ -749,6 +849,53 @@ export default function EmailDocumentsClient({
           </div>
         )}
       </div>
+
+      {/* Redo confirmation dialog */}
+      {confirmRedoDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setConfirmRedoDoc(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl shadow-2xl p-6"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold mb-2" style={{ color: 'var(--text)' }}>Reset this document?</h3>
+            <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
+              This will reset the document to <strong>New</strong> so you can re-process it.
+            </p>
+            {confirmRedoDoc.supplier_invoice_id && (
+              <p className="text-sm font-medium mt-2 mb-4" style={{ color: '#dc2626' }}>
+                The linked supplier invoice will also be permanently deleted.
+              </p>
+            )}
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setConfirmRedoDoc(null)}
+                className="flex-1 py-2 rounded-xl text-sm font-medium border"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRedo}
+                disabled={redoing}
+                className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ background: '#dc2626' }}
+              >
+                {redoing ? 'Resetting…' : 'Yes, Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review modal */}
+      {reviewDoc && (
+        <ReviewModal
+          doc={reviewDoc}
+          onClose={() => setReviewDoc(null)}
+          onApproved={handleApproved}
+        />
+      )}
 
       {/* Read message modal */}
       {readDoc && (

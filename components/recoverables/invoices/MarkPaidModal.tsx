@@ -268,7 +268,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
               <span style={{ color: 'var(--text-muted)' }}>
                 Adjustment{adjNotes ? ` — ${adjNotes.slice(0, 28)}` : ''}
               </span>
-              <span style={{ color: '#6366F1', fontWeight: 600 }}>{fmt(adj)}</span>
+              <span style={{ color: 'var(--brand)', fontWeight: 600 }}>{fmt(adj)}</span>
             </div>
           )}
           <div

@@ -38,9 +38,14 @@ export async function checkMailbox(opts: {
   await client.connect()
   const lock = await client.getMailboxLock('INBOX')
   try {
-    const searchResult = await client.search({ seen: false })
+    // Search by date (last 60 days) rather than seen/unseen flag.
+    // This means re-checking already-read emails is fine — the duplicate
+    // check on email_message_id below prevents re-importing them.
+    const since = new Date()
+    since.setDate(since.getDate() - 60)
+    const searchResult = await client.search({ since })
     const seqNums: number[] = Array.isArray(searchResult) ? searchResult : []
-    const toProcess = seqNums.slice(-100) // max 100 unseen
+    const toProcess = seqNums.slice(-200) // max 200 emails per check
 
     for (const seq of toProcess) {
       try {
@@ -59,7 +64,30 @@ export async function checkMailbox(opts: {
         const subject = typeof parsed.subject === 'string' ? parsed.subject : '(no subject)'
         const receivedAt = parsed.date ?? new Date()
         const messageId = parsed.messageId ?? `${seq}@${emailAddress}`
-        const body = typeof parsed.text === 'string' ? parsed.text.slice(0, 8000) : ''
+        // Build the richest possible body text for AI extraction.
+        // Many supplier emails (e.g. DHL) put key data (invoice number, amount)
+        // only in the HTML table — the plain text part just says "please find attached".
+        // Strategy: strip HTML tags and use whichever version (plain or HTML) is longer,
+        // then prepend the subject line so the invoice number is always visible to Claude.
+        const plainText = typeof parsed.text === 'string' ? parsed.text.trim() : ''
+        let htmlText = ''
+        if (parsed.html) {
+          htmlText = (parsed.html as string)
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&amp;/gi, '&')
+            .replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"')
+            .replace(/[ \t]{2,}/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim()
+        }
+        // Use the richer source; prepend subject so invoice number is always present
+        const richBody = htmlText.length > plainText.length ? htmlText : plainText
+        const body = `Subject: ${subject}\n\n${richBody}`.slice(0, 8000)
 
         // Find PDFs that are real attachments (not inline images/logos/signatures)
         const pdfAttachments = parsed.attachments.filter(a => {
@@ -130,9 +158,7 @@ export async function checkMailbox(opts: {
         })
 
         result.added++
-
-        // Mark as seen after processing
-        await client.messageFlagsAdd(String(seq), ['\\Seen'])
+        // No longer marking emails as seen — we use email_message_id deduplication instead.
       } catch (e) {
         result.errors.push(`Seq ${seq}: ${(e as Error).message}`)
       }

@@ -26,7 +26,7 @@ interface PreviewData {
   } | null
 }
 
-export default function ImportPageClient() {
+export default function ImportPageClient({ onImported }: { onImported?: () => void } = {}) {
   const router = useRouter()
   const { showToast } = useToast()
 
@@ -90,6 +90,7 @@ export default function ImportPageClient() {
       setUnmatchedCustomers(data.unmatchedCustomers ?? [])
       setStage('done')
       showToast('Import complete', 'success')
+      onImported?.()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Import failed'
       showToast(msg, 'error')

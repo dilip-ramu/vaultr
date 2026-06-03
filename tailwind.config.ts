@@ -10,14 +10,15 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: "#EEF2FF",
-          100: "#E0E7FF",
-          500: "#6366F1",
-          600: "#4F46E5",
-          700: "#4338CA",
+          50:  "#E6F3EC",
+          100: "#C8E6D4",
+          400: "#3DA86A",
+          500: "#2A7A50",
+          600: "#22613E",
+          700: "#1A4A2E",
         },
-        income: "#10B981",
-        expense: "#EF4444",
+        income:   "#22A156",
+        expense:  "#C8372A",
         transfer: "#3B82F6",
       },
       fontFamily: {

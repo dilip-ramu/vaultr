@@ -13,7 +13,7 @@ function fmtAmt(n: number) { return new Intl.NumberFormat('en-IN', { maximumFrac
 function fmtDate(d: string) { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  billed:           { bg: 'rgba(99,102,241,0.1)',  text: '#6366f1' },
+  billed:           { bg: 'rgba(42,122,80,0.1)',  text: 'var(--brand)' },
   recovered:        { bg: 'rgba(34,197,94,0.1)',   text: '#16a34a' },
   partial_recovery: { bg: 'rgba(168,85,247,0.1)',  text: '#9333ea' },
   written_off:      { bg: 'rgba(107,114,128,0.1)', text: '#4b5563' },
@@ -78,7 +78,7 @@ export default function BilledRecoverablesClient({ initialInvoices }: Props) {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { key: 'billed',           label: 'Billed',           color: '#6366f1' },
+          { key: 'billed',           label: 'Billed',           color: 'var(--brand)' },
           { key: 'recovered',        label: 'Recovered',        color: '#16a34a' },
           { key: 'partial_recovery', label: 'Partial Recovery', color: '#9333ea' },
           { key: 'written_off',      label: 'Written Off',      color: '#6b7280' },

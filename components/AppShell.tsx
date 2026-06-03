@@ -10,8 +10,8 @@ import {
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
   Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
-  Building2, AlertCircle, CheckSquare2, CreditCard, BookOpen,
-  ArrowDownUp, ReceiptText, Globe, Archive, Mail, CheckCircle2,
+  Building2, BookOpen, CheckCheck,
+  ArrowDownUp, ReceiptText, Globe, Archive, Mail,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -49,68 +49,69 @@ const navSections: NavSection[] = [
       {
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
-          { href: '/recoverables/invoices',  label: 'Invoices',     icon: FileText },
-          { href: '/recoverables/tds',       label: 'TDS',          icon: Receipt },
-          { href: '/recoverables/settings',  label: 'Settings',     icon: Settings },
+          { href: '/recoverables/invoices', label: 'Invoices',  icon: FileText },
+          { href: '/recoverables/tds',      label: 'TDS',       icon: Receipt },
+          { href: '/recoverables/settings', label: 'Settings',  icon: Settings },
         ],
       },
       {
         href: '/suppliers', label: 'Suppliers', icon: Building2,
         subItems: [
-          { href: '/suppliers/directory',    label: 'Directory',    icon: BookOpen },
-          { href: '/suppliers/invoices',     label: 'Invoices',     icon: FileText },
-          { href: '/suppliers/recoverables', label: 'Pending',      icon: AlertCircle },
-          { href: '/suppliers/billed',       label: 'Billed',       icon: CheckSquare2 },
-          { href: '/suppliers/payments',     label: 'Payments',     icon: CreditCard },
+          { href: '/suppliers/directory', label: 'Directory', icon: BookOpen },
+          { href: '/suppliers/invoices',  label: 'Invoices',  icon: FileText },
+          { href: '/suppliers/settled',   label: 'Settled',   icon: CheckCheck },
         ],
       },
       {
-        href: '/contrast', label: 'Contrast Company A/S', icon: Globe,
+        href: '/contrast', label: 'Contrast', icon: Globe,
         subItems: [
-          { href: '/contrast',         label: 'Expenses',        icon: ArrowDownUp },
-          { href: '/contrast/invoice', label: 'Invoice',         icon: ReceiptText },
-          { href: '/contrast/history', label: 'Invoice History', icon: History },
+          { href: '/contrast',         label: 'Expenses',       icon: ArrowDownUp },
+          { href: '/contrast/invoice', label: 'Invoice',        icon: ReceiptText },
+          { href: '/contrast/history', label: 'History',        icon: History },
         ],
       },
-    ],
-  },
-  {
-    id: 'inbox',
-    label: 'Inbox',
-    items: [
-      { href: '/inbox/email-documents', label: 'Email Documents', icon: Mail },
-      { href: '/inbox/processed',        label: 'Processed',       icon: CheckCircle2 },
     ],
   },
   {
     id: 'payroll',
     label: 'Payroll',
     items: [
-      { href: '/payroll/processing', label: 'Monthly Processing', icon: CalendarClock },
-      { href: '/payroll/staff',      label: 'Staff Particulars',  icon: UserSquare },
-      { href: '/payroll/slips',      label: 'Salary Slips',       icon: FileText },
-      { href: '/payroll/history',    label: 'Payroll History',    icon: History },
+      { href: '/payroll/processing', label: 'Processing',    icon: CalendarClock },
+      { href: '/payroll/staff',      label: 'Staff',         icon: UserSquare },
+      { href: '/payroll/slips',      label: 'Salary Slips',  icon: FileText },
+      { href: '/payroll/history',    label: 'History',       icon: History },
+    ],
+  },
+  {
+    id: 'email',
+    label: 'Email',
+    items: [
+      {
+        href: '/inbox/email-documents', label: 'Documents', icon: Mail,
+        subItems: [
+          { href: '/settings/email-integration', label: 'Email Setup', icon: Settings },
+        ],
+      },
     ],
   },
   {
     id: 'finance',
     label: 'Finance',
     items: [
-      { href: '/bills',          label: 'Bills',          icon: Receipt },
-      { href: '/subscriptions',  label: 'Subscriptions',  icon: RefreshCw },
-      { href: '/budgets',        label: 'Budgets',        icon: Target },
+      { href: '/bills',         label: 'Bills',         icon: Receipt },
+      { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
+      { href: '/budgets',       label: 'Budgets',       icon: Target },
     ],
   },
   {
     id: 'tools',
     label: 'Tools',
     items: [
-      { href: '/insights',       label: 'Insights',       icon: Lightbulb },
-      { href: '/categories',     label: 'Categories',     icon: Tag },
-      { href: '/account-types',  label: 'Account Types',  icon: Layers },
-      { href: '/currencies',     label: 'Currencies',     icon: DollarSign },
-      { href: '/downloads',              label: 'Export & Backup', icon: Archive },
-      { href: '/settings/email-integration', label: 'Email Setup',    icon: Mail },
+      { href: '/insights',      label: 'Insights',       icon: Lightbulb },
+      { href: '/downloads',     label: 'Export & Backup',icon: Archive },
+      { href: '/categories',    label: 'Categories',     icon: Tag },
+      { href: '/account-types', label: 'Account Types',  icon: Layers },
+      { href: '/currencies',    label: 'Currencies',     icon: DollarSign },
     ],
   },
 ]
@@ -417,8 +418,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
       <div
         className="md:hidden flex flex-col overflow-hidden"
         style={{
-          position: 'fixed', top: 0, left: 0, right: 0,
-          height: 'var(--app-height, 100dvh)',
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'var(--bg)',
         }}
       >
@@ -446,9 +446,15 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
         <main
           className="flex-1 overflow-y-auto"
-          style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 90px)' }}
+          style={{
+            WebkitOverflowScrolling: 'touch' as never,
+            overscrollBehaviorY: 'contain',
+            backgroundColor: 'var(--bg)',
+          }}
         >
-          {children}
+          <div style={{ minHeight: '100%', backgroundColor: 'var(--bg)' }}>
+            {children}
+          </div>
         </main>
 
         {/* Floating + button */}
@@ -460,7 +466,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)',
             width: 56, height: 56, borderRadius: 18,
             backgroundColor: 'var(--brand)',
-            boxShadow: '0 6px 20px rgba(99,102,241,0.45)',
+            boxShadow: '0 6px 20px rgba(42,122,80,0.45)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 40,
           }}
         >

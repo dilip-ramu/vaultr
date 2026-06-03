@@ -1,10 +1,11 @@
 export const dynamic = 'force-dynamic'
 
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SupplierInvoicesClient from '@/components/suppliers/invoices/SupplierInvoicesClient'
 
-export default async function SupplierInvoicesPage() {
+async function InvoicesContent() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -24,11 +25,19 @@ export default async function SupplierInvoicesPage() {
   ])
 
   return (
+    <SupplierInvoicesClient
+      initialInvoices={invoices ?? []}
+      suppliers={suppliers ?? []}
+    />
+  )
+}
+
+export default function SupplierInvoicesPage() {
+  return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <SupplierInvoicesClient
-        initialInvoices={invoices ?? []}
-        suppliers={suppliers ?? []}
-      />
+      <Suspense fallback={<div style={{ color: 'var(--text-muted)' }} className="py-12 text-center text-sm">Loading…</div>}>
+        <InvoicesContent />
+      </Suspense>
     </div>
   )
 }

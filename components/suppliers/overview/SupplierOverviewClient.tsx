@@ -265,7 +265,7 @@ function StatCard({ icon, label, value, sub, color, highlight }: {
   icon: React.ReactNode; label: string; value: string; sub: string; color: string; highlight?: boolean
 }) {
   const colors: Record<string, { bg: string; icon: string; text: string }> = {
-    blue:  { bg: 'rgba(99,102,241,0.08)',  icon: '#6366f1', text: '#6366f1' },
+    blue:  { bg: 'rgba(42,122,80,0.08)',  icon: 'var(--brand)', text: 'var(--brand)' },
     red:   { bg: 'rgba(239,68,68,0.08)',   icon: '#ef4444', text: '#ef4444' },
     amber: { bg: 'rgba(245,158,11,0.08)',  icon: '#f59e0b', text: '#f59e0b' },
     green: { bg: 'rgba(34,197,94,0.08)',   icon: '#22c55e', text: '#22c55e' },

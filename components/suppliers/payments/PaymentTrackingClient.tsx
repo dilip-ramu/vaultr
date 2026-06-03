@@ -79,10 +79,10 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
         </div>
         <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4" style={{ color: '#6366f1' }} />
+            <Clock className="w-4 h-4" style={{ color: 'var(--brand)' }} />
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Outstanding</span>
           </div>
-          <p className="text-xl font-bold" style={{ color: '#6366f1' }}>₹{fmtAmt(stats.totalUnpaid)}</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--brand)' }}>₹{fmtAmt(stats.totalUnpaid)}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{stats.unpaidCount} invoices</p>
         </div>
         <div
@@ -185,7 +185,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
                               ? { backgroundColor: 'rgba(34,197,94,0.1)', color: '#16a34a' }
                               : isOverdue
                                 ? { backgroundColor: 'rgba(239,68,68,0.1)', color: '#dc2626' }
-                                : { backgroundColor: 'rgba(99,102,241,0.08)', color: '#6366f1' }
+                                : { backgroundColor: 'rgba(42,122,80,0.08)', color: 'var(--brand)' }
                             }
                           >
                             {inv.is_paid ? 'Paid' : isOverdue ? 'Overdue' : 'Pending'}

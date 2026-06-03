@@ -136,6 +136,7 @@ export default async function DashboardPage() {
       accounts={accounts ?? []}
       recentTransactions={recentTx ?? []}
       monthlyTransactions={monthlyTx ?? []}
+      chartTransactions={(historyTx ?? []) as { type: string; amount: number; date: string }[]}
       profile={profile}
       builtinOverrides={overrides ?? []}
       budgets={budgets}

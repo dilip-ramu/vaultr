@@ -22,7 +22,7 @@ function daysSince(d: string) {
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending_billing:  { bg: 'rgba(245,158,11,0.12)', text: '#b45309' },
-  billed:           { bg: 'rgba(99,102,241,0.1)',  text: '#6366f1' },
+  billed:           { bg: 'rgba(42,122,80,0.1)',  text: 'var(--brand)' },
   recovered:        { bg: 'rgba(34,197,94,0.1)',   text: '#16a34a' },
   partial_recovery: { bg: 'rgba(168,85,247,0.1)',  text: '#9333ea' },
   written_off:      { bg: 'rgba(107,114,128,0.1)', text: '#4b5563' },
@@ -113,8 +113,8 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{filtered.filter(i => i.recoverable_status === 'pending_billing').length} items</p>
         </div>
         <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <p className="text-xs font-medium" style={{ color: '#6366f1' }}>Billed to Customer</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: '#6366f1' }}>₹{fmtAmt(totalBilled)}</p>
+          <p className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Billed to Customer</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: 'var(--brand)' }}>₹{fmtAmt(totalBilled)}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{filtered.filter(i => i.recoverable_status === 'billed').length} items</p>
         </div>
       </div>
@@ -210,7 +210,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
                               onClick={() => handleMarkBilled(inv.id)}
                               disabled={updating === inv.id}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                              style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: '#6366f1' }}
+                              style={{ backgroundColor: 'rgba(42,122,80,0.1)', color: 'var(--brand)' }}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               {updating === inv.id ? 'Updating…' : 'Mark Billed'}

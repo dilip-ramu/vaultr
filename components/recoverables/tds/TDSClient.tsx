@@ -233,7 +233,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                           <span style={{ color: '#D97706' }}>TDS {fmt(group.tds)}</span>
                         )}
                         {group.adj > 0 && (
-                          <span style={{ color: '#6366F1' }}>Adj {fmt(group.adj)}</span>
+                          <span style={{ color: 'var(--brand)' }}>Adj {fmt(group.adj)}</span>
                         )}
                       </div>
                     </div>
@@ -331,7 +331,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                   Adjustment{entry.adjustment_notes ? ` (${entry.adjustment_notes.slice(0, 20)})` : ''}
                                 </p>
-                                <p className="text-sm font-semibold" style={{ color: '#6366F1' }}>{fmt(entry.adjustment_amount)}</p>
+                                <p className="text-sm font-semibold" style={{ color: 'var(--brand)' }}>{fmt(entry.adjustment_amount)}</p>
                               </div>
                             )}
                           </div>

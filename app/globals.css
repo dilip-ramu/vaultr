@@ -3,55 +3,65 @@
 @tailwind utilities;
 
 :root {
-  --bg: #F7F8FA;
+  --bg: #F6F8F6;
   --surface: #FFFFFF;
-  --surface-2: #F3F4F6;
-  --border: #E5E7EB;
-  --border-2: #F3F4F6;
-  --text: #111827;
-  --text-muted: #6B7280;
-  --text-faint: #9CA3AF;
-  --brand: #6366F1;
-  --brand-light: #EEF2FF;
-  --income: #10B981;
-  --expense: #EF4444;
+  --surface-2: #F0F4F1;
+  --border: #DDE6DF;
+  --border-2: #EBF0EC;
+  --text: #0F1A12;
+  --text-muted: #5A6B5E;
+  --text-faint: #9AAD9E;
+
+  /* Brand — forest green from the INEX logo */
+  --brand: #2A7A50;
+  --brand-light: #E6F3EC;
+  --brand-dark: #1F5C3A;   /* logo's exact dark green, for logo/headers */
+
+  /* Income = green family; Expense = logo's red accent */
+  --income: #22A156;
+  --expense: #C8372A;
   --transfer: #3B82F6;
-  --shadow: rgba(0,0,0,0.06);
+
+  --shadow: rgba(15,26,18,0.07);
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
-  /* Status badge colors */
+
+  /* Status badges */
   --status-pending-bg: #FEF3C7;   --status-pending-text: #92400E;
-  --status-partial-bg: #DBEAFE;   --status-partial-text: #1E40AF;
-  --status-paid-bg: #D1FAE5;      --status-paid-text: #065F46;
+  --status-partial-bg: #DCFCE7;   --status-partial-text: #14532D;
+  --status-paid-bg: #DCFCE7;      --status-paid-text: #14532D;
   --status-cancelled-bg: #FEE2E2; --status-cancelled-text: #991B1B;
   --status-warning: #D97706;
-  --status-sent-bg: #DBEAFE;      --status-sent-text: #1E40AF;
+  --status-sent-bg: #DCFCE7;      --status-sent-text: #14532D;
   --status-overdue-bg: #FEE2E2;   --status-overdue-text: #991B1B;
 }
 
 [data-theme="dark"] {
-  --bg: #1B1D2A;
-  --surface: #252837;
-  --surface-2: #2D3047;
-  --border: #373A52;
-  --border-2: #2D3047;
-  --text: #E8EAFF;
-  --text-muted: #8891B8;
-  --text-faint: #5C6289;
-  --brand: #7C7FFF;
-  --brand-light: #2D2F52;
-  --income: #34D399;
-  --expense: #F87171;
+  --bg: #111814;
+  --surface: #192018;
+  --surface-2: #202A1F;
+  --border: #2C3B2A;
+  --border-2: #243022;
+  --text: #E8F0E9;
+  --text-muted: #8AAA8E;
+  --text-faint: #537557;
+
+  --brand: #3DA86A;
+  --brand-light: #1A3024;
+  --brand-dark: #4DC47C;
+
+  --income: #3EC876;
+  --expense: #E8584A;
   --transfer: #60A5FA;
-  --shadow: rgba(0,0,0,0.3);
-  /* Status badge colors — dark mode variants */
+  --shadow: rgba(0,0,0,0.4);
+
   --status-pending-bg: #3D2E00;   --status-pending-text: #FCD34D;
-  --status-partial-bg: #1E2D4A;   --status-partial-text: #93C5FD;
-  --status-paid-bg: #052E16;      --status-paid-text: #6EE7B7;
+  --status-partial-bg: #0D2E18;   --status-partial-text: #6EE7B7;
+  --status-paid-bg: #0D2E18;      --status-paid-text: #6EE7B7;
   --status-cancelled-bg: #2D0B0B; --status-cancelled-text: #FCA5A5;
   --status-warning: #F59E0B;
-  --status-sent-bg: #1E2D4A;      --status-sent-text: #93C5FD;
+  --status-sent-bg: #0D2E18;      --status-sent-text: #6EE7B7;
   --status-overdue-bg: #2D0B0B;   --status-overdue-text: #FCA5A5;
 }
 
@@ -76,6 +86,8 @@ html {
   height: 100%;
   height: -webkit-fill-available;
   overscroll-behavior: none;
+  /* Fills the home-indicator strip and any exposed edges with the app bg */
+  background-color: var(--bg);
 }
 
 body {
@@ -84,10 +96,15 @@ body {
   min-height: -webkit-fill-available;
   overflow: hidden;
   overscroll-behavior: none;
-  background-color: var(--bg); /* fills any exposed edges with app bg */
+  background-color: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Next.js root — same background so no flash of white on any edge */
+#__next {
+  background-color: var(--bg);
 }
 
 /* Mobile safe areas */
