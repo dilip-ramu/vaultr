@@ -143,8 +143,8 @@ function RowActions({
             Not Settled
           </button>
         )}
-        {/* Show customer invoices link for billed/recovered supplier invoices */}
-        {inv.is_recoverable && (inv.recoverable_status === 'billed' || inv.recoverable_status === 'recovered') && (
+        {/* Show customer invoices link for all recoverable supplier invoices */}
+        {inv.is_recoverable && (
           <button
             onClick={() => onShowLinks(inv)}
             className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1"
@@ -1114,7 +1114,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         Not Settled
                       </button>
                     )}
-                    {inv.is_recoverable && (inv.recoverable_status === 'billed' || inv.recoverable_status === 'recovered') && (
+                    {inv.is_recoverable && (
                       <button
                         onClick={() => setLinksModal(inv)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"

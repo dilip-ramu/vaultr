@@ -87,12 +87,12 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
   const [showPayModal, setShowPayModal] = useState(false)
 
   // Supplier links state
-  const [supplierLinks, setSupplierLinks] = useState<SupplierLink[]>(initialSupplierLinks)
-  const [showLinkSearch, setShowLinkSearch]   = useState(false)
-  const [linkSearch, setLinkSearch]           = useState('')
-  const [searchResults, setSearchResults]     = useState<SupplierSearchResult[]>([])
-  const [searching, setSearching]             = useState(false)
-  const [linkingId, setLinkingId]             = useState<string | null>(null)
+  const [supplierLinks, setSupplierLinks]         = useState<SupplierLink[]>(initialSupplierLinks)
+  const [showLinkSearch, setShowLinkSearch]       = useState(false)
+  const [linkSearch, setLinkSearch]               = useState('')
+  const [allSupplierInvoices, setAllSupplierInvoices] = useState<SupplierSearchResult[]>([])
+  const [loadingAll, setLoadingAll]               = useState(false)
+  const [linkingId, setLinkingId]                 = useState<string | null>(null)
 
   // Supplier cost tally
   const supplierCostTotal = supplierLinks.reduce((s, l) => {
@@ -103,19 +103,34 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
   const margin = customerBilled - supplierCostTotal
   const marginPct = supplierCostTotal > 0 ? (margin / supplierCostTotal) * 100 : null
 
-  async function searchSupplierInvoices(q: string) {
-    if (!q.trim()) { setSearchResults([]); return }
-    setSearching(true)
+  // Load all supplier invoices once when the search panel opens, then filter client-side
+  // This gives instant partial matching on any substring (incl. last 4 chars of invoice #)
+  async function openLinkSearch() {
+    setShowLinkSearch(true)
+    if (allSupplierInvoices.length > 0) return   // already loaded
+    setLoadingAll(true)
     try {
-      const res = await fetch(`/api/supplier-invoices?search=${encodeURIComponent(q)}&per_page=10`)
+      const res = await fetch('/api/supplier-invoices')
       if (res.ok) {
         const data = await res.json() as { invoices?: SupplierSearchResult[] }
-        setSearchResults(data.invoices ?? [])
+        setAllSupplierInvoices(data.invoices ?? [])
       }
     } finally {
-      setSearching(false)
+      setLoadingAll(false)
     }
   }
+
+  // Client-side filter: match query against invoice_number, supplier name, payee_name, amount
+  const searchResults = (() => {
+    const q = linkSearch.trim().toLowerCase()
+    if (!q) return allSupplierInvoices.slice(0, 20)
+    return allSupplierInvoices.filter(si => {
+      const name = (si.supplier?.name ?? si.payee_name ?? '').toLowerCase()
+      const num  = (si.invoice_number ?? '').toLowerCase()
+      const amt  = String(si.amount)
+      return name.includes(q) || num.includes(q) || amt.includes(q)
+    }).slice(0, 20)
+  })()
 
   async function addLink(si: SupplierSearchResult) {
     setLinkingId(si.id)
@@ -137,7 +152,6 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
         }
         setShowLinkSearch(false)
         setLinkSearch('')
-        setSearchResults([])
       }
     } finally {
       setLinkingId(null)
@@ -436,7 +450,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
               </p>
             </div>
             <button
-              onClick={() => setShowLinkSearch(s => !s)}
+              onClick={() => showLinkSearch ? setShowLinkSearch(false) : openLinkSearch()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ background: 'rgba(42,122,80,0.1)', color: 'var(--brand)', border: '1px solid rgba(42,122,80,0.2)' }}
             >
@@ -452,14 +466,14 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                 <input
                   autoFocus
                   value={linkSearch}
-                  onChange={e => { setLinkSearch(e.target.value); searchSupplierInvoices(e.target.value) }}
+                  onChange={e => setLinkSearch(e.target.value)}
                   placeholder="Search supplier name or invoice #…"
                   className="w-full pl-9 pr-4 py-2 rounded-lg border text-sm outline-none"
                   style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
                 />
               </div>
-              {searching && (
-                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Searching…</p>
+              {loadingAll && (
+                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Loading invoices…</p>
               )}
               {searchResults.length > 0 && (
                 <div className="mt-2 rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)' }}>

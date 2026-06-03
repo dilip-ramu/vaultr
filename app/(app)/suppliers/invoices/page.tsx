@@ -13,7 +13,7 @@ async function InvoicesContent() {
   const [{ data: invoices }, { data: suppliers }, { data: accounts }] = await Promise.all([
     supabase
       .from('supplier_invoices')
-      .select('*, supplier:suppliers(id, name, supplier_code)')
+      .select('*, supplier:suppliers(id, name, supplier_code, default_category_id)')
       .eq('user_id', user.id)
       .order('invoice_date', { ascending: false }),
     supabase

@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { PAYMENT_TERMS_OPTIONS } from '@/lib/suppliers/types'
+
+interface Category { id: string; name: string; color: string }
 
 interface Props {
   supplier: Supplier | null
@@ -28,6 +30,7 @@ const EMPTY: Omit<Supplier, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   currency: 'INR',
   notes: '',
   is_active: true,
+  default_category_id: null,
 }
 
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
@@ -37,8 +40,16 @@ export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
     ? { ...EMPTY, ...supplier }
     : { ...EMPTY }
   )
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState('')
+  const [categories, setCategories] = useState<Category[]>([])
+
+  useEffect(() => {
+    fetch('/api/categories?type=expense')
+      .then(r => r.ok ? r.json() : { categories: [] })
+      .then((d: { categories?: Category[] }) => setCategories(d.categories ?? []))
+      .catch(() => {})
+  }, [])
 
   const set = (k: keyof typeof EMPTY, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
@@ -178,6 +189,32 @@ export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
                 <Input value={form.ifsc_swift ?? ''} onChange={v => set('ifsc_swift', v)} placeholder="HDFC0001234" />
               </Field>
             </div>
+          </Section>
+
+          {/* Default category */}
+          <Section title="Transaction Defaults">
+            <Field label="Default Expense Category">
+              <div className="flex items-center gap-2">
+                {form.default_category_id && (() => {
+                  const cat = categories.find(c => c.id === form.default_category_id)
+                  return cat ? <span className="w-3 h-3 rounded-full shrink-0" style={{ background: cat.color }} /> : null
+                })()}
+                <select
+                  value={form.default_category_id ?? ''}
+                  onChange={e => set('default_category_id', e.target.value || null)}
+                  className="flex-1 px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+                >
+                  <option value="">— Not set —</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                Auto-applied to transactions when marking invoices as paid
+              </p>
+            </Field>
           </Section>
 
           {/* Notes */}

@@ -45,6 +45,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const [yr, mo] = month.payroll_month.split('-')
   const monthLabel = new Date(Number(yr), Number(mo) - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
 
+  // Auto-detect salary/payroll expense category (best-effort)
+  const SALARY_PATTERN = /salary|salaries|payroll|staff[\s_]pay|wages|staff[\s_]salary/i
+  const { data: allCategories } = await supabase
+    .from('categories').select('id, name').eq('user_id', user.id).eq('type', 'expense')
+  const salaryCategoryId = allCategories?.find(c => SALARY_PATTERN.test(c.name))?.id ?? null
+
   // Create one expense transaction per entry
   const updatedEntries: typeof entries = []
   for (const entry of entries) {
@@ -53,13 +59,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const { data: tx, error: txErr } = await supabase
       .from('transactions')
       .insert({
-        user_id:    user.id,
-        account_id: account_id,
-        type:       'expense',
-        amount:     Number(entry.final_payable),
-        date:       txDate,
-        name:       `Salary – ${empName}`,
-        notes:      `${monthLabel} payroll via Vaultr`,
+        user_id:     user.id,
+        account_id:  account_id,
+        type:        'expense',
+        amount:      Number(entry.final_payable),
+        date:        txDate,
+        name:        `Salary – ${empName}`,
+        notes:       `${monthLabel} payroll via Vaultr`,
+        category_id: salaryCategoryId,
       })
       .select('id')
       .single()

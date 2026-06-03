@@ -39,6 +39,17 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
   const isSingle = invoiceIds.length === 1
   const singleInvoice = isSingle ? invoices[0] : null
 
+  // Auto-derive default category: for single invoice use supplier's default;
+  // for multi, use it only if all selected invoices share the same supplier category
+  const defaultCategoryId = (() => {
+    const cats = invoices.map(inv => {
+      const sup = inv.supplier as unknown as (Supplier & { default_category_id?: string | null })
+      return sup?.default_category_id ?? null
+    })
+    const unique = [...new Set(cats.filter(Boolean))]
+    return unique.length === 1 ? unique[0]! : null
+  })()
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!accountId) { setError('Please select a bank account'); return }
@@ -90,6 +101,8 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
           // Link back to invoice/batch so mark-unpaid can delete this transaction
           supplier_invoice_id: isSingle ? invoiceIds[0] : null,
           supplier_payment_batch_id: !isSingle && data.batch_id ? data.batch_id : null,
+          // Auto-apply the supplier's default expense category
+          category_id: defaultCategoryId ?? null,
         })
       }
 

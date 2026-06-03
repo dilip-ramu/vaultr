@@ -61,6 +61,7 @@ const navSections: NavSection[] = [
           { href: '/suppliers/invoices',              label: 'Invoices',      icon: FileText },
           { href: '/suppliers/invoices?recurring=true', label: 'Subscriptions', icon: RefreshCw },
           { href: '/suppliers/settled',               label: 'Settled',       icon: CheckCheck },
+          { href: '/suppliers/categories',            label: 'Categories',    icon: Tag },
         ],
       },
       {
