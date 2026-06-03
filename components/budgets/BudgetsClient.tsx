@@ -22,14 +22,55 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
   const [showForm, setShowForm] = useState(false)
   const [editBudget, setEditBudget] = useState<Budget | undefined>()
 
-  const handleSaved = (saved: Budget) => {
+  const handleSaved = async (saved: Budget) => {
+    const existing = budgets.find(b => b.id === saved.id)
+
+    let spent = existing?.spent ?? 0
+
+    // For brand-new budgets the client has no spending data yet — fetch it
+    if (!existing) {
+      const supabase = createClient()
+      const now = new Date()
+      const y = currentYear
+      const m = currentMonth
+
+      let from: string, to: string
+      if (saved.period === 'monthly') {
+        from = `${y}-${String(m).padStart(2, '0')}-01`
+        to   = new Date(y, m, 0).toISOString().split('T')[0]
+      } else if (saved.period === 'yearly') {
+        from = `${y}-01-01`
+        to   = `${y}-12-31`
+      } else {
+        // weekly: current Mon → Sun
+        const d = new Date(now)
+        d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+        from = d.toISOString().split('T')[0]
+        const sun = new Date(d); sun.setDate(d.getDate() + 6)
+        to = sun.toISOString().split('T')[0]
+      }
+
+      const { data } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('type', 'expense')
+        .eq('category_id', saved.category_id)
+        .gte('date', from)
+        .lte('date', to)
+
+      spent = (data ?? []).reduce((s, t) => s + Number(t.amount), 0)
+    }
+
+    const effective = saved.amount + (saved.rollover ? saved.rollover_amount : 0)
+    const enriched = {
+      ...saved,
+      spent,
+      remaining: effective - spent,
+      percentage: effective > 0 ? (spent / effective) * 100 : 0,
+    }
+
     setBudgets(prev => {
       const idx = prev.findIndex(b => b.id === saved.id)
-      const spent = prev.find(b => b.id === saved.id)?.spent ?? 0
-      const effective = saved.amount + (saved.rollover ? saved.rollover_amount : 0)
-      const remaining = effective - spent
-      const percentage = effective > 0 ? (spent / effective) * 100 : 0
-      const enriched = { ...saved, spent, remaining, percentage }
       return idx >= 0
         ? prev.map((b, i) => (i === idx ? enriched : b))
         : [...prev, enriched]
@@ -169,7 +210,7 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
           categories={expenseCategories}
           currentMonth={currentMonth}
           currentYear={currentYear}
-          onSaved={saved => { handleSaved(saved); setShowForm(false) }}
+          onSaved={saved => { setShowForm(false); handleSaved(saved) }}
           onClose={() => setShowForm(false)}
         />
       )}
