@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Search, Pencil, X, Paperclip, ChevronDown, ChevronUp,
   AlertTriangle, CheckCircle2, Clock, Circle, CheckSquare, Square, RefreshCw,
+  XCircle, User,
 } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
-import { computeInvoiceStatus, INVOICE_CATEGORIES, RECOVERABLE_STATUS_LABELS, INVOICE_STATUS_LABELS } from '@/lib/suppliers/types'
+import { computeInvoiceStatus } from '@/lib/suppliers/types'
 import SupplierInvoiceForm from './SupplierInvoiceForm'
 import BulkPayModal from './BulkPayModal'
 
@@ -17,6 +18,9 @@ interface Props {
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
   accounts: PickerAccount[]
 }
+
+// Extended type to cover v27 fields
+type InvoiceExt = SupplierInvoice & { payee_name?: string | null; is_personal_bill?: boolean }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,23 +40,128 @@ function daysDue(d: string) {
   return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)
 }
 
+function displayName(inv: InvoiceExt): string {
+  const sup = inv.supplier as unknown as Supplier
+  return sup?.name ?? inv.payee_name ?? inv.invoice_number ?? 'Unnamed'
+}
+
 // ── Status config ─────────────────────────────────────────────────────────────
 
-const STATUS: Record<string, { label: string; dot: string; bg: string; text: string; icon: React.ReactNode }> = {
-  pending:   { label: 'Pending',  dot: 'var(--brand)', bg: 'rgba(42,122,80,0.08)',  text: 'var(--brand)', icon: <Circle className="w-3 h-3" /> },
-  due:       { label: 'Due Soon', dot: '#f59e0b', bg: 'rgba(245,158,11,0.1)',   text: '#b45309', icon: <Clock className="w-3 h-3" /> },
-  overdue:   { label: 'Overdue',  dot: '#ef4444', bg: 'rgba(239,68,68,0.1)',    text: '#dc2626', icon: <AlertTriangle className="w-3 h-3" /> },
-  paid:      { label: 'Paid',     dot: '#22c55e', bg: 'rgba(34,197,94,0.1)',    text: '#16a34a', icon: <CheckCircle2 className="w-3 h-3" /> },
-  partial:   { label: 'Partial',  dot: '#a855f7', bg: 'rgba(168,85,247,0.1)',   text: '#9333ea', icon: <Circle className="w-3 h-3" /> },
-  cancelled: { label: 'Cancelled',dot: '#9ca3af', bg: 'rgba(107,114,128,0.1)', text: '#6b7280', icon: <X className="w-3 h-3" /> },
+const STATUS: Record<string, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
+  pending:   { label: 'Pending',   bg: 'rgba(42,122,80,0.08)',   text: 'var(--brand)',   icon: <Circle className="w-3 h-3" /> },
+  due:       { label: 'Due Soon',  bg: 'rgba(245,158,11,0.1)',   text: '#b45309',        icon: <Clock className="w-3 h-3" /> },
+  overdue:   { label: 'Overdue',   bg: 'rgba(239,68,68,0.1)',    text: '#dc2626',        icon: <AlertTriangle className="w-3 h-3" /> },
+  paid:      { label: 'Paid',      bg: 'rgba(34,197,94,0.1)',    text: '#16a34a',        icon: <CheckCircle2 className="w-3 h-3" /> },
+  partial:   { label: 'Partial',   bg: 'rgba(168,85,247,0.1)',   text: '#9333ea',        icon: <Circle className="w-3 h-3" /> },
+  cancelled: { label: 'Cancelled', bg: 'rgba(107,114,128,0.1)', text: '#6b7280',        icon: <X className="w-3 h-3" /> },
 }
 
 const REC_STATUS: Record<string, { label: string; bg: string; text: string }> = {
   pending_billing:  { label: 'Pending Billing',  bg: 'rgba(245,158,11,0.12)',  text: '#b45309' },
   billed:           { label: 'Billed',            bg: 'rgba(42,122,80,0.1)',   text: 'var(--brand)' },
-  recovered:        { label: 'Recovered',         bg: 'rgba(34,197,94,0.1)',    text: '#16a34a' },
-  partial_recovery: { label: 'Partial Recovery',  bg: 'rgba(168,85,247,0.1)',   text: '#9333ea' },
+  recovered:        { label: 'Recovered',         bg: 'rgba(34,197,94,0.1)',   text: '#16a34a' },
+  partial_recovery: { label: 'Partial Recovery',  bg: 'rgba(168,85,247,0.1)',  text: '#9333ea' },
   written_off:      { label: 'Written Off',       bg: 'rgba(107,114,128,0.1)', text: '#6b7280' },
+}
+
+// ── Per-row action buttons ────────────────────────────────────────────────────
+
+function RowActions({
+  inv,
+  onPay, onUnpay, onMarkBilled, onMarkPending, onMarkSettled, onMarkNotSettled,
+  onEdit, onDelete,
+}: {
+  inv: InvoiceExt
+  onPay: (inv: InvoiceExt) => void
+  onUnpay: (inv: InvoiceExt) => void
+  onMarkBilled: (inv: InvoiceExt) => void
+  onMarkPending: (inv: InvoiceExt) => void
+  onMarkSettled: (inv: InvoiceExt) => void
+  onMarkNotSettled: (inv: InvoiceExt) => void
+  onEdit: (inv: InvoiceExt) => void
+  onDelete: (id: string) => void
+}) {
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      {/* State-change buttons */}
+      <div className="flex flex-wrap justify-end gap-1">
+        {/* Payment track */}
+        {inv.status !== 'cancelled' && !inv.is_paid && (
+          <button
+            onClick={() => onPay(inv)}
+            className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+            style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.2)' }}
+          >
+            Mark Paid
+          </button>
+        )}
+        {inv.status !== 'cancelled' && inv.is_paid && (
+          <button
+            onClick={() => onUnpay(inv)}
+            className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+            style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}
+          >
+            Mark Unpaid
+          </button>
+        )}
+        {/* Recovery track */}
+        {inv.is_recoverable && inv.recoverable_status === 'pending_billing' && (
+          <button
+            onClick={() => onMarkBilled(inv)}
+            className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+            style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.2)' }}
+          >
+            Mark Billed
+          </button>
+        )}
+        {inv.is_recoverable && inv.recoverable_status === 'billed' && (
+          <>
+            <button
+              onClick={() => onMarkSettled(inv)}
+              className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+              style={{ background: 'rgba(168,85,247,0.1)', color: '#9333ea', border: '1px solid rgba(168,85,247,0.2)' }}
+            >
+              Settled
+            </button>
+            <button
+              onClick={() => onMarkPending(inv)}
+              className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+              style={{ background: 'rgba(107,114,128,0.08)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.2)' }}
+            >
+              Pending
+            </button>
+          </>
+        )}
+        {inv.is_recoverable && inv.recoverable_status === 'recovered' && (
+          <button
+            onClick={() => onMarkNotSettled(inv)}
+            className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+            style={{ background: 'rgba(107,114,128,0.08)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.2)' }}
+          >
+            Not Settled
+          </button>
+        )}
+      </div>
+      {/* Edit / delete */}
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={() => onEdit(inv)}
+          className="p-1.5 rounded-lg transition-colors hover:bg-[var(--surface-2)]"
+          title="Edit"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => onDelete(inv.id)}
+          className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
+          title="Delete"
+        >
+          <X className="w-3.5 h-3.5 text-red-400" />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -61,31 +170,33 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const [invoices, setInvoices] = useState<SupplierInvoice[]>(
-    initialInvoices.map(i => ({ ...i, status: computeInvoiceStatus(i) }))
+  const [invoices, setInvoices] = useState<InvoiceExt[]>(
+    initialInvoices.map(i => ({ ...i, status: computeInvoiceStatus(i) })) as InvoiceExt[]
   )
   const [showForm, setShowForm]       = useState(false)
-  const [editing, setEditing]         = useState<SupplierInvoice | null>(null)
-  const [showBulkPay, setShowBulkPay]   = useState(false)
-  const [showBulkBill, setShowBulkBill] = useState(false)
-  const [selected, setSelected]         = useState<Set<string>>(new Set())
+  const [editing, setEditing]         = useState<InvoiceExt | null>(null)
+  const [showBulkPay, setShowBulkPay] = useState(false)
+  const [selected, setSelected]       = useState<Set<string>>(new Set())
   const [search, setSearch]           = useState(() => searchParams.get('search') ?? '')
   const [statusTab, setStatusTab]     = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [filterSupplier, setFilterSupplier]     = useState('')
+  const [filterSupplier, setFilterSupplier]       = useState('')
+  const [filterType, setFilterType]               = useState<'all' | 'supplier' | 'personal'>('all')
   const [filterRecoverable, setFilterRecoverable] = useState('')
-  const [filterRecStatus, setFilterRecStatus]   = useState('')
-  const [filterRecurring, setFilterRecurring]   = useState(() => searchParams.get('recurring') === 'true')
+  const [filterRecStatus, setFilterRecStatus]     = useState('')
+  const [filterRecurring, setFilterRecurring]     = useState(() => searchParams.get('recurring') === 'true')
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const enriched = useMemo(() =>
-    invoices.map(i => ({ ...i, status: computeInvoiceStatus(i) })),
+    invoices.map(i => ({ ...i, status: computeInvoiceStatus(i) })) as InvoiceExt[],
     [invoices]
   )
 
   const filtered = useMemo(() => enriched.filter(inv => {
     if (statusTab && inv.status !== statusTab) return false
+    if (filterType === 'supplier' && inv.is_personal_bill) return false
+    if (filterType === 'personal' && !inv.is_personal_bill) return false
     if (filterSupplier && inv.supplier_id !== filterSupplier) return false
     if (filterRecoverable === 'yes' && !inv.is_recoverable) return false
     if (filterRecoverable === 'no' && inv.is_recoverable) return false
@@ -97,21 +208,22 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       return (
         (inv.invoice_number ?? '').toLowerCase().includes(q) ||
         sup.toLowerCase().includes(q) ||
+        (inv.payee_name ?? '').toLowerCase().includes(q) ||
         (inv.linked_customer_name ?? '').toLowerCase().includes(q) ||
         (inv.notes ?? '').toLowerCase().includes(q)
       )
     }
     return true
-  }), [enriched, statusTab, filterSupplier, filterRecoverable, filterRecStatus, search])
+  }), [enriched, statusTab, filterType, filterSupplier, filterRecoverable, filterRecStatus, filterRecurring, search])
 
   const summary = useMemo(() => ({
-    paymentDue:     enriched.filter(i => !i.is_paid && i.status !== 'cancelled').reduce((s, i) => s + Number(i.amount), 0),
-    paymentCount:   enriched.filter(i => !i.is_paid && i.status !== 'cancelled').length,
-    overdue:        enriched.filter(i => i.status === 'overdue').reduce((s, i) => s + Number(i.amount), 0),
-    overdueCount:   enriched.filter(i => i.status === 'overdue').length,
-    recoverable:    enriched.filter(i => i.is_recoverable && i.status !== 'cancelled').reduce((s, i) => s + Number(i.amount), 0),
-    recoverableCount: enriched.filter(i => i.is_recoverable && i.status !== 'cancelled').length,
-    pendingBilling: enriched.filter(i => i.is_recoverable && i.recoverable_status === 'pending_billing').reduce((s, i) => s + Number(i.amount), 0),
+    paymentDue:          enriched.filter(i => !i.is_paid && i.status !== 'cancelled').reduce((s, i) => s + Number(i.amount), 0),
+    paymentCount:        enriched.filter(i => !i.is_paid && i.status !== 'cancelled').length,
+    overdue:             enriched.filter(i => i.status === 'overdue').reduce((s, i) => s + Number(i.amount), 0),
+    overdueCount:        enriched.filter(i => i.status === 'overdue').length,
+    recoverable:         enriched.filter(i => i.is_recoverable && i.status !== 'cancelled').reduce((s, i) => s + Number(i.amount), 0),
+    recoverableCount:    enriched.filter(i => i.is_recoverable && i.status !== 'cancelled').length,
+    pendingBilling:      enriched.filter(i => i.is_recoverable && i.recoverable_status === 'pending_billing').reduce((s, i) => s + Number(i.amount), 0),
     pendingBillingCount: enriched.filter(i => i.is_recoverable && i.recoverable_status === 'pending_billing').length,
   }), [enriched])
 
@@ -123,24 +235,31 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
 
   const selectableFiltered = useMemo(() => filtered.filter(i => i.status !== 'cancelled'), [filtered])
   const selectedInvoices   = useMemo(() => invoices.filter(i => selected.has(i.id)), [invoices, selected])
-  const selectedUnpaidCount = useMemo(() => selectedInvoices.filter(i => !i.is_paid).length, [selectedInvoices])
-  const selectedRecoverableCount = useMemo(
-    () => selectedInvoices.filter(i => i.is_recoverable && i.recoverable_status !== 'billed' && i.recoverable_status !== 'recovered').length,
+
+  // Bulk action eligibility counts
+  const selUnpaidCount        = useMemo(() => selectedInvoices.filter(i => !i.is_paid).length, [selectedInvoices])
+  const selPaidCount          = useMemo(() => selectedInvoices.filter(i => i.is_paid).length, [selectedInvoices])
+  const selPendingBillingCount = useMemo(
+    () => selectedInvoices.filter(i => i.is_recoverable && i.recoverable_status === 'pending_billing').length,
     [selectedInvoices]
   )
-  const selectedBillableCount = useMemo(
-    () => selectedInvoices.filter(i => !i.is_recoverable).length,
-    [selectedInvoices]
-  )
-  const selectedReceivedCount = useMemo(
+  const selBilledCount        = useMemo(
     () => selectedInvoices.filter(i => i.is_recoverable && i.recoverable_status === 'billed').length,
+    [selectedInvoices]
+  )
+  const selRecoveredCount     = useMemo(
+    () => selectedInvoices.filter(i => i.is_recoverable && i.recoverable_status === 'recovered').length,
+    [selectedInvoices]
+  )
+  const selBillableCount      = useMemo(
+    () => selectedInvoices.filter(i => !i.is_recoverable).length,
     [selectedInvoices]
   )
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   function handleSaved(saved: SupplierInvoice) {
-    const enrichedSaved = { ...saved, status: computeInvoiceStatus(saved) }
+    const enrichedSaved = { ...saved, status: computeInvoiceStatus(saved) } as InvoiceExt
     setInvoices(prev => {
       const exists = prev.find(i => i.id === saved.id)
       return exists ? prev.map(i => i.id === saved.id ? enrichedSaved : i) : [enrichedSaved, ...prev]
@@ -159,16 +278,97 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   }
 
+  // ── Per-row quick actions ─────────────────────────────────────────────────
+
+  function handleQuickPay(inv: InvoiceExt) {
+    setSelected(new Set([inv.id]))
+    setShowBulkPay(true)
+  }
+
+  async function handleQuickUnpay(inv: InvoiceExt) {
+    const batchNote = inv.bulk_payment_batch_id
+      ? '\n\nThis invoice is part of a bulk payment. All invoices in that payment will also be marked unpaid and the batch transaction deleted.'
+      : ''
+    if (!confirm(`Mark "${displayName(inv)}" as unpaid? The related transaction will be deleted.${batchNote}`)) return
+    await doUnpay([inv.id])
+  }
+
+  async function doUnpay(ids: string[]) {
+    const res = await fetch('/api/supplier-invoices/bulk-unpay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_ids: ids }),
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    const unpaidIds: string[] = data.unpaid_ids ?? []
+    setInvoices(prev => prev.map(i => {
+      if (!unpaidIds.includes(i.id)) return i
+      const updated = { ...i, is_paid: false, payment_date: null, payment_reference: null, bulk_payment_batch_id: null }
+      return { ...updated, status: computeInvoiceStatus(updated) } as InvoiceExt
+    }))
+    setSelected(new Set())
+  }
+
+  async function handleQuickMarkBilled(inv: InvoiceExt) {
+    const res = await fetch('/api/supplier-invoices/bulk-bill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_ids: [inv.id] }),
+    })
+    if (res.ok) setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, recoverable_status: 'billed' as const } : i))
+  }
+
+  async function handleQuickMarkPending(inv: InvoiceExt) {
+    const res = await fetch(`/api/supplier-invoices/${inv.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recoverable_status: 'pending_billing' }),
+    })
+    if (res.ok) setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, recoverable_status: 'pending_billing' as const } : i))
+  }
+
+  async function handleQuickMarkSettled(inv: InvoiceExt) {
+    const today = new Date().toISOString().split('T')[0]
+    const res = await fetch('/api/supplier-invoices/bulk-recovered', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_ids: [inv.id], recovered_date: today }),
+    })
+    if (res.ok) setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, recoverable_status: 'recovered' as const, recovered_date: today } : i))
+  }
+
+  async function handleQuickMarkNotSettled(inv: InvoiceExt) {
+    const res = await fetch(`/api/supplier-invoices/${inv.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recoverable_status: 'billed' }),
+    })
+    if (res.ok) setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, recoverable_status: 'billed' as const } : i))
+  }
+
+  // ── Bulk actions ──────────────────────────────────────────────────────────
+
   function handleBulkPayDone() {
     setShowBulkPay(false)
     setSelected(new Set())
     router.refresh()
   }
 
+  async function handleBulkUnpay() {
+    const ids = invoices.filter(i => selected.has(i.id) && i.is_paid).map(i => i.id)
+    if (!ids.length) return
+    // Check for batches that will cascade
+    const hasBatch = invoices.some(i => ids.includes(i.id) && !!i.bulk_payment_batch_id)
+    const msg = hasBatch
+      ? `Mark ${ids.length} invoice(s) as unpaid? Batch payments will be fully reversed and all invoices in those batches will also be marked unpaid.`
+      : `Mark ${ids.length} invoice(s) as unpaid? Related transactions will be deleted.`
+    if (!confirm(msg)) return
+    await doUnpay(ids)
+  }
+
   async function handleBulkBill() {
-    const ids = invoices
-      .filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status !== 'billed' && i.recoverable_status !== 'recovered')
-      .map(i => i.id)
+    const ids = invoices.filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'pending_billing').map(i => i.id)
     if (!ids.length) return
     const res = await fetch('/api/supplier-invoices/bulk-bill', {
       method: 'POST',
@@ -176,11 +376,52 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       body: JSON.stringify({ invoice_ids: ids }),
     })
     if (res.ok) {
-      setInvoices(prev => prev.map(i =>
-        ids.includes(i.id) ? { ...i, recoverable_status: 'billed' as const } : i
-      ))
+      setInvoices(prev => prev.map(i => ids.includes(i.id) ? { ...i, recoverable_status: 'billed' as const } : i))
       setSelected(new Set())
     }
+  }
+
+  async function handleBulkMarkPendingBilled() {
+    const ids = invoices.filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'billed').map(i => i.id)
+    if (!ids.length) return
+    await Promise.all(ids.map(id =>
+      fetch(`/api/supplier-invoices/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recoverable_status: 'pending_billing' }),
+      })
+    ))
+    setInvoices(prev => prev.map(i => ids.includes(i.id) ? { ...i, recoverable_status: 'pending_billing' as const } : i))
+    setSelected(new Set())
+  }
+
+  async function handleBulkMarkSettled() {
+    const ids = invoices.filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'billed').map(i => i.id)
+    if (!ids.length) return
+    const today = new Date().toISOString().split('T')[0]
+    const res = await fetch('/api/supplier-invoices/bulk-recovered', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoice_ids: ids, recovered_date: today }),
+    })
+    if (res.ok) {
+      setInvoices(prev => prev.map(i => ids.includes(i.id) ? { ...i, recoverable_status: 'recovered' as const, recovered_date: today } : i))
+      setSelected(new Set())
+    }
+  }
+
+  async function handleBulkMarkNotSettled() {
+    const ids = invoices.filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'recovered').map(i => i.id)
+    if (!ids.length) return
+    await Promise.all(ids.map(id =>
+      fetch(`/api/supplier-invoices/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recoverable_status: 'billed' }),
+      })
+    ))
+    setInvoices(prev => prev.map(i => ids.includes(i.id) ? { ...i, recoverable_status: 'billed' as const } : i))
+    setSelected(new Set())
   }
 
   async function handleBulkMarkBillable() {
@@ -201,28 +442,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     }
   }
 
-  async function handleBulkPaymentReceived() {
-    const ids = invoices
-      .filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'billed')
-      .map(i => i.id)
-    if (!ids.length) return
-    const today = new Date().toISOString().split('T')[0]
-    const res = await fetch('/api/supplier-invoices/bulk-recovered', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoice_ids: ids, recovered_date: today }),
-    })
-    if (res.ok) {
-      setInvoices(prev => prev.map(i =>
-        ids.includes(i.id)
-          ? { ...i, recoverable_status: 'recovered' as const, recovered_date: today }
-          : i
-      ))
-      setSelected(new Set())
-    }
-  }
-
-  const hasFilters = filterSupplier || filterRecoverable || filterRecStatus || filterRecurring
+  const hasFilters = filterType !== 'all' || filterSupplier || filterRecoverable || filterRecStatus || filterRecurring
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -232,9 +452,9 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Supplier Invoices</h1>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Bills &amp; Invoices</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {enriched.length} invoice{enriched.length !== 1 ? 's' : ''}
+            {enriched.length} item{enriched.length !== 1 ? 's' : ''}
             {summary.overdueCount > 0 && (
               <span className="ml-2 font-medium" style={{ color: '#dc2626' }}>
                 · {summary.overdueCount} overdue
@@ -242,61 +462,17 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             )}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {selected.size > 0 && selectedBillableCount > 0 && (
-            <button
-              onClick={handleBulkMarkBillable}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
-              style={{ background: 'rgba(99,102,241,0.1)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.25)' }}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Billable to Customer ({selectedBillableCount})
-            </button>
-          )}
-          {selected.size > 0 && selectedRecoverableCount > 0 && (
-            <button
-              onClick={handleBulkBill}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
-              style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.25)' }}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Mark Billed ({selectedRecoverableCount})
-            </button>
-          )}
-          {selected.size > 0 && selectedReceivedCount > 0 && (
-            <button
-              onClick={handleBulkPaymentReceived}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
-              style={{ background: 'rgba(168,85,247,0.1)', color: '#9333ea', border: '1px solid rgba(168,85,247,0.25)' }}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Payment Received ({selectedReceivedCount})
-            </button>
-          )}
-          {selected.size > 0 && selectedUnpaidCount > 0 && (
-            <button
-              onClick={() => setShowBulkPay(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
-              style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.25)' }}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Mark Paid ({selectedUnpaidCount})
-            </button>
-          )}
-          <button
-            onClick={() => { setEditing(null); setShowForm(true) }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-            style={{ background: 'var(--brand)' }}
-          >
-            <Plus className="w-4 h-4" /> Add Invoice
-          </button>
-        </div>
+        <button
+          onClick={() => { setEditing(null); setShowForm(true) }}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"
+          style={{ background: 'var(--brand)' }}
+        >
+          <Plus className="w-4 h-4" /> Add
+        </button>
       </div>
 
       {/* ── Summary cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-
-        {/* Payment Due */}
         <button
           onClick={() => { setStatusTab(statusTab === 'pending' ? '' : 'pending'); setFilterRecoverable('') }}
           className="rounded-2xl p-4 text-left transition-all"
@@ -308,12 +484,9 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
         >
           <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Payment Due</p>
           <p className="text-xl font-bold" style={{ color: 'var(--brand)' }}>₹{fmt(summary.paymentDue)}</p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-faint, var(--text-muted))' }}>
-            {summary.paymentCount} unpaid
-          </p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-faint, var(--text-muted))' }}>{summary.paymentCount} unpaid</p>
         </button>
 
-        {/* Overdue */}
         <button
           onClick={() => setStatusTab(statusTab === 'overdue' ? '' : 'overdue')}
           className="rounded-2xl p-4 text-left transition-all"
@@ -332,12 +505,10 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           </p>
         </button>
 
-        {/* Recoverable */}
         <button
           onClick={() => {
             const next = filterRecoverable === 'yes' && !filterRecStatus
-            setFilterRecoverable(next ? '' : 'yes')
-            setFilterRecStatus('')
+            setFilterRecoverable(next ? '' : 'yes'); setFilterRecStatus('')
           }}
           className="rounded-2xl p-4 text-left transition-all"
           style={{
@@ -353,12 +524,10 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           </p>
         </button>
 
-        {/* Pending Billing */}
         <button
           onClick={() => {
             const next = filterRecoverable === 'yes' && filterRecStatus === 'pending_billing'
-            setFilterRecoverable(next ? '' : 'yes')
-            setFilterRecStatus(next ? '' : 'pending_billing')
+            setFilterRecoverable(next ? '' : 'yes'); setFilterRecStatus(next ? '' : 'pending_billing')
           }}
           className="rounded-2xl p-4 text-left transition-all"
           style={{
@@ -373,14 +542,10 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             {summary.pendingBillingCount} to bill
           </p>
         </button>
-
       </div>
 
       {/* ── Status tabs ────────────────────────────────────────────────────── */}
-      <div
-        className="flex gap-1 p-1 rounded-xl overflow-x-auto"
-        style={{ background: 'var(--surface-2, var(--surface))' }}
-      >
+      <div className="flex gap-1 p-1 rounded-xl overflow-x-auto" style={{ background: 'var(--surface-2, var(--surface))' }}>
         {[
           { label: 'All',      value: '' },
           { label: 'Pending',  value: 'pending' },
@@ -423,7 +588,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search supplier, invoice #, customer…"
+            placeholder="Search supplier, bill name, invoice #…"
             className="w-full pl-9 pr-4 py-2.5 rounded-xl border text-sm outline-none"
             style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
           />
@@ -447,6 +612,17 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           className="rounded-xl border p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
         >
+          {/* Type filter */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type</label>
+            <select value={filterType} onChange={e => setFilterType(e.target.value as 'all' | 'supplier' | 'personal')}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+              <option value="all">All bills &amp; invoices</option>
+              <option value="supplier">Supplier invoices only</option>
+              <option value="personal">Personal bills only</option>
+            </select>
+          </div>
           <div className="space-y-1">
             <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Supplier</label>
             <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)}
@@ -476,7 +652,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type</label>
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Recurrence</label>
             <button
               type="button"
               onClick={() => setFilterRecurring(r => !r)}
@@ -494,7 +670,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           {hasFilters && (
             <div className="sm:col-span-4 flex justify-end">
               <button
-                onClick={() => { setFilterSupplier(''); setFilterRecoverable(''); setFilterRecStatus(''); setFilterRecurring(false) }}
+                onClick={() => { setFilterType('all'); setFilterSupplier(''); setFilterRecoverable(''); setFilterRecStatus(''); setFilterRecurring(false) }}
                 className="text-xs flex items-center gap-1"
                 style={{ color: 'var(--text-muted)' }}
               >
@@ -505,7 +681,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
         </div>
       )}
 
-      {/* ── Bulk select bar ────────────────────────────────────────────────── */}
+      {/* ── Select-all row ─────────────────────────────────────────────────── */}
       {selectableFiltered.length > 0 && (
         <div className="flex items-center gap-3 text-sm" style={{ color: 'var(--text-muted)' }}>
           <button
@@ -525,15 +701,104 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
         </div>
       )}
 
+      {/* ── Floating bulk-action bar ───────────────────────────────────────── */}
+      {selected.size > 0 && (
+        <div
+          className="sticky top-3 z-10 rounded-2xl border shadow-lg px-4 py-3 flex flex-wrap items-center gap-2"
+          style={{ background: 'var(--surface)', borderColor: 'var(--brand)', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
+        >
+          <span className="text-sm font-semibold shrink-0" style={{ color: 'var(--text)' }}>
+            {selected.size} selected
+          </span>
+          <div className="flex flex-wrap gap-2 flex-1">
+            {selUnpaidCount > 0 && (
+              <button
+                onClick={() => setShowBulkPay(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.25)' }}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Mark Paid ({selUnpaidCount})
+              </button>
+            )}
+            {selPaidCount > 0 && (
+              <button
+                onClick={handleBulkUnpay}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Mark Unpaid ({selPaidCount})
+              </button>
+            )}
+            {selPendingBillingCount > 0 && (
+              <button
+                onClick={handleBulkBill}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.25)' }}
+              >
+                Mark Billed ({selPendingBillingCount})
+              </button>
+            )}
+            {selBilledCount > 0 && (
+              <>
+                <button
+                  onClick={handleBulkMarkSettled}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                  style={{ background: 'rgba(168,85,247,0.1)', color: '#9333ea', border: '1px solid rgba(168,85,247,0.25)' }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Mark Settled ({selBilledCount})
+                </button>
+                <button
+                  onClick={handleBulkMarkPendingBilled}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                  style={{ background: 'rgba(107,114,128,0.08)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.2)' }}
+                >
+                  Pending Billed ({selBilledCount})
+                </button>
+              </>
+            )}
+            {selRecoveredCount > 0 && (
+              <button
+                onClick={handleBulkMarkNotSettled}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(107,114,128,0.08)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.2)' }}
+              >
+                Not Settled ({selRecoveredCount})
+              </button>
+            )}
+            {selBillableCount > 0 && (
+              <button
+                onClick={handleBulkMarkBillable}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                style={{ background: 'rgba(99,102,241,0.1)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.25)' }}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Make Billable ({selBillableCount})
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="p-1.5 rounded-lg ml-auto shrink-0"
+            style={{ color: 'var(--text-muted)' }}
+            title="Clear selection"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── Invoice list ───────────────────────────────────────────────────── */}
       {filtered.length === 0 ? (
         <div
           className="py-20 text-center rounded-2xl border"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
         >
-          <p className="text-base font-medium mb-1" style={{ color: 'var(--text)' }}>No invoices</p>
+          <p className="text-base font-medium mb-1" style={{ color: 'var(--text)' }}>Nothing here</p>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            {search || hasFilters || statusTab ? 'Try adjusting your filters' : 'Add your first supplier invoice'}
+            {search || hasFilters || statusTab ? 'Try adjusting your filters' : 'Add your first bill or invoice'}
           </p>
         </div>
       ) : (
@@ -545,13 +810,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               <thead>
                 <tr style={{ background: 'var(--surface-2, var(--surface))', borderBottom: '1px solid var(--border)' }}>
                   <th className="w-9 pl-4 py-3" />
-                  <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Invoice</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Payee</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Invoice / Ref</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Dates</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Recovery</th>
-                  <th className="px-4 py-3 w-20" />
+                  <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Status / Recovery</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold min-w-[210px]" style={{ color: 'var(--text-muted)' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -583,12 +847,27 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         )}
                       </td>
 
-                      {/* Supplier */}
+                      {/* Payee (supplier or personal bill) */}
                       <td className="px-4 py-4">
-                        <p className="font-semibold" style={{ color: 'var(--text)' }}>{sup?.name ?? '—'}</p>
-                        {sup?.supplier_code && (
-                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{sup.supplier_code}</p>
-                        )}
+                        <div className="flex items-start gap-1.5">
+                          {inv.is_personal_bill && (
+                            <User className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: 'var(--text-muted)' }} />
+                          )}
+                          <div>
+                            <p className="font-semibold" style={{ color: 'var(--text)' }}>
+                              {sup?.name ?? inv.payee_name ?? '—'}
+                            </p>
+                            {sup?.supplier_code && (
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{sup.supplier_code}</p>
+                            )}
+                            {inv.is_personal_bill && (
+                              <span className="inline-block text-[10px] px-1.5 py-0.5 rounded mt-0.5 font-medium"
+                                style={{ background: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>
+                                Personal
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Invoice # */}
@@ -638,7 +917,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         )}
                       </td>
 
-                      {/* Payment status */}
+                      {/* Status + Recovery (combined) */}
                       <td className="px-4 py-4">
                         <span
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
@@ -647,12 +926,8 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                           {s.icon}
                           {s.label}
                         </span>
-                      </td>
-
-                      {/* Recovery */}
-                      <td className="px-4 py-4">
-                        {inv.is_recoverable ? (
-                          <div className="space-y-1">
+                        {inv.is_recoverable && (
+                          <div className="mt-1.5 space-y-0.5">
                             {inv.linked_customer_name && (
                               <p className="text-xs font-medium" style={{ color: 'var(--text)' }}>
                                 {inv.linked_customer_name}
@@ -667,30 +942,22 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                               </span>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
                         )}
                       </td>
 
                       {/* Actions */}
                       <td className="px-4 py-4">
-                        <div className="flex items-center gap-1 justify-end">
-                          <button
-                            onClick={() => { setEditing(inv); setShowForm(true) }}
-                            className="p-1.5 rounded-lg transition-colors hover:bg-[var(--surface-2)]"
-                            title="Edit"
-                            style={{ color: 'var(--text-muted)' }}
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(inv.id)}
-                            className="p-1.5 rounded-lg transition-colors hover:bg-red-50"
-                            title="Delete"
-                          >
-                            <X className="w-3.5 h-3.5 text-red-400" />
-                          </button>
-                        </div>
+                        <RowActions
+                          inv={inv}
+                          onPay={handleQuickPay}
+                          onUnpay={handleQuickUnpay}
+                          onMarkBilled={handleQuickMarkBilled}
+                          onMarkPending={handleQuickMarkPending}
+                          onMarkSettled={handleQuickMarkSettled}
+                          onMarkNotSettled={handleQuickMarkNotSettled}
+                          onEdit={i => { setEditing(i); setShowForm(true) }}
+                          onDelete={handleDelete}
+                        />
                       </td>
                     </tr>
                   )
@@ -705,7 +972,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               const s = STATUS[inv.status] ?? STATUS.pending
               const sup = inv.supplier as unknown as Supplier
               const rec = inv.is_recoverable && inv.recoverable_status ? REC_STATUS[inv.recoverable_status] : null
-              const canSelect = !inv.is_paid && inv.status !== 'cancelled'
+              const canSelect = inv.status !== 'cancelled'
               const isOverdue = inv.status === 'overdue'
 
               return (
@@ -729,7 +996,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         </button>
                       )}
                       <div className="min-w-0">
-                        <p className="font-semibold truncate" style={{ color: 'var(--text)' }}>{sup?.name ?? '—'}</p>
+                        <div className="flex items-center gap-1.5">
+                          {inv.is_personal_bill && <User className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-muted)' }} />}
+                          <p className="font-semibold truncate" style={{ color: 'var(--text)' }}>
+                            {sup?.name ?? inv.payee_name ?? '—'}
+                          </p>
+                        </div>
                         <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>
                           {inv.invoice_number ?? 'No invoice #'}
                         </p>
@@ -746,7 +1018,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                     </div>
                   </div>
 
-                  {/* Dates + recovery */}
+                  {/* Meta row */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     <span>{fmtDate(inv.invoice_date)}</span>
                     {inv.due_date && (
@@ -755,37 +1027,90 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       </span>
                     )}
                     {inv.is_recoverable && rec && (
-                      <span
-                        className="px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: rec.bg, color: rec.text }}
-                      >
+                      <span className="px-2 py-0.5 rounded-full font-medium" style={{ background: rec.bg, color: rec.text }}>
                         {rec.label}
                       </span>
                     )}
                     {inv.linked_customer_name && (
-                      <span className="font-medium" style={{ color: 'var(--text)' }}>
-                        → {inv.linked_customer_name}
-                      </span>
+                      <span className="font-medium" style={{ color: 'var(--text)' }}>→ {inv.linked_customer_name}</span>
                     )}
                     {inv.auto_imported && (
-                      <span className="px-1.5 py-0.5 rounded" style={{ background: 'rgba(42,122,80,0.1)', color: 'var(--brand)' }}>
-                        Email
-                      </span>
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: 'rgba(42,122,80,0.1)', color: 'var(--brand)' }}>Email</span>
+                    )}
+                    {inv.is_personal_bill && (
+                      <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>Personal</span>
                     )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-2">
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {/* Payment track */}
+                    {inv.status !== 'cancelled' && !inv.is_paid && (
+                      <button
+                        onClick={() => handleQuickPay(inv)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                        style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.2)' }}
+                      >
+                        Mark Paid
+                      </button>
+                    )}
+                    {inv.status !== 'cancelled' && inv.is_paid && (
+                      <button
+                        onClick={() => handleQuickUnpay(inv)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                        style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}
+                      >
+                        Mark Unpaid
+                      </button>
+                    )}
+                    {/* Recovery track */}
+                    {inv.is_recoverable && inv.recoverable_status === 'pending_billing' && (
+                      <button
+                        onClick={() => handleQuickMarkBilled(inv)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                        style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.2)' }}
+                      >
+                        Mark Billed
+                      </button>
+                    )}
+                    {inv.is_recoverable && inv.recoverable_status === 'billed' && (
+                      <>
+                        <button
+                          onClick={() => handleQuickMarkSettled(inv)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                          style={{ background: 'rgba(168,85,247,0.1)', color: '#9333ea', border: '1px solid rgba(168,85,247,0.2)' }}
+                        >
+                          Settled
+                        </button>
+                        <button
+                          onClick={() => handleQuickMarkPending(inv)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                          style={{ background: 'rgba(107,114,128,0.08)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.2)' }}
+                        >
+                          Pending
+                        </button>
+                      </>
+                    )}
+                    {inv.is_recoverable && inv.recoverable_status === 'recovered' && (
+                      <button
+                        onClick={() => handleQuickMarkNotSettled(inv)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                        style={{ background: 'rgba(107,114,128,0.08)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.2)' }}
+                      >
+                        Not Settled
+                      </button>
+                    )}
+                    {/* Edit/delete */}
                     <button
                       onClick={() => { setEditing(inv); setShowForm(true) }}
-                      className="flex-1 py-1.5 rounded-xl text-xs font-medium border flex items-center justify-center gap-1.5"
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium border flex items-center gap-1"
                       style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
                     >
                       <Pencil className="w-3 h-3" /> Edit
                     </button>
                     <button
                       onClick={() => handleDelete(inv.id)}
-                      className="px-4 py-1.5 rounded-xl text-xs font-medium"
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium"
                       style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}
                     >
                       Delete
@@ -801,7 +1126,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             className="px-4 py-2.5 text-xs border-t"
             style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface-2, var(--surface))' }}
           >
-            {filtered.length} of {enriched.length} invoice{enriched.length !== 1 ? 's' : ''}
+            {filtered.length} of {enriched.length} item{enriched.length !== 1 ? 's' : ''}
           </div>
         </div>
       )}
@@ -818,7 +1143,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       {showBulkPay && (
         <BulkPayModal
           invoiceIds={[...selected]}
-          invoices={invoices.filter(i => selected.has(i.id))}
+          invoices={invoices.filter(i => selected.has(i.id)) as SupplierInvoice[]}
           accounts={accounts}
           onDone={handleBulkPayDone}
           onClose={() => setShowBulkPay(false)}

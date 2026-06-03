@@ -68,8 +68,10 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
         const sup = singleInvoice
           ? (singleInvoice.supplier as unknown as Supplier)
           : null
+        // For personal bills (no supplier), fall back to invoice_number or payee_name
+        const displayName = (singleInvoice as unknown as Record<string, unknown>)?.payee_name as string | undefined
         const txName = isSingle
-          ? `${sup?.name ?? 'Supplier'} — ${singleInvoice?.invoice_number ?? 'Invoice'}`
+          ? `${sup?.name ?? displayName ?? 'Supplier'} — ${singleInvoice?.invoice_number ?? 'Invoice'}`
           : `Supplier payments — ${invoiceIds.length} invoices`
 
         await supabase.from('transactions').insert({
@@ -85,6 +87,9 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
             tax > 0 ? `Taxes: ₹${fmt(tax)}` : '',
             notes,
           ].filter(Boolean).join(' · ') || null,
+          // Link back to invoice/batch so mark-unpaid can delete this transaction
+          supplier_invoice_id: isSingle ? invoiceIds[0] : null,
+          supplier_payment_batch_id: !isSingle && data.batch_id ? data.batch_id : null,
         })
       }
 
