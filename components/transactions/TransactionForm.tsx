@@ -224,8 +224,8 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
         <div className={`${activeType.color} px-6 pt-5 pb-4`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-white">{isEdit ? 'Edit Transaction' : 'New Transaction'}</h2>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-lg">
-              <X className="w-4 h-4 text-white" />
+            <button onClick={onClose} className="w-11 h-11 flex items-center justify-center bg-white/20 rounded-xl">
+              <X className="w-5 h-5 text-white" />
             </button>
           </div>
           <div className="flex gap-2">
@@ -509,43 +509,69 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
       {/* Currency picker modal */}
       {showCurrencyPicker && (
-        <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center">
+        <div
+          className="fixed inset-0 z-[60] flex items-end md:items-center justify-center"
+          onClick={e => { if (e.target === e.currentTarget) setShowCurrencyPicker(false) }}
+        >
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowCurrencyPicker(false)} />
-          <div className="relative bg-white w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: '70vh' }}>
-            <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex items-center gap-3">
+          <div
+            className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-xl flex flex-col"
+            style={{ backgroundColor: 'var(--surface)', maxHeight: '80dvh' }}
+          >
+            {/* Header */}
+            <div
+              className="px-5 pt-4 pb-3 border-b shrink-0 flex items-center gap-3"
+              style={{ borderColor: 'var(--border)' }}
+            >
               <div className="relative flex-1">
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input autoFocus value={currencySearch} onChange={e => setCurrencySearch(e.target.value)}
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+                <input
+                  autoFocus
+                  value={currencySearch}
+                  onChange={e => setCurrencySearch(e.target.value)}
                   placeholder="Search currency…"
-                  className="w-full pl-9 pr-4 py-2.5 bg-gray-50 rounded-xl text-sm" />
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                />
               </div>
-              <button onClick={() => setShowCurrencyPicker(false)}
-                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg shrink-0">
-                <X className="w-4 h-4" />
+              <button
+                onClick={() => setShowCurrencyPicker(false)}
+                className="w-11 h-11 flex items-center justify-center rounded-xl shrink-0"
+                style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-muted)' }}
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(70vh - 56px)' }}>
-              {/* INR always first */}
-              <button type="button" onClick={() => { setCurrency('INR'); setShowCurrencyPicker(false); setCurrencySearch('') }}
-                className={`w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 ${currency === 'INR' ? 'bg-brand-50' : ''}`}>
+            {/* Scrollable list */}
+            <div className="overflow-y-auto flex-1" style={{ overscrollBehavior: 'contain' }}>
+              <button
+                type="button"
+                onClick={() => { setCurrency('INR'); setShowCurrencyPicker(false); setCurrencySearch('') }}
+                className="w-full flex items-center gap-3 px-5 py-3.5"
+                style={{ background: currency === 'INR' ? 'rgba(42,122,80,0.08)' : undefined }}
+              >
                 <span className="text-lg">🇮🇳</span>
                 <div className="flex-1 text-left">
-                  <p className="text-sm font-semibold text-gray-900">INR</p>
-                  <p className="text-xs text-gray-400">Indian Rupee</p>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>INR</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Indian Rupee</p>
                 </div>
-                {currency === 'INR' && <span className="text-xs text-brand-500 font-medium">Selected</span>}
+                {currency === 'INR' && <span className="text-xs font-medium" style={{ color: 'var(--brand)' }}>✓</span>}
               </button>
-              <div className="border-t border-gray-50" />
+              <div className="border-t" style={{ borderColor: 'var(--border)' }} />
               {filteredCurrencies.filter(c => c.code !== 'INR').map(c => (
-                <button key={c.code} type="button"
+                <button
+                  key={c.code}
+                  type="button"
                   onClick={() => { setCurrency(c.code); setShowCurrencyPicker(false); setCurrencySearch('') }}
-                  className={`w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 ${currency === c.code ? 'bg-brand-50' : ''}`}>
+                  className="w-full flex items-center gap-3 px-5 py-3.5"
+                  style={{ background: currency === c.code ? 'rgba(42,122,80,0.08)' : undefined }}
+                >
                   <span className="text-lg">{c.flag}</span>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-gray-900">{c.code}</p>
-                    <p className="text-xs text-gray-400">{c.name}</p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{c.code}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.name}</p>
                   </div>
-                  {currency === c.code && <span className="text-xs text-brand-500 font-medium">Selected</span>}
+                  {currency === c.code && <span className="text-xs font-medium" style={{ color: 'var(--brand)' }}>✓</span>}
                 </button>
               ))}
             </div>
@@ -557,34 +583,80 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
       {showAddPayee && (
         <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddPayee(false)} />
-          <div className="relative bg-white w-full md:max-w-sm rounded-t-3xl md:rounded-2xl p-6 shadow-xl space-y-4">
-            <h3 className="font-bold text-gray-900">Add Payee</h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
-              <input autoFocus type="text" value={newPayeeName} onChange={e => setNewPayeeName(e.target.value)}
-                placeholder="e.g. Amazon, Rahul, Swiggy"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          <div
+            className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-2xl shadow-xl"
+            style={{ backgroundColor: 'var(--surface)' }}
+          >
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-4 border-b"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <h3 className="font-bold text-base" style={{ color: 'var(--text)' }}>Add Payee</h3>
+              <button
+                type="button"
+                onClick={() => setShowAddPayee(false)}
+                className="w-11 h-11 flex items-center justify-center rounded-xl"
+                style={{ backgroundColor: 'var(--surface-2)', color: 'var(--text-muted)' }}
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-              <div className="flex gap-2">
-                {(['personal', 'business', 'other'] as const).map(t => (
-                  <button key={t} type="button" onClick={() => setNewPayeeType(t)}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-semibold capitalize transition-all ${
-                      newPayeeType === t ? 'bg-brand-500 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}>
-                    {t}
-                  </button>
-                ))}
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Name</label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={newPayeeName}
+                  onChange={e => setNewPayeeName(e.target.value)}
+                  placeholder="e.g. Amazon, Rahul, Swiggy"
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Type</label>
+                <div className="flex gap-2">
+                  {(['personal', 'business', 'other'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setNewPayeeType(t)}
+                      className="flex-1 py-2.5 rounded-xl text-xs font-semibold capitalize transition-all"
+                      style={{
+                        background: newPayeeType === t ? 'var(--brand)' : 'var(--surface-2)',
+                        color: newPayeeType === t ? '#fff' : 'var(--text-muted)',
+                        border: `1px solid ${newPayeeType === t ? 'var(--brand)' : 'var(--border)'}`,
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={() => setShowAddPayee(false)}
-                className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-700">
+            {/* Footer */}
+            <div
+              className="flex gap-3 px-5 py-4 border-t"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAddPayee(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-medium"
+                style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+              >
                 Cancel
               </button>
-              <button type="button" onClick={handleAddPayee} disabled={!newPayeeName.trim()}
-                className="flex-1 py-3 rounded-xl bg-brand-500 text-white text-sm font-semibold disabled:opacity-60">
+              <button
+                type="button"
+                onClick={handleAddPayee}
+                disabled={!newPayeeName.trim()}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+                style={{ background: 'var(--brand)', color: '#fff' }}
+              >
                 Add Payee
               </button>
             </div>

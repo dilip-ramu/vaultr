@@ -18,9 +18,9 @@ interface Props {
 
 export default function TransactionDetail({ transaction: tx, onEdit, onDelete, onClose }: Props) {
   const [deleting, setDeleting] = useState(false)
-  const account = tx.account as Account | undefined
-  const toAccount = tx.to_account as Account | undefined
-  const category = tx.category as Category | undefined
+  const account   = tx.account    as Account  | undefined
+  const toAccount = tx.to_account as Account  | undefined
+  const category  = tx.category   as Category | undefined
 
   const handleDelete = async () => {
     if (!confirm('Delete this transaction?')) return
@@ -36,49 +36,84 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
     onClose()
   }
 
-  const amountColor = tx.type === 'income' ? 'text-green-600' : tx.type === 'expense' ? 'text-red-500' : 'text-blue-500'
+  const amountColor  = tx.type === 'income' ? '#16a34a' : tx.type === 'expense' ? '#dc2626' : '#3b82f6'
   const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔'
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up max-h-[85vh] overflow-y-auto">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
 
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
+      {/* Sheet */}
+      <div
+        className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl flex flex-col slide-up"
+        style={{
+          backgroundColor: 'var(--surface)',
+          maxHeight: '90dvh',
+          // Prevent overflow corner clipping
+          overflow: 'hidden',
+        }}
+      >
+        {/* ── Header (never scrolls away) ─────────────────────────────────── */}
+        <div
+          className="flex items-center justify-between px-5 py-3.5 border-b shrink-0"
+          style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
-              style={{ backgroundColor: category?.color ? `${category.color}18` : '#F3F4F6' }}
+              style={{ backgroundColor: category?.color ? `${category.color}22` : 'var(--surface-2)' }}
             >
               {tx.type === 'transfer' ? '↔️' : getCategoryEmoji(category?.icon)}
             </div>
-            <div>
-              <p className="font-semibold text-gray-900 text-sm">
+            <div className="min-w-0">
+              <p className="font-semibold text-sm truncate" style={{ color: 'var(--text)' }}>
                 {category?.name ?? (tx.type === 'transfer' ? 'Transfer' : 'Uncategorised')}
               </p>
-              <p className="text-xs text-gray-400 flex items-center gap-1">
-                <Calendar className="w-3 h-3" /> {formatDate(tx.date)}
+              <p className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                <Calendar className="w-3 h-3 shrink-0" /> {formatDate(tx.date)}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => onEdit(tx)} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-50 rounded-lg">
+
+          <div className="flex items-center gap-1 shrink-0 ml-2">
+            {/* Edit — 44px touch target */}
+            <button
+              onClick={() => onEdit(tx)}
+              className="w-11 h-11 flex items-center justify-center rounded-xl"
+              style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}
+            >
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-50 rounded-lg">
-              <X className="w-4 h-4" />
+            {/* Close — 44px touch target */}
+            <button
+              onClick={onClose}
+              className="w-11 h-11 flex items-center justify-center rounded-xl"
+              style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}
+            >
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="px-5 py-4 space-y-5">
+        {/* ── Scrollable body ──────────────────────────────────────────────── */}
+        <div
+          className="flex-1 overflow-y-auto px-5 py-5 space-y-5"
+          style={{
+            overscrollBehavior: 'contain',          // prevents iOS page scroll bleed-through
+            WebkitOverflowScrolling: 'touch' as never,
+            backgroundColor: 'var(--surface)',
+          }}
+        >
           {/* Amount */}
           <div className="text-center py-2">
-            <p className={`text-3xl font-bold ${amountColor}`}>
+            <p className="text-3xl font-bold" style={{ color: amountColor }}>
               {amountPrefix}{formatCurrency(tx.amount)}
             </p>
-            <div className="flex items-center justify-center gap-2 mt-1.5 text-sm text-gray-500">
+            <div
+              className="flex items-center justify-center gap-2 mt-1.5 text-sm"
+              style={{ color: 'var(--text-muted)' }}
+            >
               <span>{account?.name}</span>
               {tx.type === 'transfer' && toAccount && (
                 <>
@@ -87,28 +122,33 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
                 </>
               )}
             </div>
-            {tx.notes && <p className="text-sm text-gray-400 mt-1 italic">"{tx.notes}"</p>}
+            {tx.notes && (
+              <p className="text-sm mt-1 italic" style={{ color: 'var(--text-muted)' }}>
+                "{tx.notes}"
+              </p>
+            )}
           </div>
 
-          <div className="border-t border-gray-100 pt-4">
-            {/* Attachments */}
+          {/* Attachments */}
+          <div className="border-t pt-4" style={{ borderColor: 'var(--border)' }}>
             <FileUpload
               transactionId={tx.id}
               existingAttachments={tx.attachments ?? []}
             />
           </div>
 
-          <div className="border-t border-gray-100 pt-4">
-            {/* Activity Notes */}
+          {/* Activity notes */}
+          <div className="border-t pt-4" style={{ borderColor: 'var(--border)' }}>
             <ActivityFeed transactionId={tx.id} />
           </div>
 
           {/* Delete */}
-          <div className="border-t border-gray-100 pt-4">
+          <div className="border-t pt-4" style={{ borderColor: 'var(--border)' }}>
             <button
               onClick={handleDelete}
               disabled={deleting}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="w-full py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+              style={{ color: '#dc2626', background: 'rgba(239,68,68,0.06)' }}
             >
               {deleting ? 'Deleting…' : 'Delete Transaction'}
             </button>
