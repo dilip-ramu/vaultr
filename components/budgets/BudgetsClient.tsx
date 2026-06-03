@@ -54,6 +54,7 @@ export default function BudgetsClient({ budgets: initial, expenseCategories, cur
         .from('transactions')
         .select('amount')
         .eq('type', 'expense')
+        .eq('is_contrast_billed', false)
         .eq('category_id', saved.category_id)
         .gte('date', from)
         .lte('date', to)

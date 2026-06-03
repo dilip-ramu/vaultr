@@ -29,6 +29,7 @@ export default async function BudgetsPage() {
       .select('category_id, amount')
       .eq('user_id', user!.id)
       .eq('type', 'expense')
+      .eq('is_contrast_billed', false)
       .not('category_id', 'is', null)
       .gte('date', startOfMonth)
       .lte('date', endOfMonth),
