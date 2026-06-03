@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown } from 'lucide-react'
 import type { Transaction, Account, Category, TransactionType, Payee } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayString } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
@@ -386,19 +387,22 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           {/* Category */}
           {type !== 'transfer' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-              <div className="grid grid-cols-3 gap-1.5 max-h-36 overflow-y-auto">
-                {filteredCategories.map(cat => (
-                  <button key={cat.id} type="button"
-                    onClick={() => setCategoryId(cat.id === categoryId ? '' : cat.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium transition-all text-left ${
-                      categoryId === cat.id ? 'ring-2 ring-offset-1 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                    style={categoryId === cat.id ? { backgroundColor: cat.color } : {}}>
-                    <span className="shrink-0">{getCategoryEmoji(cat.icon)}</span>
-                    <span className="truncate">{cat.name}</span>
-                  </button>
-                ))}
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+              <div className="relative">
+                <select
+                  value={categoryId}
+                  onChange={e => setCategoryId(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm appearance-none outline-none pr-8"
+                  style={{ color: 'var(--text)' }}
+                >
+                  <option value="">No category</option>
+                  {filteredCategories.map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {getCategoryEmoji(cat.icon)}  {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
               </div>
             </div>
           )}
@@ -521,15 +525,3 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   )
 }
 
-
-function getCategoryEmoji(icon: string): string {
-  const map: Record<string, string> = {
-    'utensils': '🍽️', 'car': '🚗', 'shopping-bag': '🛍️', 'film': '🎬',
-    'zap': '⚡', 'heart-pulse': '❤️', 'graduation-cap': '🎓', 'home': '🏠',
-    'plane': '✈️', 'shirt': '👕', 'gift': '🎁', 'briefcase': '💼',
-    'dumbbell': '🏋️', 'smartphone': '📱', 'book': '📚', 'coffee': '☕',
-    'music': '🎵', 'wifi': '📶', 'building': '🏢', 'trending-up': '📈',
-    'dollar-sign': '💵', 'percent': '💹', 'laptop': '💻',
-  }
-  return map[icon] ?? '💰'
-}

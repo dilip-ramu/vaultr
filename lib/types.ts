@@ -344,3 +344,10 @@ export const EMOJI_MAP: Record<string, string> = {
   'more-horizontal': '⋯', 'wallet': '👛', 'piggy-bank': '🐷',
   'credit-card': '💳', 'banknote': '💵', 'landmark': '🏛️',
 }
+
+/** Resolve a category icon string to an emoji.
+ *  Handles both legacy key names (e.g. 'utensils') and direct emoji strings. */
+export function getCategoryEmoji(icon: string | null | undefined): string {
+  if (!icon) return '💸'
+  return EMOJI_MAP[icon] ?? icon
+}

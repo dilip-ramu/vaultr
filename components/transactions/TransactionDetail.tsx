@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { X, Pencil, Trash2, ArrowRight, Calendar } from 'lucide-react'
 import type { Transaction, Account, Category } from '@/lib/types'
-import { EMOJI_MAP } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import ActivityFeed from '../shared/ActivityFeed'
@@ -51,7 +51,7 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
               className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
               style={{ backgroundColor: category?.color ? `${category.color}18` : '#F3F4F6' }}
             >
-              {EMOJI_MAP[category?.icon ?? ''] ?? (tx.type === 'income' ? '💰' : tx.type === 'transfer' ? '↔️' : '💸')}
+              {tx.type === 'transfer' ? '↔️' : getCategoryEmoji(category?.icon)}
             </div>
             <div>
               <p className="font-semibold text-gray-900 text-sm">

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Plus, Target, AlertTriangle, RotateCcw, Pencil, Trash2, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import type { Budget, Category } from '@/lib/types'
-import { EMOJI_MAP } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -340,7 +340,7 @@ function BudgetCard({ budget: b, onEdit, onDelete, onOpen }: {
   const overspent = pct > 100
 
   const barColor = pct < 70 ? 'var(--income)' : pct < 90 ? '#F59E0B' : 'var(--expense)'
-  const emoji = EMOJI_MAP[b.category?.icon ?? ''] ?? '💸'
+  const emoji = getCategoryEmoji(b.category?.icon)
 
   return (
     <div

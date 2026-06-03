@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { X, HelpCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Budget, Category } from '@/lib/types'
-import { EMOJI_MAP } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 
 interface Props {
   budget?: Budget
@@ -113,7 +113,7 @@ export default function BudgetForm({ budget, categories, currentMonth, currentYe
                     border: `1.5px solid ${categoryId === cat.id ? cat.color + '60' : 'transparent'}`,
                   }}
                 >
-                  <span className="text-base">{EMOJI_MAP[cat.icon] ?? '💸'}</span>
+                  <span className="text-base">{getCategoryEmoji(cat.icon)}</span>
                   <span className="truncate">{cat.name}</span>
                 </button>
               ))}

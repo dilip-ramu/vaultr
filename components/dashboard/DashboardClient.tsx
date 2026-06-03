@@ -8,7 +8,7 @@ import {
   ArrowLeftRight, AlertTriangle, Clock, Wallet,
 } from 'lucide-react'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill } from '@/lib/types'
-import { resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
+import { resolveAccountTypeDisplay, EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import type { Insight } from '@/lib/insights'
 import { formatCurrency, getRelativeDate } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
@@ -485,7 +485,7 @@ export default function DashboardClient({
                     <div key={b.id} className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          {cat?.icon && <span className="text-sm">{EMOJI_MAP[cat.icon] ?? '💸'}</span>}
+                          {cat?.icon && <span className="text-sm">{getCategoryEmoji(cat.icon)}</span>}
                           <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>{cat?.name ?? 'Budget'}</p>
                         </div>
                         <p className="text-xs shrink-0 ml-2" style={{ color: over ? 'var(--expense)' : 'var(--text-muted)' }}>

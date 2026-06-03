@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Plus, Tag, Pencil, Trash2 } from 'lucide-react'
 import type { Category, CategoryType } from '@/lib/types'
-import { EMOJI_MAP } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import CategoryForm from './CategoryForm'
 
@@ -18,8 +18,8 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
   const handleSaved = (cat: Category) => {
     setCategories(prev => {
       const exists = prev.find(c => c.id === cat.id)
-      if (exists) return prev.map(c => c.id === cat.id ? cat : c)
-      return [...prev, cat]
+      const next = exists ? prev.map(c => c.id === cat.id ? cat : c) : [...prev, cat]
+      return next.sort((a, b) => a.name.localeCompare(b.name))
     })
     setShowForm(false)
     setEditCat(null)
@@ -99,7 +99,7 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3"
                   style={{ backgroundColor: `${cat.color}18` }}
                 >
-                  {EMOJI_MAP[cat.icon] ?? '💰'}
+                  {getCategoryEmoji(cat.icon)}
                 </div>
               )}
               <p className="text-sm font-semibold text-gray-900 truncate">{cat.name}</p>

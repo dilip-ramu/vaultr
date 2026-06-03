@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { MoreHorizontal, Pencil, Trash2, ArrowRight, Paperclip } from 'lucide-react'
 import type { Transaction, Account, Category } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import TransactionDetail from './TransactionDetail'
@@ -58,7 +59,7 @@ export default function TransactionItem({ transaction: tx, isFirst, isLast, onEd
             borderRadius: 'var(--radius-md)',
           }}
         >
-          {getCategoryEmoji(category?.icon ?? '', tx.type)}
+          {tx.type === 'transfer' ? '↔️' : getCategoryEmoji(category?.icon)}
         </div>
 
         {/* Info */}
@@ -152,15 +153,3 @@ export default function TransactionItem({ transaction: tx, isFirst, isLast, onEd
   )
 }
 
-function getCategoryEmoji(icon: string, type: string): string {
-  const map: Record<string, string> = {
-    'utensils': '🍽️', 'car': '🚗', 'shopping-bag': '🛍️', 'film': '🎬',
-    'zap': '⚡', 'heart-pulse': '❤️‍🩹', 'graduation-cap': '🎓', 'home': '🏠',
-    'plane': '✈️', 'shirt': '👕', 'gift': '🎁', 'briefcase': '💼',
-    'dumbbell': '🏋️', 'smartphone': '📱', 'book': '📚', 'coffee': '☕',
-    'music': '🎵', 'wifi': '📶', 'building': '🏢', 'trending-up': '📈',
-    'dollar-sign': '💵', 'percent': '💹', 'laptop': '💻',
-  }
-  if (type === 'transfer') return '↔️'
-  return map[icon] ?? (type === 'income' ? '💰' : '💸')
-}

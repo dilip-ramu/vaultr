@@ -7,7 +7,7 @@ import {
   XCircle, TrendingUp, Calendar, Zap
 } from 'lucide-react'
 import type { Bill, Account, Category } from '@/lib/types'
-import { EMOJI_MAP } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, formatDateShort, getDaysUntil } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -319,7 +319,7 @@ function SubRow({
   const [showMenu, setShowMenu] = useState(false)
   const daysUntil = getDaysUntil(b.due_date)
   const cat = b.category as Category | undefined
-  const emoji = EMOJI_MAP[cat?.icon ?? ''] ?? '🔄'
+  const emoji = getCategoryEmoji(cat?.icon ?? '') || '🔄'
   const monthly = toMonthly(b)
   const showMonthlyNote = b.recurrence_interval === 'yearly'
 

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, ChevronRight, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Account, Category, Transaction } from '@/lib/types'
-import { EMOJI_MAP } from '@/lib/types'
+import { EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import AccountChipPicker from '../shared/AccountChipPicker'
 
 interface Props {
@@ -184,7 +184,7 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
                     border: `1.5px solid ${categoryId === cat.id ? cat.color + '60' : 'transparent'}`,
                   }}
                 >
-                  <span>{EMOJI_MAP[cat.icon] ?? (type === 'income' ? '💰' : '💸')}</span>
+                  <span>{getCategoryEmoji(cat.icon)}</span>
                   {cat.name}
                 </button>
               ))}
