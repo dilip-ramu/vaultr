@@ -65,9 +65,9 @@ export default async function DashboardPage() {
       .eq('is_active', true),
     supabase
       .from('transactions')
-      .select('category_id, amount, payee_id')
+      .select('category_id, amount, payee_id, type')
       .eq('user_id', user!.id)
-      .eq('type', 'expense')
+      .in('type', ['expense', 'income'])
       .not('category_id', 'is', null)
       .gte('date', startOfMonth)
       .lte('date', endOfMonth),
@@ -107,13 +107,17 @@ export default async function DashboardPage() {
       .maybeSingle(),
   ])
 
-  // Compute spent per category for budget widget — exclude Contrast payee
+  // Net spend per category — expense adds, income subtracts; excludes Contrast payee
   const contrastPayeeId = contrastPayee?.id ?? null
   const spentMap: Record<string, number> = {}
   for (const tx of budgetTx ?? []) {
     if (!tx.category_id) continue
     if (contrastPayeeId && tx.payee_id === contrastPayeeId) continue
-    spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + Number(tx.amount)
+    const delta = tx.type === 'income' ? -Number(tx.amount) : Number(tx.amount)
+    spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + delta
+  }
+  for (const k of Object.keys(spentMap)) {
+    if (spentMap[k] < 0) spentMap[k] = 0
   }
   const budgets: Budget[] = (rawBudgets ?? []).map(b => {
     const spent = spentMap[b.category_id] ?? 0

@@ -24,6 +24,7 @@ interface BudgetTx {
   amount: number
   date: string
   notes: string | null
+  type?: string
   payee?: { name: string } | null
   category?: { name: string; icon: string; color: string } | null
 }
@@ -65,8 +66,8 @@ export default function BudgetsClient({
 
       const { data } = await supabase
         .from('transactions')
-        .select('amount, payee_id')
-        .eq('type', 'expense')
+        .select('amount, payee_id, type')
+        .in('type', ['expense', 'income'])
         .eq('category_id', saved.category_id)
         .gte('date', from)
         .lte('date', to)
@@ -74,7 +75,9 @@ export default function BudgetsClient({
       const rows = (data ?? []).filter(t =>
         !contrastPayeeId || t.payee_id !== contrastPayeeId
       )
-      spent = rows.reduce((s, t) => s + Number(t.amount), 0)
+      spent = Math.max(0, rows.reduce((s, t) =>
+        s + (t.type === 'income' ? -Number(t.amount) : Number(t.amount)), 0
+      ))
     }
 
     const effective = saved.amount + (saved.rollover ? saved.rollover_amount : 0)
@@ -109,8 +112,8 @@ export default function BudgetsClient({
 
     const { data } = await supabase
       .from('transactions')
-      .select('id, name, amount, date, notes, payee_id, payee:payees(name), category:categories(name,icon,color)')
-      .eq('type', 'expense')
+      .select('id, name, amount, date, notes, payee_id, type, payee:payees(name), category:categories(name,icon,color)')
+      .in('type', ['expense', 'income'])
       .eq('category_id', b.category_id)
       .gte('date', from)
       .lte('date', to)
@@ -302,8 +305,9 @@ export default function BudgetsClient({
                           )}
                         </div>
                       </div>
-                      <p className="text-sm font-semibold tabular-nums shrink-0" style={{ color: 'var(--expense)' }}>
-                        -{formatCurrency(Number(tx.amount))}
+                      <p className="text-sm font-semibold tabular-nums shrink-0"
+                        style={{ color: tx.type === 'income' ? 'var(--income)' : 'var(--expense)' }}>
+                        {tx.type === 'income' ? '+' : '-'}{formatCurrency(Number(tx.amount))}
                       </p>
                     </div>
                   ))}

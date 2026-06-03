@@ -27,9 +27,9 @@ export default async function BudgetsPage() {
       .eq('is_active', true),
     supabase
       .from('transactions')
-      .select('category_id, amount, payee_id')
+      .select('category_id, amount, payee_id, type')
       .eq('user_id', user!.id)
-      .eq('type', 'expense')
+      .in('type', ['expense', 'income'])
       .not('category_id', 'is', null)
       .gte('date', startOfMonth)
       .lte('date', endOfMonth),
@@ -55,12 +55,16 @@ export default async function BudgetsPage() {
     !contrastPayeeId || tx.payee_id !== contrastPayeeId
   )
 
-  // Compute spent per category
+  // Net spend per category: expense adds, income subtracts (e.g. reimbursements)
   const spentMap: Record<string, number> = {}
   for (const tx of monthTx) {
-    if (tx.category_id) {
-      spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + Number(tx.amount)
-    }
+    if (!tx.category_id) continue
+    const delta = tx.type === 'income' ? -Number(tx.amount) : Number(tx.amount)
+    spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + delta
+  }
+  // Clamp at 0 — net income in a category doesn't create negative budget usage
+  for (const k of Object.keys(spentMap)) {
+    if (spentMap[k] < 0) spentMap[k] = 0
   }
 
   const budgets: Budget[] = (rawBudgets ?? []).map(b => {

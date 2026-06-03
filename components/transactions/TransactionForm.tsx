@@ -135,7 +135,9 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
     ? (type === 'income' ? currencyRate.billing : currencyRate.expended)
     : null
 
-  const filteredCategories = categories.filter(c => c.type === (type === 'transfer' ? 'expense' : type))
+  // Income uses the same category list as expense so you can tag a reimbursement
+  // back to the same category (e.g. 50k Vacation expense + 25k Vacation income = 25k net)
+  const filteredCategories = type === 'transfer' ? [] : categories.filter(c => c.type === 'expense')
 
   const typeConfig = {
     expense:  { label: 'Expense',  icon: TrendingDown,    color: 'bg-red-500',   light: 'bg-red-50 text-red-500' },
