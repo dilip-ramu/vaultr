@@ -6,6 +6,7 @@ import {
   RefreshCw, Send, Inbox, Calendar, ChevronDown, X, RotateCcw,
 } from 'lucide-react'
 import type { Bill, Account, Category, Customer, BillDirection } from '@/lib/types'
+import AccountChipPicker from '../shared/AccountChipPicker'
 import { PAYMENT_TERMS_LABELS } from '@/lib/types'
 import { formatCurrency, formatDate, getDaysUntil } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -226,16 +227,14 @@ export default function BillsClient({ initialBills, accounts, categories, custom
 
             {payBill.direction !== 'sent' && (
               <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Bank Account *</label>
-                <select
-                  value={payAccountId}
-                  onChange={e => setPayAccountId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
-                  style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
-                >
-                  <option value="">Select account…</option>
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
+                  {payBill.account_id ? 'Account' : 'Select Account *'}
+                </label>
+                <AccountChipPicker
+                  accounts={accounts}
+                  selectedId={payAccountId}
+                  onSelect={setPayAccountId}
+                />
               </div>
             )}
 

@@ -4,10 +4,11 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
   RefreshCw, Plus, MoreHorizontal, Pencil, CheckCircle2,
-  XCircle, TrendingUp, Calendar, Zap
+  XCircle, TrendingUp, Calendar, Zap, RotateCcw, X,
 } from 'lucide-react'
 import type { Bill, Account, Category } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
+import AccountChipPicker from '../shared/AccountChipPicker'
 import { formatCurrency, formatDateShort, getDaysUntil } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -52,6 +53,11 @@ export default function SubscriptionsClient({
   const [subs, setSubs] = useState<Bill[]>(initial)
   const [showForm, setShowForm] = useState(false)
   const [editBill, setEditBill] = useState<Bill | null>(null)
+  // Pay confirmation state
+  const [payBill, setPayBill] = useState<Bill | null>(null)
+  const [payAccountId, setPayAccountId] = useState('')
+  const [payDate, setPayDate] = useState('')
+  const [payingSaving, setPayingSaving] = useState(false)
 
   const monthlyTotal = subs.reduce((s, b) => s + toMonthly(b), 0)
   const yearlyTotal = monthlyTotal * 12
@@ -72,24 +78,53 @@ export default function SubscriptionsClient({
     setEditBill(null)
   }
 
-  const handleMarkPaid = async (bill: Bill) => {
-    const supabase = createClient()
-    const now = new Date().toISOString()
-    await supabase.from('bills').update({ status: 'paid', settled_at: now }).eq('id', bill.id)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user && bill.direction !== 'sent') {
-      await supabase.from('transactions').insert({
-        user_id: user.id,
-        account_id: bill.account_id,
-        category_id: bill.category_id,
-        type: 'expense',
-        amount: bill.amount,
-        date: new Date().toISOString().split('T')[0],
-        notes: `Subscription paid: ${bill.name}`,
-        bill_id: bill.id,
-      })
+  // Open pay confirmation — pre-fill account if already set on the subscription
+  const handleMarkPaid = (bill: Bill) => {
+    setPayBill(bill)
+    setPayAccountId(bill.account_id ?? '')
+    setPayDate(new Date().toISOString().split('T')[0])
+  }
+
+  const handlePayConfirm = async () => {
+    if (!payBill) return
+    if (!payAccountId) return   // account required
+    setPayingSaving(true)
+    try {
+      const supabase = createClient()
+      const now = new Date().toISOString()
+      await supabase.from('bills').update({
+        status: 'paid',
+        settled_at: now,
+        account_id: payAccountId,
+      }).eq('id', payBill.id)
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('transactions').insert({
+          user_id: user.id,
+          account_id: payAccountId,
+          category_id: payBill.category_id,
+          type: 'expense',
+          amount: payBill.amount,
+          date: payDate,
+          name: payBill.name,
+          notes: `Subscription paid: ${payBill.name}`,
+          bill_id: payBill.id,
+        })
+      }
+      setSubs(prev => prev.filter(b => b.id !== payBill.id))
+      setPayBill(null)
+    } finally {
+      setPayingSaving(false)
     }
-    setSubs(prev => prev.filter(b => b.id !== bill.id))
+  }
+
+  const handleMarkUnpaid = async (bill: Bill) => {
+    if (!confirm(`Mark "${bill.name}" as unpaid? The linked expense transaction will be deleted.`)) return
+    const supabase = createClient()
+    await supabase.from('transactions').delete().eq('bill_id', bill.id)
+    await supabase.from('bills').update({ status: 'pending', settled_at: null }).eq('id', bill.id)
+    setSubs(prev => prev.map(b => b.id === bill.id ? { ...b, status: 'pending', settled_at: null } : b))
   }
 
   const handleCancel = async (bill: Bill) => {
@@ -173,6 +208,7 @@ export default function SubscriptionsClient({
                 highlight
                 onEdit={b => { setEditBill(b); setShowForm(true) }}
                 onMarkPaid={handleMarkPaid}
+                onMarkUnpaid={handleMarkUnpaid}
                 onCancel={handleCancel}
               />
             ))}
@@ -221,6 +257,7 @@ export default function SubscriptionsClient({
                 isLast={i === arr.length - 1}
                 onEdit={b => { setEditBill(b); setShowForm(true) }}
                 onMarkPaid={handleMarkPaid}
+                onMarkUnpaid={handleMarkUnpaid}
                 onCancel={handleCancel}
               />
             ))}
@@ -274,6 +311,77 @@ export default function SubscriptionsClient({
           onClose={() => { setShowForm(false); setEditBill(null) }}
         />
       )}
+
+      {/* Pay confirmation modal */}
+      {payBill && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div
+            className="w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4"
+            style={{ backgroundColor: 'var(--surface)' }}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Mark as Paid</h3>
+              <button onClick={() => setPayBill(null)} style={{ color: 'var(--text-muted)' }}>✕</button>
+            </div>
+
+            <div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{payBill.name}</p>
+              <p className="text-xl font-bold mt-0.5" style={{ color: 'var(--text)' }}>{formatCurrency(payBill.amount)}</p>
+            </div>
+
+            {/* Account — show picker only if not already set */}
+            <div>
+              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>
+                {payBill.account_id ? 'Account' : 'Select Account *'}
+              </label>
+              {payBill.account_id
+                ? (
+                  // Account already set — show it, allow changing
+                  <AccountChipPicker
+                    accounts={accounts}
+                    selectedId={payAccountId}
+                    onSelect={setPayAccountId}
+                  />
+                ) : (
+                  <AccountChipPicker
+                    accounts={accounts}
+                    selectedId={payAccountId}
+                    onSelect={setPayAccountId}
+                  />
+                )
+              }
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Payment Date</label>
+              <input
+                type="date"
+                value={payDate}
+                onChange={e => setPayDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                style={{ backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+              />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setPayBill(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium border"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePayConfirm}
+                disabled={payingSaving || !payAccountId}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-500 disabled:opacity-50"
+              >
+                {payingSaving ? 'Saving…' : 'Confirm Paid'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -307,13 +415,14 @@ function StatCard({
 
 function SubRow({
   bill: b, highlight = false, isLast = true,
-  onEdit, onMarkPaid, onCancel,
+  onEdit, onMarkPaid, onMarkUnpaid, onCancel,
 }: {
   bill: Bill
   highlight?: boolean
   isLast?: boolean
   onEdit: (b: Bill) => void
   onMarkPaid: (b: Bill) => void
+  onMarkUnpaid: (b: Bill) => void
   onCancel: (b: Bill) => void
 }) {
   const [showMenu, setShowMenu] = useState(false)
@@ -402,13 +511,23 @@ function SubRow({
               >
                 <Pencil className="w-3.5 h-3.5" /> Edit
               </button>
-              <button
-                onClick={() => { setShowMenu(false); onMarkPaid(b) }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm"
-                style={{ color: 'var(--income)' }}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
-              </button>
+              {b.status !== 'paid' ? (
+                <button
+                  onClick={() => { setShowMenu(false); onMarkPaid(b) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm"
+                  style={{ color: 'var(--income)' }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Mark Paid
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setShowMenu(false); onMarkUnpaid(b) }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm"
+                  style={{ color: '#F59E0B' }}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Mark Unpaid
+                </button>
+              )}
               <button
                 onClick={() => { setShowMenu(false); onCancel(b) }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm"
