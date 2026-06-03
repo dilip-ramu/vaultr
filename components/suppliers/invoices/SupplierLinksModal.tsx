@@ -39,11 +39,11 @@ function fmtDate(d: string | null | undefined) {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
-  draft:    { bg: 'rgba(107,114,128,0.1)', text: '#6b7280', label: 'Draft' },
-  sent:     { bg: 'rgba(42,122,80,0.1)',   text: 'var(--brand)', label: 'Sent' },
-  overdue:  { bg: 'rgba(239,68,68,0.1)',   text: '#dc2626', label: 'Overdue' },
-  paid:     { bg: 'rgba(34,197,94,0.1)',   text: '#16a34a', label: 'Paid' },
-  cancelled:{ bg: 'rgba(107,114,128,0.1)', text: '#6b7280', label: 'Cancelled' },
+  draft:     { bg: 'rgba(107,114,128,0.1)', text: '#6b7280',        label: 'Draft' },
+  sent:      { bg: 'rgba(42,122,80,0.1)',   text: 'var(--brand)',   label: 'Sent' },
+  overdue:   { bg: 'rgba(239,68,68,0.1)',   text: '#dc2626',        label: 'Overdue' },
+  paid:      { bg: 'rgba(34,197,94,0.1)',   text: '#16a34a',        label: 'Paid' },
+  cancelled: { bg: 'rgba(107,114,128,0.1)', text: '#6b7280',        label: 'Cancelled' },
 }
 
 export default function SupplierLinksModal({ inv, onClose }: Props) {
@@ -67,145 +67,132 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
     setRemoving(null)
   }
 
-  const supplierTotal = Number(inv.amount)
-
-  // Total billed to customers (sum of allocated_amount, or customer invoice totals)
-  const totalBilledShare = links.reduce((s, l) => {
-    return s + (l.allocated_amount ?? Number(l.recoverable_invoice?.subtotal ?? 0))
-  }, 0)
-
-  const unbilled = supplierTotal - totalBilledShare
+  const supplierTotal      = Number(inv.amount)
+  const totalBilledShare   = links.reduce((s, l) => s + (l.allocated_amount ?? Number(l.recoverable_invoice?.subtotal ?? 0)), 0)
+  const unbilled           = supplierTotal - totalBilledShare
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
       <div
         className="w-full sm:max-w-xl rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col"
         style={{ backgroundColor: 'var(--surface)', maxHeight: '90dvh' }}
       >
-        {/* Header */}
+        {/* ── Header ────────────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between px-5 py-4 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>
-              Customer Invoices containing this
+              Customer Invoices
             </h2>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
               {sup?.name ?? '—'}
-              {inv.invoice_number && <span className="ml-2 font-mono text-xs">{inv.invoice_number}</span>}
+              {inv.invoice_number && <span className="ml-2 font-mono">{inv.invoice_number}</span>}
               {' · '}
               <strong>{fmt(supplierTotal)}</strong>
             </p>
           </div>
+          {/* 44px touch target */}
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg shrink-0 ml-3"
+            className="w-11 h-11 flex items-center justify-center rounded-xl shrink-0 ml-2"
             style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
+        {/* ── Content ───────────────────────────────────────────────────────── */}
         <div className="overflow-y-auto flex-1">
           {loading ? (
             <div className="py-12 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</div>
           ) : links.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No links found</p>
+            <div className="py-12 px-5 text-center">
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>No customer invoices linked</p>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                This supplier invoice hasn't been linked to any customer invoice yet.
-              </p>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                Links are created automatically from the CSV "Supplier Invoice Refs" column,
-                or manually from the customer invoice detail page.
+                Links are created from the CSV "Supplier Invoice Refs" column, or manually from the customer invoice detail page.
               </p>
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Customer Invoice</th>
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Customer</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Invoice Total</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Attributed</th>
-                  <th className="px-3 py-2.5 w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {links.map(link => {
-                  const ri = link.recoverable_invoice
-                  if (!ri) return null
-                  const st = STATUS_STYLE[ri.status] ?? STATUS_STYLE.sent
-                  const share = link.allocated_amount ?? Number(ri.subtotal)
-                  return (
-                    <tr key={link.id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td className="px-4 py-3">
-                        <a
-                          href={`/recoverables/invoices/${ri.id}`}
-                          className="flex items-center gap-1 font-mono text-xs font-semibold hover:underline"
-                          style={{ color: 'var(--brand)' }}
-                        >
-                          {ri.invoice_number}
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                          {fmtDate(ri.invoice_date)}
-                        </p>
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {links.map(link => {
+                const ri = link.recoverable_invoice
+                if (!ri) return null
+                const st    = STATUS_STYLE[ri.status] ?? STATUS_STYLE.sent
+                const share = link.allocated_amount ?? Number(ri.subtotal)
+                return (
+                  <div key={link.id} className="px-4 py-3.5 space-y-2" style={{ background: 'var(--surface)' }}>
+                    {/* Row 1: invoice # + status + remove */}
+                    <div className="flex items-center justify-between gap-2">
+                      <a
+                        href={`/recoverables/invoices/${ri.id}`}
+                        className="flex items-center gap-1.5 font-mono text-sm font-semibold"
+                        style={{ color: 'var(--brand)' }}
+                      >
+                        {ri.invoice_number}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <div className="flex items-center gap-2">
                         <span
-                          className="inline-block mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                          className="px-2 py-0.5 rounded-full text-xs font-medium"
                           style={{ background: st.bg, color: st.text }}
                         >
                           {st.label}
                         </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-xs" style={{ color: 'var(--text)' }}>{ri.customer_name}</p>
-                        {ri.paid_at && (
-                          <p className="text-xs mt-0.5 flex items-center gap-0.5" style={{ color: '#16a34a' }}>
-                            <CheckCircle2 className="w-3 h-3" /> Paid {fmtDate(ri.paid_at)}
-                          </p>
-                        )}
-                        {!ri.paid_at && ri.due_date && new Date(ri.due_date) < new Date() && (
-                          <p className="text-xs mt-0.5 flex items-center gap-0.5 text-red-500">
-                            <Clock className="w-3 h-3" /> Overdue
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <p className="font-semibold" style={{ color: 'var(--text)' }}>{fmt(Number(ri.total))}</p>
-                        {ri.balance_due > 0 && (
-                          <p className="text-xs mt-0.5 text-red-500">
-                            Due: {fmt(Number(ri.balance_due))}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <p className="font-semibold" style={{ color: 'var(--text)' }}>{fmt(share)}</p>
-                        {link.allocated_amount === null && (
-                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>subtotal</p>
-                        )}
-                      </td>
-                      <td className="px-3 py-3">
                         <button
                           onClick={() => removeLink(link.id)}
                           disabled={removing === link.id}
-                          className="p-1 rounded hover:bg-red-50 disabled:opacity-40"
-                          title="Remove link"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-40"
+                          style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}
                         >
-                          <X className="w-3.5 h-3.5 text-red-400" />
+                          <X className="w-4 h-4" />
                         </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                    {/* Row 2: customer + dates */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      <span className="font-medium" style={{ color: 'var(--text)' }}>{ri.customer_name}</span>
+                      <span>{fmtDate(ri.invoice_date)}</span>
+                      {ri.paid_at && (
+                        <span className="flex items-center gap-0.5" style={{ color: '#16a34a' }}>
+                          <CheckCircle2 className="w-3 h-3" /> Paid {fmtDate(ri.paid_at)}
+                        </span>
+                      )}
+                      {!ri.paid_at && ri.due_date && new Date(ri.due_date) < new Date() && (
+                        <span className="flex items-center gap-0.5 text-red-500">
+                          <Clock className="w-3 h-3" /> Overdue
+                        </span>
+                      )}
+                    </div>
+                    {/* Row 3: amounts */}
+                    <div className="flex items-center justify-between text-sm">
+                      <span style={{ color: 'var(--text-muted)' }}>Invoice total</span>
+                      <span className="font-semibold" style={{ color: 'var(--text)' }}>{fmt(Number(ri.total))}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Attributed share{link.allocated_amount === null ? ' (subtotal)' : ''}
+                      </span>
+                      <span className="font-bold" style={{ color: 'var(--brand)' }}>{fmt(share)}</span>
+                    </div>
+                    {ri.balance_due > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span style={{ color: 'var(--text-muted)' }}>Balance due</span>
+                        <span className="font-medium text-red-500">{fmt(Number(ri.balance_due))}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
 
-        {/* Tally footer */}
+        {/* ── Tally footer ──────────────────────────────────────────────────── */}
         {links.length > 0 && (
           <div
-            className="border-t px-5 py-4 grid grid-cols-3 gap-4 text-center shrink-0"
+            className="border-t px-5 py-3 grid grid-cols-3 gap-3 text-center shrink-0"
             style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
           >
             <div>
@@ -213,7 +200,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
               <p className="text-sm font-bold" style={{ color: '#dc2626' }}>{fmt(supplierTotal)}</p>
             </div>
             <div>
-              <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Billed to Customers</p>
+              <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Billed Out</p>
               <p className="text-sm font-bold" style={{ color: 'var(--brand)' }}>{fmt(totalBilledShare)}</p>
             </div>
             <div>
@@ -221,22 +208,30 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                 {unbilled >= 0 ? 'Unbilled' : 'Over-billed'}
               </p>
               <div className="flex items-center justify-center gap-1">
-                {unbilled > 0
-                  ? <TrendingDown className="w-3.5 h-3.5 text-red-500" />
-                  : unbilled < 0
-                    ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
-                    : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                {unbilled > 0 ? <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                  : unbilled < 0 ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
+                  : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                 }
-                <p
-                  className="text-sm font-bold"
-                  style={{ color: unbilled > 0 ? '#dc2626' : unbilled < 0 ? '#16a34a' : 'var(--text-muted)' }}
-                >
+                <p className="text-sm font-bold" style={{
+                  color: unbilled > 0 ? '#dc2626' : unbilled < 0 ? '#16a34a' : 'var(--text-muted)'
+                }}>
                   {fmt(Math.abs(unbilled))}
                 </p>
               </div>
             </div>
           </div>
         )}
+
+        {/* ── Close button (mobile bottom) ──────────────────────────────────── */}
+        <div className="px-5 py-3 border-t shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-xl text-sm font-semibold"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   )

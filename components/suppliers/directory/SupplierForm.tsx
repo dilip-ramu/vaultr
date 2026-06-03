@@ -85,18 +85,26 @@ export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl" style={{ backgroundColor: 'var(--surface)' }}>
-        <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/50 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col"
+        style={{ backgroundColor: 'var(--surface)', maxHeight: '92dvh' }}
+      >
+        {/* Sticky header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
             {supplier ? 'Edit Supplier' : 'New Supplier'}
           </h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg" style={{ color: 'var(--text-muted)' }}>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-xl" style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}>
             <X className="w-5 h-5" />
           </button>
         </div>
+        <div className="overflow-y-auto flex-1">
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form id="supplier-form" onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
             <div className="px-4 py-3 rounded-xl text-sm bg-red-50 text-red-600 border border-red-200">{error}</div>
           )}
@@ -229,16 +237,24 @@ export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
             />
           </Section>
 
-          {/* Footer */}
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ backgroundColor: 'var(--brand)' }}>
-              {saving ? 'Saving…' : supplier ? 'Save Changes' : 'Add Supplier'}
-            </button>
-          </div>
         </form>
+        </div>{/* end scroll area */}
+
+        {/* Sticky footer */}
+        <div className="flex gap-3 px-6 py-4 border-t shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium border" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="supplier-form"
+            disabled={saving}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
+            style={{ backgroundColor: 'var(--brand)' }}
+          >
+            {saving ? 'Saving…' : supplier ? 'Save Changes' : 'Add Supplier'}
+          </button>
+        </div>
       </div>
     </div>
   )

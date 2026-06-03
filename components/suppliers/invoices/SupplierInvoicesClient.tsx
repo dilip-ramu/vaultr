@@ -783,13 +783,25 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       {/* ── Floating bulk-action bar ───────────────────────────────────────── */}
       {selected.size > 0 && (
         <div
-          className="sticky top-3 z-10 rounded-2xl border shadow-lg px-4 py-3 flex flex-wrap items-center gap-2"
+          className="sticky top-3 z-10 rounded-2xl border shadow-lg"
           style={{ background: 'var(--surface)', borderColor: 'var(--brand)', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
         >
-          <span className="text-sm font-semibold shrink-0" style={{ color: 'var(--text)' }}>
-            {selected.size} selected
-          </span>
-          <div className="flex flex-wrap gap-2 flex-1">
+          {/* Label row */}
+          <div className="flex items-center justify-between px-4 pt-2.5 pb-1">
+            <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+              {selected.size} selected
+            </span>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="w-8 h-8 flex items-center justify-center rounded-lg"
+              style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {/* Scrollable action buttons row */}
+          <div className="overflow-x-auto pb-3 px-4">
+          <div className="flex items-center gap-2 min-w-max">
             {selUnpaidCount > 0 && (
               <button
                 onClick={() => {
@@ -799,7 +811,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                   ))
                   setShowBulkPay(true)
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
                 style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.25)' }}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -856,7 +868,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             {selBillableCount > 0 && (
               <button
                 onClick={handleBulkMarkBillable}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
                 style={{ background: 'rgba(99,102,241,0.1)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.25)' }}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -864,14 +876,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               </button>
             )}
           </div>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="p-1.5 rounded-lg ml-auto shrink-0"
-            style={{ color: 'var(--text-muted)' }}
-            title="Clear selection"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          </div>
         </div>
       )}
 

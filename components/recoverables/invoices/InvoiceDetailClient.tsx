@@ -507,66 +507,83 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             </div>
           )}
 
-          {/* Linked invoices table */}
+          {/* Linked invoices */}
           {supplierLinks.length === 0 ? (
             <div className="px-4 py-8 text-center">
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                No supplier invoices linked yet.
-                {' '}
+                No supplier invoices linked yet.{' '}
                 {showLinkSearch ? 'Search above to add one.' : 'Click "Link Invoice" to add.'}
               </p>
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
-                  <th className="text-left px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier</th>
-                  <th className="text-left px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Invoice #</th>
-                  <th className="text-right px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier Total</th>
-                  <th className="text-right px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Your Share</th>
-                  <th className="px-4 py-2 w-8" />
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                      <th className="text-left px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Invoice #</th>
+                      <th className="text-right px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Total</th>
+                      <th className="text-right px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Share</th>
+                      <th className="px-3 py-2 w-10" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supplierLinks.map(link => {
+                      const si = link.supplier_invoice
+                      if (!si) return null
+                      const share = link.allocated_amount ?? Number(si.amount)
+                      return (
+                        <tr key={link.id} style={{ borderTop: '1px solid var(--border)' }}>
+                          <td className="px-4 py-2.5">
+                            <p className="font-medium" style={{ color: 'var(--text)' }}>{si.supplier?.name ?? '—'}</p>
+                            {si.category && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{si.category}</p>}
+                          </td>
+                          <td className="px-4 py-2.5 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{si.invoice_number ?? '—'}</td>
+                          <td className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--text)' }}>
+                            ₹{Number(si.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold" style={{ color: 'var(--text)' }}>
+                            ₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            {link.allocated_amount === null && <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>(full)</span>}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <button onClick={() => removeLink(link.id)} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+                              <X className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
                 {supplierLinks.map(link => {
                   const si = link.supplier_invoice
                   if (!si) return null
-                  const supplierName = si.supplier?.name ?? '—'
                   const share = link.allocated_amount ?? Number(si.amount)
                   return (
-                    <tr key={link.id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td className="px-4 py-2.5">
-                        <p className="font-medium" style={{ color: 'var(--text)' }}>{supplierName}</p>
-                        {si.category && (
-                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{si.category}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {si.invoice_number ?? '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--text)' }}>
-                        ₹{Number(si.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-semibold" style={{ color: 'var(--text)' }}>
-                        ₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                        {link.allocated_amount === null && (
-                          <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>(full)</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button
-                          onClick={() => removeLink(link.id)}
-                          className="p-1 rounded hover:bg-red-50"
-                          title="Remove link"
-                        >
-                          <X className="w-3.5 h-3.5 text-red-400" />
-                        </button>
-                      </td>
-                    </tr>
+                    <div key={link.id} className="px-4 py-3.5 flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{si.supplier?.name ?? '—'}</p>
+                        {si.invoice_number && <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>{si.invoice_number}</p>}
+                        <div className="flex gap-4 mt-1 text-xs">
+                          <span style={{ color: 'var(--text-muted)' }}>Total: <strong style={{ color: 'var(--text)' }}>₹{Number(si.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong></span>
+                          <span style={{ color: 'var(--text-muted)' }}>Share: <strong style={{ color: 'var(--brand)' }}>₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong></span>
+                        </div>
+                      </div>
+                      <button onClick={() => removeLink(link.id)} className="w-9 h-9 flex items-center justify-center rounded-lg shrink-0" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   )
                 })}
-              </tbody>
-            </table>
+              </div>
+            </>
           )}
 
           {/* Tally footer */}
