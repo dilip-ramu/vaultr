@@ -10,6 +10,7 @@ import {
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { computeInvoiceStatus } from '@/lib/suppliers/types'
+import { createClient } from '@/lib/supabase/client'
 import SupplierInvoiceForm from './SupplierInvoiceForm'
 import BulkPayModal from './BulkPayModal'
 import SupplierLinksModal from './SupplierLinksModal'
@@ -453,6 +454,15 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       ))
       setSelected(new Set())
     }
+  }
+
+  async function openAttachment(path: string) {
+    const supabase = createClient()
+    const { data, error } = await supabase.storage
+      .from('vaultr-attachments')
+      .createSignedUrl(path, 300)   // 5-minute signed URL
+    if (error || !data?.signedUrl) return
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
   }
 
   const hasFilters = filterType !== 'all' || filterSupplier || filterRecoverable || filterRecStatus || filterRecurring
@@ -926,7 +936,17 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <td className="px-4 py-4 text-right">
                         <p className="font-bold text-base" style={{ color: 'var(--text)' }}>₹{fmt(Number(inv.amount))}</p>
                         {inv.attachment_path && (
-                          <Paperclip className="w-3 h-3 ml-auto mt-1" style={{ color: 'var(--text-muted)' }} />
+                          <button
+                            onClick={() => openAttachment(inv.attachment_path!)}
+                            title={inv.attachment_name ?? 'View attachment'}
+                            className="flex items-center gap-1 ml-auto mt-1 text-xs hover:underline"
+                            style={{ color: 'var(--brand)' }}
+                          >
+                            <Paperclip className="w-3 h-3" />
+                            {inv.attachment_name && (
+                              <span className="truncate max-w-[120px]">{inv.attachment_name}</span>
+                            )}
+                          </button>
                         )}
                       </td>
 
@@ -1053,6 +1073,16 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                     )}
                     {inv.is_personal_bill && (
                       <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>Personal</span>
+                    )}
+                    {inv.attachment_path && (
+                      <button
+                        onClick={() => openAttachment(inv.attachment_path!)}
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
+                        style={{ background: 'rgba(42,122,80,0.08)', color: 'var(--brand)' }}
+                      >
+                        <Paperclip className="w-3 h-3" />
+                        {inv.attachment_name ?? 'Attachment'}
+                      </button>
                     )}
                   </div>
 

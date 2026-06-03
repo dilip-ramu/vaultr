@@ -85,7 +85,7 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
           ? `${sup?.name ?? displayName ?? 'Supplier'} — ${singleInvoice?.invoice_number ?? 'Invoice'}`
           : `Supplier payments — ${invoiceIds.length} invoices`
 
-        await supabase.from('transactions').insert({
+        const { data: tx } = await supabase.from('transactions').insert({
           user_id: user.id,
           account_id: accountId,
           type: 'expense',
@@ -103,7 +103,24 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
           supplier_payment_batch_id: !isSingle && data.batch_id ? data.batch_id : null,
           // Auto-apply the supplier's default expense category
           category_id: defaultCategoryId ?? null,
-        })
+        }).select('id').single()
+
+        // Copy invoice attachments to the transaction (all invoices with attachments)
+        if (tx?.id) {
+          const attachmentRows = invoices
+            .filter(inv => inv.attachment_path && inv.attachment_name)
+            .map(inv => ({
+              user_id: user.id,
+              transaction_id: tx.id,
+              file_path: inv.attachment_path!,
+              file_name: inv.attachment_name!,
+              file_size: inv.attachment_size ?? null,
+              content_type: null,
+            }))
+          if (attachmentRows.length > 0) {
+            await supabase.from('attachments').insert(attachmentRows)
+          }
+        }
       }
 
       setDone(true)
