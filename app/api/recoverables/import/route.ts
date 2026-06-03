@@ -115,14 +115,15 @@ export async function POST(req: NextRequest) {
     batchId = batchRow.id
 
     const shipmentRows = shipments.map(s => ({
-      user_id:        user.id,
-      batch_id:       batchId,
-      reference:      s.reference,
-      total_cost:     s.totalCost,
-      total_pieces:   s.totalPieces,
-      per_piece_cost: s.perPieceCost,
-      shipment_date:  s.shipmentDate ?? null,
-      client_name:    s.clientName ?? null,
+      user_id:               user.id,
+      batch_id:              batchId,
+      reference:             s.reference,
+      total_cost:            s.totalCost,
+      total_pieces:          s.totalPieces,
+      per_piece_cost:        s.perPieceCost,
+      shipment_date:         s.shipmentDate ?? null,
+      client_name:           s.clientName ?? null,
+      supplier_invoice_refs: s.supplierInvoiceRefs ?? null,
     }))
 
     const shipmentIdMap = new Map<string, string>()

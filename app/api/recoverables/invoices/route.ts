@@ -199,5 +199,49 @@ export async function POST(req: NextRequest) {
     .update({ status: 'sent', sent_at: new Date().toISOString() })
     .eq('id', invoiceId)
 
+  // 9. Auto-link supplier invoices from shipment refs (best-effort, non-blocking)
+  try {
+    const shipmentIds = [...new Set((allocations as RecoverableAllocation[]).map(a => a.shipment_id))]
+    const { data: shipmentRows } = await supabase
+      .from('recoverable_shipments')
+      .select('supplier_invoice_refs')
+      .in('id', shipmentIds)
+      .not('supplier_invoice_refs', 'is', null)
+
+    if (shipmentRows?.length) {
+      // Collect all unique invoice number refs across all shipments
+      const allRefs = new Set<string>()
+      for (const s of shipmentRows) {
+        const refs = (s as { supplier_invoice_refs: string }).supplier_invoice_refs
+        refs.split(/[,;]+/).map(r => r.trim()).filter(Boolean).forEach(r => allRefs.add(r))
+      }
+
+      if (allRefs.size > 0) {
+        // Resolve invoice numbers to IDs
+        const { data: matchedInvoices } = await supabase
+          .from('supplier_invoices')
+          .select('id, invoice_number')
+          .eq('user_id', user.id)
+          .in('invoice_number', [...allRefs])
+
+        if (matchedInvoices?.length) {
+          // Create links (ignore conflicts — upsert by unique constraint)
+          await supabase
+            .from('invoice_supplier_links')
+            .upsert(
+              matchedInvoices.map(si => ({
+                user_id: user.id,
+                recoverable_invoice_id: invoiceId,
+                supplier_invoice_id: si.id,
+              })),
+              { onConflict: 'recoverable_invoice_id,supplier_invoice_id', ignoreDuplicates: true }
+            )
+        }
+      }
+    }
+  } catch {
+    // Auto-linking is best-effort; don't fail the invoice creation
+  }
+
   return NextResponse.json({ success: true, invoiceId, invoiceNumber })
 }

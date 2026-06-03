@@ -41,12 +41,13 @@ export function transformToShipments(validRows: RawCSVRow[], _currency: string):
     }
 
     return {
-      reference:    row.reference,
-      totalCost:    row.totalCost,
-      totalPieces:  row.totalPcs,
+      reference:            row.reference,
+      totalCost:            row.totalCost,
+      totalPieces:          row.totalPcs,
       perPieceCost,
-      shipmentDate: row.shipmentDate ?? null,
-      clientName:   row.clientName ?? null,
+      shipmentDate:         row.shipmentDate ?? null,
+      clientName:           row.clientName ?? null,
+      supplierInvoiceRefs:  row.supplierInvoiceRefs ?? null,
       allocations,
     }
   })

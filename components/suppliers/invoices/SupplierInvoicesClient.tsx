@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Search, Pencil, X, Paperclip, ChevronDown, ChevronUp,
   AlertTriangle, CheckCircle2, Clock, Circle, CheckSquare, Square, RefreshCw,
-  XCircle, User,
+  XCircle, User, Link2,
 } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { computeInvoiceStatus } from '@/lib/suppliers/types'
 import SupplierInvoiceForm from './SupplierInvoiceForm'
 import BulkPayModal from './BulkPayModal'
+import SupplierLinksModal from './SupplierLinksModal'
 
 interface Props {
   initialInvoices: SupplierInvoice[]
@@ -69,7 +70,7 @@ const REC_STATUS: Record<string, { label: string; bg: string; text: string }> = 
 function RowActions({
   inv,
   onPay, onUnpay, onMarkBilled, onMarkPending, onMarkSettled, onMarkNotSettled,
-  onEdit, onDelete,
+  onShowLinks, onEdit, onDelete,
 }: {
   inv: InvoiceExt
   onPay: (inv: InvoiceExt) => void
@@ -78,6 +79,7 @@ function RowActions({
   onMarkPending: (inv: InvoiceExt) => void
   onMarkSettled: (inv: InvoiceExt) => void
   onMarkNotSettled: (inv: InvoiceExt) => void
+  onShowLinks: (inv: InvoiceExt) => void
   onEdit: (inv: InvoiceExt) => void
   onDelete: (id: string) => void
 }) {
@@ -141,6 +143,16 @@ function RowActions({
             Not Settled
           </button>
         )}
+        {/* Show customer invoices link for billed/recovered supplier invoices */}
+        {inv.is_recoverable && (inv.recoverable_status === 'billed' || inv.recoverable_status === 'recovered') && (
+          <button
+            onClick={() => onShowLinks(inv)}
+            className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1"
+            style={{ background: 'rgba(99,102,241,0.08)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.2)' }}
+          >
+            <Link2 className="w-3 h-3" /> Customer Invoices
+          </button>
+        )}
       </div>
       {/* Edit / delete */}
       <div className="flex items-center gap-0.5">
@@ -173,9 +185,10 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   const [invoices, setInvoices] = useState<InvoiceExt[]>(
     initialInvoices.map(i => ({ ...i, status: computeInvoiceStatus(i) })) as InvoiceExt[]
   )
-  const [showForm, setShowForm]       = useState(false)
-  const [editing, setEditing]         = useState<InvoiceExt | null>(null)
-  const [showBulkPay, setShowBulkPay] = useState(false)
+  const [showForm, setShowForm]           = useState(false)
+  const [editing, setEditing]             = useState<InvoiceExt | null>(null)
+  const [showBulkPay, setShowBulkPay]     = useState(false)
+  const [linksModal, setLinksModal]       = useState<InvoiceExt | null>(null)
   const [selected, setSelected]       = useState<Set<string>>(new Set())
   const [search, setSearch]           = useState(() => searchParams.get('search') ?? '')
   const [statusTab, setStatusTab]     = useState('')
@@ -955,6 +968,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                           onMarkPending={handleQuickMarkPending}
                           onMarkSettled={handleQuickMarkSettled}
                           onMarkNotSettled={handleQuickMarkNotSettled}
+                          onShowLinks={setLinksModal}
                           onEdit={i => { setEditing(i); setShowForm(true) }}
                           onDelete={handleDelete}
                         />
@@ -1100,6 +1114,15 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         Not Settled
                       </button>
                     )}
+                    {inv.is_recoverable && (inv.recoverable_status === 'billed' || inv.recoverable_status === 'recovered') && (
+                      <button
+                        onClick={() => setLinksModal(inv)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"
+                        style={{ background: 'rgba(99,102,241,0.08)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.2)' }}
+                      >
+                        <Link2 className="w-3 h-3" /> Customer Invoices
+                      </button>
+                    )}
                     {/* Edit/delete */}
                     <button
                       onClick={() => { setEditing(inv); setShowForm(true) }}
@@ -1147,6 +1170,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           accounts={accounts}
           onDone={handleBulkPayDone}
           onClose={() => setShowBulkPay(false)}
+        />
+      )}
+      {linksModal && (
+        <SupplierLinksModal
+          inv={linksModal as SupplierInvoice}
+          onClose={() => setLinksModal(null)}
         />
       )}
     </div>

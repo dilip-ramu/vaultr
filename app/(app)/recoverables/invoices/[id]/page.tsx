@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import InvoiceDetailClient from '@/components/recoverables/invoices/InvoiceDetailClient'
 import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
 import type { Customer } from '@/lib/types'
+import type { SupplierLink } from '@/components/recoverables/invoices/InvoiceDetailClient'
 
 export default async function InvoiceDetailPage({
   params,
@@ -14,7 +15,7 @@ export default async function InvoiceDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: invoice }, { data: lines }, { data: settings }] = await Promise.all([
+  const [{ data: invoice }, { data: lines }, { data: settings }, { data: supplierLinks }] = await Promise.all([
     supabase
       .from('recoverable_invoices')
       .select('*')
@@ -31,6 +32,19 @@ export default async function InvoiceDetailPage({
       .select('company_name, company_address, company_gstin, company_phone, company_email')
       .eq('user_id', user.id)
       .maybeSingle(),
+    supabase
+      .from('invoice_supplier_links')
+      .select(`
+        id, allocated_amount, notes, created_at,
+        supplier_invoice:supplier_invoices(
+          id, invoice_number, invoice_date, amount, currency,
+          is_paid, status, recoverable_status, category,
+          supplier:suppliers(id, name, supplier_code)
+        )
+      `)
+      .eq('recoverable_invoice_id', id)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true }),
   ])
 
   if (!invoice) notFound()
@@ -52,6 +66,7 @@ export default async function InvoiceDetailPage({
       lines={(lines ?? []) as RecoverableInvoiceLine[]}
       customer={customer}
       sellerInfo={settings ?? null}
+      initialSupplierLinks={(supplierLinks ?? []) as unknown as SupplierLink[]}
     />
   )
 }

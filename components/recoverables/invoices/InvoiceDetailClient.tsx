@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Plus, X, Search, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import type { RecoverableInvoice, RecoverableInvoiceLine, InvoiceStatus } from '@/lib/recoverables/types'
 import type { Customer } from '@/lib/types'
 import StatusBadge from '@/components/recoverables/shared/StatusBadge'
@@ -15,11 +16,41 @@ interface SellerInfo {
   company_email: string | null
 }
 
+// Exported so the page server component can type-check the fetched data
+export interface SupplierLink {
+  id: string
+  allocated_amount: number | null
+  notes: string | null
+  created_at: string
+  supplier_invoice: {
+    id: string
+    invoice_number: string | null
+    invoice_date: string
+    amount: number
+    currency: string
+    is_paid: boolean
+    status: string
+    recoverable_status: string | null
+    category: string | null
+    supplier: { id: string; name: string; supplier_code: string | null } | null
+  } | null
+}
+
+interface SupplierSearchResult {
+  id: string
+  invoice_number: string | null
+  invoice_date: string
+  amount: number
+  supplier: { name: string } | null
+  payee_name?: string | null
+}
+
 interface Props {
   invoice: RecoverableInvoice
   lines: RecoverableInvoiceLine[]
   customer: Customer | null
   sellerInfo: SellerInfo | null
+  initialSupplierLinks: SupplierLink[]
 }
 
 function fmt(amount: number) {
@@ -47,13 +78,76 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export default function InvoiceDetailClient({ invoice: initialInvoice, lines, customer, sellerInfo }: Props) {
+export default function InvoiceDetailClient({ invoice: initialInvoice, lines, customer, sellerInfo, initialSupplierLinks }: Props) {
   const router = useRouter()
   const [invoice, setInvoice] = useState(initialInvoice)
   const [busy, setBusy] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPayModal, setShowPayModal] = useState(false)
+
+  // Supplier links state
+  const [supplierLinks, setSupplierLinks] = useState<SupplierLink[]>(initialSupplierLinks)
+  const [showLinkSearch, setShowLinkSearch]   = useState(false)
+  const [linkSearch, setLinkSearch]           = useState('')
+  const [searchResults, setSearchResults]     = useState<SupplierSearchResult[]>([])
+  const [searching, setSearching]             = useState(false)
+  const [linkingId, setLinkingId]             = useState<string | null>(null)
+
+  // Supplier cost tally
+  const supplierCostTotal = supplierLinks.reduce((s, l) => {
+    const share = l.allocated_amount ?? Number(l.supplier_invoice?.amount ?? 0)
+    return s + share
+  }, 0)
+  const customerBilled = invoice.subtotal  // pre-tax subtotal for fair comparison
+  const margin = customerBilled - supplierCostTotal
+  const marginPct = supplierCostTotal > 0 ? (margin / supplierCostTotal) * 100 : null
+
+  async function searchSupplierInvoices(q: string) {
+    if (!q.trim()) { setSearchResults([]); return }
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/supplier-invoices?search=${encodeURIComponent(q)}&per_page=10`)
+      if (res.ok) {
+        const data = await res.json() as { invoices?: SupplierSearchResult[] }
+        setSearchResults(data.invoices ?? [])
+      }
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  async function addLink(si: SupplierSearchResult) {
+    setLinkingId(si.id)
+    try {
+      const res = await fetch('/api/invoice-supplier-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recoverable_invoice_id: invoice.id,
+          supplier_invoice_id: si.id,
+        }),
+      })
+      if (res.ok) {
+        // Refresh links list
+        const lRes = await fetch(`/api/invoice-supplier-links?recoverable_invoice_id=${invoice.id}`)
+        if (lRes.ok) {
+          const lData = await lRes.json() as { links: SupplierLink[] }
+          setSupplierLinks(lData.links)
+        }
+        setShowLinkSearch(false)
+        setLinkSearch('')
+        setSearchResults([])
+      }
+    } finally {
+      setLinkingId(null)
+    }
+  }
+
+  async function removeLink(linkId: string) {
+    await fetch(`/api/invoice-supplier-links/${linkId}`, { method: 'DELETE' })
+    setSupplierLinks(prev => prev.filter(l => l.id !== linkId))
+  }
 
   const resolvedStatus = resolveStatus(invoice)
   const canMarkPaid   = resolvedStatus === 'sent' || resolvedStatus === 'overdue' || resolvedStatus === 'draft'
@@ -325,6 +419,183 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text)' }}>{invoice.notes}</p>
           </div>
         )}
+
+        {/* ── Supplier Costs panel ─────────────────────────────────────────── */}
+        <div className="mt-6 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          {/* Panel header */}
+          <div
+            className="flex items-center justify-between px-4 py-3"
+            style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}
+          >
+            <div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                Supplier Costs
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                Linked supplier invoices billed in this customer invoice
+              </p>
+            </div>
+            <button
+              onClick={() => setShowLinkSearch(s => !s)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: 'rgba(42,122,80,0.1)', color: 'var(--brand)', border: '1px solid rgba(42,122,80,0.2)' }}
+            >
+              <Plus className="w-3.5 h-3.5" /> Link Invoice
+            </button>
+          </div>
+
+          {/* Search to add link */}
+          {showLinkSearch && (
+            <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                <input
+                  autoFocus
+                  value={linkSearch}
+                  onChange={e => { setLinkSearch(e.target.value); searchSupplierInvoices(e.target.value) }}
+                  placeholder="Search supplier name or invoice #…"
+                  className="w-full pl-9 pr-4 py-2 rounded-lg border text-sm outline-none"
+                  style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+              </div>
+              {searching && (
+                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Searching…</p>
+              )}
+              {searchResults.length > 0 && (
+                <div className="mt-2 rounded-lg border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+                  {searchResults.map(si => {
+                    const alreadyLinked = supplierLinks.some(l => l.supplier_invoice?.id === si.id)
+                    return (
+                      <button
+                        key={si.id}
+                        disabled={alreadyLinked || linkingId === si.id}
+                        onClick={() => addLink(si)}
+                        className="w-full flex items-center justify-between px-3 py-2.5 text-left text-sm border-b last:border-b-0 disabled:opacity-50"
+                        style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                      >
+                        <div>
+                          <span className="font-medium">{si.supplier?.name ?? si.payee_name ?? '—'}</span>
+                          {si.invoice_number && (
+                            <span className="ml-2 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                              {si.invoice_number}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0 ml-4">
+                          <span className="font-semibold">₹{Number(si.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                          {alreadyLinked && <span className="ml-2 text-xs" style={{ color: 'var(--text-muted)' }}>linked</span>}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Linked invoices table */}
+          {supplierLinks.length === 0 ? (
+            <div className="px-4 py-8 text-center">
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                No supplier invoices linked yet.
+                {' '}
+                {showLinkSearch ? 'Search above to add one.' : 'Click "Link Invoice" to add.'}
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                  <th className="text-left px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier</th>
+                  <th className="text-left px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Invoice #</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier Total</th>
+                  <th className="text-right px-4 py-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Your Share</th>
+                  <th className="px-4 py-2 w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                {supplierLinks.map(link => {
+                  const si = link.supplier_invoice
+                  if (!si) return null
+                  const supplierName = si.supplier?.name ?? '—'
+                  const share = link.allocated_amount ?? Number(si.amount)
+                  return (
+                    <tr key={link.id} style={{ borderTop: '1px solid var(--border)' }}>
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium" style={{ color: 'var(--text)' }}>{supplierName}</p>
+                        {si.category && (
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{si.category}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {si.invoice_number ?? '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--text)' }}>
+                        ₹{Number(si.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold" style={{ color: 'var(--text)' }}>
+                        ₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        {link.allocated_amount === null && (
+                          <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>(full)</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <button
+                          onClick={() => removeLink(link.id)}
+                          className="p-1 rounded hover:bg-red-50"
+                          title="Remove link"
+                        >
+                          <X className="w-3.5 h-3.5 text-red-400" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {/* Tally footer */}
+          {supplierLinks.length > 0 && (
+            <div
+              className="px-4 py-3 border-t grid grid-cols-3 gap-4 text-center"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+            >
+              <div>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Supplier Cost</p>
+                <p className="text-sm font-bold mt-0.5" style={{ color: '#dc2626' }}>
+                  ₹{supplierCostTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Billed (subtotal)</p>
+                <p className="text-sm font-bold mt-0.5" style={{ color: 'var(--brand)' }}>
+                  ₹{customerBilled.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Margin</p>
+                <div className="flex items-center justify-center gap-1 mt-0.5">
+                  {margin > 0
+                    ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
+                    : margin < 0
+                      ? <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                      : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                  }
+                  <p
+                    className="text-sm font-bold"
+                    style={{ color: margin > 0 ? '#16a34a' : margin < 0 ? '#dc2626' : 'var(--text-muted)' }}
+                  >
+                    ₹{Math.abs(margin).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    {marginPct !== null && (
+                      <span className="text-xs font-normal ml-1">({marginPct.toFixed(1)}%)</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {showPayModal && (

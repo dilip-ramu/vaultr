@@ -96,5 +96,5 @@ export function processShipment(
     }
   })
 
-  return { reference, totalCost, totalPieces, perPieceCost, shipmentDate: null, clientName: clientName ?? null, allocations }
+  return { reference, totalCost, totalPieces, perPieceCost, shipmentDate: null, clientName: clientName ?? null, supplierInvoiceRefs: null, allocations }
 }

@@ -71,6 +71,7 @@ export interface RawCSVRow {
   shipmentDate: string | null        // yyyy-mm-dd or null
   clientName: string | null          // consignee / client from CSV
   suppliers: Record<string, number>  // supplierName → pieces
+  supplierInvoiceRefs: string | null // raw value from "Supplier Invoice Refs" CSV column
   raw: Record<string, string>        // original values for error display
 }
 
@@ -107,6 +108,7 @@ export interface ParsedShipment {
   perPieceCost: number
   shipmentDate: string | null
   clientName: string | null
+  supplierInvoiceRefs: string | null // from CSV column; comma-separated invoice numbers
   allocations: ParsedAllocation[]
 }
 
