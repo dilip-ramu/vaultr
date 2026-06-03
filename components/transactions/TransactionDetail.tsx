@@ -40,18 +40,20 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
   const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+    {/* paddingTop pushes the sheet below the AppShell header on mobile regardless of env() resolution */}
+    <div
+      className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center"
+      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 56px)' }}
+    >
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
 
-      {/* Sheet */}
+      {/* Sheet — maxHeight 100% is relative to the container's content area (viewport minus paddingTop) */}
       <div
         className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl flex flex-col slide-up"
         style={{
           backgroundColor: 'var(--surface)',
-          maxHeight: '90dvh',
-          // Prevent overflow corner clipping
-          overflow: 'hidden',
+          maxHeight: '100%',
         }}
       >
         {/* ── Header (never scrolls away) ─────────────────────────────────── */}
@@ -101,7 +103,6 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
           className="flex-1 overflow-y-auto px-5 py-5 space-y-5"
           style={{
             overscrollBehavior: 'contain',          // prevents iOS page scroll bleed-through
-            WebkitOverflowScrolling: 'touch' as never,
             backgroundColor: 'var(--surface)',
           }}
         >

@@ -18,6 +18,18 @@ export default function BillNotificationBanner() {
       setNotifPermission(Notification.permission)
     }
     loadUrgentBills()
+
+    // Re-fetch whenever a bill is created, updated, or deleted so the banner
+    // disappears immediately when a bill is marked paid in the same session.
+    const supabase = createClient()
+    const channel = supabase
+      .channel('bill-notification-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
+        loadUrgentBills()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   const loadUrgentBills = async () => {
