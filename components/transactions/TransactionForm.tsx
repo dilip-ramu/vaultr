@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown } from 'lucide-react'
 import type { Transaction, Account, Category, TransactionType, Payee } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
