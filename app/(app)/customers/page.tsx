@@ -30,7 +30,7 @@ export default async function CustomerOverviewPage() {
       .order('name'),
     supabase
       .from('recoverable_invoices')
-      .select('balance_due')
+      .select('balance_due, customer_id, customer_name')
       .eq('user_id', user.id)
       .in('status', ['sent', 'overdue'])
       .gt('balance_due', 0),

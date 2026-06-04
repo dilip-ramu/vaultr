@@ -29,7 +29,7 @@ interface Props {
   orders: OrderRow[]
   styles: StyleRow[]
   customers: { id: string; name: string; pays_commission: boolean }[]
-  receivables: { balance_due: number }[]
+  receivables: { balance_due: number; customer_id: string | null; customer_name: string | null }[]
 }
 
 function fmtAmt(n: number) {
@@ -82,24 +82,34 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
     }
   }, [styles, receivables])
 
-  // Top customers by pending commission
+  // Top pending customers — incoming (commission) + receivables combined
   const topCustomers = useMemo(() => {
-    const map = new Map<string, { name: string; pending: number; overdue: number; count: number }>()
+    const map = new Map<string, { name: string; incoming: number; receivable: number; overdue: number }>()
+    const get = (name: string) => {
+      const e = map.get(name) ?? { name, incoming: 0, receivable: 0, overdue: 0 }
+      map.set(name, e)
+      return e
+    }
     const todayStr = new Date().toISOString().split('T')[0]
     for (const s of styles) {
       if (['received', 'cancelled'].includes(s.order_status)) continue
-      const name = customerNameForStyle(s)
-      const e = map.get(name) ?? { name, pending: 0, overdue: 0, count: 0 }
-      e.pending += Number(s.commission_inr || 0)
-      e.count++
+      const e = get(customerNameForStyle(s))
+      e.incoming += Number(s.commission_inr || 0)
       if (s.order_status === 'shipped' && s.expected_payment_date && s.expected_payment_date <= todayStr) {
         e.overdue += Number(s.commission_inr || 0)
       }
-      map.set(name, e)
     }
-    return [...map.values()].sort((a, b) => b.pending - a.pending).slice(0, 6)
+    for (const r of receivables) {
+      const name = (r.customer_id && customerById.get(r.customer_id)) || r.customer_name || 'Unassigned'
+      get(name).receivable += Number(r.balance_due || 0)
+    }
+    return [...map.values()]
+      .map(e => ({ ...e, total: e.incoming + e.receivable }))
+      .filter(e => e.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 6)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [styles, orderById, customerById])
+  }, [styles, receivables, orderById, customerById])
 
   return (
     <div className="space-y-8">
@@ -148,25 +158,28 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
         {/* Top customers by pending commission */}
         <div className="lg:col-span-2 rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Top Customers by Pending Incoming</h2>
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Top Pending Customers</h2>
             <Link href="/customers/commission" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
           {topCustomers.length === 0 ? (
-            <div className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No pending commission</div>
+            <div className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Nothing pending</div>
           ) : (
             <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {topCustomers.map(c => (
                 <div key={c.name} className="flex items-center justify-between px-5 py-3.5">
                   <div>
                     <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{c.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: c.overdue > 0 ? '#ef4444' : 'var(--text-muted)' }}>
-                      {c.overdue > 0 ? `₹${fmtAmt(c.overdue)} overdue · ` : ''}{c.count} style{c.count !== 1 ? 's' : ''}
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {c.incoming > 0 && <span>₹{fmtAmt(c.incoming)} incoming</span>}
+                      {c.incoming > 0 && c.receivable > 0 && ' · '}
+                      {c.receivable > 0 && <span>₹{fmtAmt(c.receivable)} receivable</span>}
+                      {c.overdue > 0 && <span style={{ color: '#ef4444' }}> · ₹{fmtAmt(c.overdue)} overdue</span>}
                     </p>
                   </div>
                   <span className="text-sm font-semibold" style={{ color: c.overdue > 0 ? '#ef4444' : 'var(--text)' }}>
-                    ₹{fmtAmt(c.pending)}
+                    ₹{fmtAmt(c.total)}
                   </span>
                 </div>
               ))}
