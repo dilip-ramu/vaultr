@@ -34,6 +34,7 @@ Run everything below from top to bottom:
 | 22 | `migration_v31_profitability.sql` | **Profitability page fast path** (one aggregate query) |
 | 23 | `migration_v32_validation.sql` | **Data gatekeeper**: rejects impossible dates / negative amounts |
 | 24 | `migration_v33_invoice_numbering.sql` | **Atomic invoice numbers**: no duplicates, no reuse |
+| 25 | `migration_v34_dashboard.sql` | **Dashboard fast path**: all dashboard data in one query |
 
 Not in the table: `supabase_commission_migration.sql` (root folder) — commission
 orders/styles; run after v15.
