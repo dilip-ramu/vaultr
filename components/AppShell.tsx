@@ -12,6 +12,7 @@ import {
   Banknote, UserSquare, CalendarClock, History,
   Building2, BookOpen, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
+  CalendarRange, CreditCard,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -40,6 +41,8 @@ const navSections: NavSection[] = [
       { href: '/accounts',     label: 'Accounts',     icon: Wallet },
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
       { href: '/profitability', label: 'Profitability', icon: Scale },
+      { href: '/forecast', label: 'Forecast', icon: CalendarRange },
+      { href: '/cards', label: 'Cards', icon: CreditCard },
     ],
   },
   {

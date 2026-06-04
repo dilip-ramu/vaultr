@@ -54,6 +54,7 @@ export interface Account {
   open_date: string | null
   closing_date: string | null
   statement_due_day: number | null
+  statement_day: number | null
   include_in_net_worth: boolean
   is_active: boolean
   created_at: string
