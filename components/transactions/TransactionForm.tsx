@@ -7,6 +7,7 @@ import { getCategoryEmoji } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayString } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
+import { parseAmount, dateError } from '@/lib/validation'
 import FileUpload from '../shared/FileUpload'
 import BottomSheet from '../shared/BottomSheet'
 import AccountChipPicker from '../shared/AccountChipPicker'
@@ -177,6 +178,10 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
     if (!originalAmount || !accountId) { setError('Amount and account are required'); return }
     if (type === 'transfer' && !toAccountId) { setError('Select destination account'); return }
     if (currency !== 'INR' && !inrAmount) { setError('Could not get exchange rate for ' + currency); return }
+    const amountCheck = parseAmount(originalAmount)
+    if (amountCheck.error) { setError(amountCheck.error); return }
+    const dateErr = dateError(date)
+    if (dateErr) { setError(dateErr); return }
 
     setSaving(true)
     setError('')

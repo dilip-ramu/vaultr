@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { parseAmount, dateError, firstError } from '@/lib/validation'
 import { computeInvoiceStatus } from '@/lib/suppliers/types'
 
 // GET — list supplier invoices with filters
@@ -55,6 +56,15 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
+
+  // Sanity checks — reject impossible dates / amounts before they reach the DB
+  const amountCheck = parseAmount(body.amount as string | number, 'Amount', { allowZero: true })
+  const validationError = firstError(
+    amountCheck.error,
+    dateError(body.invoice_date as string, 'Invoice date'),
+    dateError(body.due_date as string | null, 'Due date', false),
+  )
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
 
   // Auto-compute status
   const status = computeInvoiceStatus({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { computeInvoiceStatus, type SupplierInvoiceStatus } from '@/lib/suppliers/types'
+import { parseAmount, dateError, firstError } from '@/lib/validation'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -30,6 +31,15 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
+
+  // Sanity checks — only on fields present in this partial update
+  const validationError = firstError(
+    body.amount !== undefined ? parseAmount(body.amount as string | number, 'Amount', { allowZero: true }).error : null,
+    body.invoice_date !== undefined ? dateError(body.invoice_date as string, 'Invoice date') : null,
+    body.due_date !== undefined ? dateError(body.due_date as string | null, 'Due date', false) : null,
+    body.payment_date !== undefined ? dateError(body.payment_date as string | null, 'Payment date', false) : null,
+  )
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
 
   // Fetch current to compute new status
   const { data: current } = await supabase
