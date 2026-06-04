@@ -1,16 +1,16 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import type { CommissionOrder, Customer, Account } from '@/lib/types'
 
-const CommissionClient = dynamic(() => import('./CommissionClient'), { ssr: false })
+const CommissionClient = dynamic(() => import('./CommissionClient'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-24 text-sm" style={{ color: 'var(--text-muted)' }}>
+      Loading…
+    </div>
+  ),
+})
 
-interface Props {
-  initialOrders: CommissionOrder[]
-  customers: Customer[]
-  accounts: Account[]
-}
-
-export default function CommissionWrapper(props: Props) {
-  return <CommissionClient {...props} />
+export default function CommissionWrapper() {
+  return <CommissionClient />
 }

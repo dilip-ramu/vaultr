@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Plus, Upload, FileText, CheckCircle2, Clock, TrendingUp,
@@ -16,11 +16,7 @@ import AccountChipPicker from '@/components/shared/AccountChipPicker'
 const CommissionForm   = dynamic(() => import('./CommissionForm'),   { ssr: false })
 const CommissionImport = dynamic(() => import('./CommissionImport'), { ssr: false })
 
-interface Props {
-  initialOrders: CommissionOrder[]
-  customers: Customer[]
-  accounts: Account[]
-}
+interface Props {}
 
 // Flat row — one per style, carrying relevant order fields for display
 interface StyleRow extends CommissionStyle {
@@ -198,8 +194,12 @@ function SortTh({ label, sortKey, current, dir, onSort }: {
 }
 
 // ── Main client ───────────────────────────────────────────────────────────────
-export default function CommissionClient({ initialOrders, customers, accounts }: Props) {
-  const [orders,     setOrders]     = useState<CommissionOrder[]>(initialOrders)
+export default function CommissionClient(_: Props) {
+  const [orders,     setOrders]     = useState<CommissionOrder[]>([])
+  const [customers,  setCustomers]  = useState<Customer[]>([])
+  const [accounts,   setAccounts]   = useState<Account[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [loadError,  setLoadError]  = useState('')
   const [showForm,   setShowForm]   = useState(false)
   const [editOrder,  setEditOrder]  = useState<CommissionOrder | null>(null)
   const [showImport, setShowImport] = useState(false)
@@ -209,6 +209,68 @@ export default function CommissionClient({ initialOrders, customers, accounts }:
   const [showBulkReceive, setShowBulkReceive] = useState(false)
   const [sortKey,    setSortKey]    = useState<SortKey>('order_date')
   const [sortDir,    setSortDir]    = useState<'asc' | 'desc'>('desc')
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const [ordersRes, stylesRes, customersRes, accountsRes] = await Promise.all([
+          supabase.from('commission_orders')
+            .select('*, customer:customers(*), account:accounts(id,name)')
+            .eq('user_id', user.id)
+            .order('order_date', { ascending: false }),
+          supabase.from('commission_styles')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true }),
+          supabase.from('customers')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('pays_commission', true)
+            .order('name'),
+          supabase.from('accounts')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .order('name'),
+        ])
+
+        if (ordersRes.error) throw new Error(ordersRes.error.message)
+        if (stylesRes.error)  throw new Error(stylesRes.error.message)
+
+        const stylesByOrder = new Map<string, CommissionStyle[]>()
+        for (const s of (stylesRes.data ?? []) as CommissionStyle[]) {
+          const list = stylesByOrder.get(s.order_id) ?? []
+          list.push(s)
+          stylesByOrder.set(s.order_id, list)
+        }
+
+        setOrders((ordersRes.data ?? []).map((o: any) => ({
+          ...o, styles: stylesByOrder.get(o.id) ?? [],
+        })))
+        setCustomers(customersRes.data ?? [])
+        setAccounts(accountsRes.data ?? [])
+      } catch (e: any) {
+        setLoadError(e.message ?? 'Unknown error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-24 text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</div>
+  )
+  if (loadError) return (
+    <div className="max-w-xl mx-auto px-4 py-16 text-center">
+      <p className="text-red-500 font-semibold mb-2">Failed to load commission data</p>
+      <p className="text-sm font-mono bg-red-50 text-red-700 rounded-xl px-4 py-3 break-all">{loadError}</p>
+    </div>
+  )
 
   // Flatten all styles into a single list with order context
   const allRows = useMemo<StyleRow[]>(() => {
