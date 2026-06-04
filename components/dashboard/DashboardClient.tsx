@@ -487,7 +487,14 @@ export default function DashboardClient({
               </Link>
             </div>
             <div className="divide-y" style={{ '--tw-divide-opacity': 1 } as React.CSSProperties}>
-              {accounts.filter(a => a.include_in_net_worth).slice(0, 6).map(account => {
+              {accounts
+                .filter(a => a.include_in_net_worth)
+                .sort((a, b) => {
+                  const order: Record<string, number> = { checking: 0, savings: 1, credit: 2 }
+                  return (order[a.type] ?? 99) - (order[b.type] ?? 99)
+                })
+                .slice(0, 6)
+                .map(account => {
                 const d = account.custom_type_name
                   ? { label: account.custom_type_name, color: account.custom_type_color ?? '#6B7280', bgColor: `${account.custom_type_color ?? '#6B7280'}18` }
                   : resolveAccountTypeDisplay(account.type, builtinOverrides)
