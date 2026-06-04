@@ -1,12 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import nextDynamic from 'next/dynamic'
+import CommissionWrapper from '@/components/commission/CommissionWrapper'
 import type { CommissionOrder, CommissionStyle } from '@/lib/types'
-
-const CommissionClient = nextDynamic(
-  () => import('@/components/commission/CommissionClient'),
-  { ssr: false }
-)
 
 export const dynamic = 'force-dynamic'
 
@@ -58,7 +53,7 @@ export default async function CommissionPage() {
     }))
 
     return (
-      <CommissionClient
+      <CommissionWrapper
         initialOrders={orders}
         customers={customersResult.data ?? []}
         accounts={accountsResult.data ?? []}
