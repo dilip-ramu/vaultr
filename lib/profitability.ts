@@ -155,12 +155,23 @@ export function summarize(lines: ProfitLine[], from: string, to: string): Profit
   return finalize(s)
 }
 
+// Valid "YYYY-MM" within a sane window — guards against typo'd dates
+// (e.g. year 0205) which would otherwise make the gap-fill loop run forever.
+const VALID_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/
+function isSaneMonth(key: string, now: Date): boolean {
+  if (!VALID_MONTH.test(key)) return false
+  const y = Number(key.slice(0, 4))
+  return y >= 1990 && y <= now.getFullYear() + 10
+}
+
 /** Per-calendar-month summaries (1st → last of each month), newest first.
  *  Covers every month from the earliest data point to the current month. */
 export function monthlyHistory(lines: ProfitLine[], now = new Date()): MonthlyProfit[] {
   const buckets = new Map<string, ProfitSummary>()
   for (const l of lines) {
+    if (typeof l.day !== 'string') continue
     const m = l.day.slice(0, 7)
+    if (!isSaneMonth(m, now)) continue
     let b = buckets.get(m)
     if (!b) { b = emptySummary(); buckets.set(m, b) }
     addLine(b, l)
@@ -168,18 +179,17 @@ export function monthlyHistory(lines: ProfitLine[], now = new Date()): MonthlyPr
 
   if (buckets.size === 0) return []
 
-  // Fill gaps from earliest month to the current month so the list is continuous
-  const months = [...buckets.keys()].sort()
-  const first = months[0]
+  // Window: last 13 months only (current month + 12 back), gap-filled
   const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const last = current > months[months.length - 1] ? current : months[months.length - 1]
+  const startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1)
+  const windowStart = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`
 
   const out: MonthlyProfit[] = []
-  let [y, m] = first.split('-').map(Number)
-  for (;;) {
+  let [y, m] = windowStart.split('-').map(Number)
+  for (let i = 0; i < 13; i++) {
     const key = `${y}-${String(m).padStart(2, '0')}`
     out.push({ month: key, ...finalize(buckets.get(key) ?? emptySummary()) })
-    if (key === last) break
+    if (key >= current) break
     m++; if (m > 12) { m = 1; y++ }
   }
 
