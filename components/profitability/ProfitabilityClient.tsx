@@ -1,15 +1,16 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { TrendingUp, TrendingDown, Scale, CalendarRange } from 'lucide-react'
+import { TrendingUp, TrendingDown, Scale, CalendarRange, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
   summarize, monthlyHistory,
-  type ProfitabilityData, type ProfitSummary,
+  type ProfitLine, type ProfitSummary,
 } from '@/lib/profitability'
 
 interface Props {
-  data: ProfitabilityData
+  lines: ProfitLine[]
+  setupNeeded?: boolean
 }
 
 type Preset = '1m' | '3m' | '6m' | '1y' | 'custom'
@@ -140,7 +141,7 @@ function Breakdown({ s }: { s: ProfitSummary }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-export default function ProfitabilityClient({ data }: Props) {
+export default function ProfitabilityClient({ lines, setupNeeded = false }: Props) {
   const [preset, setPreset] = useState<Preset>('1m')
   const [customFrom, setCustomFrom] = useState(() => iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
   const [customTo, setCustomTo] = useState(() => iso(new Date()))
@@ -148,10 +149,10 @@ export default function ProfitabilityClient({ data }: Props) {
   const range = preset === 'custom' ? { from: customFrom, to: customTo } : presetRange(preset)
 
   const summary = useMemo(
-    () => summarize(data, range.from, range.to),
-    [data, range.from, range.to],
+    () => summarize(lines, range.from, range.to),
+    [lines, range.from, range.to],
   )
-  const months = useMemo(() => monthlyHistory(data), [data])
+  const months = useMemo(() => monthlyHistory(lines), [lines])
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
@@ -161,6 +162,23 @@ export default function ProfitabilityClient({ data }: Props) {
         <h1 className="text-heading" style={{ color: 'var(--text)' }}>Profitability</h1>
         <p className="text-caption">Expected vs actual earnings — inwards, outwards and what&apos;s outstanding</p>
       </div>
+
+      {/* Migration-not-run notice */}
+      {setupNeeded && (
+        <div
+          className="card p-4 flex items-start gap-3 text-sm"
+          style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.3)' }}
+        >
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#F59E0B' }} />
+          <div style={{ color: 'var(--text)' }}>
+            <p className="font-medium">One-time setup needed</p>
+            <p style={{ color: 'var(--text-muted)' }}>
+              Run <code>supabase/migration_v31_profitability.sql</code> in your Supabase SQL Editor,
+              then refresh this page.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Filter bar */}
       <div className="card p-3 space-y-3">
