@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import CommissionWrapper from '@/components/commission/CommissionWrapper'
 import type { CommissionOrder, CommissionStyle } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ export default async function CommissionPage() {
   if (!user) redirect('/login')
 
   try {
-    const [ordersResult, stylesResult] = await Promise.all([
+    const [ordersResult, stylesResult, customersResult, accountsResult] = await Promise.all([
       supabase
         .from('commission_orders')
         .select('*, customer:customers(*), account:accounts(id,name)')
@@ -19,24 +20,51 @@ export default async function CommissionPage() {
       supabase
         .from('commission_styles')
         .select('*')
-        .eq('user_id', user.id),
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('customers')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('pays_commission', true)
+        .order('name'),
+      supabase
+        .from('accounts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('name'),
     ])
 
-    if (ordersResult.error) throw new Error('orders: ' + ordersResult.error.message)
-    if (stylesResult.error)  throw new Error('styles: '  + stylesResult.error.message)
+    if (ordersResult.error) throw new Error(ordersResult.error.message)
+    if (stylesResult.error)  throw new Error(stylesResult.error.message)
+
+    // Merge styles into parent orders
+    const stylesByOrder = new Map<string, CommissionStyle[]>()
+    for (const style of (stylesResult.data ?? []) as CommissionStyle[]) {
+      const list = stylesByOrder.get(style.order_id) ?? []
+      list.push(style)
+      stylesByOrder.set(style.order_id, list)
+    }
+
+    const orders: CommissionOrder[] = (ordersResult.data ?? []).map((o: CommissionOrder) => ({
+      ...o,
+      styles: stylesByOrder.get(o.id) ?? [],
+    }))
 
     return (
-      <div className="max-w-xl mx-auto px-4 py-16">
-        <p className="font-semibold">Data fetch OK</p>
-        <p className="text-sm text-gray-500 mt-1">{ordersResult.data.length} orders · {stylesResult.data.length} styles</p>
-      </div>
+      <CommissionWrapper
+        initialOrders={orders}
+        customers={(customersResult.data ?? []) as any}
+        accounts={(accountsResult.data ?? []) as any}
+      />
     )
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return (
-      <div className="max-w-xl mx-auto px-4 py-16">
-        <p className="text-red-500 font-semibold">Error</p>
-        <p className="text-sm font-mono bg-red-50 text-red-700 rounded-xl px-4 py-3 mt-2 break-all">{msg}</p>
+      <div className="max-w-xl mx-auto px-4 py-16 text-center">
+        <p className="text-red-500 font-semibold mb-3">Commission page error</p>
+        <p className="text-sm font-mono bg-red-50 text-red-700 rounded-xl px-4 py-3 break-all">{msg}</p>
       </div>
     )
   }
