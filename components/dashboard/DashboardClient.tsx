@@ -5,8 +5,9 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   TrendingUp, TrendingDown, ChevronRight,
-  ArrowLeftRight, AlertTriangle, Clock, Wallet,
+  ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale,
 } from 'lucide-react'
+import type { ProfitSummary } from '@/lib/profitability'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import type { Insight } from '@/lib/insights'
@@ -69,6 +70,7 @@ interface Props {
   commissionDueCount?: number
   billsDueTotal?: number
   billsDueCount?: number
+  profitMTD?: ProfitSummary
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -149,6 +151,7 @@ export default function DashboardClient({
   commissionDueCount = 0,
   billsDueTotal = 0,
   billsDueCount = 0,
+  profitMTD,
 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
@@ -341,6 +344,78 @@ export default function DashboardClient({
             )}
           </div>
         </div>
+
+        {/* ── Profitability — this month till date ───────────────────────── */}
+        {profitMTD && (
+          <Link
+            href="/profitability"
+            className="block rounded-2xl p-4 md:p-5 transition-opacity hover:opacity-90"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Scale className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                  Profitability — {monthLabel} till date
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                  Realised (actual)
+                </p>
+                <p
+                  className="text-xl font-bold tracking-tight"
+                  style={{ color: profitMTD.actualNet >= 0 ? 'var(--income)' : 'var(--expense)' }}
+                >
+                  {profitMTD.actualNet < 0 ? '−₹' : '₹'}{fmt(profitMTD.actualNet)}
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+                  in ₹{fmt(profitMTD.actualIncome)} · out ₹{fmt(profitMTD.actualExpense)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                  Expected (booked)
+                </p>
+                <p
+                  className="text-xl font-bold tracking-tight"
+                  style={{ color: profitMTD.expectedNet >= 0 ? 'var(--income)' : 'var(--expense)' }}
+                >
+                  {profitMTD.expectedNet < 0 ? '−₹' : '₹'}{fmt(profitMTD.expectedNet)}
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+                  in ₹{fmt(profitMTD.expectedIncome)} · out ₹{fmt(profitMTD.expectedExpense)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                  Unrealised
+                </p>
+                <p
+                  className="text-xl font-bold tracking-tight"
+                  style={{ color: 'var(--text)' }}
+                >
+                  {profitMTD.outstandingNet < 0 ? '−₹' : '₹'}{fmt(profitMTD.outstandingNet)}
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>expected − actual</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+                  To collect
+                </p>
+                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--income)' }}>
+                  ₹{fmt(Math.max(profitMTD.outstandingIncome, 0))}
+                </p>
+                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+                  to pay ₹{fmt(Math.max(profitMTD.outstandingExpense, 0))}
+                </p>
+              </div>
+            </div>
+          </Link>
+        )}
 
         {/* ── Row 2: Business overview ────────────────────────────────────── */}
         {(supplierDueCount > 0 || totalReceivables > 0 || commissionPendingCount > 0) && (

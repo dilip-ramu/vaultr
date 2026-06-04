@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import DashboardClient from '@/components/dashboard/DashboardClient'
 import type { Budget, Bill } from '@/lib/types'
 import { generateInsights, type Insight } from '@/lib/insights'
+import { fetchProfitLines } from '@/lib/profitability-server'
+import { summarize } from '@/lib/profitability'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +35,7 @@ export default async function DashboardPage() {
     { data: commissionStyles },
     { data: commissionDueStyles },
     { data: dueBills },
+    profitLines,
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -126,7 +129,11 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .eq('status', 'pending')
       .lte('due_date', todayStr),
+    fetchProfitLines(supabase, user!.id),
   ])
+
+  // Month-to-date profitability (1st → today)
+  const profitMTD = summarize(profitLines, startOfMonth, todayStr)
 
   // Net spend per category — expense adds, income subtracts; excludes Contrast payee
   const contrastPayeeId = contrastPayee?.id ?? null
@@ -194,6 +201,7 @@ export default async function DashboardPage() {
       commissionDueCount={commissionDueCount}
       billsDueTotal={billsDueTotal}
       billsDueCount={billsDueCount}
+      profitMTD={profitMTD}
       unbilledInvoices={(unbilledInvoices ?? []) as unknown as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
     />
   )
