@@ -1,26 +1,19 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Eye, EyeOff, Vault, Users } from 'lucide-react'
+import { Eye, EyeOff, Vault } from 'lucide-react'
 
 function SignupForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    const code = searchParams.get('invite')
-    if (code) setInviteCode(code)
-  }, [searchParams])
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,7 +27,7 @@ function SignupForm() {
         email,
         password,
         options: {
-          data: { full_name: fullName, invite_code: inviteCode.trim() || undefined },
+          data: { full_name: fullName },
         },
       })
 
@@ -128,16 +121,6 @@ function SignupForm() {
                 </button>
               </div>
             </div>
-
-            {/* Invite code indicator (pre-filled from URL) */}
-            {inviteCode && (
-              <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-brand-500 shrink-0" />
-                <p className="text-sm text-brand-700">
-                  Joining a shared household · code: <span className="font-mono font-bold">{inviteCode}</span>
-                </p>
-              </div>
-            )}
 
             <button
               type="submit"

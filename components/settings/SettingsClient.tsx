@@ -3,10 +3,10 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  User, Users, Copy, Check, LogOut, Camera, Link,
-  Shield, ChevronRight, Bell, Palette
+  User, LogOut, Camera,
+  ChevronRight, Palette
 } from 'lucide-react'
-import type { Profile, Household } from '@/lib/types'
+import type { Profile } from '@/lib/types'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
@@ -14,17 +14,13 @@ import { Avatar } from '../AppShell'
 interface Props {
   user: SupabaseUser
   profile: Profile | null
-  household: Household | null
-  members: { id: string; full_name: string | null; nickname: string | null; avatar_url: string | null }[]
 }
 
-export default function SettingsClient({ user, profile, household, members }: Props) {
+export default function SettingsClient({ user, profile }: Props) {
   const router = useRouter()
   const [fullName, setFullName] = useState(profile?.full_name ?? '')
   const [nickname, setNickname] = useState(profile?.nickname ?? '')
-  const [inviteCode, setInviteCode] = useState('')
   const [saving, setSaving] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? '')
   const [message, setMessage] = useState('')
@@ -67,34 +63,6 @@ export default function SettingsClient({ user, profile, household, members }: Pr
     setMessage('Photo updated!')
     setAvatarUploading(false)
     setTimeout(() => setMessage(''), 2000)
-    router.refresh()
-  }
-
-  const handleCopyInvite = () => {
-    const code = household?.invite_code
-    if (!code) return
-    const url = `${window.location.origin}/signup?invite=${code}`
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleJoinHousehold = async () => {
-    if (!inviteCode.trim()) return
-    setSaving(true)
-    const supabase = createClient()
-
-    const { data: hh } = await supabase
-      .from('households')
-      .select('id')
-      .eq('invite_code', inviteCode.trim())
-      .single()
-
-    if (!hh) { setMessage('Invalid invite code'); setSaving(false); return }
-
-    await supabase.from('profiles').update({ household_id: hh.id }).eq('id', user.id)
-    setMessage('Joined household!')
-    setSaving(false)
     router.refresh()
   }
 
@@ -163,75 +131,6 @@ export default function SettingsClient({ user, profile, household, members }: Pr
             className="w-full bg-brand-500 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-60">
             {saving ? 'Saving…' : 'Save Profile'}
           </button>
-        </div>
-      </div>
-
-      {/* Household / Family Sharing */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-          <Users className="w-4 h-4 text-gray-400" />
-          <p className="text-sm font-semibold text-gray-900">Family Sharing</p>
-        </div>
-
-        <div className="p-5 space-y-4">
-          {household ? (
-            <>
-              <div>
-                <p className="text-xs font-medium text-gray-600 mb-2">Your household</p>
-                <p className="text-sm font-semibold text-gray-900">{household.name}</p>
-              </div>
-
-              {/* Members */}
-              {members.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-gray-600 mb-2">{members.length} member{members.length > 1 ? 's' : ''}</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {members.map(m => (
-                      <div key={m.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-1.5">
-                        <Avatar url={m.avatar_url} initials={(m.nickname || m.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()} size="sm" />
-                        <span className="text-xs font-medium text-gray-700">{m.nickname || m.full_name || 'Member'}</span>
-                        {m.id === user.id && <span className="text-[10px] text-brand-500">you</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Invite link */}
-              <div className="bg-brand-50 rounded-xl p-4">
-                <p className="text-xs font-semibold text-brand-700 mb-1">Invite your family</p>
-                <p className="text-xs text-brand-600 mb-3">Share this link with your wife or family members so they can join your shared household.</p>
-                <button
-                  onClick={handleCopyInvite}
-                  className="w-full flex items-center justify-center gap-2 bg-brand-500 text-white text-xs font-semibold py-2.5 rounded-xl"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? 'Link copied!' : 'Copy Invite Link'}
-                </button>
-                <p className="text-[10px] text-brand-500 mt-2 text-center">Code: <span className="font-mono font-bold">{household.invite_code}</span></p>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-gray-500">You're not in a shared household yet. Join your family's household using their invite code, or yours will be auto-created on next login.</p>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Enter invite code</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inviteCode}
-                    onChange={e => setInviteCode(e.target.value)}
-                    placeholder="e.g. a1b2c3d4"
-                    className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono"
-                  />
-                  <button onClick={handleJoinHousehold} disabled={saving || !inviteCode.trim()}
-                    className="px-4 py-2.5 bg-brand-500 text-white text-sm font-semibold rounded-xl disabled:opacity-50">
-                    Join
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
