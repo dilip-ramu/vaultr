@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { PayrollMonth, PayrollEntry, Employee } from '@/lib/payroll/types'
 import { calcFinalPayable } from '@/lib/payroll/types'
 import MarkPaidModal from './MarkPaidModal'
+import AccountChipPicker from '@/components/shared/AccountChipPicker'
 
 interface Account { id: string; name: string; type: string; color?: string | null; avatar_url?: string | null; custom_type_id?: string | null; custom_type_name?: string | null; custom_type_color?: string | null; custom_type_icon?: string | null }
 
@@ -520,13 +521,13 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
 
       {/* Log Income & Forex modal */}
       {showIncomeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
               <h2 className="text-lg font-semibold text-gray-900">Log Income & Forex</h2>
               <button onClick={() => setShowIncomeModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
             </div>
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
               {incomeError && (
                 <div className="bg-red-50 text-red-700 text-sm px-4 py-2 rounded-lg">{incomeError}</div>
               )}
@@ -556,19 +557,14 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Bank Account *</label>
-                <select
-                  value={incomeAccountId}
-                  onChange={e => setIncomeAccountId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select account…</option>
-                  {accounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                <AccountChipPicker
+                  accounts={accounts}
+                  selectedId={incomeAccountId}
+                  onSelect={setIncomeAccountId}
+                />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl shrink-0">
               <button onClick={() => setShowIncomeModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
               <button
                 onClick={handleLogIncome}
