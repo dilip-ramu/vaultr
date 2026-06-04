@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { TrendingUp, TrendingDown, Scale, CalendarRange, AlertTriangle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Scale, CalendarRange } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
   summarize, monthlyHistory,
@@ -10,12 +10,12 @@ import {
 
 interface Props {
   lines: ProfitLine[]
-  setupNeeded?: boolean
 }
 
-type Preset = '1m' | '3m' | '6m' | '1y' | 'custom'
+type Preset = 'month' | '1m' | '3m' | '6m' | '1y' | 'custom'
 
 const PRESETS: { key: Preset; label: string }[] = [
+  { key: 'month', label: 'This Month' },
   { key: '1m', label: '1 Month' },
   { key: '3m', label: '3 Months' },
   { key: '6m', label: '6 Months' },
@@ -27,6 +27,10 @@ const iso = (d: Date) => d.toISOString().split('T')[0]
 
 function presetRange(preset: Preset): { from: string; to: string } {
   const to = new Date()
+  if (preset === 'month') {
+    // 1st of the current month → today
+    return { from: iso(new Date(to.getFullYear(), to.getMonth(), 1)), to: iso(to) }
+  }
   const from = new Date()
   const months = preset === '1m' ? 1 : preset === '3m' ? 3 : preset === '6m' ? 6 : 12
   from.setMonth(from.getMonth() - months)
@@ -141,8 +145,8 @@ function Breakdown({ s }: { s: ProfitSummary }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-export default function ProfitabilityClient({ lines, setupNeeded = false }: Props) {
-  const [preset, setPreset] = useState<Preset>('1m')
+export default function ProfitabilityClient({ lines }: Props) {
+  const [preset, setPreset] = useState<Preset>('month')
   const [customFrom, setCustomFrom] = useState(() => iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
   const [customTo, setCustomTo] = useState(() => iso(new Date()))
 
@@ -152,7 +156,11 @@ export default function ProfitabilityClient({ lines, setupNeeded = false }: Prop
     () => summarize(lines, range.from, range.to),
     [lines, range.from, range.to],
   )
-  const months = useMemo(() => monthlyHistory(lines), [lines])
+  // History shows only COMPLETED months (current month lives in the cards above)
+  const months = useMemo(() => {
+    const currentKey = iso(new Date()).slice(0, 7)
+    return monthlyHistory(lines).filter(m => m.month < currentKey)
+  }, [lines])
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
@@ -162,23 +170,6 @@ export default function ProfitabilityClient({ lines, setupNeeded = false }: Prop
         <h1 className="text-heading" style={{ color: 'var(--text)' }}>Profitability</h1>
         <p className="text-caption">Expected vs actual earnings — inwards, outwards and what&apos;s outstanding</p>
       </div>
-
-      {/* Migration-not-run notice */}
-      {setupNeeded && (
-        <div
-          className="card p-4 flex items-start gap-3 text-sm"
-          style={{ background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.3)' }}
-        >
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#F59E0B' }} />
-          <div style={{ color: 'var(--text)' }}>
-            <p className="font-medium">One-time setup needed</p>
-            <p style={{ color: 'var(--text-muted)' }}>
-              Run <code>supabase/migration_v31_profitability.sql</code> in your Supabase SQL Editor,
-              then refresh this page.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Filter bar */}
       <div className="card p-3 space-y-3">
@@ -219,6 +210,32 @@ export default function ProfitabilityClient({ lines, setupNeeded = false }: Prop
         </p>
       </div>
 
+      {/* Hero: earned vs should-have, and how deep/high you are */}
+      <div className="card p-4 flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div>
+          <p className="text-caption">{preset === 'month' ? 'This month till date — earned' : 'Earned (actual net)'}</p>
+          <p
+            className="text-display"
+            style={{ color: summary.actualNet >= 0 ? 'var(--income)' : 'var(--expense)' }}
+          >
+            {fmt(summary.actualNet)}
+          </p>
+        </div>
+        <div>
+          <p className="text-caption">Should have (expected net)</p>
+          <p
+            className="text-heading"
+            style={{ color: summary.expectedNet >= 0 ? 'var(--income)' : 'var(--expense)' }}
+          >
+            {fmt(summary.expectedNet)}
+          </p>
+        </div>
+        <div>
+          <p className="text-caption">Still outstanding</p>
+          <p className="text-heading" style={{ color: 'var(--text)' }}>{fmt(summary.outstandingNet)}</p>
+        </div>
+      </div>
+
       {/* Side-by-side summary */}
       <SummaryCards s={summary} />
 
@@ -229,7 +246,7 @@ export default function ProfitabilityClient({ lines, setupNeeded = false }: Prop
       <div className="space-y-3">
         <div>
           <h2 className="text-heading" style={{ color: 'var(--text)' }}>Monthly profitability</h2>
-          <p className="text-caption">1st → last day of each month, newest first</p>
+          <p className="text-caption">Completed months only, newest first</p>
         </div>
 
         {/* Desktop table */}

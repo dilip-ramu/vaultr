@@ -23,6 +23,76 @@ export interface ProfitLine {
 
 export type SourceBreakdown = Record<Exclude<ProfitSource, 'actual'>, number>
 
+// ── Raw row shapes (used only by the fallback path when the RPC is absent) ──
+
+export interface RawTxn {
+  id: string
+  type: 'expense' | 'income' | 'transfer'
+  amount: number
+  date: string
+  bill_id: string | null
+  supplier_invoice_id: string | null
+  supplier_payment_batch_id: string | null
+  contrast_invoice_id: string | null
+  is_contrast_billed: boolean
+}
+
+export interface RawProfitData {
+  transactions: RawTxn[]
+  customerInvoices: { total: number; status: string; invoice_date: string; due_date: string | null; transaction_id: string | null }[]
+  commissionStyles: { commission_inr: number; order_status: string; expected_payment_date: string | null; linked_transaction_id: string | null; order_date: string | null }[]
+  commissionOrderTxnIds: (string | null)[]
+  payrollMonths: { id: string; payroll_month: string; payment_date: string | null; received_inr: number; income_transaction_id: string | null; forex_transaction_id: string | null }[]
+  payrollEntries: { payroll_month_id: string; final_payable: number; transaction_id: string | null }[]
+  supplierInvoices: { amount: number; invoice_date: string; due_date: string | null }[]
+}
+
+/** Build profit lines in JS — fallback when get_profitability_lines() RPC
+ *  hasn't been created in the database yet. Mirrors migration_v31 exactly. */
+export function linesFromRaw(data: RawProfitData): ProfitLine[] {
+  const lines: ProfitLine[] = []
+  const push = (kind: ProfitLine['kind'], side: ProfitLine['side'], source: ProfitSource, day: string | null, amount: number) => {
+    if (day && amount) lines.push({ kind, side, source, day, amount })
+  }
+
+  // Transaction ids already represented by a document
+  const linked = new Set<string>()
+  const mark = (v: string | null) => { if (v) linked.add(v) }
+  for (const i of data.customerInvoices) mark(i.transaction_id)
+  for (const s of data.commissionStyles) mark(s.linked_transaction_id)
+  for (const id of data.commissionOrderTxnIds) mark(id)
+  for (const pm of data.payrollMonths) { mark(pm.income_transaction_id); mark(pm.forex_transaction_id) }
+  for (const pe of data.payrollEntries) mark(pe.transaction_id)
+
+  for (const i of data.customerInvoices) {
+    if (i.status !== 'cancelled') push('expected', 'income', 'customerInvoices', i.due_date ?? i.invoice_date, i.total)
+  }
+  for (const s of data.commissionStyles) {
+    if (s.order_status !== 'cancelled') push('expected', 'income', 'commission', s.expected_payment_date ?? s.order_date, s.commission_inr)
+  }
+  const pmById = new Map(data.payrollMonths.map(pm => [pm.id, pm]))
+  for (const pm of data.payrollMonths) {
+    push('expected', 'income', 'payrollIncome', pm.payment_date ?? `${pm.payroll_month}-01`, pm.received_inr)
+  }
+  for (const pe of data.payrollEntries) {
+    const pm = pmById.get(pe.payroll_month_id)
+    if (pm) push('expected', 'expense', 'payrollSalaries', pm.payment_date ?? `${pm.payroll_month}-01`, pe.final_payable)
+  }
+  for (const i of data.supplierInvoices) {
+    push('expected', 'expense', 'supplierInvoices', i.due_date ?? i.invoice_date, i.amount)
+  }
+  for (const t of data.transactions) {
+    if (t.type === 'transfer') continue
+    push('actual', t.type, 'actual', t.date, t.amount)
+    const isLinked = linked.has(t.id) || !!(t.bill_id || t.supplier_invoice_id || t.supplier_payment_batch_id || t.contrast_invoice_id || t.is_contrast_billed)
+    if (!isLinked) {
+      push('expected', t.type, t.type === 'income' ? 'directIncome' : 'directExpense', t.date, t.amount)
+    }
+  }
+
+  return lines
+}
+
 export interface ProfitSummary {
   expectedIncome: number
   expectedExpense: number
