@@ -5,6 +5,16 @@ export async function getNextInvoiceNumber(
   supabase: SupabaseClient<any, any, any>,
   userId: string,
 ): Promise<string> {
+  // Fast path: atomic claim inside Postgres (migration_v33). A single
+  // UPDATE...RETURNING means two simultaneous invoice creations can never
+  // receive the same number.
+  const { data: claimed, error: rpcError } = await supabase.rpc('claim_invoice_number')
+  if (!rpcError && typeof claimed === 'string' && claimed.length > 0) {
+    return claimed
+  }
+
+  // Fallback (migration not run yet): read-then-increment.
+  // NOTE: not race-safe — kept only so the app works before v33 is applied.
   // Ensure the settings row exists with defaults; ignore if it already exists.
   await supabase
     .from('recoverable_invoice_settings')
