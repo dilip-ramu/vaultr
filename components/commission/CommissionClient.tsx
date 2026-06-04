@@ -4,8 +4,8 @@ import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Plus, Upload, FileText, CheckCircle2, Clock, TrendingUp,
-  RotateCcw, Square, CheckSquare, X, ChevronDown, ChevronRight,
-  AlertCircle,
+  RotateCcw, Square, CheckSquare, X, AlertCircle, Trash2,
+  ChevronUp, ChevronDown,
 } from 'lucide-react'
 import type { CommissionOrder, CommissionStyle, OrderStatus, Customer, Account } from '@/lib/types'
 import { ORDER_STATUS_LABELS, PAYMENT_TERM_DAYS } from '@/lib/types'
@@ -22,6 +22,18 @@ interface Props {
   accounts: Account[]
 }
 
+// Flat row — one per style, carrying relevant order fields for display
+interface StyleRow extends CommissionStyle {
+  order: CommissionOrder
+  customerName: string
+  clientName: string | null
+  poNumber: string | null
+  currency: string
+  exchangeRate: number | null
+}
+
+type SortKey = 'po_number' | 'style_ref' | 'customer' | 'etd' | 'commission_inr' | 'order_status' | 'order_date'
+
 function fmtForeign(n: number, currency: string) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(n)
 }
@@ -35,14 +47,13 @@ const STATUS_PILL: Record<OrderStatus, string> = {
 }
 
 // ── Bulk receive modal ────────────────────────────────────────────────────────
-function BulkReceiveModal({ styles, orders, accounts, onDone, onClose }: {
-  styles: CommissionStyle[]
-  orders: CommissionOrder[]
+function BulkReceiveModal({ rows, accounts, onDone, onClose }: {
+  rows: StyleRow[]
   accounts: Account[]
-  onDone: (updatedStyles: CommissionStyle[], txnId: string) => void
+  onDone: (updatedStyles: CommissionStyle[]) => void
   onClose: () => void
 }) {
-  const expectedTotal = styles.reduce((s, x) => s + x.commission_inr, 0)
+  const expectedTotal = rows.reduce((s, r) => s + r.commission_inr, 0)
   const [accountId,    setAccountId]    = useState(accounts[0]?.id ?? '')
   const [actualAmount, setActualAmount] = useState(expectedTotal.toFixed(2))
   const [receiveDate,  setReceiveDate]  = useState(new Date().toISOString().split('T')[0])
@@ -61,15 +72,12 @@ function BulkReceiveModal({ styles, orders, accounts, onDone, onClose }: {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Build notes with style breakdown
-    const lines = styles.map(s => {
-      const order = orders.find(o => o.id === s.order_id)
-      const cust  = order?.customer as Customer | undefined
-      return `${cust?.name ?? '—'} | ${order?.order_number ?? '—'} | ${s.style_ref ?? '—'} | ₹${s.commission_inr.toFixed(2)}`
-    }).join('\n')
+    const lines = rows.map(r =>
+      `${r.customerName} | ${r.poNumber ?? '—'} | ${r.style_ref ?? '—'} | ₹${r.commission_inr.toFixed(2)}`
+    ).join('\n')
 
     const txnNotes = [
-      `Commission: ${styles.length} style(s)`,
+      `Commission: ${rows.length} style(s)`,
       notes.trim() || null,
       `Expected ₹${expectedTotal.toFixed(2)}${Math.abs(adjustment) > 0.01 ? ` | Adj ₹${adjustment.toFixed(2)}` : ''}`,
       '---', lines,
@@ -85,14 +93,11 @@ function BulkReceiveModal({ styles, orders, accounts, onDone, onClose }: {
     const { error: upErr } = await supabase
       .from('commission_styles')
       .update({ order_status: 'received', received_date: receiveDate, linked_transaction_id: txn.id })
-      .in('id', styles.map(s => s.id))
+      .in('id', rows.map(r => r.id))
 
     if (upErr) { setError(upErr.message); setSaving(false); return }
 
-    const updated = styles.map(s => ({
-      ...s, order_status: 'received' as const, received_date: receiveDate, linked_transaction_id: txn.id,
-    }))
-    onDone(updated, txn.id)
+    onDone(rows.map(r => ({ ...r, order_status: 'received' as const, received_date: receiveDate, linked_transaction_id: txn.id })))
   }
 
   const iStyle = { backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
@@ -106,7 +111,7 @@ function BulkReceiveModal({ styles, orders, accounts, onDone, onClose }: {
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
           <div>
             <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Mark as received</h2>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{styles.length} style{styles.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{rows.length} style{rows.length !== 1 ? 's' : ''}</p>
           </div>
           <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl"
             style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
@@ -115,11 +120,7 @@ function BulkReceiveModal({ styles, orders, accounts, onDone, onClose }: {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4" style={{ overscrollBehavior: 'contain' }}>
-          {error && (
-            <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">
-              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-            </div>
-          )}
+          {error && <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
 
           <div className="rounded-xl px-4 py-3" style={{ background: 'var(--surface-2)' }}>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Expected commission</p>
@@ -154,19 +155,14 @@ function BulkReceiveModal({ styles, orders, accounts, onDone, onClose }: {
               placeholder="Reference, bank, etc." className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none" style={iStyle} />
           </div>
 
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Styles being settled</p>
-            {styles.map(s => {
-              const order = orders.find(o => o.id === s.order_id)
-              const cust  = order?.customer as Customer | undefined
-              return (
-                <div key={s.id} className="flex justify-between text-xs rounded-lg px-3 py-2"
-                     style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
-                  <span>{cust?.name ?? '—'} · {order?.order_number ?? '—'} · {s.style_ref ?? '—'}</span>
-                  <span>{formatCurrency(s.commission_inr)}</span>
-                </div>
-              )
-            })}
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {rows.map(r => (
+              <div key={r.id} className="flex justify-between text-xs rounded-lg px-3 py-2"
+                   style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+                <span>{r.customerName} · {r.poNumber ?? '—'} · <span className="font-mono">{r.style_ref ?? '—'}</span></span>
+                <span>{formatCurrency(r.commission_inr)}</span>
+              </div>
+            ))}
           </div>
 
           <div className="flex gap-3 pb-2">
@@ -184,6 +180,23 @@ function BulkReceiveModal({ styles, orders, accounts, onDone, onClose }: {
   )
 }
 
+// ── Sort header ───────────────────────────────────────────────────────────────
+function SortTh({ label, sortKey, current, dir, onSort }: {
+  label: string; sortKey: SortKey; current: SortKey; dir: 'asc' | 'desc'; onSort: (k: SortKey) => void
+}) {
+  const active = current === sortKey
+  return (
+    <th className="text-left px-3 py-2 cursor-pointer select-none whitespace-nowrap"
+        style={{ color: active ? 'var(--brand)' : 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+        onClick={() => onSort(sortKey)}>
+      <span className="flex items-center gap-1">
+        {label}
+        {active ? (dir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : null}
+      </span>
+    </th>
+  )
+}
+
 // ── Main client ───────────────────────────────────────────────────────────────
 export default function CommissionClient({ initialOrders, customers, accounts }: Props) {
   const [orders,     setOrders]     = useState<CommissionOrder[]>(initialOrders)
@@ -191,52 +204,182 @@ export default function CommissionClient({ initialOrders, customers, accounts }:
   const [editOrder,  setEditOrder]  = useState<CommissionOrder | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [customerFilter, setCustomerFilter] = useState('all')
-  const [selectedStyleIds, setSelectedStyleIds] = useState<Set<string>>(new Set())
-  const [showBulkReceive,  setShowBulkReceive]  = useState(false)
-  const [expandedOrders,   setExpandedOrders]   = useState<Set<string>>(new Set())
-  const [showDoneOrders,   setShowDoneOrders]   = useState(false)
+  const [statusFilter,   setStatusFilter]   = useState<'all' | 'active' | 'received'>('active')
+  const [selected,   setSelected]   = useState<Set<string>>(new Set())
+  const [showBulkReceive, setShowBulkReceive] = useState(false)
+  const [sortKey,    setSortKey]    = useState<SortKey>('order_date')
+  const [sortDir,    setSortDir]    = useState<'asc' | 'desc'>('desc')
 
-  const filtered = useMemo(() =>
-    customerFilter === 'all' ? orders : orders.filter(o => o.customer_id === customerFilter)
-  , [orders, customerFilter])
+  // Flatten all styles into a single list with order context
+  const allRows = useMemo<StyleRow[]>(() => {
+    return orders.flatMap(order => {
+      const customerName = (order.customer as Customer | undefined)?.name ?? '—'
+      return (order.styles ?? []).map(s => ({
+        ...s,
+        order,
+        customerName,
+        clientName:   order.client_name ?? null,
+        poNumber:     order.order_number ?? null,
+        currency:     order.currency,
+        exchangeRate: order.exchange_rate ?? null,
+      }))
+    })
+  }, [orders])
 
-  // All styles across all filtered orders
-  const allStyles = useMemo(() =>
-    filtered.flatMap(o => (o.styles ?? []).map(s => ({ ...s, order_id: o.id })))
-  , [filtered])
+  const filtered = useMemo(() => {
+    return allRows.filter(r => {
+      if (customerFilter !== 'all' && r.order.customer_id !== customerFilter) return false
+      if (statusFilter === 'active'   && r.order_status === 'received')   return false
+      if (statusFilter === 'received' && r.order_status !== 'received')   return false
+      return true
+    })
+  }, [allRows, customerFilter, statusFilter])
 
-  const activeStyles   = allStyles.filter(s => !['received','cancelled'].includes(s.order_status))
-  const receivedStyles = allStyles.filter(s => s.order_status === 'received')
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let av: string | number = '', bv: string | number = ''
+      if (sortKey === 'po_number')      { av = a.poNumber ?? ''; bv = b.poNumber ?? '' }
+      if (sortKey === 'style_ref')      { av = a.style_ref ?? ''; bv = b.style_ref ?? '' }
+      if (sortKey === 'customer')       { av = a.customerName; bv = b.customerName }
+      if (sortKey === 'etd')            { av = a.etd ?? ''; bv = b.etd ?? '' }
+      if (sortKey === 'commission_inr') { av = a.commission_inr; bv = b.commission_inr }
+      if (sortKey === 'order_status')   { av = a.order_status; bv = b.order_status }
+      if (sortKey === 'order_date')     { av = a.order.order_date; bv = b.order.order_date }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [filtered, sortKey, sortDir])
 
-  // Orders that have at least one non-cancelled, non-received style
-  const activeOrders = filtered.filter(o =>
-    (o.styles ?? []).some(s => !['received','cancelled'].includes(s.order_status))
-  )
-  // Orders where all non-cancelled styles are received
-  const doneOrders = filtered.filter(o => {
-    const styles = o.styles ?? []
-    const nonCancelled = styles.filter(s => s.order_status !== 'cancelled')
-    return nonCancelled.length > 0 && nonCancelled.every(s => s.order_status === 'received')
-  })
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
 
-  const totalPending  = activeStyles.reduce((s, x) => s + x.commission_inr, 0)
-  const totalReceived = receivedStyles.reduce((s, x) => s + x.commission_inr, 0)
+  const totalPending  = allRows.filter(r => r.order_status !== 'received' && r.order_status !== 'cancelled').reduce((s, r) => s + r.commission_inr, 0)
+  const totalReceived = allRows.filter(r => r.order_status === 'received').reduce((s, r) => s + r.commission_inr, 0)
   const thisMonth = useMemo(() => {
     const now = new Date(), y = now.getFullYear(), m = now.getMonth()
-    return receivedStyles.filter(s => {
-      if (!s.received_date) return false
-      const d = new Date(s.received_date)
+    return allRows.filter(r => {
+      if (r.order_status !== 'received' || !r.received_date) return false
+      const d = new Date(r.received_date)
       return d.getFullYear() === y && d.getMonth() === m
-    }).reduce((s, x) => s + x.commission_inr, 0)
-  }, [receivedStyles])
+    }).reduce((s, r) => s + r.commission_inr, 0)
+  }, [allRows])
 
-  const selectedStyles = allStyles.filter(s => selectedStyleIds.has(s.id))
+  const selectedRows = sorted.filter(r => selected.has(r.id))
+  const allSelected  = sorted.length > 0 && sorted.every(r => selected.has(r.id))
 
-  const toggleStyle = (id: string) =>
-    setSelectedStyleIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleRow = (id: string) =>
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
-  const toggleOrder = (orderId: string) =>
-    setExpandedOrders(prev => { const n = new Set(prev); n.has(orderId) ? n.delete(orderId) : n.add(orderId); return n })
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set())
+    else setSelected(new Set(sorted.map(r => r.id)))
+  }
+
+  const updateStyleInOrders = (updatedStyles: CommissionStyle[]) => {
+    const map = new Map(updatedStyles.map(s => [s.id, s]))
+    setOrders(prev => prev.map(o => ({
+      ...o, styles: (o.styles ?? []).map(s => map.has(s.id) ? { ...s, ...map.get(s.id)! } : s),
+    })))
+  }
+
+  const handleStatusChange = async (row: StyleRow, newStatus: OrderStatus) => {
+    const supabase = createClient()
+    const today = new Date().toISOString().split('T')[0]
+    const termDays = row.order.payment_term ? PAYMENT_TERM_DAYS[row.order.payment_term] : null
+    const update: Partial<CommissionStyle> = {
+      order_status:  newStatus,
+      shipped_date:  newStatus === 'shipped' ? today : undefined,
+      expected_payment_date: newStatus === 'shipped' && termDays
+        ? new Date(Date.now() + termDays * 86400000).toISOString().split('T')[0]
+        : undefined,
+    }
+    await supabase.from('commission_styles').update(update).eq('id', row.id)
+    updateStyleInOrders([{ ...row, ...update }])
+  }
+
+  const handleUnreceive = async (row: StyleRow) => {
+    if (!confirm('Undo received? This deletes the linked transaction for this style.')) return
+    const supabase = createClient()
+    if (row.linked_transaction_id) {
+      await supabase.from('transactions').delete().eq('id', row.linked_transaction_id)
+    }
+    await supabase.from('commission_styles')
+      .update({ order_status: 'shipped', received_date: null, linked_transaction_id: null })
+      .eq('id', row.id)
+    updateStyleInOrders([{ ...row, order_status: 'shipped', received_date: null, linked_transaction_id: null }])
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Delete ${selectedRows.length} style${selectedRows.length !== 1 ? 's' : ''}? This cannot be undone.`)) return
+    const supabase = createClient()
+    const ids = selectedRows.map(r => r.id)
+    await supabase.from('commission_styles').delete().in('id', ids)
+    // Also delete any orders that now have zero styles
+    const affectedOrderIds = [...new Set(selectedRows.map(r => r.order_id))]
+    setOrders(prev => {
+      const next = prev.map(o => {
+        if (!affectedOrderIds.includes(o.id)) return o
+        return { ...o, styles: (o.styles ?? []).filter(s => !ids.includes(s.id)) }
+      })
+      return next.filter(o => (o.styles ?? []).length > 0)
+    })
+    setSelected(new Set())
+  }
+
+  const handleBulkReceiveDone = (updatedStyles: CommissionStyle[]) => {
+    updateStyleInOrders(updatedStyles)
+    setSelected(new Set())
+    setShowBulkReceive(false)
+  }
+
+  const handleBulkPDF = () => {
+    const rowsToPrint = allRows.filter(r => r.order_status !== 'cancelled')
+    const total = rowsToPrint.reduce((s, r) => s + r.commission_inr, 0)
+    const w = window.open('', '_blank', 'width=900,height=700')
+    if (!w) return
+    const rows = rowsToPrint.map(r => `
+      <tr>
+        <td>${r.customerName}</td>
+        <td>${r.clientName ?? '—'}</td>
+        <td>${r.poNumber ?? '—'}</td>
+        <td class="mono">${r.style_ref ?? '—'}</td>
+        <td style="text-align:right">${r.quantity.toLocaleString()}</td>
+        <td style="text-align:right">${r.currency !== 'INR' ? fmtForeign(r.rate_per_piece, r.currency) : formatCurrency(r.rate_per_piece)}</td>
+        <td style="text-align:right">${r.commission_percentage ? r.commission_percentage + '%' : '—'}</td>
+        <td style="text-align:right">${formatCurrency(r.commission_inr)}</td>
+        <td>${r.etd ? formatDate(r.etd) : '—'}</td>
+        <td>${ORDER_STATUS_LABELS[r.order_status]}</td>
+      </tr>`).join('')
+    w.document.write(`<!DOCTYPE html><html><head><title>Commission Summary</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:24px;font-size:12px;color:#111}
+  h1{font-size:16px;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:6px 8px;border:1px solid #e5e7eb;text-align:left;font-size:11px}
+  th{background:#f9fafb;font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:.05em}
+  tfoot td{font-weight:700;background:#f0fdf4}
+  .mono{font-family:monospace}
+  @media print{body{margin:0}}
+</style></head><body>
+<h1>Commission summary — ${new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</h1>
+<table>
+  <thead><tr>
+    <th>Customer</th><th>Client</th><th>PO</th><th>Style</th>
+    <th style="text-align:right">Qty</th><th style="text-align:right">Rate</th>
+    <th style="text-align:right">Comm%</th><th style="text-align:right">INR</th>
+    <th>ETD</th><th>Status</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+  <tfoot><tr><td colspan="7" style="font-weight:700">Grand total</td>
+    <td style="text-align:right">${formatCurrency(total)}</td><td colspan="2"></td></tr></tfoot>
+</table>
+</body></html>`)
+    w.document.close(); w.focus()
+    setTimeout(() => w.print(), 400)
+  }
 
   const handleOrderSaved = (order: CommissionOrder) => {
     setOrders(prev => {
@@ -249,215 +392,24 @@ export default function CommissionClient({ initialOrders, customers, accounts }:
   const handleImported = (newOrders: CommissionOrder[]) => {
     setOrders(prev => {
       const existingIds = new Set(prev.map(o => o.id))
-      const toAdd = newOrders.filter(o => !existingIds.has(o.id))
-      const updated = prev.map(o => {
-        const imported = newOrders.find(n => n.id === o.id)
-        return imported ?? o
-      })
-      return [...toAdd, ...updated]
+      return [...newOrders.filter(o => !existingIds.has(o.id)), ...prev]
     })
     setShowImport(false)
   }
 
-  const handleBulkDone = (updatedStyles: CommissionStyle[]) => {
-    const idMap = new Map(updatedStyles.map(s => [s.id, s]))
-    setOrders(prev => prev.map(o => ({
-      ...o,
-      styles: (o.styles ?? []).map(s => idMap.has(s.id) ? idMap.get(s.id)! : s),
-    })))
-    setSelectedStyleIds(new Set())
-    setShowBulkReceive(false)
-  }
-
-  const handleStatusChange = async (orderId: string, styleId: string, newStatus: OrderStatus) => {
-    const supabase = createClient()
-    const today = new Date().toISOString().split('T')[0]
-    const order = orders.find(o => o.id === orderId)
-    const style = (order?.styles ?? []).find(s => s.id === styleId)
-    const termDays = order?.payment_term ? PAYMENT_TERM_DAYS[order.payment_term] : null
-
-    const update: Partial<CommissionStyle> = {
-      order_status: newStatus,
-      shipped_date: newStatus === 'shipped' ? today : undefined,
-      expected_payment_date: newStatus === 'shipped' && termDays
-        ? new Date(Date.now() + termDays * 86400000).toISOString().split('T')[0]
-        : undefined,
-    }
-    await supabase.from('commission_styles').update(update).eq('id', styleId)
-    setOrders(prev => prev.map(o =>
-      o.id !== orderId ? o : {
-        ...o,
-        styles: (o.styles ?? []).map(s => s.id === styleId ? { ...s, ...update } : s),
-      }
-    ))
-  }
-
-  const handleUnreceiveStyle = async (orderId: string, styleId: string) => {
-    if (!confirm('Undo received? This will delete the linked transaction for this style.')) return
-    const supabase = createClient()
-    const style = orders.find(o => o.id === orderId)?.styles?.find(s => s.id === styleId)
-    if (style?.linked_transaction_id) {
-      await supabase.from('transactions').delete().eq('id', style.linked_transaction_id)
-    }
-    await supabase.from('commission_styles')
-      .update({ order_status: 'shipped', received_date: null, linked_transaction_id: null })
-      .eq('id', styleId)
-    setOrders(prev => prev.map(o =>
-      o.id !== orderId ? o : {
-        ...o,
-        styles: (o.styles ?? []).map(s =>
-          s.id === styleId ? { ...s, order_status: 'shipped', received_date: null, linked_transaction_id: null } : s
-        ),
-      }
-    ))
-  }
-
-  const handleBulkPDF = () => {
-    const ordersToprint = filtered.filter(o => (o.styles ?? []).length > 0)
-    const w = window.open('', '_blank', 'width=900,height=700')
-    if (!w) return
-
-    const orderSections = ordersToprint.map(order => {
-      const customer = order.customer as Customer | undefined
-      const styles = (order.styles ?? []).filter(s => s.order_status !== 'cancelled')
-      const totalInr = styles.reduce((s, x) => s + x.commission_inr, 0)
-      const isForeign = order.currency !== 'INR'
-
-      const rows = styles.map(s => `
-        <tr>
-          <td>${s.style_ref ?? '—'}</td>
-          <td style="text-align:right">${s.quantity.toLocaleString()}</td>
-          <td style="text-align:right">${isForeign ? fmtForeign(s.rate_per_piece, order.currency) : formatCurrency(s.rate_per_piece)}</td>
-          <td style="text-align:right">${isForeign ? fmtForeign(s.total_value, order.currency) : formatCurrency(s.total_value)}</td>
-          <td style="text-align:right">${s.commission_percentage ? s.commission_percentage + '%' : '—'}</td>
-          <td style="text-align:right">${formatCurrency(s.commission_inr)}</td>
-          <td style="text-align:center">${s.etd ? formatDate(s.etd) : '—'}</td>
-          <td style="text-align:center">${ORDER_STATUS_LABELS[s.order_status]}</td>
-        </tr>`).join('')
-
-      return `
-        <div class="order">
-          <h2>${customer?.name ?? '—'} · ${order.order_number ?? '—'}</h2>
-          <p class="sub">${formatDate(order.order_date)} · ${order.payment_term?.replace(/_/g,' ') ?? '—'}
-            ${isForeign ? ` · 1 ${order.currency} = ₹${order.exchange_rate?.toFixed(4)}` : ''}</p>
-          <table>
-            <thead><tr>
-              <th>Style</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate/pc</th>
-              <th style="text-align:right">Total</th><th style="text-align:right">Comm%</th>
-              <th style="text-align:right">INR</th><th style="text-align:center">ETD</th><th style="text-align:center">Status</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-            <tfoot><tr>
-              <td colspan="5" style="font-weight:700">Order total</td>
-              <td style="text-align:right;font-weight:700">${formatCurrency(totalInr)}</td>
-              <td colspan="2"></td>
-            </tr></tfoot>
-          </table>
-        </div>`
-    }).join('')
-
-    const grandTotal = ordersToprint.reduce((s, o) =>
-      s + (o.styles ?? []).filter(x => x.order_status !== 'cancelled').reduce((ss, x) => ss + x.commission_inr, 0), 0)
-
-    w.document.write(`<!DOCTYPE html><html><head><title>Commission Summary</title>
-<style>
-  body{font-family:Arial,sans-serif;max-width:900px;margin:24px auto;font-size:12px;color:#111}
-  h1{font-size:18px;margin-bottom:2px}
-  h2{font-size:14px;margin:0 0 2px;color:#111}
-  .sub{color:#666;font-size:11px;margin-bottom:8px}
-  .order{margin-bottom:28px;page-break-inside:avoid}
-  table{width:100%;border-collapse:collapse;margin-bottom:4px}
-  th,td{padding:5px 8px;border:1px solid #e5e7eb;font-size:11px}
-  th{background:#f9fafb;font-weight:600;text-transform:uppercase;font-size:9px;letter-spacing:.04em}
-  tfoot td{background:#f0fdf4;font-weight:700}
-  .grand{font-size:14px;font-weight:700;text-align:right;margin-top:12px;padding-top:12px;border-top:2px solid #111}
-  .footer{margin-top:16px;font-size:10px;color:#aaa;border-top:1px solid #e5e7eb;padding-top:8px}
-  @media print{body{margin:12px}.order{page-break-inside:avoid}}
-</style></head><body>
-<h1>Commission summary</h1>
-<p class="sub">${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' })} · ${ordersToprint.length} orders</p>
-${orderSections}
-<p class="grand">Grand total: ${formatCurrency(grandTotal)}</p>
-<div class="footer">Generated by Vaultr · ${new Date().toLocaleDateString('en-IN')}</div>
-</body></html>`)
-    w.document.close(); w.focus()
-    setTimeout(() => w.print(), 400)
-  }
-
-  const handleDeleteOrder = async (orderId: string) => {
-    if (!confirm('Delete this order and all its styles?')) return
-    const supabase = createClient()
-    await supabase.from('commission_orders').delete().eq('id', orderId)
-    setOrders(prev => prev.filter(o => o.id !== orderId))
-  }
-
-  const handlePrintOrder = (order: CommissionOrder) => {
-    const customer = order.customer as Customer | undefined
-    const styles = (order.styles ?? []).filter(s => s.order_status !== 'cancelled')
-    const totalInr = styles.reduce((s, x) => s + x.commission_inr, 0)
-    const w = window.open('', '_blank', 'width=800,height=700')
-    if (!w) return
-    const rows = styles.map(s => `
-      <tr>
-        <td>${s.style_ref ?? '—'}</td>
-        <td style="text-align:right">${s.quantity.toLocaleString()}</td>
-        <td style="text-align:right">${order.currency !== 'INR' ? fmtForeign(s.rate_per_piece, order.currency) : formatCurrency(s.rate_per_piece)}</td>
-        <td style="text-align:right">${order.currency !== 'INR' ? fmtForeign(s.total_value, order.currency) : formatCurrency(s.total_value)}</td>
-        <td style="text-align:right">${s.commission_type === 'percentage' ? s.commission_percentage + '%' : order.currency !== 'INR' ? fmtForeign(s.commission_amount, order.currency) : formatCurrency(s.commission_amount)}</td>
-        <td style="text-align:right">${formatCurrency(s.commission_inr)}</td>
-        <td style="text-align:center">${s.etd ? formatDate(s.etd) : '—'}</td>
-        <td style="text-align:center">${ORDER_STATUS_LABELS[s.order_status]}</td>
-      </tr>`).join('')
-    w.document.write(`<!DOCTYPE html><html><head><title>Commission — ${order.order_number ?? order.id}</title>
-<style>
-  body{font-family:Arial,sans-serif;max-width:800px;margin:32px auto;font-size:13px;color:#111}
-  h1{font-size:18px;margin-bottom:2px}
-  .sub{color:#666;font-size:12px;margin-bottom:20px}
-  table{width:100%;border-collapse:collapse;margin-top:12px}
-  th,td{padding:7px 10px;border:1px solid #e5e7eb;font-size:12px}
-  th{background:#f9fafb;font-weight:600;text-transform:uppercase;font-size:10px;letter-spacing:.04em}
-  tfoot td{font-weight:700;background:#f0fdf4}
-  .footer{margin-top:24px;font-size:11px;color:#aaa;border-top:1px solid #e5e7eb;padding-top:10px}
-  @media print{body{margin:16px}}
-</style></head><body>
-<h1>Commission note</h1>
-<p class="sub">
-  ${customer?.name ?? '—'} · Order ${order.order_number ?? '—'} · ${formatDate(order.order_date)}<br>
-  Payment term: ${order.payment_term?.replace(/_/g,' ') ?? '—'}
-  ${order.currency !== 'INR' ? ` · Rate: 1 ${order.currency} = ₹${order.exchange_rate?.toFixed(4)}` : ''}
-</p>
-<table>
-  <thead><tr>
-    <th>Style</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate/pc</th>
-    <th style="text-align:right">Total</th><th style="text-align:right">Commission</th>
-    <th style="text-align:right">INR</th><th style="text-align:center">ETD</th><th style="text-align:center">Status</th>
-  </tr></thead>
-  <tbody>${rows}</tbody>
-  <tfoot><tr>
-    <td colspan="5">Total commission</td>
-    <td style="text-align:right">${formatCurrency(totalInr)}</td>
-    <td colspan="2"></td>
-  </tr></tfoot>
-</table>
-<div class="footer">Generated by Vaultr · ${new Date().toLocaleDateString('en-IN')}</div>
-</body></html>`)
-    w.document.close(); w.focus()
-    setTimeout(() => w.print(), 400)
-  }
-
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6">
+    <div className="max-w-5xl mx-auto px-4 py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Commission</h1>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{orders.length} orders</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{allRows.length} styles · {orders.length} orders</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <button onClick={handleBulkPDF}
             className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border transition-all"
             style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}>
-            <FileText className="w-4 h-4" /> All PDF
+            <FileText className="w-4 h-4" /> PDF
           </button>
           <button onClick={() => setShowImport(true)}
             className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border transition-all"
@@ -487,8 +439,15 @@ ${orderSections}
         ))}
       </div>
 
-      {/* Filter + bulk bar */}
+      {/* Filters */}
       <div className="flex gap-2 mb-3 flex-wrap items-center">
+        {(['all', 'active', 'received'] as const).map(f => (
+          <button key={f} onClick={() => setStatusFilter(f)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${statusFilter === f ? 'bg-brand-500 text-white border-transparent' : ''}`}
+            style={statusFilter !== f ? { borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-muted)' } : {}}>
+            {f === 'all' ? 'All' : f === 'active' ? 'Active' : 'Received'}
+          </button>
+        ))}
         <select value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}
           className="px-3 py-1.5 rounded-xl text-xs font-medium border"
           style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }}>
@@ -497,77 +456,151 @@ ${orderSections}
         </select>
       </div>
 
-      {selectedStyleIds.size > 0 && (
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
         <div className="flex items-center gap-2 mb-3 px-4 py-2.5 rounded-xl border"
              style={{ background: 'var(--brand-light)', borderColor: 'var(--brand)' }}>
           <span className="text-xs font-medium flex-1" style={{ color: 'var(--brand)' }}>
-            {selectedStyleIds.size} style{selectedStyleIds.size !== 1 ? 's' : ''} · {formatCurrency(selectedStyles.reduce((s, x) => s + x.commission_inr, 0))}
+            {selected.size} selected · {formatCurrency(selectedRows.reduce((s, r) => s + r.commission_inr, 0))}
           </span>
-          <button onClick={() => setShowBulkReceive(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500 text-white">
-            <CheckCircle2 className="w-3 h-3" /> Mark received
+          {selectedRows.some(r => r.order_status === 'shipped') && (
+            <button onClick={() => setShowBulkReceive(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500 text-white">
+              <CheckCircle2 className="w-3 h-3" /> Mark received
+            </button>
+          )}
+          <button onClick={handleBulkDelete}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white">
+            <Trash2 className="w-3 h-3" /> Delete
           </button>
-          <button onClick={() => setSelectedStyleIds(new Set())}
+          <button onClick={() => setSelected(new Set())}
             className="w-7 h-7 flex items-center justify-center rounded-lg" style={{ color: 'var(--brand)' }}>
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Active orders */}
-      {filtered.length === 0 ? (
+      {/* Table */}
+      {sorted.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--surface-2)' }}>
             <TrendingUp className="w-7 h-7" style={{ color: 'var(--text-muted)' }} />
           </div>
-          <p className="font-medium" style={{ color: 'var(--text-muted)' }}>No commission orders yet</p>
+          <p className="font-medium" style={{ color: 'var(--text-muted)' }}>No styles yet</p>
           <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>Add an order or import from CSV</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {activeOrders.map(order => (
-            <OrderCard key={order.id} order={order} orders={orders}
-              expanded={expandedOrders.has(order.id)}
-              onToggleExpand={() => toggleOrder(order.id)}
-              selectedStyleIds={selectedStyleIds}
-              onToggleStyle={toggleStyle}
-              onStatusChange={handleStatusChange}
-              onMarkReceived={styleId => { setSelectedStyleIds(new Set([styleId])); setShowBulkReceive(true) }}
-              onEdit={() => { setEditOrder(order); setShowForm(true) }}
-              onDelete={() => handleDeleteOrder(order.id)}
-              onPrint={() => handlePrintOrder(order)}
-            />
-          ))}
+        <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ background: 'var(--surface)' }}>
+              <thead style={{ background: 'var(--surface-2)', borderBottom: '0.5px solid var(--border)' }}>
+                <tr>
+                  <th className="px-3 py-2 w-8">
+                    <button onClick={toggleAll} style={{ color: allSelected ? 'var(--brand)' : 'var(--text-faint)' }}>
+                      {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    </button>
+                  </th>
+                  <SortTh label="Style"    sortKey="style_ref"      current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="PO"       sortKey="po_number"      current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="Customer" sortKey="customer"       current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <th className="text-left px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Client</th>
+                  <th className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Qty</th>
+                  <th className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Rate</th>
+                  <SortTh label="Commission" sortKey="commission_inr" current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="ETD"      sortKey="etd"            current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortTh label="Status"   sortKey="order_status"   current={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <th className="px-3 py-2 w-8" />
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((row, idx) => {
+                  const isSelected  = selected.has(row.id)
+                  const isReceived  = row.order_status === 'received'
+                  const isCancelled = row.order_status === 'cancelled'
+                  const isForeign   = row.currency !== 'INR'
 
-          {/* Done section */}
-          {doneOrders.length > 0 && (
-            <div>
-              <button onClick={() => setShowDoneOrders(v => !v)}
-                className="flex items-center gap-2 w-full px-1 py-2">
-                {showDoneOrders ? <ChevronDown className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                                : <ChevronRight className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />}
-                <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                  Received orders · {doneOrders.length}
-                </span>
-                <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
-                  {formatCurrency(doneOrders.flatMap(o => o.styles ?? []).reduce((s, x) => s + x.commission_inr, 0))}
-                </span>
-              </button>
-              {showDoneOrders && doneOrders.map(order => (
-                <OrderCard key={order.id} order={order} orders={orders}
-                  expanded={expandedOrders.has(order.id)}
-                  onToggleExpand={() => toggleOrder(order.id)}
-                  selectedStyleIds={new Set()}
-                  onToggleStyle={() => {}}
-                  onStatusChange={handleStatusChange}
-                  onUnreceive={handleUnreceiveStyle}
-                  onEdit={() => { setEditOrder(order); setShowForm(true) }}
-                  onDelete={() => handleDeleteOrder(order.id)}
-                  onPrint={() => handlePrintOrder(order)}
-                />
-              ))}
-            </div>
-          )}
+                  return (
+                    <tr key={row.id}
+                      className="border-t transition-colors"
+                      style={{
+                        borderColor: 'var(--border)',
+                        background: isSelected ? 'var(--brand-light)' : 'var(--surface)',
+                        opacity: isCancelled ? 0.5 : 1,
+                      }}>
+                      <td className="px-3 py-2.5">
+                        <button onClick={() => toggleRow(row.id)}
+                          style={{ color: isSelected ? 'var(--brand)' : 'var(--text-faint)' }}>
+                          {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-sm font-mono" style={{ color: 'var(--text)' }}>{row.style_ref ?? '—'}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <button
+                          onClick={() => { setEditOrder(row.order); setShowForm(true) }}
+                          className="text-xs font-mono hover:underline"
+                          style={{ color: 'var(--brand)' }}>
+                          {row.poNumber ?? '—'}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs" style={{ color: 'var(--text)' }}>{row.customerName}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{row.clientName ?? '—'}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="text-xs" style={{ color: 'var(--text)' }}>{row.quantity.toLocaleString()}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="text-xs" style={{ color: 'var(--text)' }}>
+                          {isForeign ? fmtForeign(row.rate_per_piece, row.currency) : formatCurrency(row.rate_per_piece)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="text-sm font-semibold" style={{ color: isCancelled ? 'var(--text-muted)' : 'var(--text)' }}>
+                          {formatCurrency(row.commission_inr)}
+                        </span>
+                        {isForeign && (
+                          <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                            {fmtForeign(row.commission_amount, row.currency)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs" style={{ color: row.etd ? 'var(--text)' : 'var(--text-faint)' }}>
+                          {row.etd ? formatDate(row.etd) : '—'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {isReceived ? (
+                          <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">Received</span>
+                        ) : (
+                          <select value={row.order_status}
+                            onChange={e => handleStatusChange(row, e.target.value as OrderStatus)}
+                            className={`text-[10px] font-semibold px-2 py-1 rounded-full border-0 outline-none cursor-pointer ${STATUS_PILL[row.order_status]}`}>
+                            {(['backlog','current','shipped','cancelled'] as OrderStatus[]).map(s => (
+                              <option key={s} value={s}>{ORDER_STATUS_LABELS[s]}</option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {isReceived && (
+                          <button onClick={() => handleUnreceive(row)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg"
+                            style={{ color: 'var(--text-muted)' }} title="Undo received">
+                            <RotateCcw className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -579,215 +612,9 @@ ${orderSections}
         <CommissionImport customers={customers} accounts={accounts}
           onImported={handleImported} onClose={() => setShowImport(false)} />
       )}
-      {showBulkReceive && selectedStyles.length > 0 && (
-        <BulkReceiveModal styles={selectedStyles} orders={orders} accounts={accounts}
-          onDone={handleBulkDone} onClose={() => setShowBulkReceive(false)} />
-      )}
-    </div>
-  )
-}
-
-// ── Order card ────────────────────────────────────────────────────────────────
-function OrderCard({ order, orders, expanded, onToggleExpand, selectedStyleIds, onToggleStyle,
-  onStatusChange, onMarkReceived, onUnreceive, onEdit, onDelete, onPrint }: {
-  order: CommissionOrder
-  orders: CommissionOrder[]
-  expanded: boolean
-  onToggleExpand: () => void
-  selectedStyleIds: Set<string>
-  onToggleStyle: (id: string) => void
-  onStatusChange: (orderId: string, styleId: string, status: OrderStatus) => void
-  onMarkReceived?: (styleId: string) => void
-  onUnreceive?: (orderId: string, styleId: string) => void
-  onEdit: () => void
-  onDelete: () => void
-  onPrint: () => void
-}) {
-  const styles     = order.styles ?? []
-  const customer   = order.customer as Customer | undefined
-  const isForeign  = order.currency !== 'INR'
-
-  const statusCounts = styles.reduce((acc, s) => {
-    acc[s.order_status] = (acc[s.order_status] ?? 0) + 1
-    return acc
-  }, {} as Record<OrderStatus, number>)
-
-  const activeStyleTotal = styles
-    .filter(s => !['cancelled','received'].includes(s.order_status))
-    .reduce((s, x) => s + x.commission_inr, 0)
-
-  const shippedStyles = styles.filter(s => s.order_status === 'shipped')
-
-  return (
-    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-      {/* Order header */}
-      <div className="px-4 py-3 cursor-pointer" onClick={onToggleExpand}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{customer?.name ?? '—'}</span>
-              {order.order_number && (
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {order.order_number}
-                </span>
-              )}
-              {order.client_name && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {order.client_name}
-                </span>
-              )}
-              {isForeign && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {order.currency}
-                </span>
-              )}
-              {(['shipped','current','backlog','cancelled','received'] as OrderStatus[]).map(s =>
-                statusCounts[s] ? (
-                  <span key={s} className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_PILL[s]}`}>
-                    {statusCounts[s]} {ORDER_STATUS_LABELS[s].toLowerCase()}
-                  </span>
-                ) : null
-              )}
-            </div>
-            <div className="flex gap-3 mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-              <span>{formatDate(order.order_date)}</span>
-              {order.payment_term && <span>{order.payment_term.replace(/_/g,' ')}</span>}
-              <span>{styles.length} style{styles.length !== 1 ? 's' : ''}</span>
-            </div>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="font-bold text-sm" style={{ color: 'var(--text)' }}>{formatCurrency(activeStyleTotal)}</p>
-            {isForeign && order.exchange_rate && (
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>₹{order.exchange_rate.toFixed(2)}/{order.currency}</p>
-            )}
-          </div>
-          <div style={{ color: 'var(--text-muted)' }}>
-            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </div>
-        </div>
-      </div>
-
-      {/* Expanded: style lines */}
-      {expanded && (
-        <div className="border-t" style={{ borderColor: 'var(--border)' }}>
-          {styles.map((style, idx) => {
-            const isLast      = idx === styles.length - 1
-            const isSelected  = selectedStyleIds.has(style.id)
-            const isReceived  = style.order_status === 'received'
-            const isCancelled = style.order_status === 'cancelled'
-
-            return (
-              <div key={style.id}
-                className={`flex items-center gap-3 px-4 py-2.5 ${!isLast ? 'border-b' : ''}`}
-                style={{ borderColor: 'var(--border)', opacity: isCancelled ? 0.5 : 1 }}>
-
-                {/* Checkbox for non-received, non-cancelled */}
-                {!isReceived && !isCancelled ? (
-                  <button onClick={() => onToggleStyle(style.id)} style={{ color: isSelected ? 'var(--brand)' : 'var(--text-faint)', flexShrink: 0 }}>
-                    {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                  </button>
-                ) : (
-                  <div className="w-4 shrink-0" />
-                )}
-
-                {/* Style info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium font-mono" style={{ color: 'var(--text)' }}>
-                      {style.style_ref ?? '—'}
-                    </span>
-                    {style.etd && (
-                      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        ETD {formatDate(style.etd)}
-                      </span>
-                    )}
-                    {style.expected_payment_date && !isReceived && (
-                      <span className="text-[10px] text-amber-600">
-                        Pay by {formatDate(style.expected_payment_date)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {style.quantity.toLocaleString()} pcs ×{' '}
-                    {isForeign ? fmtForeign(style.rate_per_piece, order.currency) : formatCurrency(style.rate_per_piece)}
-                    {' · '}
-                    {style.commission_type === 'percentage'
-                      ? `${style.commission_percentage}%`
-                      : isForeign ? fmtForeign(style.commission_amount, order.currency) : formatCurrency(style.commission_amount)}
-                  </div>
-                </div>
-
-                {/* Status pill — quick change */}
-                {isReceived ? (
-                  <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700 shrink-0">
-                    Received
-                  </span>
-                ) : (
-                  <select value={style.order_status}
-                    onChange={e => onStatusChange(order.id, style.id, e.target.value as OrderStatus)}
-                    onClick={e => e.stopPropagation()}
-                    className={`text-[10px] font-semibold px-2 py-1 rounded-full border-0 outline-none cursor-pointer shrink-0 ${STATUS_PILL[style.order_status]}`}>
-                    {(['backlog','current','shipped','cancelled'] as OrderStatus[]).map(s => (
-                      <option key={s} value={s}>{ORDER_STATUS_LABELS[s]}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Commission amount */}
-                <div className="text-right shrink-0 min-w-[72px]">
-                  <p className="text-sm font-semibold" style={{ color: isCancelled ? 'var(--text-muted)' : 'var(--text)' }}>
-                    {formatCurrency(style.commission_inr)}
-                  </p>
-                  {isForeign && (
-                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      {fmtForeign(style.commission_amount, order.currency)}
-                    </p>
-                  )}
-                </div>
-
-                {/* Quick actions */}
-                <div className="shrink-0 flex items-center gap-1">
-                  {style.order_status === 'shipped' && onMarkReceived && (
-                    <button onClick={() => onMarkReceived(style.id)}
-                      className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-green-500 text-white">
-                      Receive
-                    </button>
-                  )}
-                  {isReceived && onUnreceive && (
-                    <button onClick={() => onUnreceive(order.id, style.id)}
-                      className="px-2 py-1 rounded-lg text-[10px] bg-amber-50 text-amber-700">
-                      <RotateCcw className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Order actions */}
-          <div className="flex gap-2 px-4 py-2.5 border-t" style={{ borderColor: 'var(--border)' }}>
-            {shippedStyles.length > 0 && (
-              <button
-                onClick={() => {
-                  shippedStyles.forEach(s => onToggleStyle(s.id))
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500 text-white">
-                <CheckCircle2 className="w-3 h-3" /> Select shipped
-              </button>
-            )}
-            <button onClick={onPrint}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-              <FileText className="w-3 h-3" /> PDF
-            </button>
-            <button onClick={onEdit}
-              className="px-3 py-1.5 rounded-lg text-xs"
-              style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>Edit</button>
-            <button onClick={onDelete}
-              className="px-3 py-1.5 rounded-lg text-xs text-red-500"
-              style={{ background: 'var(--surface-2)' }}>Delete</button>
-          </div>
-        </div>
+      {showBulkReceive && selectedRows.length > 0 && (
+        <BulkReceiveModal rows={selectedRows} accounts={accounts}
+          onDone={handleBulkReceiveDone} onClose={() => setShowBulkReceive(false)} />
       )}
     </div>
   )
