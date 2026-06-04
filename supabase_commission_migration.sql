@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS commission_orders (
   payment_term    text,                  -- net_30 | net_15 | etc.
   currency        text NOT NULL DEFAULT 'INR',
   exchange_rate   numeric,               -- market rate: INR per 1 unit of currency
+  client_name     text,                  -- buyer/client name from the CSV (informational)
   notes           text,
   -- set when styles are bulk-received
   received_date           date,

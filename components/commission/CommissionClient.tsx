@@ -631,6 +631,11 @@ function OrderCard({ order, orders, expanded, onToggleExpand, selectedStyleIds, 
                   {order.order_number}
                 </span>
               )}
+              {order.client_name && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                  {order.client_name}
+                </span>
+              )}
               {isForeign && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
                   {order.currency}

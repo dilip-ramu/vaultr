@@ -185,6 +185,7 @@ export interface CommissionOrder {
   payment_term: PaymentTerms | null
   currency: string
   exchange_rate: number | null   // market rate: INR per 1 unit of currency
+  client_name: string | null     // buyer/retail client name (informational)
   notes: string | null
   received_date: string | null
   linked_transaction_id: string | null
