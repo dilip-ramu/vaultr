@@ -160,7 +160,7 @@ export interface Customer {
 }
 
 export type CommissionType = 'percentage' | 'per_piece' | 'fixed'
-export type OrderStatus = 'backlog' | 'current' | 'shipped' | 'received' | 'cancelled'
+export type OrderStatus   = 'backlog' | 'current' | 'shipped' | 'received' | 'cancelled'
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   backlog:   'Backlog',
@@ -174,6 +174,7 @@ export const PAYMENT_TERM_DAYS: Partial<Record<PaymentTerms, number>> = {
   net_7: 7, net_15: 15, net_30: 30, net_60: 60, net_90: 90,
 }
 
+// One row per purchase order — header only
 export interface CommissionOrder {
   id: string
   user_id: string
@@ -181,10 +182,25 @@ export interface CommissionOrder {
   account_id: string | null
   order_number: string | null
   order_date: string
-  etd: string | null
-  order_status: OrderStatus
-  shipped_date: string | null
-  expected_payment_date: string | null
+  payment_term: PaymentTerms | null
+  currency: string
+  exchange_rate: number | null   // market rate: INR per 1 unit of currency
+  notes: string | null
+  received_date: string | null
+  linked_transaction_id: string | null
+  created_at: string
+  // joined
+  customer?: Customer
+  account?: Account
+  styles?: CommissionStyle[]
+}
+
+// One row per style within an order
+export interface CommissionStyle {
+  id: string
+  order_id: string
+  user_id: string
+  style_ref: string | null
   quantity: number
   rate_per_piece: number
   total_value: number
@@ -192,17 +208,16 @@ export interface CommissionOrder {
   commission_percentage: number | null
   commission_per_piece: number | null
   commission_fixed: number | null
-  currency: string
-  commission_amount: number
-  exchange_rate: number | null
-  commission_inr: number
-  payment_term: PaymentTerms | null
+  commission_amount: number    // in order currency
+  commission_inr: number       // converted at order.exchange_rate
+  order_status: OrderStatus
+  etd: string | null
+  shipped_date: string | null
+  expected_payment_date: string | null
   received_date: string | null
   linked_transaction_id: string | null
   notes: string | null
   created_at: string
-  customer?: Customer
-  account?: Account
 }
 
 export interface Bill {

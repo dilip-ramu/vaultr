@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import CommissionClient from '@/components/commission/CommissionClient'
-import type { Account } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,14 +9,10 @@ export default async function CommissionPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [
-    { data: orders },
-    { data: customers },
-    { data: accounts },
-  ] = await Promise.all([
+  const [{ data: orders }, { data: customers }, { data: accounts }] = await Promise.all([
     supabase
       .from('commission_orders')
-      .select('*, customer:customers(*), account:accounts(id,name)')
+      .select('*, customer:customers(*), account:accounts(id,name), styles:commission_styles(*)')
       .eq('user_id', user.id)
       .order('order_date', { ascending: false }),
     supabase
