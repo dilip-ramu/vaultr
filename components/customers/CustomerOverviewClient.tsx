@@ -106,14 +106,14 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Customer Overview</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Commission pipeline, overdue payments and receivables at a glance.</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Incoming pipeline, overdue payments and receivables at a glance.</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<Clock className="w-5 h-5" />}
-          label="Pending Commission"
+          label="Pending Incoming"
           value={`₹${fmtAmt(stats.pendingAmt)}`}
           sub={`${stats.pendingCount} style${stats.pendingCount !== 1 ? 's' : ''}`}
           color="blue"
@@ -148,7 +148,7 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
         {/* Top customers by pending commission */}
         <div className="lg:col-span-2 rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Top Customers by Pending Commission</h2>
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Top Customers by Pending Incoming</h2>
             <Link href="/customers/commission" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>
               View all <ArrowRight className="w-3 h-3" />
             </Link>
