@@ -12,6 +12,7 @@ export default async function DashboardPage() {
   const now = new Date()
   const cy = now.getFullYear()
   const cm = now.getMonth()
+  const todayStr = now.toISOString().split('T')[0]
   const startOfMonth = `${cy}-${String(cm + 1).padStart(2, '0')}-01`
   const endOfMonth = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
   const historyStart = new Date(cy, cm - 4, 1).toISOString().split('T')[0]
@@ -30,6 +31,8 @@ export default async function DashboardPage() {
     { data: unbilledInvoices },
     { data: contrastPayee },
     { data: commissionStyles },
+    { data: commissionDueStyles },
+    { data: dueBills },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -111,6 +114,18 @@ export default async function DashboardPage() {
       .select('commission_inr, order_status')
       .eq('user_id', user!.id)
       .not('order_status', 'in', '(received,cancelled)'),
+    supabase
+      .from('commission_styles')
+      .select('commission_inr, expected_payment_date')
+      .eq('user_id', user!.id)
+      .eq('order_status', 'shipped')
+      .lte('expected_payment_date', todayStr),
+    supabase
+      .from('bills')
+      .select('id, name, amount, due_date')
+      .eq('user_id', user!.id)
+      .eq('status', 'pending')
+      .lte('due_date', todayStr),
   ])
 
   // Net spend per category — expense adds, income subtracts; excludes Contrast payee
@@ -144,6 +159,12 @@ export default async function DashboardPage() {
   const commissionPending = (commissionStyles ?? []).reduce((s, c) => s + (Number(c.commission_inr) || 0), 0)
   const commissionPendingCount = (commissionStyles ?? []).length
 
+  // Overdue alerts for the top banner (refresh-based, disappears once paid/received)
+  const commissionDueTotal = (commissionDueStyles ?? []).reduce((s, c) => s + (Number(c.commission_inr) || 0), 0)
+  const commissionDueCount = (commissionDueStyles ?? []).length
+  const billsDueTotal = (dueBills ?? []).reduce((s, b) => s + (Number(b.amount) || 0), 0)
+  const billsDueCount = (dueBills ?? []).length
+
   // Compute monthly sub total for widget
   const subMonthlyTotal = (upcomingSubs ?? []).reduce((s: number, b: Bill) => {
     const monthly = b.recurrence_interval === 'weekly'
@@ -169,6 +190,10 @@ export default async function DashboardPage() {
       totalReceivables={totalReceivables}
       commissionPending={commissionPending}
       commissionPendingCount={commissionPendingCount}
+      commissionDueTotal={commissionDueTotal}
+      commissionDueCount={commissionDueCount}
+      billsDueTotal={billsDueTotal}
+      billsDueCount={billsDueCount}
       unbilledInvoices={(unbilledInvoices ?? []) as unknown as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
     />
   )

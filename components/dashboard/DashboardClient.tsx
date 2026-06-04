@@ -65,6 +65,10 @@ interface Props {
   unbilledInvoices?: UnbilledInvoice[]
   commissionPending?: number
   commissionPendingCount?: number
+  commissionDueTotal?: number
+  commissionDueCount?: number
+  billsDueTotal?: number
+  billsDueCount?: number
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -141,6 +145,10 @@ export default function DashboardClient({
   unbilledInvoices = [],
   commissionPending = 0,
   commissionPendingCount = 0,
+  commissionDueTotal = 0,
+  commissionDueCount = 0,
+  billsDueTotal = 0,
+  billsDueCount = 0,
 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
@@ -209,6 +217,40 @@ export default function DashboardClient({
   return (
     <div className="min-h-full" style={{ background: 'var(--bg)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* ── Due alerts banner (gone after refresh once paid/received) ──── */}
+        {(commissionDueCount > 0 || billsDueCount > 0) && (
+          <div className="space-y-2">
+            {commissionDueCount > 0 && (
+              <Link
+                href="/customers/commission"
+                className="flex items-center gap-3 rounded-2xl px-4 py-3 transition-opacity hover:opacity-90"
+                style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.35)' }}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: '#d97706' }} />
+                <p className="text-sm flex-1 min-w-0" style={{ color: '#92400e' }}>
+                  <span className="font-semibold">₹{fmt(commissionDueTotal)} commission payment due</span>
+                  {' '}· {commissionDueCount} style{commissionDueCount !== 1 ? 's' : ''} past expected payment date
+                </p>
+                <ChevronRight className="w-4 h-4 shrink-0" style={{ color: '#d97706' }} />
+              </Link>
+            )}
+            {billsDueCount > 0 && (
+              <Link
+                href="/bills"
+                className="flex items-center gap-3 rounded-2xl px-4 py-3 transition-opacity hover:opacity-90"
+                style={{ background: 'rgba(200,55,42,0.08)', border: '1px solid rgba(200,55,42,0.30)' }}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: 'var(--expense)' }} />
+                <p className="text-sm flex-1 min-w-0" style={{ color: 'var(--expense)' }}>
+                  <span className="font-semibold">{billsDueCount} bill{billsDueCount !== 1 ? 's' : ''} due</span>
+                  {' '}· ₹{fmt(billsDueTotal)} unpaid
+                </p>
+                <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--expense)' }} />
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
