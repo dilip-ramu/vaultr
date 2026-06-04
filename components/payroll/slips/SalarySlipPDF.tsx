@@ -3,14 +3,23 @@ import {
 } from '@react-pdf/renderer'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 
-// Register LiberationSans — supports ₹ (U+20B9), professional look
-const origin = typeof window !== 'undefined' ? window.location.origin : ''
+// Register LiberationSans — supports ₹ (U+20B9), professional look.
+// Works in three environments:
+//  - browser: fetch from the site's /fonts/ folder
+//  - Vercel server (emailing slips): fetch from the deployment's own URL
+//  - local dev server: read from public/fonts on disk
+function fontSrc(file: string): string {
+  if (typeof window !== 'undefined') return `${window.location.origin}/fonts/${file}`
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}/fonts/${file}`
+  return `${process.cwd()}/public/fonts/${file}`
+}
+
 Font.register({
   family: 'LiberationSans',
   fonts: [
-    { src: `${origin}/fonts/LiberationSans-Regular.ttf`, fontWeight: 'normal', fontStyle: 'normal' },
-    { src: `${origin}/fonts/LiberationSans-Bold.ttf`,    fontWeight: 'bold',   fontStyle: 'normal' },
-    { src: `${origin}/fonts/LiberationSans-Italic.ttf`,  fontWeight: 'normal', fontStyle: 'italic' },
+    { src: fontSrc('LiberationSans-Regular.ttf'), fontWeight: 'normal', fontStyle: 'normal' },
+    { src: fontSrc('LiberationSans-Bold.ttf'),    fontWeight: 'bold',   fontStyle: 'normal' },
+    { src: fontSrc('LiberationSans-Italic.ttf'),  fontWeight: 'normal', fontStyle: 'italic' },
   ],
 })
 

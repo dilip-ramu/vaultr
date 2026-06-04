@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createElement } from 'react'
-import path from 'path'
 import { createClient } from '@/lib/supabase/server'
-import { Font, renderToBuffer } from '@react-pdf/renderer'
+import { renderToBuffer } from '@react-pdf/renderer'
 import { SalarySlipDocument } from '@/components/payroll/slips/SalarySlipPDF'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 
-// Server-side font registration: the shared SalarySlipPDF module registers
-// browser URLs; on the server we must point at the files on disk instead.
-// (Registering the same family again overrides the earlier registration.)
-const fontsDir = path.join(process.cwd(), 'public', 'fonts')
-Font.register({
-  family: 'LiberationSans',
-  fonts: [
-    { src: path.join(fontsDir, 'LiberationSans-Regular.ttf'), fontWeight: 'normal', fontStyle: 'normal' },
-    { src: path.join(fontsDir, 'LiberationSans-Bold.ttf'),    fontWeight: 'bold',   fontStyle: 'normal' },
-    { src: path.join(fontsDir, 'LiberationSans-Italic.ttf'),  fontWeight: 'normal', fontStyle: 'italic' },
-  ],
-})
+// Fonts: SalarySlipPDF registers environment-aware font sources itself
+// (browser URL in the browser, deployment URL on Vercel, disk in local dev).
 
 type EnrichedEntry = PayrollEntry & { employee: Employee; month: PayrollMonth }
 
