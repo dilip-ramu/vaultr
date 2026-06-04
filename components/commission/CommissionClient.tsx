@@ -340,7 +340,7 @@ export default function CommissionClient() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Commission</h1>
+          <h1 className="text-xl font-bold" style={{color:'var(--text)'}}>Incoming</h1>
           <p className="text-sm" style={{color:'var(--text-muted)'}}>{allRows.length} styles · {orders.length} orders</p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">

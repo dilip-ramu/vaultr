@@ -369,7 +369,7 @@ export default function DashboardClient({
               )}
               {commissionPendingCount > 0 && (
                 <BizChip
-                  label="Commission Pending"
+                  label="Incoming"
                   amount={commissionPending}
                   count={commissionPendingCount}
                   unit="style"
