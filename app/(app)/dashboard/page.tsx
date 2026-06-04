@@ -29,6 +29,7 @@ export default async function DashboardPage() {
     { data: receivableInvoices },
     { data: unbilledInvoices },
     { data: contrastPayee },
+    { data: commissionStyles },
   ] = await Promise.all([
     supabase
       .from('account_balances')
@@ -105,6 +106,11 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id)
       .ilike('name', 'contrast')
       .maybeSingle(),
+    supabase
+      .from('commission_styles')
+      .select('commission_inr, order_status')
+      .eq('user_id', user!.id)
+      .not('order_status', 'in', '(received,cancelled)'),
   ])
 
   // Net spend per category — expense adds, income subtracts; excludes Contrast payee
@@ -135,6 +141,9 @@ export default async function DashboardPage() {
 
   const totalReceivables = (receivableInvoices ?? []).reduce((s, inv) => s + (inv.balance_due ?? 0), 0)
 
+  const commissionPending = (commissionStyles ?? []).reduce((s, c) => s + (Number(c.commission_inr) || 0), 0)
+  const commissionPendingCount = (commissionStyles ?? []).length
+
   // Compute monthly sub total for widget
   const subMonthlyTotal = (upcomingSubs ?? []).reduce((s: number, b: Bill) => {
     const monthly = b.recurrence_interval === 'weekly'
@@ -158,6 +167,8 @@ export default async function DashboardPage() {
       subMonthlyTotal={subMonthlyTotal}
       topInsights={topInsights}
       totalReceivables={totalReceivables}
+      commissionPending={commissionPending}
+      commissionPendingCount={commissionPendingCount}
       unbilledInvoices={(unbilledInvoices ?? []) as unknown as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
     />
   )

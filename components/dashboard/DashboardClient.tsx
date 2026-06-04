@@ -63,6 +63,8 @@ interface Props {
   topInsights?: Insight[]
   totalReceivables?: number
   unbilledInvoices?: UnbilledInvoice[]
+  commissionPending?: number
+  commissionPendingCount?: number
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -97,7 +99,7 @@ function StatCard({
 // ── Business metric chip ──────────────────────────────────────────────────────
 
 function BizChip({
-  label, amount, count, color, href, urgent,
+  label, amount, count, color, href, urgent, unit = 'invoice',
 }: {
   label: string
   amount: number
@@ -105,6 +107,7 @@ function BizChip({
   color: string
   href: string
   urgent?: boolean
+  unit?: string
 }) {
   return (
     <Link
@@ -118,7 +121,7 @@ function BizChip({
     >
       <p className="text-[10px] font-semibold uppercase tracking-widest truncate" style={{ color: 'var(--text-muted)' }}>{label}</p>
       <p className="text-lg font-bold" style={{ color }}>{count > 0 ? `₹${fmt(amount)}` : '—'}</p>
-      <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{count} invoice{count !== 1 ? 's' : ''}</p>
+      <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{count} {unit}{count !== 1 ? 's' : ''}</p>
     </Link>
   )
 }
@@ -136,6 +139,8 @@ export default function DashboardClient({
   upcomingSubs = [],
   totalReceivables = 0,
   unbilledInvoices = [],
+  commissionPending = 0,
+  commissionPendingCount = 0,
 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
@@ -296,7 +301,7 @@ export default function DashboardClient({
         </div>
 
         {/* ── Row 2: Business overview ────────────────────────────────────── */}
-        {(supplierDueCount > 0 || totalReceivables > 0) && (
+        {(supplierDueCount > 0 || totalReceivables > 0 || commissionPendingCount > 0) && (
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
               Business
@@ -318,6 +323,16 @@ export default function DashboardClient({
                   count={0}
                   color="var(--income)"
                   href="/recoverables/invoices"
+                />
+              )}
+              {commissionPendingCount > 0 && (
+                <BizChip
+                  label="Commission Pending"
+                  amount={commissionPending}
+                  count={commissionPendingCount}
+                  unit="style"
+                  color="#3b82f6"
+                  href="/customers/commission"
                 />
               )}
             </div>
