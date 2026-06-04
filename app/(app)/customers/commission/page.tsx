@@ -9,7 +9,7 @@ export default async function CommissionPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: orders }, { data: customers }, { data: accounts }] = await Promise.all([
+  const [ordersResult, customersResult, accountsResult] = await Promise.all([
     supabase
       .from('commission_orders')
       .select('*, customer:customers(*), account:accounts(id,name), styles:commission_styles(*)')
@@ -29,11 +29,27 @@ export default async function CommissionPage() {
       .order('name'),
   ])
 
+  if (ordersResult.error) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 text-center">
+        <p className="text-red-500 font-semibold mb-2">Database error</p>
+        <p className="text-sm text-gray-500 font-mono">{ordersResult.error.message}</p>
+        <p className="text-xs text-gray-400 mt-4">
+          Run this in your Supabase SQL editor:<br />
+          <code className="bg-gray-100 px-2 py-1 rounded mt-1 inline-block">
+            GRANT ALL ON commission_orders TO authenticated;<br />
+            GRANT ALL ON commission_styles TO authenticated;
+          </code>
+        </p>
+      </div>
+    )
+  }
+
   return (
     <CommissionClient
-      initialOrders={orders ?? []}
-      customers={customers ?? []}
-      accounts={accounts ?? []}
+      initialOrders={ordersResult.data ?? []}
+      customers={customersResult.data ?? []}
+      accounts={accountsResult.data ?? []}
     />
   )
 }

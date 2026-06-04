@@ -31,6 +31,7 @@ DROP POLICY IF EXISTS "Users manage own commission orders" ON commission_orders;
 CREATE POLICY "Users manage own commission orders"
   ON commission_orders FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT ALL ON commission_orders TO authenticated;
 
 -- 3. Style line items  (many per order)
 CREATE TABLE IF NOT EXISTS commission_styles (
@@ -63,6 +64,7 @@ DROP POLICY IF EXISTS "Users manage own commission styles" ON commission_styles;
 CREATE POLICY "Users manage own commission styles"
   ON commission_styles FOR ALL
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+GRANT ALL ON commission_styles TO authenticated;
 
 -- 4. Indexes
 CREATE INDEX IF NOT EXISTS commission_orders_user_idx    ON commission_orders (user_id);
