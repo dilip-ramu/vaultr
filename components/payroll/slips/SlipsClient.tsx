@@ -4,6 +4,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import SalarySlipPrint from './SalarySlipPrint'
+import { buildWhatsAppUrl, salarySlipMessage } from '@/lib/whatsapp'
 
 // Load PDF renderer lazily (large bundle, not needed on first paint)
 const SalarySlipPDFDownload = dynamic(() => import('./SalarySlipPDFDownload'), { ssr: false })
@@ -42,6 +43,8 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
   const [selectedEntry, setSelectedEntry] = useState<EnrichedEntry | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
+  const [emailing, setEmailing] = useState(false)
+  const [emailSummary, setEmailSummary] = useState<string | null>(null)
 
   // Group by month
   const byMonth: Record<string, EnrichedEntry[]> = {}
@@ -113,6 +116,47 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
     }
   }
 
+  async function emailSlips(ids: string[]) {
+    if (!ids.length) return
+    setEmailing(true)
+    setEmailSummary(null)
+    try {
+      const res = await fetch('/api/payroll/slips/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entry_ids: ids }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setEmailSummary(`⚠ ${data.error ?? 'Failed to send'}`)
+        return
+      }
+      const results = (data.results ?? []) as { employee: string; status: string; error?: string }[]
+      const sent = results.filter(r => r.status === 'sent').length
+      const noEmail = results.filter(r => r.status === 'no_email')
+      const failed = results.filter(r => r.status === 'error')
+      const parts: string[] = []
+      if (sent) parts.push(`✓ ${sent} slip${sent !== 1 ? 's' : ''} emailed`)
+      if (noEmail.length) parts.push(`✉ no email address: ${noEmail.map(r => r.employee).join(', ')} (add it in Staff)`)
+      if (failed.length) parts.push(`✕ failed: ${failed.map(r => `${r.employee} (${r.error})`).join('; ')}`)
+      setEmailSummary(parts.join(' · ') || 'Nothing to send')
+    } catch (err) {
+      setEmailSummary(`⚠ ${String(err)}`)
+    } finally {
+      setEmailing(false)
+    }
+  }
+
+  function openWhatsApp(entry: EnrichedEntry) {
+    const msg = salarySlipMessage(
+      entry.employee.name,
+      fmtMonth(entry.month.payroll_month),
+      fmtInr(Number(entry.final_payable)),
+    )
+    const url = buildWhatsAppUrl(entry.employee.whatsapp_number ?? entry.employee.phone, msg)
+    if (url) window.open(url, '_blank')
+  }
+
   if (selectedEntry) {
     return (
       <div>
@@ -164,20 +208,40 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
               {selected.size === entries.length ? 'Deselect all' : 'Select all'}
             </button>
             {selected.size > 0 && (
-              <button
-                onClick={downloadSelected}
-                disabled={downloading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-              >
-                {downloading
-                  ? <><span className="animate-spin">⏳</span> Downloading…</>
-                  : <>⬇ Download {selected.size} slip{selected.size !== 1 ? 's' : ''}</>
-                }
-              </button>
+              <>
+                <button
+                  onClick={downloadSelected}
+                  disabled={downloading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {downloading
+                    ? <><span className="animate-spin">⏳</span> Downloading…</>
+                    : <>⬇ Download {selected.size} slip{selected.size !== 1 ? 's' : ''}</>
+                  }
+                </button>
+                <button
+                  onClick={() => emailSlips([...selected])}
+                  disabled={emailing}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {emailing
+                    ? <><span className="animate-spin">⏳</span> Emailing…</>
+                    : <>✉ Email {selected.size} slip{selected.size !== 1 ? 's' : ''}</>
+                  }
+                </button>
+              </>
             )}
           </div>
         )}
       </div>
+
+      {/* Email result banner */}
+      {emailSummary && (
+        <div className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+          <span>{emailSummary}</span>
+          <button onClick={() => setEmailSummary(null)} className="text-gray-400 hover:text-gray-600 shrink-0">×</button>
+        </div>
+      )}
 
       {entries.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
@@ -258,12 +322,33 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                               {fmtInr(Number(entry.final_payable))}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => setSelectedEntry(entry)}
-                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                              >
-                                View & Print
-                              </button>
+                              <div className="flex items-center justify-end gap-3">
+                                {entry.employee?.email && (
+                                  <button
+                                    onClick={() => emailSlips([entry.id])}
+                                    disabled={emailing}
+                                    title={`Email slip to ${entry.employee.email}`}
+                                    className="text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50"
+                                  >
+                                    ✉ Email
+                                  </button>
+                                )}
+                                {buildWhatsAppUrl(entry.employee?.whatsapp_number ?? entry.employee?.phone, '') && (
+                                  <button
+                                    onClick={() => openWhatsApp(entry)}
+                                    title="Open WhatsApp chat with a prefilled message"
+                                    className="text-xs text-green-600 hover:text-green-800 font-medium"
+                                  >
+                                    WhatsApp
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setSelectedEntry(entry)}
+                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                >
+                                  View & Print
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )

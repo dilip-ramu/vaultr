@@ -199,3 +199,24 @@ Check that you created both storage buckets (`vaultr-attachments` and `vaultr-av
 
 **Port already in use:**
 Stop any other running `npm run dev` instances, or use `npm run dev -- -p 3001` to use a different port.
+
+## Email salary slips (one-time setup, ~10 minutes, free)
+
+The Salary Slips page can email each employee their slip PDF automatically
+(single or bulk). It uses Brevo's free tier (300 emails/day — far more than
+payroll needs). Setup:
+
+1. Create a free account at https://www.brevo.com
+2. In Brevo: **Settings → Senders** → add the email address you want slips to
+   come from (e.g. your business Gmail) → click the confirmation link Brevo
+   emails you.
+3. In Brevo: **Settings → API Keys** → Generate a new API key → copy it.
+4. In Vercel: your project → **Settings → Environment Variables** → add:
+   - `BREVO_API_KEY` = the key from step 3
+   - `PAYROLL_FROM_EMAIL` = the sender address you verified in step 2
+   - `PAYROLL_FROM_NAME` = (optional) display name, e.g. your company name
+5. Redeploy (Vercel → Deployments → ⋯ → Redeploy) so the new variables load.
+
+Until this is done, the Email buttons show a friendly message telling you
+what's missing. Employees without an email address in Staff are skipped and
+listed by name after each send.

@@ -24,6 +24,7 @@ const EMPTY: Partial<Employee> = {
   date_of_birth: '',
   address: '',
   phone: '',
+  whatsapp_number: '',
   email: '',
   is_active: true,
 }
@@ -458,6 +459,18 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
                     onChange={e => setField('phone', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="+91 99999 99999"
+                  />
+                </div>
+
+                {/* WhatsApp */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">WhatsApp Number</label>
+                  <input
+                    type="tel"
+                    value={form.whatsapp_number ?? ''}
+                    onChange={e => setField('whatsapp_number', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="+91 99999 99999 (for salary slips)"
                   />
                 </div>
 

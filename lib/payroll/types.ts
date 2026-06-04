@@ -16,6 +16,7 @@ export interface Employee {
   date_of_birth: string | null
   address: string | null
   phone: string | null
+  whatsapp_number: string | null
   email: string | null
   is_active: boolean
   created_at: string
