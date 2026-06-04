@@ -17,7 +17,6 @@ import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
 import { ToastProvider } from '@/components/shared/Toast'
-import BillNotificationBanner from './bills/BillNotificationBanner'
 
 const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
 
@@ -406,7 +405,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
         {/* Desktop main content */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <BillNotificationBanner />
           <main className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}>
             {children}
           </main>
@@ -442,8 +440,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             </Link>
           </div>
         </header>
-
-        <BillNotificationBanner />
 
         <main
           className="flex-1 overflow-y-auto"
