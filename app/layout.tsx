@@ -7,12 +7,12 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   icons: {
     icon: [
-      { url: '/vaultr-logo.png', sizes: '16x16', type: 'image/png' },
-      { url: '/vaultr-logo.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
     apple: [
-      { url: '/vaultr-logo.png', sizes: '192x192' },
-      { url: '/vaultr-logo.png', sizes: '512x512' },
+      { url: '/apple-touch-icon.png', sizes: '180x180' },
     ],
   },
   appleWebApp: {
@@ -27,7 +27,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#1F5C3A',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#2A7A50' },
+    { media: '(prefers-color-scheme: dark)', color: '#111814' },
+  ],
   viewportFit: 'cover',
 }
 

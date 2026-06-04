@@ -273,8 +273,8 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                   </span>
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
                         <th className="px-4 py-3 w-8"></th>

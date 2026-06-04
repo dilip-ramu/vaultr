@@ -362,10 +362,10 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
 
         {/* Line items */}
         <div
-          className="rounded-xl overflow-hidden mb-5"
+          className="rounded-xl overflow-hidden overflow-x-auto mb-5"
           style={{ border: '1px solid var(--border)' }}
         >
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
                 <th className="text-left px-4 py-2.5 font-medium">#</th>

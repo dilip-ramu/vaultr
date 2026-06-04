@@ -231,8 +231,8 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
               <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Use bulk pay to group multiple invoices in a single payment</p>
             </div>
           ) : (
-            <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-              <table className="w-full text-sm">
+            <div className="rounded-xl border overflow-hidden overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr style={{ backgroundColor: 'var(--surface-2, var(--surface))', borderBottom: '1px solid var(--border)' }}>
                     {['Batch Reference', 'Payment Date', 'Total Amount', 'Invoices', 'Bank Ref', 'Notes'].map(h => (

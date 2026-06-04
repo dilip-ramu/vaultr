@@ -276,7 +276,7 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
 
           {/* Cycle history */}
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[680px] text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th className="text-left py-2 pr-3 font-medium" style={{ color: 'var(--text-muted)' }}>Statement</th>
