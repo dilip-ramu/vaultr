@@ -155,7 +155,54 @@ export interface Customer {
   pincode: string | null
   country: string | null
   csv_alias: string | null
+  pays_commission: boolean
   created_at: string
+}
+
+export type CommissionType = 'percentage' | 'per_piece' | 'fixed'
+export type OrderStatus = 'backlog' | 'current' | 'shipped' | 'received' | 'cancelled'
+
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  backlog:   'Backlog',
+  current:   'Current',
+  shipped:   'Shipped',
+  received:  'Received',
+  cancelled: 'Cancelled',
+}
+
+export const PAYMENT_TERM_DAYS: Partial<Record<PaymentTerms, number>> = {
+  net_7: 7, net_15: 15, net_30: 30, net_60: 60, net_90: 90,
+}
+
+export interface CommissionOrder {
+  id: string
+  user_id: string
+  customer_id: string | null
+  account_id: string | null
+  order_number: string | null
+  order_date: string
+  etd: string | null
+  order_status: OrderStatus
+  shipped_date: string | null
+  expected_payment_date: string | null
+  quantity: number
+  rate_per_piece: number
+  total_value: number
+  commission_type: CommissionType
+  commission_percentage: number | null
+  commission_per_piece: number | null
+  commission_fixed: number | null
+  currency: string
+  commission_amount: number
+  exchange_rate: number | null
+  commission_inr: number
+  payment_term: PaymentTerms | null
+  received_date: string | null
+  linked_transaction_id: string | null
+  notes: string | null
+  created_at: string
+  customer?: Customer
+  account?: Account
 }
 
 export interface Bill {

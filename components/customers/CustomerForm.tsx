@@ -25,6 +25,7 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
   const [country, setCountry] = useState(customer?.country ?? 'India')
   const [csvAlias, setCsvAlias] = useState(customer?.csv_alias ?? '')
   const [notes, setNotes] = useState(customer?.notes ?? '')
+  const [paysCommission, setPaysCommission] = useState(customer?.pays_commission ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -48,8 +49,9 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
       state_code: stateCode.trim() || null,
       pincode:    pincode.trim() || null,
       country:    country.trim() || null,
-      csv_alias:  csvAlias.trim() || null,
-      notes:      notes.trim() || null,
+      csv_alias:       csvAlias.trim() || null,
+      notes:           notes.trim() || null,
+      pays_commission: paysCommission,
     }
 
     let data, err
@@ -156,6 +158,21 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Internal notes…" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          </div>
+
+          {/* Commission flag — private, not visible to customer */}
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-200">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Pays commission</p>
+              <p className="text-xs text-gray-400 mt-0.5">Private — only visible to you</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPaysCommission(v => !v)}
+              className={`w-11 h-6 rounded-full transition-colors relative ${paysCommission ? 'bg-brand-500' : 'bg-gray-300'}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${paysCommission ? 'right-0.5' : 'left-0.5'}`} />
+            </button>
           </div>
 
           <button type="submit" disabled={saving}

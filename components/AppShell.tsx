@@ -49,9 +49,10 @@ const navSections: NavSection[] = [
       {
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
-          { href: '/recoverables/invoices', label: 'Invoices',  icon: FileText },
-          { href: '/recoverables/tds',      label: 'TDS',       icon: Receipt },
-          { href: '/recoverables/settings', label: 'Settings',  icon: Settings },
+          { href: '/recoverables/invoices',  label: 'Invoices',    icon: FileText },
+          { href: '/recoverables/tds',       label: 'TDS',         icon: Receipt },
+          { href: '/customers/commission',   label: 'Commission',  icon: DollarSign },
+          { href: '/recoverables/settings',  label: 'Settings',    icon: Settings },
         ],
       },
       {
