@@ -201,7 +201,7 @@ export default function CommissionClient() {
   const [editOrder, setEditOrder] = useState<CommissionOrder | null>(null)
   const [showImport,setShowImport]= useState(false)
   const [custFilter,setCustFilter]= useState('all')
-  const [statFilter,setStatFilter]= useState<'all'|'active'|'received'>('active')
+  const [statFilter,setStatFilter]= useState<'all'|'active'|OrderStatus>('active')
   const [selected,  setSelected]  = useState<Set<string>>(new Set())
   const [showRecv,  setShowRecv]  = useState(false)
   const [sortKey,   setSortKey]   = useState<SortKey>('order_date')
@@ -246,8 +246,8 @@ export default function CommissionClient() {
 
   const filtered = useMemo(() => allRows.filter(r => {
     if (custFilter !== 'all' && r.order.customer_id !== custFilter) return false
-    if (statFilter === 'active'   && r.order_status === 'received')  return false
-    if (statFilter === 'received' && r.order_status !== 'received')  return false
+    if (statFilter === 'active' && r.order_status === 'received') return false
+    if (statFilter !== 'all' && statFilter !== 'active' && r.order_status !== statFilter) return false
     return true
   }), [allRows, custFilter, statFilter])
 
@@ -347,7 +347,9 @@ export default function CommissionClient() {
   }
 
   const handlePDF = () => {
-    const rows = allRows.filter(r => r.order_status !== 'cancelled')
+    // Export what's currently visible (respects status + customer filters and sort);
+    // if rows are selected, export only those
+    const rows = selectedRows.length > 0 ? selectedRows : sorted
     const total = rows.reduce((s,r)=>s+r.commission_inr,0)
     const w = window.open('','_blank','width=900,height=700')
     if (!w) return
@@ -406,13 +408,19 @@ export default function CommissionClient() {
 
       {/* Filters */}
       <div className="flex gap-2 mb-3 flex-wrap items-center">
-        {(['all','active','received'] as const).map(f=>(
-          <button key={f} onClick={()=>setStatFilter(f)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${statFilter===f?'bg-brand-500 text-white border-transparent':''}`}
-            style={statFilter!==f?{borderColor:'var(--border)',background:'var(--surface)',color:'var(--text-muted)'}:{}}>
-            {f==='all'?'All':f==='active'?'Active':'Received'}
-          </button>
-        ))}
+        {(['all','active','backlog','current','shipped','received','cancelled'] as const).map(f=>{
+          const count = f==='all' ? allRows.length
+            : f==='active' ? allRows.filter(r=>r.order_status!=='received').length
+            : allRows.filter(r=>r.order_status===f).length
+          return (
+            <button key={f} onClick={()=>setStatFilter(f)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${statFilter===f?'bg-brand-500 text-white border-transparent':''}`}
+              style={statFilter!==f?{borderColor:'var(--border)',background:'var(--surface)',color:'var(--text-muted)'}:{}}>
+              {f==='all'?'All':f==='active'?'Active':ORDER_STATUS_LABELS[f as OrderStatus] ?? f}
+              <span className="ml-1 opacity-70">{count}</span>
+            </button>
+          )
+        })}
         <select value={custFilter} onChange={e=>setCustFilter(e.target.value)} className="px-3 py-1.5 rounded-xl text-xs font-medium border" style={{borderColor:'var(--border)',background:'var(--surface)',color:'var(--text)'}}>
           <option value="all">All customers</option>
           {customers.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
