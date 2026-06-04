@@ -399,9 +399,9 @@ export default function CommissionClient() {
           {label:'Received',  value:totalReceived, color:'text-green-700',bg:'bg-green-50', icon:<CheckCircle2 className="w-4 h-4 text-green-500"/>},
           {label:'This month',value:thisMonth,     color:'text-blue-700', bg:'bg-blue-50',  icon:<TrendingUp className="w-4 h-4 text-blue-500"/>},
         ].map(c=>(
-          <div key={c.label} className={`${c.bg} rounded-2xl p-3.5`}>
-            <div className={`flex items-center gap-1.5 mb-1 ${c.color}`}>{c.icon}<p className="text-[10px] font-semibold uppercase tracking-wide">{c.label}</p></div>
-            <p className={`text-base font-bold ${c.color}`}>{formatCurrency(c.value)}</p>
+          <div key={c.label} className={`${c.bg} rounded-2xl p-3 sm:p-3.5 min-w-0`}>
+            <div className={`flex items-center gap-1.5 mb-1 ${c.color}`}>{c.icon}<p className="text-[10px] font-semibold uppercase tracking-wide truncate">{c.label}</p></div>
+            <p className={`text-sm sm:text-base font-bold ${c.color} break-words`}>{formatCurrency(c.value)}</p>
           </div>
         ))}
       </div>
@@ -429,7 +429,7 @@ export default function CommissionClient() {
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-2 mb-3 px-4 py-2.5 rounded-xl border" style={{background:'var(--brand-light)',borderColor:'var(--brand)'}}>
+        <div className="flex items-center flex-wrap gap-2 mb-3 px-4 py-2.5 rounded-xl border" style={{background:'var(--brand-light)',borderColor:'var(--brand)'}}>
           <span className="text-xs font-medium flex-1" style={{color:'var(--brand)'}}>
             {selected.size} selected · {formatCurrency(selectedRows.reduce((s,r)=>s+r.commission_inr,0))}
           </span>
@@ -468,7 +468,58 @@ export default function CommissionClient() {
           <p className="text-sm mt-1" style={{color:'var(--text-faint)'}}>Add an order or import from CSV</p>
         </div>
       ) : (
-        <div className="rounded-2xl border overflow-hidden" style={{borderColor:'var(--border)'}}>
+        <>
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2">
+          {sorted.map(row=>{
+            const isSel=selected.has(row.id)
+            const isRecv=row.order_status==='received'
+            const isCancelled=row.order_status==='cancelled'
+            const isForeign=row.order.currency!=='INR'
+            return (
+              <div key={row.id} className="rounded-2xl border p-3.5"
+                   style={{borderColor:isSel?'var(--brand)':'var(--border)',background:isSel?'var(--brand-light)':'var(--surface)',opacity:isCancelled?0.5:1}}>
+                <div className="flex items-start gap-2.5">
+                  <button onClick={()=>toggleRow(row.id)} className="mt-0.5 shrink-0" style={{color:isSel?'var(--brand)':'var(--text-faint)'}}>
+                    {isSel?<CheckSquare className="w-5 h-5"/>:<Square className="w-5 h-5"/>}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-mono font-semibold truncate" style={{color:'var(--text)'}}>{row.style_ref??'—'}</span>
+                      <span className="text-sm font-semibold shrink-0" style={{color:isCancelled?'var(--text-muted)':'var(--text)'}}>{formatCurrency(row.commission_inr)}</span>
+                    </div>
+                    <p className="text-xs truncate mt-0.5" style={{color:'var(--text-muted)'}}>
+                      {row.customerName}{row.clientName?` · ${row.clientName}`:''}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{color:'var(--text-muted)'}}>
+                      PO{' '}
+                      <button onClick={()=>{setEditOrder(row.order);setShowForm(true)}} className="font-mono underline" style={{color:'var(--brand)'}}>
+                        {row.poNumber??'—'}
+                      </button>
+                      {' '}· {(row.quantity??0).toLocaleString()} pcs
+                      {row.etd?` · ETD ${formatDate(row.etd)}`:''}
+                    </p>
+                    {isForeign && (
+                      <p className="text-[10px] mt-0.5" style={{color:'var(--text-muted)'}}>{fmtForeign(row.commission_amount,row.order.currency)}</p>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      {isRecv
+                        ? <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">Received</span>
+                        : <select value={row.order_status} onChange={e=>handleStatusChange(row,e.target.value as OrderStatus)}
+                            className={`text-[10px] font-semibold px-2 py-1 rounded-full border-0 outline-none ${STATUS_PILL[row.order_status] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {(['backlog','current','shipped','cancelled'] as OrderStatus[]).map(s=><option key={s} value={s}>{ORDER_STATUS_LABELS[s] ?? s}</option>)}
+                          </select>
+                      }
+                      {isRecv&&<button onClick={()=>handleUnreceive(row)} className="flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-lg" style={{color:'var(--text-muted)',background:'var(--surface-2)'}}><RotateCcw className="w-3 h-3"/> Undo</button>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {/* Desktop table */}
+        <div className="hidden md:block rounded-2xl border overflow-hidden" style={{borderColor:'var(--border)'}}>
           <div className="overflow-x-auto">
             <table className="w-full" style={{background:'var(--surface)'}}>
               <thead style={{background:'var(--surface-2)',borderBottom:'0.5px solid var(--border)'}}>
@@ -541,6 +592,7 @@ export default function CommissionClient() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {showForm && <CommissionForm order={editOrder} customers={customers} accounts={accounts as any} onSaved={handleOrderSaved} onClose={()=>{setShowForm(false);setEditOrder(null)}}/>}

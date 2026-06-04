@@ -270,7 +270,7 @@ function StatCard({ icon, label, value, sub, color, highlight }: {
           <span style={{ color: c.icon }}>{icon}</span>
         </span>
       </div>
-      <p className="text-xl font-bold" style={{ color: c.text }}>{value}</p>
+      <p className="text-lg sm:text-xl font-bold break-words" style={{ color: c.text }}>{value}</p>
       <p className="text-xs mt-1" style={{ color: 'var(--text-faint, var(--text-muted))' }}>{sub}</p>
     </div>
   )
