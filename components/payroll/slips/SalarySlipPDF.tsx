@@ -4,13 +4,13 @@ import {
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 
 // Register LiberationSans — supports ₹ (U+20B9), professional look.
-// Works in three environments:
-//  - browser: fetch from the site's /fonts/ folder
-//  - Vercel server (emailing slips): fetch from the deployment's own URL
-//  - local dev server: read from public/fonts on disk
+// Browser: fetch from the site's /fonts/ folder.
+// Server (emailing slips): read from public/fonts on disk — the files are
+// bundled into the serverless function via outputFileTracingIncludes in
+// next.config.ts, so no network fetch (Vercel deployment URLs are
+// auth-protected and would 401).
 function fontSrc(file: string): string {
   if (typeof window !== 'undefined') return `${window.location.origin}/fonts/${file}`
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}/fonts/${file}`
   return `${process.cwd()}/public/fonts/${file}`
 }
 
