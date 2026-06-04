@@ -12,6 +12,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { getTodayString } from '@/lib/utils'
 import { CURRENCIES } from '@/lib/currencies'
+import { computeStyleAmounts } from '@/lib/commission'
 
 interface Props {
   order: CommissionOrder | null
@@ -39,18 +40,6 @@ function blankStyle(): StyleDraft {
     commission_type: 'percentage', commission_value: '10',
     order_status: 'current', etd: '', notes: '',
   }
-}
-
-function computeStyleAmounts(s: StyleDraft, exchangeRate: number | null, currency: string) {
-  const qty   = parseFloat(s.quantity)        || 0
-  const rate  = parseFloat(s.rate_per_piece)  || 0
-  const total = qty * rate
-  const val   = parseFloat(s.commission_value) || 0
-  const comm  = s.commission_type === 'percentage' ? total * (val / 100)
-              : s.commission_type === 'per_piece'  ? qty * val
-              : val
-  const inr   = currency === 'INR' ? comm : (exchangeRate ? comm * exchangeRate : 0)
-  return { total, comm, inr }
 }
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -176,12 +165,8 @@ export default function CommissionForm({ order, customers, accounts, onSaved, on
     const stylePayloads = styles.map(s => {
       const qty   = parseFloat(s.quantity)       || 0
       const rate  = parseFloat(s.rate_per_piece) || 0
-      const total = qty * rate
       const val   = parseFloat(s.commission_value) || 0
-      const comm  = s.commission_type === 'percentage' ? total * (val / 100)
-                  : s.commission_type === 'per_piece'  ? qty * val
-                  : val
-      const inr   = currency === 'INR' ? comm : (exchangeRate ? comm * exchangeRate : 0)
+      const { total, comm, inr } = computeStyleAmounts(s, exchangeRate, currency)
       const isShipped = s.order_status === 'shipped'
       const today = getTodayString()
 
