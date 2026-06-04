@@ -54,7 +54,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   const filtered = useMemo(() => {
     return transactions.filter(tx => {
       if (filter !== 'all' && tx.type !== filter) return false
-      if (accountFilter !== 'all' && tx.account_id !== accountFilter) return false
+      if (accountFilter !== 'all' && tx.account_id !== accountFilter && tx.to_account_id !== accountFilter) return false
       if (search) {
         const q = search.toLowerCase()
         const matchNotes = tx.notes?.toLowerCase().includes(q)
@@ -218,6 +218,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
                     isLast={i === txs.length - 1}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
+                    contextAccountId={accountFilter !== 'all' ? accountFilter : undefined}
                   />
                 ))}
               </div>

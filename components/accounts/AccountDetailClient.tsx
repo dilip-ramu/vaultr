@@ -216,6 +216,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
                 isLast={i === transactions.length - 1}
                 onEdit={() => {}}
                 onDelete={handleDeleteTx}
+                contextAccountId={account.id}
               />
             ))}
           </div>

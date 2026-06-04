@@ -30,8 +30,8 @@ export default async function AccountDetailPage({ params }: Props) {
 
   const { data: recentTransactions } = await supabase
     .from('transactions')
-    .select(`*, account:accounts!account_id(id,name,color,type), category:categories(id,name,icon,color,avatar_url), payee:payees(id,name,type), attachments(*)`)
-    .eq('account_id', id)
+    .select(`*, account:accounts!account_id(id,name,color,type), to_account:accounts!to_account_id(id,name,color), category:categories(id,name,icon,color,avatar_url), payee:payees(id,name,type), attachments(*)`)
+    .or(`account_id.eq.${id},to_account_id.eq.${id}`)
     .eq('user_id', user!.id)
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })

@@ -14,9 +14,11 @@ interface Props {
   isLast: boolean
   onEdit: (tx: Transaction) => void
   onDelete: (id: string) => void
+  /** When viewing a specific account, transfers show +/- relative to this account */
+  contextAccountId?: string
 }
 
-export default function TransactionItem({ transaction: tx, isFirst, isLast, onEdit, onDelete }: Props) {
+export default function TransactionItem({ transaction: tx, isFirst, isLast, onEdit, onDelete, contextAccountId }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   const account = tx.account as Account | undefined
@@ -36,7 +38,11 @@ export default function TransactionItem({ transaction: tx, isFirst, isLast, onEd
     ? 'var(--expense)'
     : 'var(--transfer)'
 
-  const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : ''
+  const amountPrefix = tx.type === 'income' ? '+'
+    : tx.type === 'expense' ? '-'
+    : tx.type === 'transfer' && contextAccountId
+      ? (tx.to_account_id === contextAccountId ? '+' : tx.account_id === contextAccountId ? '-' : '')
+      : ''
 
   return (
     <>
