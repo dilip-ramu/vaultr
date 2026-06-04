@@ -5,9 +5,10 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   TrendingUp, TrendingDown, ChevronRight,
-  ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale,
+  ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale, CreditCard,
 } from 'lucide-react'
 import type { ProfitSummary } from '@/lib/profitability'
+import type { CardDue } from '@/app/(app)/dashboard/page'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import type { Insight } from '@/lib/insights'
@@ -71,6 +72,7 @@ interface Props {
   billsDueTotal?: number
   billsDueCount?: number
   profitMTD?: ProfitSummary
+  cardDues?: CardDue[]
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -152,6 +154,7 @@ export default function DashboardClient({
   billsDueTotal = 0,
   billsDueCount = 0,
   profitMTD,
+  cardDues = [],
 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
@@ -415,6 +418,45 @@ export default function DashboardClient({
               </div>
             </div>
           </Link>
+        )}
+
+        {/* ── Card payments due ──────────────────────────────────────────── */}
+        {cardDues.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
+              Card payments due
+            </p>
+            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+              {cardDues.map(cd => {
+                const daysLeft = Math.ceil((new Date(cd.dueDate).getTime() - Date.now()) / 86400000)
+                const urgent = daysLeft <= 5
+                const color = cd.color ?? '#6366f1'
+                return (
+                  <Link
+                    key={cd.id}
+                    href="/cards"
+                    className="flex-1 min-w-0 rounded-xl p-3 md:p-4 flex flex-col gap-0.5 transition-opacity hover:opacity-80"
+                    style={{
+                      background: urgent ? 'rgba(239,68,68,0.07)' : 'var(--surface)',
+                      border: `1px solid ${urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+                      borderLeft: `3px solid ${urgent ? '#ef4444' : color}`,
+                    }}
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-widest truncate flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                      <CreditCard className="w-3 h-3 shrink-0" /> {cd.name}
+                    </p>
+                    <p className="text-lg font-bold" style={{ color: urgent ? '#ef4444' : 'var(--text)' }}>
+                      ₹{fmt(cd.amount)}
+                    </p>
+                    <p className="text-[10px]" style={{ color: urgent ? '#ef4444' : 'var(--text-faint)' }}>
+                      due {new Date(cd.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                      {daysLeft >= 0 ? ` · ${daysLeft === 0 ? 'today' : `${daysLeft}d left`}` : ` · ${-daysLeft}d overdue`}
+                    </p>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
         )}
 
         {/* ── Row 2: Business overview ────────────────────────────────────── */}

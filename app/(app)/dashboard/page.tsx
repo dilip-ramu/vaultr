@@ -4,7 +4,66 @@ import type { Budget, Bill } from '@/lib/types'
 import { generateInsights, type Insight } from '@/lib/insights'
 import { fetchProfitLines } from '@/lib/profitability-server'
 import { summarize } from '@/lib/profitability'
+import { cardOverview, type CardTxn } from '@/lib/cards'
 import type { SupabaseClient } from '@supabase/supabase-js'
+
+export interface CardDue {
+  id: string
+  name: string
+  color: string | null
+  amount: number
+  dueDate: string
+}
+
+// Card payments still owed (remaining due > 0 only)
+async function fetchCardDues(supabase: SupabaseClient, uid: string, today: string): Promise<CardDue[]> {
+  const { data: cards } = await supabase
+    .from('accounts')
+    .select('id, name, color, initial_balance, statement_day, statement_due_day')
+    .eq('user_id', uid).eq('type', 'credit').eq('is_active', true)
+    .not('statement_day', 'is', null)
+  if (!cards?.length) return []
+
+  const since = new Date()
+  since.setMonth(since.getMonth() - 14)
+  const idList = cards.map(c => c.id).join(',')
+
+  const [{ data: txns }, { data: statements }] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('account_id, to_account_id, type, amount, date')
+      .eq('user_id', uid)
+      .gte('date', since.toISOString().split('T')[0])
+      .or(`account_id.in.(${idList}),to_account_id.in.(${idList})`),
+    supabase
+      .from('card_statements')
+      .select('account_id, statement_date, bank_amount')
+      .eq('user_id', uid),
+  ])
+
+  const dues: CardDue[] = []
+  for (const card of cards) {
+    const bankAmounts: Record<string, number> = {}
+    for (const s of statements ?? []) {
+      if (s.account_id === card.id) bankAmounts[s.statement_date] = Number(s.bank_amount)
+    }
+    const o = cardOverview({
+      accountId: card.id,
+      initialBalance: Number(card.initial_balance) || 0,
+      statementDay: card.statement_day!,
+      dueDay: card.statement_due_day,
+      txns: (txns ?? []) as CardTxn[],
+      bankAmounts,
+      today,
+      historyMonths: 2,
+    })
+    const latest = o.cycles[0]
+    if (latest && latest.remainingDue > 0) {
+      dues.push({ id: card.id, name: card.name, color: card.color, amount: latest.remainingDue, dueDate: latest.dueDate })
+    }
+  }
+  return dues.sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -179,8 +238,8 @@ export default async function DashboardPage() {
   const endOfMonth = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
   const historyStart = new Date(cy, cm - 4, 1).toISOString().split('T')[0]
 
-  // Fast path: ONE round trip for all dashboard data (migration_v34) + profit lines
-  const [{ data: dash, error: dashError }, profitLines] = await Promise.all([
+  // Fast path: ONE round trip for all dashboard data (migration_v34) + profit lines + card dues
+  const [{ data: dash, error: dashError }, profitLines, cardDues] = await Promise.all([
     supabase.rpc('get_dashboard_data', {
       p_month_start: startOfMonth,
       p_month_end: endOfMonth,
@@ -188,6 +247,7 @@ export default async function DashboardPage() {
       p_today: todayStr,
     }),
     fetchProfitLines(supabase, user!.id),
+    fetchCardDues(supabase, user!.id, todayStr),
   ])
 
   const d: DashboardData = !dashError && dash
@@ -279,6 +339,7 @@ export default async function DashboardPage() {
       billsDueTotal={billsDueTotal}
       billsDueCount={billsDueCount}
       profitMTD={profitMTD}
+      cardDues={cardDues}
       unbilledInvoices={d.unbilledInvoices as unknown as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
     />
   )
