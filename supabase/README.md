@@ -37,6 +37,7 @@ Run everything below from top to bottom:
 | 25 | `migration_v34_dashboard.sql` | **Dashboard fast path**: all dashboard data in one query |
 | 26 | `migration_v35_whatsapp.sql` | WhatsApp number on employees (salary slip sending) |
 | 27 | `migration_v36_card_statements.sql` | **Credit cards**: statement day + bank statement amounts (hidden charges) |
+| 28 | `migration_v37_card_payments.sql` | Card Pay button: links statement → transfer transaction (pay/unpay) |
 
 Not in the table: `supabase_commission_migration.sql` (root folder) — commission
 orders/styles; run after v15.
