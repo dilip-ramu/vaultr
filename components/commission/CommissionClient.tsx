@@ -281,6 +281,8 @@ export default function CommissionClient() {
     setOrders(prev => prev.map(o => ({ ...o, styles: (o.styles??[]).map(s => s.id===updated.id ? {...s,...updated} : s) })))
 
   const handleStatusChange = async (row: StyleRow, newStatus: OrderStatus) => {
+    // If this row is part of a multi-selection, apply to all selected rows
+    if (selected.has(row.id) && selected.size > 1) { await handleBulkStatus(newStatus); return }
     const supabase = createClient()
     const today = new Date().toISOString().split('T')[0]
     const termDays = row.order.payment_term ? PAYMENT_TERM_DAYS[row.order.payment_term] : null
@@ -296,6 +298,38 @@ export default function CommissionClient() {
     if (row.linked_transaction_id) await supabase.from('transactions').delete().eq('id', row.linked_transaction_id)
     await supabase.from('commission_styles').update({ order_status: 'shipped', received_date: null, linked_transaction_id: null }).eq('id', row.id)
     patchStyle({ id: row.id, order_status: 'shipped', received_date: null, linked_transaction_id: null })
+  }
+
+  const handleBulkStatus = async (newStatus: OrderStatus) => {
+    const rows = selectedRows.filter(r => r.order_status !== 'received')
+    if (rows.length === 0) return
+    const supabase = createClient()
+    const today = new Date().toISOString().split('T')[0]
+    if (newStatus === 'shipped') {
+      // expected_payment_date depends on each order's payment term — group rows by it
+      const groups = new Map<string, { expected: string | null; ids: string[] }>()
+      for (const r of rows) {
+        const termDays = r.order.payment_term ? PAYMENT_TERM_DAYS[r.order.payment_term] : null
+        const expected = termDays ? new Date(Date.now() + termDays * 86400000).toISOString().split('T')[0] : null
+        const key = expected ?? 'none'
+        const g = groups.get(key) ?? { expected, ids: [] }
+        g.ids.push(r.id); groups.set(key, g)
+      }
+      await Promise.all([...groups.values()].map(g =>
+        supabase.from('commission_styles')
+          .update({ order_status: 'shipped', shipped_date: today, ...(g.expected ? { expected_payment_date: g.expected } : {}) })
+          .in('id', g.ids)
+      ))
+      for (const g of groups.values()) {
+        for (const id of g.ids) {
+          patchStyle({ id, order_status: 'shipped', shipped_date: today, ...(g.expected ? { expected_payment_date: g.expected } : {}) })
+        }
+      }
+    } else {
+      await supabase.from('commission_styles').update({ order_status: newStatus }).in('id', rows.map(r => r.id))
+      rows.forEach(r => patchStyle({ id: r.id, order_status: newStatus }))
+    }
+    setSelected(new Set())
   }
 
   const handleBulkDelete = async () => {
@@ -391,6 +425,17 @@ export default function CommissionClient() {
           <span className="text-xs font-medium flex-1" style={{color:'var(--brand)'}}>
             {selected.size} selected · {formatCurrency(selectedRows.reduce((s,r)=>s+r.commission_inr,0))}
           </span>
+          <select
+            value=""
+            onChange={e=>{ if(e.target.value) handleBulkStatus(e.target.value as OrderStatus) }}
+            className="px-2 py-1.5 rounded-lg text-xs font-semibold border outline-none cursor-pointer"
+            style={{borderColor:'var(--brand)',color:'var(--brand)',background:'var(--surface)'}}
+          >
+            <option value="">Set status…</option>
+            {(['backlog','current','shipped','cancelled'] as OrderStatus[]).map(s=>(
+              <option key={s} value={s}>{ORDER_STATUS_LABELS[s] ?? s}</option>
+            ))}
+          </select>
           {selectedRows.some(r=>r.order_status==='shipped') && (
             <button onClick={()=>setShowRecv(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500 text-white">
               <CheckCircle2 className="w-3 h-3"/> Mark received
