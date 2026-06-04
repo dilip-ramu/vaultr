@@ -11,7 +11,7 @@ import {
   Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
   Building2, BookOpen, CheckCheck,
-  ArrowDownUp, ReceiptText, Globe, Archive, Mail,
+  ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -39,6 +39,7 @@ const navSections: NavSection[] = [
       { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
       { href: '/accounts',     label: 'Accounts',     icon: Wallet },
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+      { href: '/profitability', label: 'Profitability', icon: Scale },
     ],
   },
   {
