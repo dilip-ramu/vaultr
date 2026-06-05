@@ -38,6 +38,7 @@ Run everything below from top to bottom:
 | 26 | `migration_v35_whatsapp.sql` | WhatsApp number on employees (salary slip sending) |
 | 27 | `migration_v36_card_statements.sql` | **Credit cards**: statement day + bank statement amounts (hidden charges) |
 | 28 | `migration_v37_card_payments.sql` | Card Pay button: links statement → transfer transaction (pay/unpay) |
+| 29 | `migration_v38_slip_emailed.sql` | Tracks when each salary slip was emailed |
 
 Not in the table: `supabase_commission_migration.sql` (root folder) — commission
 orders/styles; run after v15.

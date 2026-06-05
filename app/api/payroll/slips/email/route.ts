@@ -141,6 +141,13 @@ export async function POST(req: NextRequest) {
         attachmentBase64: buffer.toString('base64'),
       })
 
+      // Remember the send (ignore failure if migration_v38 hasn't been run yet)
+      await supabase
+        .from('payroll_entries')
+        .update({ slip_emailed_at: new Date().toISOString() })
+        .eq('id', entry.id)
+        .then(() => undefined, () => undefined)
+
       results.push({ entry_id: entry.id, employee: name, status: 'sent' })
     } catch (err) {
       results.push({ entry_id: entry.id, employee: name, status: 'error', error: String(err).slice(0, 200) })

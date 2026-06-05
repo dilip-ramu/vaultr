@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import SalarySlipPrint from './SalarySlipPrint'
@@ -40,15 +41,23 @@ function slugMonth(m: string) {
 }
 
 export default function SlipsClient({ entries, companyName, companyAddress }: Props) {
+  const router = useRouter()
   const [selectedEntry, setSelectedEntry] = useState<EnrichedEntry | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [emailSummary, setEmailSummary] = useState<string | null>(null)
+  const [emailFilter, setEmailFilter] = useState<'all' | 'sent' | 'unsent'>('all')
+
+  const visibleEntries = entries.filter(e =>
+    emailFilter === 'all' ? true :
+    emailFilter === 'sent' ? !!e.slip_emailed_at : !e.slip_emailed_at
+  )
+  const sentCount = entries.filter(e => e.slip_emailed_at).length
 
   // Group by month
   const byMonth: Record<string, EnrichedEntry[]> = {}
-  for (const e of entries) {
+  for (const e of visibleEntries) {
     if (!byMonth[e.month.id]) byMonth[e.month.id] = []
     byMonth[e.month.id].push(e)
   }
@@ -140,6 +149,7 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
       if (noEmail.length) parts.push(`✉ no email address: ${noEmail.map(r => r.employee).join(', ')} (add it in Staff)`)
       if (failed.length) parts.push(`✕ failed: ${failed.map(r => `${r.employee} (${r.error})`).join('; ')}`)
       setEmailSummary(parts.join(' · ') || 'Nothing to send')
+      if (sent) router.refresh() // pick up the new "emailed" marks
     } catch (err) {
       setEmailSummary(`⚠ ${String(err)}`)
     } finally {
@@ -235,6 +245,27 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
         )}
       </div>
 
+      {/* Email status filter */}
+      {entries.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {([
+            { key: 'all', label: `All (${entries.length})` },
+            { key: 'sent', label: `✓ Emailed (${sentCount})` },
+            { key: 'unsent', label: `Not emailed (${entries.length - sentCount})` },
+          ] as { key: 'all' | 'sent' | 'unsent'; label: string }[]).map(f => (
+            <button
+              key={f.key}
+              onClick={() => setEmailFilter(f.key)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                emailFilter === f.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Email result banner */}
       {emailSummary && (
         <div className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-xl px-4 py-3 flex items-start justify-between gap-3">
@@ -304,6 +335,11 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                             <td className="px-4 py-3">
                               <div className="font-medium text-gray-900">{entry.employee?.name ?? '—'}</div>
                               <div className="text-xs text-gray-400">{entry.employee?.employee_id ?? ''}</div>
+                              {entry.slip_emailed_at && (
+                                <div className="text-[11px] text-emerald-600 mt-0.5">
+                                  ✓ emailed {new Date(entry.slip_emailed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-gray-700">
                               €{Number(entry.salary_euro).toLocaleString('en-IN', { minimumFractionDigits: 2 })}

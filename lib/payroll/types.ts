@@ -59,6 +59,7 @@ export interface PayrollEntry {
   final_payable: number
   notes: string | null
   transaction_id: string | null
+  slip_emailed_at?: string | null
   created_at: string
   // joined from employees table
   employee?: Employee
