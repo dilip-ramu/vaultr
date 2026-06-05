@@ -32,9 +32,24 @@ function fmtInr(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 }
 
+type StatusFilter = 'all' | 'in_progress' | 'finalized' | 'settled'
+
+function monthStatus(m: PayrollMonth): Exclude<StatusFilter, 'all'> {
+  if (m.is_finalized && m.is_paid) return 'settled'
+  if (m.is_finalized) return 'finalized'
+  return 'in_progress'
+}
+
+const STATUS_BADGE: Record<Exclude<StatusFilter, 'all'>, { label: string; cls: string }> = {
+  settled:     { label: '✓ Settled',     cls: 'bg-emerald-100 text-emerald-700' },
+  finalized:   { label: '✓ Finalized',   cls: 'bg-green-100 text-green-700' },
+  in_progress: { label: 'In progress',   cls: 'bg-amber-100 text-amber-700' },
+}
+
 export default function ProcessingListClient({ months: initialMonths }: Props) {
   const router = useRouter()
   const [months, setMonths] = useState(initialMonths)
+  const [filter, setFilter] = useState<StatusFilter>('all')
   const [showCreate, setShowCreate] = useState(false)
   const [newMonth, setNewMonth] = useState('')
   const [newPayDate, setNewPayDate] = useState('')
@@ -96,6 +111,31 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
         </button>
       </div>
 
+      {/* Status filter */}
+      {months.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {([
+            { key: 'all', label: 'All' },
+            { key: 'in_progress', label: 'In progress' },
+            { key: 'finalized', label: 'Finalized' },
+            { key: 'settled', label: 'Settled' },
+          ] as { key: StatusFilter; label: string }[]).map(f => {
+            const count = f.key === 'all' ? months.length : months.filter(m => monthStatus(m) === f.key).length
+            return (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  filter === f.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {f.label} ({count})
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Month list */}
       {months.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
@@ -103,7 +143,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          {months.map(m => (
+          {months.filter(m => filter === 'all' || monthStatus(m) === filter).map(m => (
             <div
               key={m.id}
               onClick={() => router.push(`/payroll/processing/${m.id}`)}
@@ -121,25 +161,11 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                     </div>
                   )}
                 </div>
-                {m.is_finalized && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                    ✓ Finalized
-                  </span>
-                )}
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[monthStatus(m)].cls}`}>
+                  {STATUS_BADGE[monthStatus(m)].label}
+                </span>
               </div>
               <div className="flex items-center gap-6 text-right">
-                {m.expended_rate > 0 && (
-                  <div>
-                    <div className="text-xs text-gray-400">Expended Rate</div>
-                    <div className="text-sm font-mono text-gray-700">₹{Number(m.expended_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                  </div>
-                )}
-                {m.effective_rate > 0 && (
-                  <div>
-                    <div className="text-xs text-gray-400">Effective Rate</div>
-                    <div className="text-sm font-mono text-gray-700">₹{Number(m.effective_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                  </div>
-                )}
                 <button
                   onClick={(e) => handleDelete(m.id, e)}
                   className="text-xs text-red-400 hover:text-red-600 ml-2"
