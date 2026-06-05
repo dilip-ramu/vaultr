@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import SalarySlipPrint from './SalarySlipPrint'
 import { buildWhatsAppUrl, salarySlipMessage } from '@/lib/whatsapp'
+import { createClient } from '@/lib/supabase/client'
 
 // Load PDF renderer lazily (large bundle, not needed on first paint)
 const SalarySlipPDFDownload = dynamic(() => import('./SalarySlipPDFDownload'), { ssr: false })
@@ -155,6 +156,16 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
     } finally {
       setEmailing(false)
     }
+  }
+
+  // Manual correction: toggle the "emailed" mark without sending anything
+  async function toggleEmailedMark(entry: EnrichedEntry) {
+    const supabase = createClient()
+    await supabase
+      .from('payroll_entries')
+      .update({ slip_emailed_at: entry.slip_emailed_at ? null : new Date().toISOString() })
+      .eq('id', entry.id)
+    router.refresh()
   }
 
   function openWhatsApp(entry: EnrichedEntry) {
@@ -335,10 +346,25 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                             <td className="px-4 py-3">
                               <div className="font-medium text-gray-900">{entry.employee?.name ?? '—'}</div>
                               <div className="text-xs text-gray-400">{entry.employee?.employee_id ?? ''}</div>
-                              {entry.slip_emailed_at && (
+                              {entry.slip_emailed_at ? (
                                 <div className="text-[11px] text-emerald-600 mt-0.5">
                                   ✓ emailed {new Date(entry.slip_emailed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                  <button
+                                    onClick={() => toggleEmailedMark(entry)}
+                                    className="ml-1.5 text-gray-300 hover:text-gray-500"
+                                    title="Clear the emailed mark (doesn't send anything)"
+                                  >
+                                    ×
+                                  </button>
                                 </div>
+                              ) : (
+                                <button
+                                  onClick={() => toggleEmailedMark(entry)}
+                                  className="text-[11px] text-gray-300 hover:text-gray-500 mt-0.5"
+                                  title="Mark as emailed without sending (e.g. sent outside the app)"
+                                >
+                                  mark emailed
+                                </button>
                               )}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-gray-700">
