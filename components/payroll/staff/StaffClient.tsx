@@ -194,7 +194,6 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Designation</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary (€)</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Bank</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">PAN</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined</th>
@@ -210,9 +209,6 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
                       <div className="text-xs text-gray-400">{emp.employee_id}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{emp.designation ?? '—'}</td>
-                    <td className="px-4 py-3 text-right font-mono text-gray-900">
-                      €{Number(emp.salary_euro).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </td>
                     <td className="px-4 py-3">
                       {emp.bank_name ? (
                         <div>
