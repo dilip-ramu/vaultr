@@ -8,6 +8,8 @@ import { ACCOUNT_TYPE_CONFIG, EMOJI_MAP } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface AccountCardProps {
   account: Account
@@ -43,7 +45,7 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
     if (count! > 0) {
       try { sessionStorage.removeItem('inex-deleted-tx-ids') } catch {}
       setTxCount(null)
-      alert(
+      notify(
         `Cannot delete "${account.name}" — it has ${count} linked transaction${count! > 1 ? 's' : ''}.\n\n` +
         `Please go to this account's transactions and delete them first, then try again.`
       )
@@ -51,13 +53,13 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
       return
     }
 
-    if (!confirm(`Delete "${account.name}"? This cannot be undone.`)) return
+    if (!await confirmDialog(`Delete "${account.name}"? This cannot be undone.`)) return
 
     setDeleting(true)
     const supabase = createClient()
     const { error } = await supabase.from('accounts').update({ is_active: false }).eq('id', account.id)
     if (error) {
-      alert('Could not delete account: ' + error.message)
+      notify('Could not delete account: ' + error.message)
       setDeleting(false)
     } else {
       onDelete(account.id)

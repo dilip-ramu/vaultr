@@ -6,6 +6,8 @@ import { Plus, Search, Building2, Phone, Mail, Edit2, Trash2, ToggleLeft, Toggle
 import type { Supplier } from '@/lib/suppliers/types'
 import { PAYMENT_TERMS_OPTIONS } from '@/lib/suppliers/types'
 import SupplierForm from './SupplierForm'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface Props {
   initialSuppliers: Supplier[]
@@ -67,7 +69,7 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this supplier? This cannot be undone.')) return
+    if (!await confirmDialog('Delete this supplier? This cannot be undone.')) return
     setDeleting(id)
     try {
       const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' })
@@ -75,7 +77,7 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
       if (res.ok) {
         setSuppliers(prev => prev.filter(s => s.id !== id))
       } else {
-        alert(data.error ?? 'Delete failed')
+        notify(data.error ?? 'Delete failed')
       }
     } finally {
       setDeleting(null)

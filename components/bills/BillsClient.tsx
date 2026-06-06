@@ -11,6 +11,7 @@ import { PAYMENT_TERMS_LABELS } from '@/lib/types'
 import { formatCurrency, formatDate, getDaysUntil } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import BillForm from './BillForm'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface Props {
   initialBills: Bill[]
@@ -92,7 +93,7 @@ export default function BillsClient({ initialBills, accounts, categories, custom
   }
 
   const handleMarkUnpaid = async (bill: Bill) => {
-    if (!confirm(`Mark "${bill.name}" as unpaid? This will also delete the linked expense transaction.`)) return
+    if (!await confirmDialog(`Mark "${bill.name}" as unpaid? This will also delete the linked expense transaction.`)) return
     const supabase = createClient()
     // Delete linked transactions
     await supabase.from('transactions').delete().eq('bill_id', bill.id)
@@ -102,7 +103,7 @@ export default function BillsClient({ initialBills, accounts, categories, custom
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this bill?')) return
+    if (!await confirmDialog('Delete this bill?')) return
     const supabase = createClient()
     await supabase.from('bills').delete().eq('id', id)
     setBills(prev => prev.filter(b => b.id !== id))

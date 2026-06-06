@@ -8,6 +8,8 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import ActivityFeed from '../shared/ActivityFeed'
 import FileUpload from '../shared/FileUpload'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface Props {
   transaction: Transaction
@@ -23,12 +25,12 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
   const category  = tx.category   as Category | undefined
 
   const handleDelete = async () => {
-    if (!confirm('Delete this transaction?')) return
+    if (!await confirmDialog('Delete this transaction?')) return
     setDeleting(true)
     const supabase = createClient()
     const { error } = await supabase.from('transactions').delete().eq('id', tx.id)
     if (error) {
-      alert('Could not delete: ' + error.message)
+      notify('Could not delete: ' + error.message)
       setDeleting(false)
       return
     }

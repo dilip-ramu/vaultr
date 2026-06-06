@@ -7,6 +7,7 @@ import type { Budget, Category } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 const BudgetForm = dynamic(() => import('./BudgetForm'), { ssr: false })
 
@@ -97,7 +98,7 @@ export default function BudgetsClient({
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this budget?')) return
+    if (!await confirmDialog('Delete this budget?')) return
     const supabase = createClient()
     await supabase.from('budgets').delete().eq('id', id)
     setBudgets(prev => prev.filter(b => b.id !== id))

@@ -8,6 +8,7 @@ import {
   FileEdit, X, Check, ChevronDown, ChevronUp, AlertTriangle,
 } from 'lucide-react'
 import type { ContrastInvoiceData } from './ContrastInvoicePDF'
+import { notify } from '@/components/shared/Toast'
 
 const ContrastInvoicePDFDownload = dynamic(() => import('./ContrastInvoicePDFDownload'), { ssr: false })
 
@@ -154,7 +155,7 @@ function InvoiceRow({
       onDelete(inv.id)
     } else {
       const { error } = await res.json()
-      alert(error ?? 'Delete failed')
+      notify(error ?? 'Delete failed')
     }
     setConfirmDelete(false)
   }

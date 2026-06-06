@@ -15,6 +15,7 @@ import SupplierInvoiceForm from './SupplierInvoiceForm'
 import BulkPayModal from './BulkPayModal'
 import SupplierLinksModal from './SupplierLinksModal'
 import RowActions from './RowActions'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import {
   fmt, fmtDate, daysOverdue, daysDue, displayName,
   STATUS, REC_STATUS, type InvoiceExt,
@@ -134,7 +135,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this invoice?')) return
+    if (!await confirmDialog('Delete this invoice?')) return
     const res = await fetch(`/api/supplier-invoices/${id}`, { method: 'DELETE' })
     if (res.ok) setInvoices(prev => prev.filter(i => i.id !== id))
   }
@@ -155,7 +156,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     const batchNote = inv.bulk_payment_batch_id
       ? '\n\nThis invoice is part of a bulk payment. All invoices in that payment will also be marked unpaid and the batch transaction deleted.'
       : ''
-    if (!confirm(`Mark "${displayName(inv)}" as unpaid? The related transaction will be deleted.${batchNote}`)) return
+    if (!await confirmDialog(`Mark "${displayName(inv)}" as unpaid? The related transaction will be deleted.${batchNote}`)) return
     await doUnpay([inv.id])
   }
 
@@ -230,7 +231,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     const msg = hasBatch
       ? `Mark ${ids.length} invoice(s) as unpaid? Batch payments will be fully reversed and all invoices in those batches will also be marked unpaid.`
       : `Mark ${ids.length} invoice(s) as unpaid? Related transactions will be deleted.`
-    if (!confirm(msg)) return
+    if (!await confirmDialog(msg)) return
     await doUnpay(ids)
   }
 
@@ -323,7 +324,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   }
 
   async function handleStopAutoPay(inv: InvoiceExt) {
-    if (!confirm(`Stop auto-pay for "${displayName(inv)}"?`)) return
+    if (!await confirmDialog(`Stop auto-pay for "${displayName(inv)}"?`)) return
     const res = await fetch(`/api/supplier-invoices/${inv.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

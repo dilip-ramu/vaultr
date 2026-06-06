@@ -229,7 +229,7 @@ export default function MarkPaidModal({
               <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
               <button
                 onClick={handleConfirm}
-                className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"
               >
                 Confirm Payment
               </button>
@@ -238,7 +238,7 @@ export default function MarkPaidModal({
           {step === 'done' && (
             <button
               onClick={onClose}
-              className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"
             >
               Done
             </button>

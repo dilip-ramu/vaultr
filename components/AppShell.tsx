@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight, ChevronDown,
-  X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign,
+  X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign, Search,
   Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
   Building2, BookOpen, CheckCheck,
@@ -18,6 +18,8 @@ import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
 import { ToastProvider } from '@/components/shared/Toast'
+import { ConfirmProvider } from '@/components/shared/ConfirmDialog'
+import GlobalSearch from '@/components/shared/GlobalSearch'
 
 const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
 
@@ -229,6 +231,19 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const [showAddTx, setShowAddTx] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // ⌘K / Ctrl+K opens global search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen(o => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // Per-section collapse state (only collapsible sections, not 'main')
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -326,6 +341,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
   return (
     <ToastProvider>
+    <ConfirmProvider>
     <>
       {/* ══════════════════════════════════════
           DESKTOP LAYOUT
@@ -352,6 +368,18 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
               </button>
             )}
           </div>
+
+          {/* Search trigger */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className={`mx-2 mt-2 flex items-center gap-2 rounded-xl text-sm transition-colors ${collapsed ? 'justify-center p-2.5' : 'px-3 py-2'}`}
+            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+            title="Search (⌘K)"
+          >
+            <Search className="w-4 h-4 shrink-0" />
+            {!collapsed && <span className="flex-1 text-left">Search…</span>}
+            {!collapsed && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--border)', color: 'var(--text-faint)' }}>⌘K</span>}
+          </button>
 
           {collapsed && (
             <button
@@ -440,9 +468,19 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
               <Menu className="w-5 h-5" />
             </button>
             <img src="/vaultr-letter-logo.png" alt="Vaultr" className="h-5 w-auto object-contain absolute left-1/2 -translate-x-1/2" />
-            <Link href="/settings" className="w-10 h-10 flex items-center justify-center -mr-2">
-              <Avatar url={avatarUrl} initials={initials} size="sm" />
-            </Link>
+            <div className="flex items-center -mr-2">
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="w-10 h-10 flex items-center justify-center"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+              <Link href="/settings" className="w-10 h-10 flex items-center justify-center">
+                <Avatar url={avatarUrl} initials={initials} size="sm" />
+              </Link>
+            </div>
           </div>
         </header>
 
@@ -557,7 +595,9 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
       {showAddTx && (
         <TransactionForm onSaved={() => { setShowAddTx(false); router.refresh() }} onClose={() => setShowAddTx(false)} />
       )}
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
+    </ConfirmProvider>
     </ToastProvider>
   )
 }

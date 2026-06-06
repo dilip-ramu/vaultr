@@ -1,9 +1,16 @@
 'use client'
 
-import { createContext, useCallback, useContext, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { CheckCircle, XCircle, Info, X } from 'lucide-react'
 
 type ToastType = 'success' | 'error' | 'info'
+
+// Module-level bridge so non-React code can fire a toast: notify('Saved', 'success')
+let _show: ((message: string, type?: ToastType) => void) | null = null
+export function notify(message: string, type: ToastType = 'info') {
+  if (_show) _show(message, type)
+  else if (typeof window !== 'undefined') window.alert(message)
+}
 
 interface Toast {
   id: string
@@ -45,6 +52,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const timer = setTimeout(() => dismiss(id), 3000)
     timerMap.current.set(id, timer)
   }, [dismiss])
+
+  // Register the module-level bridge while mounted
+  useEffect(() => {
+    _show = (message: string, type: ToastType = 'info') => { showToast(message, type) }
+    return () => { _show = null }
+  }, [showToast])
 
   return (
     <ToastContext.Provider value={{ showToast }}>

@@ -11,6 +11,7 @@ import { getCategoryEmoji } from '@/lib/types'
 import AccountChipPicker from '../shared/AccountChipPicker'
 import { formatCurrency, formatDateShort, getDaysUntil } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 const BillForm = dynamic(() => import('../bills/BillForm'), { ssr: false })
 
@@ -120,7 +121,7 @@ export default function SubscriptionsClient({
   }
 
   const handleMarkUnpaid = async (bill: Bill) => {
-    if (!confirm(`Mark "${bill.name}" as unpaid? The linked expense transaction will be deleted.`)) return
+    if (!await confirmDialog(`Mark "${bill.name}" as unpaid? The linked expense transaction will be deleted.`)) return
     const supabase = createClient()
     await supabase.from('transactions').delete().eq('bill_id', bill.id)
     await supabase.from('bills').update({ status: 'pending', settled_at: null }).eq('id', bill.id)
@@ -128,7 +129,7 @@ export default function SubscriptionsClient({
   }
 
   const handleCancel = async (bill: Bill) => {
-    if (!confirm(`Cancel "${bill.name}" subscription? It will no longer recur.`)) return
+    if (!await confirmDialog(`Cancel "${bill.name}" subscription? It will no longer recur.`)) return
     const supabase = createClient()
     await supabase.from('bills').update({ is_recurring: false }).eq('id', bill.id)
     setSubs(prev => prev.filter(b => b.id !== bill.id))

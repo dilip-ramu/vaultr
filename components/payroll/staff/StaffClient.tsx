@@ -3,6 +3,8 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Employee } from '@/lib/payroll/types'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface Props {
   employees: Employee[]
@@ -124,7 +126,7 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
 
   async function handleDeactivate(emp: Employee) {
     const action = emp.is_active ? 'deactivate' : 'reactivate'
-    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${emp.name}?`)) return
+    if (!await confirmDialog(`${action.charAt(0).toUpperCase() + action.slice(1)} ${emp.name}?`)) return
 
     try {
       const res = await fetch(`/api/payroll/employees/${emp.id}`, {
@@ -133,11 +135,11 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
         body: JSON.stringify({ is_active: !emp.is_active }),
       })
       const data = await res.json()
-      if (!res.ok) { alert(data.error ?? 'Failed'); return }
+      if (!res.ok) { notify(data.error ?? 'Failed'); return }
       setEmployees(prev => prev.map(e => e.id === emp.id ? data.employee : e))
       router.refresh()
     } catch {
-      alert('Network error')
+      notify('Network error')
     }
   }
 
@@ -153,7 +155,7 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
         </div>
         <button
           onClick={openCreate}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"
         >
           + Add Employee
         </button>
@@ -506,7 +508,7 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Employee'}
               </button>

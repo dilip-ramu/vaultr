@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { Paperclip, X, FileText, Loader2, Camera, Download, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Attachment } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface Props {
   transactionId?: string
@@ -184,7 +185,7 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
   }
 
   const handleDelete = async (attachment: Attachment) => {
-    if (!confirm(`Delete "${attachment.file_name}"?`)) return
+    if (!await confirmDialog(`Delete "${attachment.file_name}"?`)) return
     const supabase = createClient()
     await supabase.storage.from('vaultr-attachments').remove([attachment.file_path])
     await supabase.from('attachments').delete().eq('id', attachment.id)

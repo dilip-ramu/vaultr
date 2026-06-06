@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { PayrollMonth } from '@/lib/payroll/types'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface Props {
   months: PayrollMonth[]
@@ -85,13 +87,13 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
     e.stopPropagation()
     const month = months.find(m => m.id === id)
     const label = month?.is_finalized ? 'finalized payroll month (including all salary slips)' : 'payroll month'
-    if (!confirm(`Delete this ${label}? This cannot be undone.`)) return
+    if (!await confirmDialog(`Delete this ${label}? This cannot be undone.`)) return
     const res = await fetch(`/api/payroll/months/${id}`, { method: 'DELETE' })
     if (res.ok) {
       setMonths(prev => prev.filter(m => m.id !== id))
     } else {
       const d = await res.json()
-      alert(d.error ?? 'Failed to delete')
+      notify(d.error ?? 'Failed to delete')
     }
   }
 
@@ -105,7 +107,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
         </div>
         <button
           onClick={() => { setShowCreate(true); setCreateError(null); setNewMonth(''); setNewPayDate(''); setNewDescription('') }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"
         >
           + New Month
         </button>
@@ -126,7 +128,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  filter === f.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  filter === f.key ? 'btn-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {f.label} ({count})
@@ -224,7 +226,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors"
               >
                 {creating ? 'Creating…' : 'Create & Open'}
               </button>

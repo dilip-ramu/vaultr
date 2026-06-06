@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ACCOUNT_COLORS, ACCOUNT_TYPE_CONFIG, EMOJI_MAP } from '@/lib/types'
 import type { AccountType, CustomAccountType, BuiltinTypeOverride } from '@/lib/types'
 import { Avatar } from '../AppShell'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 const ICON_OPTIONS = [
   { value: 'wallet',      emoji: '👛', label: 'Wallet' },
@@ -152,7 +153,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
   }
 
   const handleDeleteCustom = async (id: string, typeName: string) => {
-    if (!confirm(`Delete account type "${typeName}"? Existing accounts using this type won't be affected.`)) return
+    if (!await confirmDialog(`Delete account type "${typeName}"? Existing accounts using this type won't be affected.`)) return
     const supabase = createClient()
     await supabase.from('custom_account_types').delete().eq('id', id)
     setTypes(prev => prev.filter(t => t.id !== id))
@@ -160,7 +161,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
   }
 
   const handleResetBuiltin = async (key: AccountType) => {
-    if (!confirm('Reset this type to its default name and color?')) return
+    if (!await confirmDialog('Reset this type to its default name and color?')) return
     const supabase = createClient()
     await supabase.from('builtin_account_type_overrides').delete().eq('type_key', key)
     setOverrides(prev => prev.filter(o => o.type_key !== key))

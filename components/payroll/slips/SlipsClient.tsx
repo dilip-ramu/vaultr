@@ -233,7 +233,7 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                 <button
                   onClick={downloadSelected}
                   disabled={downloading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors flex items-center gap-2"
                 >
                   {downloading
                     ? <><span className="animate-spin">⏳</span> Downloading…</>
@@ -243,7 +243,7 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                 <button
                   onClick={() => emailSlips([...selected])}
                   disabled={emailing}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors flex items-center gap-2"
                 >
                   {emailing
                     ? <><span className="animate-spin">⏳</span> Emailing…</>
@@ -268,7 +268,7 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
               key={f.key}
               onClick={() => setEmailFilter(f.key)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                emailFilter === f.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                emailFilter === f.key ? 'btn-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               {f.label}

@@ -6,6 +6,8 @@ import type { PayrollMonth, PayrollEntry, Employee } from '@/lib/payroll/types'
 import { calcFinalPayable } from '@/lib/payroll/types'
 import MarkPaidModal from './MarkPaidModal'
 import AccountChipPicker from '@/components/shared/AccountChipPicker'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface Account { id: string; name: string; type: string; color?: string | null; avatar_url?: string | null; custom_type_id?: string | null; custom_type_name?: string | null; custom_type_color?: string | null; custom_type_icon?: string | null }
 
@@ -199,15 +201,15 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
   }
 
   async function handleUndoPay() {
-    if (!confirm('Reverse payment? This will delete all salary transactions for this month.')) return
+    if (!await confirmDialog('Reverse payment? This will delete all salary transactions for this month.')) return
     const res = await fetch(`/api/payroll/months/${month.id}/pay`, { method: 'DELETE' })
     const data = await res.json()
     if (res.ok) { setMonth(data.month); router.refresh() }
-    else alert(data.error ?? 'Failed to reverse payment')
+    else notify(data.error ?? 'Failed to reverse payment')
   }
 
   async function handleFinalize() {
-    if (!confirm(`Finalize payroll for ${fmtMonth(month.payroll_month)}?`)) return
+    if (!await confirmDialog(`Finalize payroll for ${fmtMonth(month.payroll_month)}?`)) return
     setFinalizing(true)
     setFinalizeError(null)
     try {
@@ -245,11 +247,11 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
   }
 
   async function handleReverseIncome() {
-    if (!confirm('Delete the income and forex expense transactions for this month?')) return
+    if (!await confirmDialog('Delete the income and forex expense transactions for this month?')) return
     const res = await fetch(`/api/payroll/months/${month.id}/income`, { method: 'DELETE' })
     const data = await res.json()
     if (res.ok) setMonth(data.month)
-    else alert(data.error ?? 'Failed to reverse')
+    else notify(data.error ?? 'Failed to reverse')
   }
 
   const saveRow = useCallback(async (entry: PayrollEntry) => {
@@ -309,7 +311,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
               <button
                 onClick={handleFinalize}
                 disabled={finalizing}
-                className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors"
               >
                 {finalizing ? 'Finalizing…' : '✓ Finalize Payroll'}
               </button>
@@ -324,7 +326,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 </button>
                 <button
                   onClick={() => setShowPayModal(true)}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"
                 >
                   ₹ Mark as Paid
                 </button>
@@ -401,7 +403,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             ) : (
               <button
                 onClick={() => { setShowIncomeModal(true); setIncomeError(null); setIncomeAccountId('') }}
-                className="px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors"
+                className="px-4 py-1.5 btn-brand text-white rounded-lg text-xs font-medium  transition-colors"
               >
                 ↓ Log Income & Forex
               </button>
@@ -424,7 +426,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
               placeholder="e.g. 89.5" />
           </div>
           <button onClick={handleGenerate} disabled={generating}
-            className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors">
             {generating ? 'Generating…' : entries.length > 0 ? 'Regenerate' : 'Generate'}
           </button>
         </div>
@@ -569,7 +571,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
               <button
                 onClick={handleLogIncome}
                 disabled={loggingIncome}
-                className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors"
               >
                 {loggingIncome ? 'Logging…' : 'Log Transactions'}
               </button>
@@ -606,7 +608,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             <button
               onClick={() => {
                 const csv = generateBankCSV(entries, rowValues, fmtMonth(month.payroll_month))
-                if (!csv) { alert('No eligible entries — check that employees have IFSC code and account number filled in.'); return }
+                if (!csv) { notify('No eligible entries — check that employees have IFSC code and account number filled in.'); return }
                 triggerCSVDownload(csv, 'BULK.csv')
               }}
               className="px-4 py-2 border border-green-400 text-green-700 bg-white rounded-lg text-sm font-medium hover:bg-green-50 transition-colors"
@@ -615,7 +617,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             </button>
             <button
               onClick={() => router.push(`/payroll/slips?month=${month.id}`)}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+              className="px-4 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"
             >
               View Salary Slips →
             </button>

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface TDSEntry {
   id: string
@@ -85,7 +86,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
   }
 
   async function settleAll() {
-    if (!confirm(`Mark all ${pending.length} pending TDS entries as settled? This is typically done once a year after filing.`)) return
+    if (!await confirmDialog(`Mark all ${pending.length} pending TDS entries as settled? This is typically done once a year after filing.`)) return
     setSettlingAll(true)
     setError('')
     try {

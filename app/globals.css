@@ -273,3 +273,21 @@ input:focus, select:focus, textarea:focus {
 /* Ring (focus outlines) */
 [data-theme="dark"] .ring-gray-100,
 [data-theme="dark"] .ring-gray-200 { --tw-ring-color: var(--border) !important; }
+
+/* Remaining gray shades the block above missed (form inputs, dividers, hovers) */
+[data-theme="dark"] .border-gray-300       { border-color: var(--border)        !important; }
+[data-theme="dark"] .bg-gray-300           { background-color: var(--border)     !important; }
+[data-theme="dark"] .divide-gray-50 > * + * { border-color: var(--border-2)       !important; }
+[data-theme="dark"] .hover\:bg-gray-200:hover     { background-color: var(--border)  !important; }
+[data-theme="dark"] .hover\:border-gray-300:hover { border-color: var(--border)     !important; }
+
+/* Off-brand blue focus rings → brand green, both themes */
+.focus\:ring-blue-500:focus { --tw-ring-color: var(--brand) !important; }
+
+/* ── Brand primary button (unifies off-brand blue/green buttons) ──────────── */
+.btn-brand {
+  background: var(--brand);
+  color: #fff;
+}
+.btn-brand:hover { filter: brightness(0.93); }
+.btn-brand:disabled { opacity: 0.5; }

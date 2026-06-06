@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 
 // Dynamically loaded to keep initial bundle small
 import dynamic from 'next/dynamic'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 const CommissionForm   = dynamic(() => import('./CommissionForm'),   { ssr: false })
 const CommissionImport = dynamic(() => import('./CommissionImport'), { ssr: false })
 
@@ -293,7 +294,7 @@ export default function CommissionClient() {
   }
 
   const handleUnreceive = async (row: StyleRow) => {
-    if (!confirm('Undo received? This deletes the linked transaction.')) return
+    if (!await confirmDialog('Undo received? This deletes the linked transaction.')) return
     const supabase = createClient()
     if (row.linked_transaction_id) await supabase.from('transactions').delete().eq('id', row.linked_transaction_id)
     await supabase.from('commission_styles').update({ order_status: 'shipped', received_date: null, linked_transaction_id: null }).eq('id', row.id)
@@ -333,7 +334,7 @@ export default function CommissionClient() {
   }
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Delete ${selectedRows.length} style${selectedRows.length!==1?'s':''}?`)) return
+    if (!await confirmDialog(`Delete ${selectedRows.length} style${selectedRows.length!==1?'s':''}?`)) return
     const supabase = createClient()
     await supabase.from('commission_styles').delete().in('id', selectedRows.map(r=>r.id))
     const ids = new Set(selectedRows.map(r=>r.id))

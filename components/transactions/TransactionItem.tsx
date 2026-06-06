@@ -7,6 +7,7 @@ import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import TransactionDetail from './TransactionDetail'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface Props {
   transaction: Transaction
@@ -26,7 +27,7 @@ export default function TransactionItem({ transaction: tx, isFirst, isLast, onEd
   const category = tx.category as Category | undefined
 
   const handleDelete = async () => {
-    if (!confirm('Delete this transaction?')) return
+    if (!await confirmDialog('Delete this transaction?')) return
     const supabase = createClient()
     await supabase.from('transactions').delete().eq('id', tx.id)
     onDelete(tx.id)

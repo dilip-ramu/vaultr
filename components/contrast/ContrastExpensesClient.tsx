@@ -7,6 +7,7 @@ import {
   Plus, Tag, LayoutList, ArrowDownUp, ReceiptText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { notify } from '@/components/shared/Toast'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -273,7 +274,7 @@ export default function ContrastExpensesClient({
       setTransactions(prev => prev.map(t => ids.includes(t.id) ? { ...t, is_contrast_billed: billed } : t))
       setSelectedIds(new Set())
     } catch (e) {
-      alert('Could not update: ' + (e as Error).message)
+      notify('Could not update: ' + (e as Error).message)
     } finally {
       setTogglingIds(new Set())
     }
@@ -282,7 +283,7 @@ export default function ContrastExpensesClient({
   // ── Bulk attachment download ───────────────────────────────────────────────
   const downloadSelected = async () => {
     const txsWithAttachments = filtered.filter(t => selectedIds.has(t.id) && t.attachments.length > 0)
-    if (txsWithAttachments.length === 0) { alert('No attachments in selection.'); return }
+    if (txsWithAttachments.length === 0) { notify('No attachments in selection.'); return }
     setDownloading(true)
     const supabase = createClient()
     try {
@@ -303,7 +304,7 @@ export default function ContrastExpensesClient({
           }, 300))
         }
       }
-    } catch (e) { alert('Download failed: ' + (e as Error).message) }
+    } catch (e) { notify('Download failed: ' + (e as Error).message) }
     finally { setDownloading(false) }
   }
 

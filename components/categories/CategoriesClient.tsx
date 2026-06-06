@@ -6,6 +6,7 @@ import type { Category } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import CategoryForm from './CategoryForm'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 export default function CategoriesClient({ initialCategories }: { initialCategories: Category[] }) {
   const [categories, setCategories] = useState<Category[]>(
@@ -28,7 +29,7 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this category? Existing transactions will be uncategorised.')) return
+    if (!await confirmDialog('Delete this category? Existing transactions will be uncategorised.')) return
     const supabase = createClient()
     await supabase.from('categories').delete().eq('id', id)
     setCategories(prev => prev.filter(c => c.id !== id))

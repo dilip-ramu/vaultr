@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { Customer } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import CustomerForm from './CustomerForm'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 export default function CustomersClient({ initialCustomers }: { initialCustomers: Customer[] }) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
@@ -30,7 +31,7 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this customer? Bills linked to them will not be deleted.')) return
+    if (!await confirmDialog('Delete this customer? Bills linked to them will not be deleted.')) return
     const supabase = createClient()
     await supabase.from('customers').delete().eq('id', id)
     setCustomers(prev => prev.filter(c => c.id !== id))
