@@ -291,3 +291,10 @@ input:focus, select:focus, textarea:focus {
 }
 .btn-brand:hover { filter: brightness(0.93); }
 .btn-brand:disabled { opacity: 0.5; }
+
+/* ── Global search bar grow-in (expands from the right, where the lens sits) ── */
+@keyframes searchGrow {
+  from { clip-path: inset(0 0 0 100%); opacity: 0.4; }
+  to   { clip-path: inset(0 0 0 0);    opacity: 1; }
+}
+.search-grow { animation: searchGrow 0.18s ease-out; transform-origin: right center; }
