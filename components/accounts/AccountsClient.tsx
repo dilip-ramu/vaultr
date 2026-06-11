@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { Plus, Wallet, TrendingUp, TrendingDown } from 'lucide-react'
 import type { Account, BuiltinTypeOverride } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, accountGroupRank } from '@/lib/utils'
 import AccountCard from './AccountCard'
 
 const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
@@ -49,16 +49,16 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [] 
     setShowForm(true)
   }, [])
 
-  // Group accounts: built-in types first, then custom types
+  // Group accounts, then order: Current → Savings → Credit → rest
   const accountGroups = useMemo(() => {
-    const groups: { key: string; label: string; color: string; accounts: Account[] }[] = []
+    const groups: { key: string; label: string; color: string; type?: string; accounts: Account[] }[] = []
 
     // Built-in types (exclude accounts with custom_type_id from 'other' built-in group)
     for (const [type] of Object.entries(ACCOUNT_TYPE_CONFIG)) {
       const typeAccounts = accounts.filter(a => a.type === type && !a.custom_type_id)
       if (typeAccounts.length === 0) continue
       const display = resolveAccountTypeDisplay(type as keyof typeof ACCOUNT_TYPE_CONFIG, builtinOverrides)
-      groups.push({ key: type, label: display.label, color: display.color, accounts: typeAccounts })
+      groups.push({ key: type, label: display.label, color: display.color, type, accounts: typeAccounts })
     }
 
     // Custom types
@@ -74,7 +74,12 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [] 
       groups.push({ key: k, label: v.name, color: v.color, accounts: v.accounts })
     })
 
-    return groups
+    return groups.sort((a, b) => {
+      const ra = accountGroupRank(a.type, a.label)
+      const rb = accountGroupRank(b.type, b.label)
+      if (ra !== rb) return ra - rb
+      return a.label.localeCompare(b.label)
+    })
   }, [accounts, builtinOverrides])
 
   return (

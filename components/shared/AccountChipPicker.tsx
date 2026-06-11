@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
 import { Avatar } from '@/components/AppShell'
+import { accountGroupRank } from '@/lib/utils'
 
 export interface PickerAccount {
   id: string
@@ -77,22 +78,23 @@ export default function AccountChipPicker({ accounts, selectedId, onSelect }: Pr
       }
     }
 
-    const result: { key: string; label: string; accounts: PickerAccount[] }[] = []
+    // Build every group (built-in + custom), then order them all uniformly:
+    // Current → Savings → Credit → rest (alphabetical within "rest").
+    const all: { key: string; label: string; type?: string; accounts: PickerAccount[] }[] = []
 
-    for (const t of TYPE_ORDER) {
-      if (standardMap.has(t)) {
-        result.push({ key: t, label: TYPE_LABELS[t] ?? t, accounts: standardMap.get(t)! })
-      }
+    for (const [t, accs] of standardMap.entries()) {
+      all.push({ key: t, label: TYPE_LABELS[t] ?? t, type: t, accounts: accs })
+    }
+    for (const [key, v] of customMap.entries()) {
+      all.push({ key, label: v.label, accounts: v.accounts })
     }
 
-    const customGroups = [...customMap.entries()]
-      .map(([key, v]) => ({ key, label: v.label, accounts: v.accounts }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-    result.push(...customGroups)
-
-    if (standardMap.has('other')) {
-      result.push({ key: 'other', label: TYPE_LABELS.other, accounts: standardMap.get('other')! })
-    }
+    const result = all.sort((a, b) => {
+      const ra = accountGroupRank(a.type, a.label)
+      const rb = accountGroupRank(b.type, b.label)
+      if (ra !== rb) return ra - rb
+      return a.label.localeCompare(b.label)
+    })
 
     return result
   }, [accounts])

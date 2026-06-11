@@ -10,7 +10,7 @@ import {
   PAYMENT_TERMS_LABELS, ORDER_STATUS_LABELS, PAYMENT_TERM_DAYS,
 } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
-import { getTodayString } from '@/lib/utils'
+import { getTodayString, accountGroupRank } from '@/lib/utils'
 import { CURRENCIES } from '@/lib/currencies'
 import { computeStyleAmounts } from '@/lib/commission'
 
@@ -286,7 +286,10 @@ export default function CommissionForm({ order, customers, accounts, onSaved, on
               <select value={accountId} onChange={e => setAccountId(e.target.value)}
                 className={inputCls} style={inputStyle}>
                 <option value="">No account</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {[...accounts].sort((a, b) =>
+                  (accountGroupRank(a.type, a.custom_type_name) - accountGroupRank(b.type, b.custom_type_name))
+                  || a.name.localeCompare(b.name)
+                ).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
 

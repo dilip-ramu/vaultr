@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Search, ArrowLeftRight, TrendingUp, TrendingDown } from 'lucide-react'
 import type { Transaction, Account, Category } from '@/lib/types'
-import { formatCurrency, getRelativeDate } from '@/lib/utils'
+import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
 import TransactionItem from './TransactionItem'
 
 const TransactionForm = dynamic(() => import('./TransactionForm'), { ssr: false })
@@ -173,7 +173,10 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
           className="px-3 py-1.5 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600"
         >
           <option value="all">All Accounts</option>
-          {accounts.map(a => (
+          {[...accounts].sort((a, b) =>
+            (accountGroupRank(a.type, a.custom_type_name) - accountGroupRank(b.type, b.custom_type_name))
+            || a.name.localeCompare(b.name)
+          ).map(a => (
             <option key={a.id} value={a.id}>{a.name}</option>
           ))}
         </select>

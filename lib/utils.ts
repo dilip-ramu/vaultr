@@ -2,6 +2,19 @@ export function cn(...inputs: (string | boolean | undefined | null)[]) {
   return inputs.filter(Boolean).join(' ')
 }
 
+/** Display order for account categories: Current → Savings → Credit → rest.
+ *  Works for built-in types ('checking' etc.) AND custom types named
+ *  "Current"/"Savings"/"Credit Card", so ordering is consistent everywhere. */
+export function accountGroupRank(type?: string | null, label?: string | null): number {
+  const t = (type ?? '').toLowerCase()
+  const l = (label ?? '').toLowerCase()
+  const has = (re: RegExp) => re.test(t) || re.test(l)
+  if (has(/current|checking/)) return 0
+  if (has(/saving/))           return 1
+  if (has(/credit/))           return 2
+  return 3 // everything else keeps its existing relative order
+}
+
 export function formatCurrency(amount: number, currency = 'INR'): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

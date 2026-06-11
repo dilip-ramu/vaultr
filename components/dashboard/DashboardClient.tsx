@@ -12,7 +12,7 @@ import type { CardDue } from '@/app/(app)/dashboard/page'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import type { Insight } from '@/lib/insights'
-import { formatCurrency, getRelativeDate } from '@/lib/utils'
+import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
 
@@ -607,8 +607,10 @@ export default function DashboardClient({
               {accounts
                 .filter(a => a.include_in_net_worth)
                 .sort((a, b) => {
-                  const order: Record<string, number> = { checking: 0, savings: 1, credit: 2 }
-                  return (order[a.type] ?? 99) - (order[b.type] ?? 99)
+                  const ra = accountGroupRank(a.type, a.custom_type_name)
+                  const rb = accountGroupRank(b.type, b.custom_type_name)
+                  if (ra !== rb) return ra - rb
+                  return (a.custom_type_name ?? a.name).localeCompare(b.custom_type_name ?? b.name)
                 })
                 .slice(0, 6)
                 .map(account => {
