@@ -6,7 +6,7 @@ import { Plus, Wallet, TrendingUp, TrendingDown, CreditCard } from 'lucide-react
 import type { Account, BuiltinTypeOverride } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay } from '@/lib/types'
 import { formatCurrency, accountGroupRank } from '@/lib/utils'
-import { creditSummary } from '@/lib/account-metrics'
+import { creditSummary, isLiability } from '@/lib/account-metrics'
 import AccountCard from './AccountCard'
 
 const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
@@ -22,11 +22,11 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [] 
   const [editAccount, setEditAccount] = useState<Account | null>(null)
 
   const totalAssets = accounts
-    .filter(a => !['credit', 'loan'].includes(a.type) && a.include_in_net_worth)
+    .filter(a => !isLiability(a.type) && a.include_in_net_worth)
     .reduce((sum, a) => sum + (a.balance ?? 0), 0)
 
   const totalLiabilities = accounts
-    .filter(a => ['credit', 'loan'].includes(a.type) && a.include_in_net_worth)
+    .filter(a => isLiability(a.type) && a.include_in_net_worth)
     .reduce((sum, a) => sum + Math.abs(a.balance ?? 0), 0)
 
   const netWorth = totalAssets - totalLiabilities

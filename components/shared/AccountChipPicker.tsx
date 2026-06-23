@@ -24,21 +24,14 @@ interface Props {
   onSelect: (id: string) => void
 }
 
-const TYPE_ORDER = ['checking', 'savings', 'credit', 'cash', 'investment', 'loan']
-
-const TYPE_LABELS: Record<string, string> = {
-  checking:   'Checking',
-  savings:    'Savings',
-  credit:     'Credit Card',
-  cash:       'Cash',
-  investment: 'Investment',
-  loan:       'Loan',
-  other:      'Other',
+const ACCOUNT_EMOJI: Record<string, string> = {
+  checking: '🏦', savings: '🐷', credit: '💳', cash: '💵',
+  investment: '📈', loan: '🏛️', auto_loan: '🚗', home_loan: '🏠',
+  business_loan: '💼', chit: '🏢', other: '💰',
 }
 
-const ACCOUNT_EMOJI: Record<string, string> = {
-  checking: '🏦', savings: '🐷', credit: '💳',
-  cash: '💵', investment: '📈', loan: '🏛️', other: '💰',
+function typeLabel(type: string): string {
+  return ACCOUNT_TYPE_CONFIG[type as keyof typeof ACCOUNT_TYPE_CONFIG]?.label ?? type
 }
 
 function getEmoji(type: string): string {
@@ -83,7 +76,7 @@ export default function AccountChipPicker({ accounts, selectedId, onSelect }: Pr
     const all: { key: string; label: string; type?: string; accounts: PickerAccount[] }[] = []
 
     for (const [t, accs] of standardMap.entries()) {
-      all.push({ key: t, label: TYPE_LABELS[t] ?? t, type: t, accounts: accs })
+      all.push({ key: t, label: typeLabel(t), type: t, accounts: accs })
     }
     for (const [key, v] of customMap.entries()) {
       all.push({ key, label: v.label, accounts: v.accounts })

@@ -226,8 +226,8 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
 
 function getAccountEmoji(type: string): string {
   const map: Record<string, string> = {
-    checking: '🏦', savings: '🐷', credit: '💳',
-    cash: '💵', investment: '📈', loan: '🏛️', other: '💰',
+    checking: '🏦', savings: '🐷', credit: '💳', cash: '💵', investment: '📈',
+    loan: '🏛️', auto_loan: '🚗', home_loan: '🏠', business_loan: '💼', chit: '🏢', other: '💰',
   }
   return map[type] ?? '💰'
 }

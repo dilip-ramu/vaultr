@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import ForecastClient from '@/components/forecast/ForecastClient'
 import { buildForecast, type ForecastItem } from '@/lib/forecast'
 import { cardOverview, type CardTxn } from '@/lib/cards'
+import { isLiability } from '@/lib/account-metrics'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +56,7 @@ export default async function ForecastPage() {
 
   // Starting balance: cash-like accounts only (credit/loan are obligations)
   const startingBalance = (accounts ?? [])
-    .filter(a => !['credit', 'loan'].includes(a.type))
+    .filter(a => !isLiability(a.type))
     .reduce((s, a) => s + (Number(a.balance) || 0), 0)
 
   const items: ForecastItem[] = []

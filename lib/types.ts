@@ -1,4 +1,4 @@
-export type AccountType = 'checking' | 'savings' | 'credit' | 'cash' | 'investment' | 'loan' | 'other'
+export type AccountType = 'checking' | 'savings' | 'credit' | 'cash' | 'investment' | 'loan' | 'auto_loan' | 'home_loan' | 'business_loan' | 'chit' | 'other'
 export type TransactionType = 'expense' | 'income' | 'transfer'
 export type CategoryType = 'expense' | 'income'
 export type BillStatus = 'pending' | 'paid' | 'overdue'
@@ -286,13 +286,17 @@ export interface ActivityNote {
 // ── Display config ────────────────────────────────────────────────
 
 export const ACCOUNT_TYPE_CONFIG: Record<AccountType, { label: string; color: string; bgColor: string; icon: string }> = {
-  checking:   { label: 'Checking',     color: '#6366F1', bgColor: '#EEF2FF', icon: 'wallet' },
-  savings:    { label: 'Savings',      color: '#10B981', bgColor: '#ECFDF5', icon: 'piggy-bank' },
-  credit:     { label: 'Credit Card',  color: '#F59E0B', bgColor: '#FFFBEB', icon: 'credit-card' },
-  cash:       { label: 'Cash',         color: '#8B5CF6', bgColor: '#F5F3FF', icon: 'banknote' },
-  investment: { label: 'Investment',   color: '#3B82F6', bgColor: '#EFF6FF', icon: 'trending-up' },
-  loan:       { label: 'Loan',         color: '#EF4444', bgColor: '#FEF2F2', icon: 'landmark' },
-  other:      { label: 'Other',        color: '#6B7280', bgColor: '#F9FAFB', icon: 'more-horizontal' },
+  checking:      { label: 'Current',        color: '#6366F1', bgColor: '#EEF2FF', icon: 'wallet' },
+  savings:       { label: 'Savings',        color: '#10B981', bgColor: '#ECFDF5', icon: 'piggy-bank' },
+  credit:        { label: 'Credit Card',    color: '#F59E0B', bgColor: '#FFFBEB', icon: 'credit-card' },
+  cash:          { label: 'Cash',           color: '#8B5CF6', bgColor: '#F5F3FF', icon: 'banknote' },
+  investment:    { label: 'Investment',     color: '#3B82F6', bgColor: '#EFF6FF', icon: 'trending-up' },
+  loan:          { label: 'Loan',           color: '#EF4444', bgColor: '#FEF2F2', icon: 'landmark' },
+  auto_loan:     { label: 'Auto Loan',      color: '#F97316', bgColor: '#FFF7ED', icon: 'car' },
+  home_loan:     { label: 'Home Loan',      color: '#E11D48', bgColor: '#FFF1F2', icon: 'home' },
+  business_loan: { label: 'Business Loan',  color: '#B91C1C', bgColor: '#FEF2F2', icon: 'briefcase' },
+  chit:          { label: 'Chit',           color: '#14B8A6', bgColor: '#F0FDFA', icon: 'building' },
+  other:         { label: 'Other',          color: '#6B7280', bgColor: '#F9FAFB', icon: 'more-horizontal' },
 }
 
 export function resolveAccountTypeDisplay(

@@ -6,6 +6,7 @@ import type { Account, AccountType, CustomAccountType } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
+import { isLoan } from '@/lib/account-metrics'
 
 interface AccountFormProps {
   account: Account | null
@@ -99,9 +100,9 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       statement_due_day: (type === 'credit' && statementDueDay) ? parseInt(statementDueDay) : null,
       statement_day: (type === 'credit' && statementDay) ? parseInt(statementDay) : null,
       credit_limit:   (type === 'credit' && creditLimit) ? parseFloat(creditLimit) : null,
-      loan_principal: (type === 'loan' && loanPrincipal) ? parseFloat(loanPrincipal) : null,
-      interest_rate:  ((type === 'credit' || type === 'loan') && interestRate) ? parseFloat(interestRate) : null,
-      emi_amount:     (type === 'loan' && emiAmount) ? parseFloat(emiAmount) : null,
+      loan_principal: (isLoan(type) && loanPrincipal) ? parseFloat(loanPrincipal) : null,
+      interest_rate:  ((type === 'credit' || isLoan(type)) && interestRate) ? parseFloat(interestRate) : null,
+      emi_amount:     (isLoan(type) && emiAmount) ? parseFloat(emiAmount) : null,
     }
 
     let data, err
@@ -204,7 +205,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 {type === 'credit' ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
-                  : type === 'loan' ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
+                  : isLoan(type) ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
                   : (isEdit ? 'Initial Balance' : 'Opening Balance')}
               </label>
               <input
@@ -217,7 +218,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                 enterKeyHint="done"
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               />
-              {(type === 'credit' || type === 'loan') && (
+              {(type === 'credit' || isLoan(type)) && (
                 <p className="text-[11px] text-gray-400 mt-1">
                   Amount owed — enter as a negative number (e.g. −8400). Repayments you log later will reduce it.
                 </p>
@@ -274,7 +275,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
           )}
 
           {/* Loan details */}
-          {type === 'loan' && (
+          {isLoan(type) && (
             <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
               <div className="grid grid-cols-2 gap-3">
                 <div>

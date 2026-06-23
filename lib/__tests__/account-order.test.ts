@@ -1,13 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { accountGroupRank } from '../utils'
 
-describe('accountGroupRank — Current → Savings → Credit → rest', () => {
+describe('accountGroupRank — Current → Savings → Credit → Cash → rest', () => {
   it('ranks built-in types', () => {
     expect(accountGroupRank('checking')).toBe(0)
     expect(accountGroupRank('savings')).toBe(1)
     expect(accountGroupRank('credit')).toBe(2)
     expect(accountGroupRank('cash')).toBe(3)
-    expect(accountGroupRank('investment')).toBe(3)
+    expect(accountGroupRank('investment')).toBe(4)
+    expect(accountGroupRank('auto_loan', 'Auto Loan')).toBe(4)
+    expect(accountGroupRank('chit', 'Chit')).toBe(4)
   })
 
   it('ranks custom type names the same way (case-insensitive)', () => {
@@ -15,7 +17,8 @@ describe('accountGroupRank — Current → Savings → Credit → rest', () => {
     expect(accountGroupRank(null, 'Current Account')).toBe(0)
     expect(accountGroupRank(null, 'Savings')).toBe(1)
     expect(accountGroupRank(null, 'Credit Card')).toBe(2)
-    expect(accountGroupRank(null, 'Wallet')).toBe(3)
+    expect(accountGroupRank(null, 'Cash in hand')).toBe(3)
+    expect(accountGroupRank(null, 'Wallet')).toBe(4)
   })
 
   it('produces the expected sort order end to end', () => {

@@ -16,9 +16,10 @@ export interface AccountLike {
   emi_amount?: number | null
 }
 
+const LOAN_TYPES = new Set(['loan', 'auto_loan', 'home_loan', 'business_loan'])
 export function isCredit(type: string): boolean { return type === 'credit' }
-export function isLoan(type: string): boolean { return type === 'loan' }
-export function isLiability(type: string): boolean { return type === 'credit' || type === 'loan' }
+export function isLoan(type: string): boolean { return LOAN_TYPES.has(type) }
+export function isLiability(type: string): boolean { return isCredit(type) || isLoan(type) }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 const bal = (a: AccountLike) => Number(a.balance ?? a.initial_balance ?? 0)

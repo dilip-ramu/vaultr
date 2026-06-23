@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import type { ProfitSummary } from '@/lib/profitability'
 import type { CardDue } from '@/app/(app)/dashboard/page'
-import { creditSummary } from '@/lib/account-metrics'
+import { creditSummary, isLiability } from '@/lib/account-metrics'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import type { Insight } from '@/lib/insights'
@@ -162,8 +162,8 @@ export default function DashboardClient({
 
   // ── Money math ──────────────────────────────────────────────────────────────
 
-  const assetAccounts      = accounts.filter(a => !['credit','loan'].includes(a.type) && a.include_in_net_worth)
-  const liabilityAccounts  = accounts.filter(a =>  ['credit','loan'].includes(a.type) && a.include_in_net_worth)
+  const assetAccounts      = accounts.filter(a => !isLiability(a.type) && a.include_in_net_worth)
+  const liabilityAccounts  = accounts.filter(a =>  isLiability(a.type) && a.include_in_net_worth)
   const totalAssets        = assetAccounts.reduce((s, a) => s + (a.balance ?? 0), 0)
   const totalLiabilities   = liabilityAccounts.reduce((s, a) => s + Math.abs(a.balance ?? 0), 0)
   const credit             = creditSummary(accounts)
@@ -660,7 +660,7 @@ export default function DashboardClient({
                 const d = account.custom_type_name
                   ? { label: account.custom_type_name, color: account.custom_type_color ?? '#6B7280', bgColor: `${account.custom_type_color ?? '#6B7280'}18` }
                   : resolveAccountTypeDisplay(account.type, builtinOverrides)
-                const isDebt = ['credit', 'loan'].includes(account.type)
+                const isDebt = isLiability(account.type)
                 const balance = account.balance ?? 0
                 return (
                   <div key={account.id} className="flex items-center gap-3 px-5 py-3">

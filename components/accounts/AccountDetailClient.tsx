@@ -294,7 +294,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
 
 function getAccountEmoji(type: string): string {
   const map: Record<string, string> = {
-    checking: '🏦', savings: '🐷', credit: '💳',
+    checking: '🏦', savings: '🐷', credit: '💳', auto_loan: '🚗', home_loan: '🏠', business_loan: '💼', chit: '🏢',
     cash: '💵', investment: '📈', loan: '🏛️', other: '💰',
   }
   return map[type] ?? '💰'

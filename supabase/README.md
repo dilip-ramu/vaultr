@@ -40,6 +40,7 @@ Run everything below from top to bottom:
 | 28 | `migration_v37_card_payments.sql` | Card Pay button: links statement → transfer transaction (pay/unpay) |
 | 29 | `migration_v38_slip_emailed.sql` | Tracks when each salary slip was emailed |
 | 30 | `migration_v39_credit_accounts.sql` | **Credit cards & loans**: limit, principal, APR, EMI + rebuilds account_balances view |
+| 31 | `migration_v40_account_types.sql` | More account types: Auto/Home/Business Loan + Chit (expands the type CHECK) |
 
 Not in the table: `supabase_commission_migration.sql` (root folder) — commission
 orders/styles; run after v15.
