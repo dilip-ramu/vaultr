@@ -118,6 +118,7 @@ const navSections: NavSection[] = [
       { href: '/downloads',     label: 'Export & Backup',icon: Archive },
       { href: '/categories',    label: 'Categories',     icon: Tag },
       { href: '/account-types', label: 'Account Types',  icon: Layers },
+      { href: '/reconcile',     label: 'Reconcile',      icon: Scale },
       { href: '/currencies',    label: 'Currencies',     icon: DollarSign },
     ],
   },
