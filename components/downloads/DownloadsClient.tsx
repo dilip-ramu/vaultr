@@ -295,6 +295,81 @@ export default function DownloadsClient() {
     }
   }
 
+  // ── Complete backup — every table, full, restore-grade ────────────────────
+  async function handleBackup() {
+    setError('')
+    try {
+      setStatus('fetching')
+      setStatusMsg('Backing up every record…')
+      const res = await fetch('/api/downloads/backup', { method: 'POST' })
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Backup failed')
+      const backup = await res.json()
+
+      if (backup.errors) {
+        console.warn('[Backup] some tables were skipped:', backup.errors)
+      }
+
+      setStatus('zipping')
+      setStatusMsg('Packaging backup…')
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      const stamp = new Date().toISOString().split('T')[0]
+      const root = zip.folder(`InEx_Backup_${stamp}`)!
+
+      // The complete data dump — every table, every row, every field
+      root.file('backup.json', JSON.stringify(backup, null, 2))
+
+      // A readable manifest of what's inside
+      const total = Object.values(backup.counts as Record<string, number>).reduce((s, n) => s + n, 0)
+      const manifest = [
+        `InEx complete backup`,
+        `Exported: ${backup.exported_at}`,
+        `Total records: ${total}`,
+        ``,
+        `Records per table:`,
+        ...Object.entries(backup.counts as Record<string, number>)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([t, n]) => `  ${t}: ${n}`),
+        backup.errors ? `\nSkipped (not present): ${Object.keys(backup.errors).join(', ')}` : '',
+        ``,
+        `backup.json contains the full data. attachment_urls inside it are valid for 1 hour.`,
+      ].join('\n')
+      root.file('README.txt', manifest)
+
+      // Attachment files (best-effort; signed URLs valid 1h)
+      const urls = backup.attachment_urls as Record<string, string>
+      const atts = (backup.tables.attachments ?? []) as { file_path: string; file_name?: string }[]
+      if (atts.length > 0) {
+        const folder = root.folder('attachments')!
+        for (const att of atts) {
+          const url = urls[att.file_path]
+          if (!url) continue
+          try {
+            const fr = await fetch(url)
+            if (fr.ok) folder.file(att.file_name || att.file_path.split('/').pop() || 'file', await fr.blob())
+          } catch { /* skip unreachable file */ }
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' })
+      const url = URL.createObjectURL(zipBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `InEx_Backup_${stamp}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      setStatus('done')
+      setStatusMsg(`Complete backup downloaded — ${total} records across ${Object.keys(backup.counts).length} tables.`)
+    } catch (e) {
+      setError((e as Error).message)
+      setStatus('error')
+      setStatusMsg('')
+    }
+  }
+
   const isRunning = status === 'fetching' || status === 'generating' || status === 'zipping'
 
   return (
@@ -308,6 +383,25 @@ export default function DownloadsClient() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Data Export & Backup</h1>
           <p className="text-sm text-gray-500">Download all your data as a ZIP with readable PDFs and machine-readable CSVs</p>
+        </div>
+      </div>
+
+      {/* Complete backup — everything, restore-grade */}
+      <div className="rounded-2xl p-5" style={{ background: 'var(--brand-light)', border: '1px solid var(--brand)' }}>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>Complete backup</h2>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Every table, every record, every field — plus your attachment files. The full safety net, ignores the date range below.
+            </p>
+          </div>
+          <button
+            onClick={handleBackup}
+            disabled={isRunning}
+            className="btn-brand px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap disabled:opacity-50"
+          >
+            {isRunning ? 'Working…' : 'Download Full Backup'}
+          </button>
         </div>
       </div>
 
