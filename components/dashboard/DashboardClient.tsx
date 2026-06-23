@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { ProfitSummary } from '@/lib/profitability'
 import type { CardDue } from '@/app/(app)/dashboard/page'
+import { creditSummary } from '@/lib/account-metrics'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import type { Insight } from '@/lib/insights'
@@ -165,6 +166,7 @@ export default function DashboardClient({
   const liabilityAccounts  = accounts.filter(a =>  ['credit','loan'].includes(a.type) && a.include_in_net_worth)
   const totalAssets        = assetAccounts.reduce((s, a) => s + (a.balance ?? 0), 0)
   const totalLiabilities   = liabilityAccounts.reduce((s, a) => s + Math.abs(a.balance ?? 0), 0)
+  const credit             = creditSummary(accounts)
   const netWorth           = totalAssets - totalLiabilities
   const monthlyIncome      = monthlyTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const monthlyExpense     = monthlyTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
@@ -416,6 +418,47 @@ export default function DashboardClient({
                   to pay ₹{fmt(Math.max(profitMTD.outstandingExpense, 0))}
                 </p>
               </div>
+            </div>
+          </Link>
+        )}
+
+        {/* ── Credit overview ────────────────────────────────────────────── */}
+        {(credit.totalLimit > 0 || credit.totalOutstanding > 0) && (
+          <Link
+            href="/accounts"
+            className="block rounded-2xl p-4 md:p-5 transition-opacity hover:opacity-90"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Credit</p>
+              <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Available credit</p>
+                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--income)' }}>₹{fmt(credit.totalAvailable)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Total owed</p>
+                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--expense)' }}>₹{fmt(credit.totalOutstanding)}</p>
+                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+                  cards ₹{fmt(credit.totalCardOutstanding)}{credit.totalLoanOutstanding > 0 ? ` · loans ₹${fmt(credit.totalLoanOutstanding)}` : ''}
+                </p>
+              </div>
+              {credit.overallUtilisation != null && (
+                <div className="col-span-2 lg:col-span-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Card utilisation</p>
+                  <p className="text-xl font-bold tracking-tight" style={{
+                    color: credit.overallUtilisation >= 0.9 ? 'var(--expense)' : credit.overallUtilisation >= 0.5 ? '#F59E0B' : 'var(--text)',
+                  }}>{Math.round(credit.overallUtilisation * 100)}%</p>
+                  <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                    <div className="h-full rounded-full" style={{
+                      width: `${Math.min(credit.overallUtilisation * 100, 100)}%`,
+                      background: credit.overallUtilisation >= 0.9 ? 'var(--expense)' : credit.overallUtilisation >= 0.5 ? '#F59E0B' : 'var(--income)',
+                    }} />
+                  </div>
+                </div>
+              )}
             </div>
           </Link>
         )}

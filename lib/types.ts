@@ -55,6 +55,11 @@ export interface Account {
   closing_date: string | null
   statement_due_day: number | null
   statement_day: number | null
+  // Credit cards & loans
+  credit_limit: number | null
+  loan_principal: number | null
+  interest_rate: number | null
+  emi_amount: number | null
   include_in_net_worth: boolean
   is_active: boolean
   created_at: string

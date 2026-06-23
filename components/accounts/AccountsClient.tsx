@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { Plus, Wallet, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Wallet, TrendingUp, TrendingDown, CreditCard } from 'lucide-react'
 import type { Account, BuiltinTypeOverride } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay } from '@/lib/types'
 import { formatCurrency, accountGroupRank } from '@/lib/utils'
+import { creditSummary } from '@/lib/account-metrics'
 import AccountCard from './AccountCard'
 
 const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
@@ -29,6 +30,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [] 
     .reduce((sum, a) => sum + Math.abs(a.balance ?? 0), 0)
 
   const netWorth = totalAssets - totalLiabilities
+  const credit = creditSummary(accounts)
 
   const handleSaved = useCallback((account: Account) => {
     setAccounts(prev => {
@@ -122,6 +124,17 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [] 
               <p className="text-sm font-semibold text-gray-900">{formatCurrency(totalLiabilities)}</p>
             </div>
           </div>
+          {credit.totalLimit > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand-light)' }}>
+                <CreditCard className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} />
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-400">Available credit</p>
+                <p className="text-sm font-semibold text-gray-900">{formatCurrency(credit.totalAvailable)}</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

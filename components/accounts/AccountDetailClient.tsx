@@ -11,6 +11,7 @@ import { Avatar } from '../AppShell'
 import AccountForm from './AccountForm'
 import TransactionItem from '../transactions/TransactionItem'
 import Link from 'next/link'
+import { isCredit, isLoan, creditMetrics, loanMetrics } from '@/lib/account-metrics'
 
 interface Props {
   account: Account
@@ -142,18 +143,75 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
             </button>
           </div>
 
-          {/* Balance */}
-          <div className="bg-gray-50 rounded-xl px-4 py-3">
-            <p className="text-xs text-gray-500 mb-0.5">Current Balance</p>
-            <p className={`text-2xl font-bold ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
-              {formatCurrency(balance)}
-            </p>
-            {account.initial_balance !== 0 && (
-              <p className="text-xs text-gray-400 mt-0.5">
-                Opening: {formatCurrency(account.initial_balance)}
+          {/* Balance — type-aware */}
+          {isCredit(account.type) ? (() => {
+            const m = creditMetrics(account)
+            return (
+              <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Outstanding</p>
+                  <p className="text-2xl font-bold" style={{ color: m.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>
+                    {m.outstanding > 0 ? formatCurrency(m.outstanding) : (m.creditBalance > 0 ? `+${formatCurrency(m.creditBalance)}` : 'No dues')}
+                  </p>
+                </div>
+                {m.limit != null && (
+                  <>
+                    <div className="flex items-center justify-between text-xs">
+                      <span style={{ color: m.overLimit ? 'var(--expense)' : 'var(--text-muted)' }}>
+                        {m.overLimit ? 'Over limit!' : `${formatCurrency(m.available ?? 0)} available`}
+                      </span>
+                      <span className="text-gray-400">of {formatCurrency(m.limit)} · {Math.round((m.utilisation ?? 0) * 100)}%</span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                      <div className="h-full rounded-full" style={{
+                        width: `${Math.min((m.utilisation ?? 0) * 100, 100)}%`,
+                        background: (m.utilisation ?? 0) >= 0.9 ? 'var(--expense)' : (m.utilisation ?? 0) >= 0.5 ? '#F59E0B' : 'var(--income)',
+                      }} />
+                    </div>
+                  </>
+                )}
+                {account.interest_rate != null && <p className="text-xs text-gray-400">{account.interest_rate}% APR</p>}
+              </div>
+            )
+          })() : isLoan(account.type) ? (() => {
+            const m = loanMetrics(account)
+            return (
+              <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Remaining</p>
+                  <p className="text-2xl font-bold" style={{ color: m.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>{formatCurrency(m.outstanding)}</p>
+                </div>
+                {m.principal != null && (
+                  <>
+                    <div className="flex items-center justify-between text-xs">
+                      <span style={{ color: 'var(--income)' }}>{formatCurrency(m.repaid ?? 0)} repaid</span>
+                      <span className="text-gray-400">of {formatCurrency(m.principal)} · {Math.round((m.progress ?? 0) * 100)}%</span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                      <div className="h-full rounded-full" style={{ width: `${Math.min((m.progress ?? 0) * 100, 100)}%`, background: 'var(--income)' }} />
+                    </div>
+                  </>
+                )}
+                {(m.emi != null || m.rate != null) && (
+                  <p className="text-xs text-gray-400">
+                    {m.emi != null && `EMI ${formatCurrency(m.emi)}`}{m.emi != null && m.rate != null && ' · '}{m.rate != null && `${m.rate}%`}
+                  </p>
+                )}
+              </div>
+            )
+          })() : (
+            <div className="bg-gray-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-gray-500 mb-0.5">Current Balance</p>
+              <p className={`text-2xl font-bold ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
+                {formatCurrency(balance)}
               </p>
-            )}
-          </div>
+              {account.initial_balance !== 0 && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Opening: {formatCurrency(account.initial_balance)}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

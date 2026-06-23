@@ -29,6 +29,11 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
   const [avatarUploading, setAvatarUploading] = useState(false)
 
   const [statementDueDay, setStatementDueDay] = useState(account?.statement_due_day?.toString() ?? '')
+  const [statementDay, setStatementDay] = useState(account?.statement_day?.toString() ?? '')
+  const [creditLimit, setCreditLimit] = useState(account?.credit_limit?.toString() ?? '')
+  const [loanPrincipal, setLoanPrincipal] = useState(account?.loan_principal?.toString() ?? '')
+  const [interestRate, setInterestRate] = useState(account?.interest_rate?.toString() ?? '')
+  const [emiAmount, setEmiAmount] = useState(account?.emi_amount?.toString() ?? '')
 
   // Extended details
   const [accountNumber, setAccountNumber] = useState(account?.account_number ?? '')
@@ -92,6 +97,11 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       open_date: openDate || null,
       closing_date: closingDate || null,
       statement_due_day: (type === 'credit' && statementDueDay) ? parseInt(statementDueDay) : null,
+      statement_day: (type === 'credit' && statementDay) ? parseInt(statementDay) : null,
+      credit_limit:   (type === 'credit' && creditLimit) ? parseFloat(creditLimit) : null,
+      loan_principal: (type === 'loan' && loanPrincipal) ? parseFloat(loanPrincipal) : null,
+      interest_rate:  ((type === 'credit' || type === 'loan') && interestRate) ? parseFloat(interestRate) : null,
+      emi_amount:     (type === 'loan' && emiAmount) ? parseFloat(emiAmount) : null,
     }
 
     let data, err
@@ -193,7 +203,9 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                {isEdit ? 'Initial Balance' : 'Opening Balance'}
+                {type === 'credit' ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
+                  : type === 'loan' ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
+                  : (isEdit ? 'Initial Balance' : 'Opening Balance')}
               </label>
               <input
                 type="number"
@@ -205,6 +217,11 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                 enterKeyHint="done"
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               />
+              {(type === 'credit' || type === 'loan') && (
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Amount owed — enter as a negative number (e.g. −8400). Repayments you log later will reduce it.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Currency</label>
@@ -223,20 +240,63 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
             </div>
           </div>
 
-          {/* Credit card due day */}
+          {/* Credit card details */}
           {type === 'credit' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Statement Due Day <span className="text-gray-400 font-normal">(day of month, e.g. 15)</span>
-              </label>
-              <input
-                type="number"
-                min="1" max="31"
-                value={statementDueDay}
-                onChange={e => setStatementDueDay(e.target.value)}
-                placeholder="e.g. 15"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
-              />
+            <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Credit limit</label>
+                  <input type="number" inputMode="decimal" value={creditLimit}
+                    onChange={e => setCreditLimit(e.target.value)} placeholder="e.g. 200000"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Interest rate (APR %)</label>
+                  <input type="number" inputMode="decimal" value={interestRate}
+                    onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 42"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Statement day</label>
+                  <input type="number" min="1" max="31" value={statementDay}
+                    onChange={e => setStatementDay(e.target.value)} placeholder="closes on"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Payment due day</label>
+                  <input type="number" min="1" max="31" value={statementDueDay}
+                    onChange={e => setStatementDueDay(e.target.value)} placeholder="due on"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-400">Limit enables available-credit and utilisation tracking. Statement days feed the Cards page and forecast.</p>
+            </div>
+          )}
+
+          {/* Loan details */}
+          {type === 'loan' && (
+            <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Original loan amount</label>
+                  <input type="number" inputMode="decimal" value={loanPrincipal}
+                    onChange={e => setLoanPrincipal(e.target.value)} placeholder="e.g. 500000"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Interest rate (%)</label>
+                  <input type="number" inputMode="decimal" value={interestRate}
+                    onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 9.5"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">EMI / monthly payment</label>
+                  <input type="number" inputMode="decimal" value={emiAmount}
+                    onChange={e => setEmiAmount(e.target.value)} placeholder="e.g. 12000"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-400">Original amount enables a paid-vs-remaining progress view.</p>
             </div>
           )}
 

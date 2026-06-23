@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
+import { isCredit, isLoan, creditMetrics, loanMetrics } from '@/lib/account-metrics'
 
 interface AccountCardProps {
   account: Account
@@ -30,6 +31,11 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
   const typeAvatarUrl = account.custom_type_avatar_url ?? null
 
   const balance = account.balance ?? account.initial_balance
+  const credit = isCredit(account.type)
+  const loan = isLoan(account.type)
+  const cm = credit ? creditMetrics(account) : null
+  const lm = loan ? loanMetrics(account) : null
+  const fmt = (n: number) => formatCurrency(n)
 
   const handleDelete = async () => {
     setShowMenu(false)
@@ -69,9 +75,10 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
   return (
     <Link
       href={`/accounts/${account.id}`}
-      className={`bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center gap-3 transition-all hover:shadow-md active:scale-[0.99] ${deleting ? 'opacity-50' : ''}`}
+      className={`bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3 transition-all hover:shadow-md active:scale-[0.99] ${deleting ? 'opacity-50' : ''}`}
       style={{ borderLeftWidth: '3px', borderLeftColor: account.color || typeColor }}
     >
+     <div className="flex items-center gap-3">
       {/* Avatar or icon */}
       {account.avatar_url ? (
         <Avatar url={account.avatar_url} initials={account.name.slice(0, 2).toUpperCase()} size="md" />
@@ -95,13 +102,31 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
         )}
       </div>
 
-      {/* Balance */}
+      {/* Balance — type-aware */}
       <div className="text-right shrink-0">
-        <p className={`font-bold text-sm ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
-          {formatCurrency(balance)}
-        </p>
-        {!account.include_in_net_worth && (
-          <p className="text-[10px] text-gray-400">Excluded</p>
+        {credit && cm ? (
+          <>
+            <p className="font-bold text-sm" style={{ color: cm.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>
+              {cm.outstanding > 0 ? fmt(cm.outstanding) : (cm.creditBalance > 0 ? `+${fmt(cm.creditBalance)}` : fmt(0))}
+            </p>
+            <p className="text-[10px] text-gray-400">{cm.outstanding > 0 ? 'outstanding' : 'no dues'}</p>
+          </>
+        ) : loan && lm ? (
+          <>
+            <p className="font-bold text-sm" style={{ color: lm.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>
+              {fmt(lm.outstanding)}
+            </p>
+            <p className="text-[10px] text-gray-400">remaining</p>
+          </>
+        ) : (
+          <>
+            <p className={`font-bold text-sm ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
+              {formatCurrency(balance)}
+            </p>
+            {!account.include_in_net_worth && (
+              <p className="text-[10px] text-gray-400">Excluded</p>
+            )}
+          </>
         )}
       </div>
 
@@ -151,6 +176,50 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
           </>
         )}
       </div>
+     </div>
+
+      {/* Credit card: available + utilisation */}
+      {credit && cm && cm.limit != null && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px]">
+            <span style={{ color: cm.overLimit ? 'var(--expense)' : 'var(--text-muted)' }}>
+              {cm.overLimit ? 'Over limit!' : `${fmt(cm.available ?? 0)} available`}
+            </span>
+            <span style={{ color: 'var(--text-faint)' }}>
+              of {fmt(cm.limit)} · {Math.round((cm.utilisation ?? 0) * 100)}% used
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+            <div className="h-full rounded-full transition-all" style={{
+              width: `${Math.min((cm.utilisation ?? 0) * 100, 100)}%`,
+              background: (cm.utilisation ?? 0) >= 0.9 ? 'var(--expense)' : (cm.utilisation ?? 0) >= 0.5 ? '#F59E0B' : 'var(--income)',
+            }} />
+          </div>
+          {account.interest_rate != null && (
+            <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{account.interest_rate}% APR</p>
+          )}
+        </div>
+      )}
+
+      {/* Loan: repaid progress + EMI/rate */}
+      {loan && lm && lm.principal != null && (
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-[11px]">
+            <span style={{ color: 'var(--income)' }}>{fmt(lm.repaid ?? 0)} repaid</span>
+            <span style={{ color: 'var(--text-faint)' }}>of {fmt(lm.principal)} · {Math.round((lm.progress ?? 0) * 100)}%</span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+            <div className="h-full rounded-full transition-all" style={{
+              width: `${Math.min((lm.progress ?? 0) * 100, 100)}%`, background: 'var(--income)',
+            }} />
+          </div>
+          {(lm.emi != null || lm.rate != null) && (
+            <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+              {lm.emi != null && `EMI ${fmt(lm.emi)}`}{lm.emi != null && lm.rate != null && ' · '}{lm.rate != null && `${lm.rate}%`}
+            </p>
+          )}
+        </div>
+      )}
     </Link>
   )
 }
