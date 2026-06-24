@@ -12,10 +12,24 @@ import AccountForm from './AccountForm'
 import TransactionItem from '../transactions/TransactionItem'
 import Link from 'next/link'
 import { isCredit, isLoan, creditMetrics, loanMetrics } from '@/lib/account-metrics'
+import { effectOn, type ReconTxn } from '@/lib/reconcile'
+
+export interface StatementTxn {
+  id: string
+  type: 'income' | 'expense' | 'transfer'
+  amount: number
+  date: string
+  name: string | null
+  account_id: string
+  to_account_id: string | null
+  category_name: string | null
+  payee_name: string | null
+}
 
 interface Props {
   account: Account
   recentTransactions: Transaction[]
+  statementTxns?: StatementTxn[]
   builtinOverrides?: BuiltinTypeOverride[]
 }
 
@@ -30,10 +44,11 @@ function addDeletedId(id: string) {
   } catch {}
 }
 
-export default function AccountDetailClient({ account: initialAccount, recentTransactions, builtinOverrides = [] }: Props) {
+export default function AccountDetailClient({ account: initialAccount, recentTransactions, statementTxns = [], builtinOverrides = [] }: Props) {
   const router = useRouter()
   const [account, setAccount] = useState(initialAccount)
   const [showEdit, setShowEdit] = useState(false)
+  const [view, setView] = useState<'statement' | 'list'>('statement')
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [transactions, setTransactions] = useState(() => {
     const deleted = getDeletedIds()
@@ -52,6 +67,20 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
   const typeAvatarUrl = account.custom_type_avatar_url ?? null
 
   const balance = account.balance ?? account.initial_balance
+
+  // Statement: running balance, oldest→newest, then displayed newest-first
+  const statementRows = (() => {
+    const sorted = [...statementTxns].sort((a, b) =>
+      a.date.localeCompare(b.date) || a.id.localeCompare(b.id)
+    )
+    let running = Number(account.initial_balance) || 0
+    const rows = sorted.map(t => {
+      const effect = effectOn(t as unknown as ReconTxn, account.id)
+      running = Math.round((running + effect) * 100) / 100
+      return { txn: t, effect, running }
+    })
+    return rows.reverse()
+  })()
 
   const copyToClipboard = (value: string, field: string) => {
     navigator.clipboard.writeText(value)
@@ -249,35 +278,85 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
         </div>
       )}
 
-      {/* Recent Transactions */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-sm font-semibold text-gray-900">Recent Transactions</p>
-          <Link
-            href={`/transactions?account=${account.id}`}
-            className="text-xs text-brand-500 font-medium hover:underline"
-          >
-            View all
+      {/* Transactions — Statement / List toggle */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+        <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex items-center gap-1 p-0.5 rounded-lg" style={{ background: 'var(--surface-2)' }}>
+            {(['statement', 'list'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className="px-3 py-1 rounded-md text-xs font-medium capitalize transition-colors"
+                style={view === v
+                  ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: '0 1px 2px rgba(0,0,0,.06)' }
+                  : { color: 'var(--text-muted)' }}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <Link href={`/transactions?account=${account.id}`} className="text-xs font-medium hover:underline" style={{ color: 'var(--brand)' }}>
+            Open in Transactions
           </Link>
         </div>
 
-        {transactions.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-gray-400">
-            No transactions yet
-          </div>
+        {view === 'statement' ? (
+          statementRows.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>No transactions yet</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <th className="text-left  px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Date</th>
+                    <th className="text-left  px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Description</th>
+                    <th className="text-right px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Debit</th>
+                    <th className="text-right px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Credit</th>
+                    <th className="text-right px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statementRows.map(({ txn, effect, running }) => (
+                    <tr key={txn.id} style={{ borderBottom: '1px solid var(--border-2)' }}>
+                      <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatDate(txn.date)}</td>
+                      <td className="px-4 py-2.5" style={{ color: 'var(--text)' }}>
+                        {txn.name || txn.payee_name || txn.category_name || (txn.type === 'transfer' ? 'Transfer' : txn.type)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right" style={{ color: 'var(--expense)' }}>{effect < 0 ? formatCurrency(-effect) : ''}</td>
+                      <td className="px-4 py-2.5 text-right" style={{ color: 'var(--income)' }}>{effect > 0 ? formatCurrency(effect) : ''}</td>
+                      <td className="px-4 py-2.5 text-right font-medium" style={{ color: running < 0 ? 'var(--expense)' : 'var(--text)' }}>{formatCurrency(running)}</td>
+                    </tr>
+                  ))}
+                  <tr style={{ background: 'var(--surface-2)' }}>
+                    <td className="px-4 py-2.5" style={{ color: 'var(--text-faint)' }}>—</td>
+                    <td className="px-4 py-2.5 italic" style={{ color: 'var(--text-muted)' }}>Opening balance</td>
+                    <td /><td />
+                    <td className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--text)' }}>{formatCurrency(Number(account.initial_balance) || 0)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )
         ) : (
-          <div>
-            {transactions.map((tx, i) => (
-              <TransactionItem
-                key={tx.id}
-                transaction={tx}
-                isLast={i === transactions.length - 1}
-                onEdit={() => {}}
-                onDelete={handleDeleteTx}
-                contextAccountId={account.id}
-              />
-            ))}
-          </div>
+          transactions.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-gray-400">No transactions yet</div>
+          ) : (
+            <div>
+              {transactions.map((tx, i) => (
+                <TransactionItem
+                  key={tx.id}
+                  transaction={tx}
+                  isLast={i === transactions.length - 1}
+                  onEdit={() => {}}
+                  onDelete={handleDeleteTx}
+                  contextAccountId={account.id}
+                />
+              ))}
+              <Link href={`/transactions?account=${account.id}`} className="block px-5 py-3 text-center text-xs font-medium hover:underline" style={{ color: 'var(--brand)' }}>
+                View all transactions
+              </Link>
+            </div>
+          )
         )}
       </div>
 

@@ -226,40 +226,6 @@ export default function DashboardClient({
     <div className="min-h-full" style={{ background: 'var(--bg)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-        {/* ── Due alerts banner (gone after refresh once paid/received) ──── */}
-        {(commissionDueCount > 0 || billsDueCount > 0) && (
-          <div className="space-y-2">
-            {commissionDueCount > 0 && (
-              <Link
-                href="/customers/commission"
-                className="flex items-center gap-3 rounded-2xl px-4 py-3 transition-opacity hover:opacity-90"
-                style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.35)' }}
-              >
-                <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: '#d97706' }} />
-                <p className="text-sm flex-1 min-w-0" style={{ color: '#92400e' }}>
-                  <span className="font-semibold">₹{fmt(commissionDueTotal)} commission payment due</span>
-                  {' '}· {commissionDueCount} style{commissionDueCount !== 1 ? 's' : ''} past expected payment date
-                </p>
-                <ChevronRight className="w-4 h-4 shrink-0" style={{ color: '#d97706' }} />
-              </Link>
-            )}
-            {billsDueCount > 0 && (
-              <Link
-                href="/bills"
-                className="flex items-center gap-3 rounded-2xl px-4 py-3 transition-opacity hover:opacity-90"
-                style={{ background: 'rgba(200,55,42,0.08)', border: '1px solid rgba(200,55,42,0.30)' }}
-              >
-                <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: 'var(--expense)' }} />
-                <p className="text-sm flex-1 min-w-0" style={{ color: 'var(--expense)' }}>
-                  <span className="font-semibold">{billsDueCount} bill{billsDueCount !== 1 ? 's' : ''} due</span>
-                  {' '}· ₹{fmt(billsDueTotal)} unpaid
-                </p>
-                <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'var(--expense)' }} />
-              </Link>
-            )}
-          </div>
-        )}
-
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
           <div>
@@ -502,51 +468,11 @@ export default function DashboardClient({
           </div>
         )}
 
-        {/* ── Row 2: Business overview ────────────────────────────────────── */}
-        {(supplierDueCount > 0 || totalReceivables > 0 || commissionPendingCount > 0) && (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
-              Business
-            </p>
-            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
-              {supplierDueCount > 0 && (
-                <BizChip
-                  label="Recoverable — Pending Billing"
-                  amount={supplierDue}
-                  count={supplierDueCount}
-                  color="#f59e0b"
-                  href="/suppliers/invoices"
-                />
-              )}
-              {totalReceivables > 0 && (
-                <BizChip
-                  label="Customer Receivables"
-                  amount={totalReceivables}
-                  count={0}
-                  color="var(--income)"
-                  href="/recoverables/invoices"
-                />
-              )}
-              {commissionPendingCount > 0 && (
-                <BizChip
-                  label="Incoming"
-                  amount={commissionPending}
-                  count={commissionPendingCount}
-                  unit="style"
-                  color="#3b82f6"
-                  href="/customers/commission"
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Row 3: Chart + Recent Transactions ─────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
+        {/* ── 5-Month spending trend ─────────────────────────────────────── */}
+        <div>
           {/* Spending trend chart */}
           <div
-            className="lg:col-span-2 rounded-2xl p-5"
+            className="rounded-2xl p-5"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
           >
             <div className="flex items-center justify-between mb-4">
@@ -590,103 +516,10 @@ export default function DashboardClient({
               </div>
             )}
           </div>
-
-          {/* Recent transactions */}
-          <div className="lg:col-span-3 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Recent</p>
-              <Link href="/transactions" className="flex items-center gap-0.5 text-xs font-medium" style={{ color: 'var(--brand)' }}>
-                All <ChevronRight className="w-3 h-3" />
-              </Link>
-            </div>
-            {txSlice.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-2">
-                <ArrowLeftRight className="w-6 h-6" style={{ color: 'var(--text-faint)' }} />
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No transactions yet</p>
-              </div>
-            ) : (
-              <div className="overflow-y-auto" style={{ maxHeight: 280 }}>
-                {sortedDates.map(date => (
-                  <div key={date}>
-                    <div
-                      className="px-5 py-1.5 sticky top-0"
-                      style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border-2)' }}
-                    >
-                      <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>
-                        {getRelativeDate(date)}
-                      </span>
-                    </div>
-                    {groupedTxs[date].map((tx, i) => (
-                      <TransactionItem
-                        key={tx.id}
-                        transaction={tx}
-                        isLast={i === groupedTxs[date].length - 1}
-                        onEdit={() => {}}
-                        onDelete={id => setTxs(prev => prev.filter(t => t.id !== id))}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* ── Row 4: Accounts + Budgets + Bills ──────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-          {/* Accounts */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-              <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4" style={{ color: 'var(--brand)' }} />
-                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Accounts</p>
-              </div>
-              <Link href="/accounts" className="flex items-center gap-0.5 text-xs font-medium" style={{ color: 'var(--brand)' }}>
-                All <ChevronRight className="w-3 h-3" />
-              </Link>
-            </div>
-            <div className="divide-y" style={{ '--tw-divide-opacity': 1 } as React.CSSProperties}>
-              {accounts
-                .filter(a => a.include_in_net_worth)
-                .sort((a, b) => {
-                  const ra = accountGroupRank(a.type, a.custom_type_name)
-                  const rb = accountGroupRank(b.type, b.custom_type_name)
-                  if (ra !== rb) return ra - rb
-                  return (a.custom_type_name ?? a.name).localeCompare(b.custom_type_name ?? b.name)
-                })
-                .slice(0, 6)
-                .map(account => {
-                const d = account.custom_type_name
-                  ? { label: account.custom_type_name, color: account.custom_type_color ?? '#6B7280', bgColor: `${account.custom_type_color ?? '#6B7280'}18` }
-                  : resolveAccountTypeDisplay(account.type, builtinOverrides)
-                const isDebt = isLiability(account.type)
-                const balance = account.balance ?? 0
-                return (
-                  <div key={account.id} className="flex items-center gap-3 px-5 py-3">
-                    <div
-                      className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-semibold shrink-0"
-                      style={{ background: d.bgColor, color: d.color }}
-                    >
-                      {account.icon && /\p{Emoji_Presentation}/u.test(account.icon)
-                        ? account.icon
-                        : account.name[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{account.name}</p>
-                      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{d.label}</p>
-                    </div>
-                    <p
-                      className="text-sm font-bold shrink-0"
-                      style={{ color: isDebt ? 'var(--expense)' : balance >= 0 ? 'var(--text)' : 'var(--expense)' }}
-                    >
-                      {balance < 0 ? '−' : ''}₹{fmt(balance)}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+        {/* ── Budgets ────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-4">
 
           {/* Budgets */}
           <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
@@ -734,50 +567,6 @@ export default function DashboardClient({
             )}
           </div>
 
-          {/* Upcoming bills */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Upcoming Bills</p>
-              <Link href="/bills" className="flex items-center gap-0.5 text-xs font-medium" style={{ color: 'var(--brand)' }}>
-                All <ChevronRight className="w-3 h-3" />
-              </Link>
-            </div>
-            {upcoming.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No upcoming bills</p>
-              </div>
-            ) : (
-              <div className="divide-y" style={{ '--tw-divide-opacity': 1 } as React.CSSProperties}>
-                {upcoming.map(bill => {
-                  const dueDate  = bill.due_date ? new Date(bill.due_date) : null
-                  const daysLeft = dueDate ? Math.ceil((dueDate.getTime() - Date.now()) / 86400000) : null
-                  const urgent   = daysLeft !== null && daysLeft <= 3
-                  return (
-                    <div key={bill.id} className="flex items-center gap-3 px-5 py-3">
-                      <div
-                        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-sm"
-                        style={{ background: urgent ? 'rgba(200,55,42,0.1)' : 'var(--surface-2)' }}
-                      >
-                        {urgent
-                          ? <AlertTriangle className="w-4 h-4" style={{ color: 'var(--expense)' }} />
-                          : <Clock className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{bill.name}</p>
-                        <p className="text-[10px]" style={{ color: urgent ? 'var(--expense)' : 'var(--text-muted)' }}>
-                          {daysLeft === 0 ? 'Due today' : daysLeft === 1 ? 'Due tomorrow' : dueDate ? `${dueDate.getDate()} ${MONTHS[dueDate.getMonth()]}` : '—'}
-                        </p>
-                      </div>
-                      <p className="text-sm font-bold shrink-0" style={{ color: 'var(--expense)' }}>
-                        ₹{fmt(bill.amount)}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
         </div>
 
       </div>
