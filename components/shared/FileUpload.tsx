@@ -5,6 +5,7 @@ import { Paperclip, X, FileText, Loader2, Camera, Download, ZoomIn, ChevronLeft,
 import type { Attachment } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { uploadToBucket } from '@/lib/upload'
 
 interface Props {
   transactionId?: string
@@ -159,11 +160,9 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
       const ext = file.name.split('.').pop()
       const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
-      const { error: uploadError } = await supabase.storage
-        .from('vaultr-attachments')
-        .upload(path, file, { contentType: file.type })
+      const { error: uploadError } = await uploadToBucket('vaultr-attachments', path, file, file.type)
 
-      if (uploadError) { setError(uploadError.message); continue }
+      if (uploadError) { setError(uploadError); continue }
 
       const { data: record } = await supabase.from('attachments').insert({
         user_id: user.id,

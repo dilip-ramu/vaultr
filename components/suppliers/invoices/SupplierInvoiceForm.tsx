@@ -5,6 +5,7 @@ import { X, Upload, FileText, Trash2 } from 'lucide-react'
 import type { SupplierInvoice, Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { INVOICE_CATEGORIES, PAYMENT_TERMS_OPTIONS, calcDueDateFromTerms } from '@/lib/suppliers/types'
 import { createClient } from '@/lib/supabase/client'
+import { uploadToBucket } from '@/lib/upload'
 
 interface Props {
   invoice: SupplierInvoice | null
@@ -104,8 +105,12 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
     setUploading(true)
     setError('')
     try {
-      // Upload straight from the browser to storage — avoids the serverless
-      // request-body size limit that was silently failing larger PDFs.
+      // Friendly guard before we even try (Supabase free tier caps at 50MB/file)
+      if (file.size > 45 * 1024 * 1024) {
+        setError(`That file is ${(file.size / 1048576).toFixed(0)}MB — too large. Please use a file under 45MB (try compressing the PDF or scanning at lower resolution).`)
+        return
+      }
+
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError('Session expired — please sign in again.'); return }
@@ -114,11 +119,9 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
       const rand = Math.random().toString(36).slice(2, 8)
       const path = `${user.id}/supplier-invoices/${Date.now()}-${rand}.${ext}`
 
-      const { error: upErr } = await supabase.storage
-        .from('vaultr-attachments')
-        .upload(path, file, { contentType: file.type || undefined, upsert: false })
-
-      if (upErr) { setError('Upload failed: ' + upErr.message); return }
+      // XHR-based upload — bypasses the iOS standalone fetch "Load failed" bug
+      const { error: upErr } = await uploadToBucket('vaultr-attachments', path, file, file.type)
+      if (upErr) { setError('Upload failed: ' + upErr); return }
 
       set('attachment_path', path)
       set('attachment_name', file.name)
