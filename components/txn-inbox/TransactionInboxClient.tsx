@@ -65,6 +65,21 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
     setTimeout(() => { setFetching(false); router.refresh() }, 18000)
   }
 
+  // Clear pending/dismissed drafts and re-pull their emails (for tuning parsers)
+  async function rescan() {
+    if (!await confirmDialog({
+      title: 'Re-scan emails?',
+      message: 'Clears all un-approved drafts (including dismissed ones) and re-fetches them from email. Approved transactions are untouched. Useful after a parser update.',
+      confirmLabel: 'Clear & re-fetch',
+    })) return
+    setFetching(true)
+    await fetch('/api/txn-inbox/rescan', { method: 'POST' })
+    setDrafts([])
+    await fetch('/api/txn-inbox/check', { method: 'POST' })
+    notify('Re-fetching… refresh in ~20s.', 'info')
+    setTimeout(() => { setFetching(false); router.refresh() }, 18000)
+  }
+
   async function approve(d: Draft, force = false) {
     if (!d.matched_account_id) { notify('Pick an account for this draft first.', 'info'); return }
     setBusy(d.id)
@@ -128,6 +143,10 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
         <div className="flex items-center gap-2">
           <button onClick={() => setShowSenders(s => !s)} className="px-3 py-2 rounded-xl text-sm" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
             Senders ({senders.length})
+          </button>
+          <button onClick={rescan} disabled={fetching} title="Clear un-approved drafts and re-fetch (for tuning)"
+            className="px-3 py-2 rounded-xl text-sm disabled:opacity-50" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            Re-scan
           </button>
           <button onClick={fetchNow} disabled={fetching} className="btn-brand px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 ${fetching ? 'animate-spin' : ''}`} /> {fetching ? 'Fetching…' : 'Fetch now'}
