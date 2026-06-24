@@ -41,6 +41,8 @@ Run everything below from top to bottom:
 | 29 | `migration_v38_slip_emailed.sql` | Tracks when each salary slip was emailed |
 | 30 | `migration_v39_credit_accounts.sql` | **Credit cards & loans**: limit, principal, APR, EMI + rebuilds account_balances view |
 | 31 | `migration_v40_account_types.sql` | More account types: Auto/Home/Business Loan + Chit (expands the type CHECK) |
+| 32 | `migration_v41_drop_forex_split.sql` | Drop billing/expended forex columns (single market rate) |
+| 33 | `migration_v42_transaction_inbox.sql` | **Transaction Inbox**: transaction_drafts, merchant_rules, accounts.matching_digits, monitored_senders.kind |
 
 Not in the table: `supabase_commission_migration.sql` (root folder) — commission
 orders/styles; run after v15.

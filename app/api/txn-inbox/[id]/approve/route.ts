@@ -1,0 +1,83 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { findDuplicate, type TxnLike } from '@/lib/bank-alert/drafts'
+
+type Ctx = { params: Promise<{ id: string }> }
+
+// POST — approve a draft into a real transaction.
+// Body: { force?: boolean }  — force skips the duplicate guard.
+export async function POST(req: NextRequest, { params }: Ctx) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let body: { force?: boolean } = {}
+  try { body = await req.json() } catch { /* no body is fine */ }
+
+  const { data: draft } = await supabase
+    .from('transaction_drafts').select('*').eq('id', id).eq('user_id', user.id).single()
+  if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+  if (draft.status === 'approved') return NextResponse.json({ error: 'Already approved' }, { status: 400 })
+  if (!draft.matched_account_id) return NextResponse.json({ error: 'Pick an account first' }, { status: 400 })
+  if (draft.amount == null) return NextResponse.json({ error: 'Amount is missing' }, { status: 400 })
+
+  const txnDate = (draft.txn_date as string) || new Date().toISOString().slice(0, 10)
+
+  // Duplicate guard — same account + amount within 48h
+  if (!body.force) {
+    const since = new Date(); since.setDate(since.getDate() - 3)
+    const { data: recent } = await supabase
+      .from('transactions')
+      .select('id, account_id, amount, date, type, name')
+      .eq('user_id', user.id)
+      .eq('account_id', draft.matched_account_id)
+      .gte('date', since.toISOString().slice(0, 10))
+    const dup = findDuplicate(
+      { accountId: draft.matched_account_id, amount: Number(draft.amount), date: txnDate },
+      (recent ?? []) as TxnLike[],
+    )
+    if (dup) {
+      return NextResponse.json({
+        duplicate: true,
+        message: 'Looks like a possible duplicate — a transaction with the same amount exists in this account within 48 hours.',
+        existing: dup,
+      }, { status: 409 })
+    }
+  }
+
+  // Create the transaction
+  const { data: txn, error: txErr } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: user.id,
+      type: draft.direction === 'credit' ? 'income' : 'expense',
+      account_id: draft.matched_account_id,
+      amount: Number(draft.amount),
+      original_currency: 'INR',
+      date: txnDate,
+      name: (draft.name as string) || (draft.merchant as string) || null,
+      category_id: draft.category_id ?? null,
+      payee_id: draft.payee_id ?? null,
+      notes: 'Imported from bank alert',
+    })
+    .select('id').single()
+  if (txErr || !txn) return NextResponse.json({ error: txErr?.message ?? 'Failed to create transaction' }, { status: 500 })
+
+  await supabase.from('transaction_drafts')
+    .update({ status: 'approved', transaction_id: txn.id })
+    .eq('id', id).eq('user_id', user.id)
+
+  // Remember the merchant → category/payee/name mapping for next time
+  if (draft.merchant && (draft.category_id || draft.payee_id)) {
+    await supabase.from('merchant_rules').upsert({
+      user_id: user.id,
+      merchant_pattern: String(draft.merchant).slice(0, 60),
+      default_name: draft.name ?? null,
+      category_id: draft.category_id ?? null,
+      payee_id: draft.payee_id ?? null,
+    }, { onConflict: 'user_id,merchant_pattern' })
+  }
+
+  return NextResponse.json({ approved: true, transaction_id: txn.id })
+}

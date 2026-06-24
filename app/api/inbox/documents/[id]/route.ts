@@ -43,7 +43,11 @@ export async function PATCH(
   return NextResponse.json({ document: data })
 }
 
-// DELETE — remove document record (does not delete storage file)
+// DELETE — dismiss a document. We SOFT-delete (status = 'ignored') instead of
+// hard-deleting, because the mailbox check de-duplicates by email_message_id:
+// a hard delete removes the tombstone, so the next fetch re-imports the same
+// email as new (the "deleted ones keep coming back" bug). Keeping the row as
+// 'ignored' both hides it from the UI and blocks re-import.
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -56,7 +60,7 @@ export async function DELETE(
 
   const { error } = await supabase
     .from('email_documents')
-    .delete()
+    .update({ status: 'ignored' })
     .eq('id', id)
     .eq('user_id', user.id)
 

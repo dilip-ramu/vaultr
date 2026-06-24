@@ -47,6 +47,12 @@ SELECT
   a.loan_principal,
   a.interest_rate,
   a.emi_amount,
+  -- Custom account types (restored — must be present for grouping to work)
+  a.custom_type_id,
+  ct.name       AS custom_type_name,
+  ct.color      AS custom_type_color,
+  ct.icon       AS custom_type_icon,
+  ct.avatar_url AS custom_type_avatar_url,
   a.initial_balance +
     COALESCE(SUM(
       CASE
@@ -59,8 +65,9 @@ SELECT
     ), 0) AS balance,
   COUNT(t.id) AS transaction_count
 FROM accounts a
+LEFT JOIN custom_account_types ct ON ct.id = a.custom_type_id
 LEFT JOIN transactions t ON (t.account_id = a.id OR t.to_account_id = a.id)
-GROUP BY a.id;
+GROUP BY a.id, ct.name, ct.color, ct.icon, ct.avatar_url;
 
 GRANT SELECT ON account_balances TO authenticated;
 GRANT SELECT ON account_balances TO anon;

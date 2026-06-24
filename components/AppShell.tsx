@@ -42,6 +42,7 @@ const navSections: NavSection[] = [
       { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
       { href: '/accounts',     label: 'Accounts',     icon: Wallet },
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+      { href: '/txn-inbox',     label: 'Transaction Inbox', icon: Mail },
       { href: '/profitability', label: 'Profitability', icon: Scale },
       { href: '/forecast', label: 'Forecast', icon: CalendarRange },
       { href: '/cards', label: 'Cards', icon: CreditCard },
