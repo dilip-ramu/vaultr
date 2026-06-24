@@ -25,19 +25,25 @@ function htmlToText(html: string): string {
     .trim()
 }
 
+export interface SenderRef { email: string; default_account_id?: string | null }
+
 export async function checkBankAlerts(opts: {
   userId: string
   emailAddress: string
   encryptedPassword: string
   encryptionIv: string
-  senderEmails: string[]
+  senders: SenderRef[]
   accounts: AccountRef[]
   merchantRules: MerchantRule[]
   supabase: SupabaseClient
 }): Promise<AlertCheckResult> {
-  const { userId, emailAddress, encryptedPassword, encryptionIv, senderEmails, accounts, merchantRules, supabase } = opts
+  const { userId, emailAddress, encryptedPassword, encryptionIv, senders, accounts, merchantRules, supabase } = opts
   const result: AlertCheckResult = { checked: 0, added: 0, skipped: 0, errors: [] }
-  if (senderEmails.length === 0) return result
+  if (senders.length === 0) return result
+
+  // sender email → its default account (used when the email has no last-4)
+  const senderDefault = new Map<string, string | null>()
+  for (const s of senders) senderDefault.set(s.email.toLowerCase(), s.default_account_id ?? null)
 
   const password = decryptPassword(encryptedPassword, encryptionIv)
   const { ImapFlow } = await import('imapflow')
@@ -49,7 +55,7 @@ export async function checkBankAlerts(opts: {
     logger: false, tls: { rejectUnauthorized: false },
   })
 
-  const monitored = new Set(senderEmails.map(e => e.toLowerCase()))
+  const monitored = new Set(senders.map(s => s.email.toLowerCase()))
   const since = new Date(); since.setDate(since.getDate() - 30)
 
   await client.connect()
@@ -100,6 +106,8 @@ export async function checkBankAlerts(opts: {
             if (!a || a.amount == null) { result.skipped++; continue }  // not a usable txn alert
 
             const match = matchAccount(a.partialAccount, accounts)
+            // No last-4 match → fall back to this sender's default account
+            const accountId = match.id ?? senderDefault.get(from) ?? null
             const rule = applyMerchantRule(a.merchant, merchantRules)
 
             await supabase.from('transaction_drafts').insert({
@@ -117,10 +125,10 @@ export async function checkBankAlerts(opts: {
               txn_date: a.date,
               partial_account: a.partialAccount,
               confidence: a.confidence,
-              matched_account_id: match.id,
+              matched_account_id: accountId,
               category_id: rule?.category_id ?? null,
               payee_id: rule?.payee_id ?? null,
-              status: match.id ? 'pending' : 'needs_account',
+              status: accountId ? 'pending' : 'needs_account',
             })
             result.added++
           } catch (e) {

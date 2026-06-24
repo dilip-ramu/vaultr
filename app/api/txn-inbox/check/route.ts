@@ -12,7 +12,7 @@ export async function POST(_req: NextRequest) {
 
   const [{ data: integration }, { data: senders }, { data: accounts }, { data: rules }] = await Promise.all([
     supabase.from('email_integrations').select('*').eq('user_id', user.id).eq('is_active', true).maybeSingle(),
-    supabase.from('monitored_senders').select('email').eq('user_id', user.id).eq('is_active', true).eq('kind', 'bank_alert'),
+    supabase.from('monitored_senders').select('email, default_account_id').eq('user_id', user.id).eq('is_active', true).eq('kind', 'bank_alert'),
     supabase.from('accounts').select('id, name, account_number, matching_digits, type').eq('user_id', user.id).eq('is_active', true),
     supabase.from('merchant_rules').select('merchant_pattern, default_name, category_id, payee_id').eq('user_id', user.id),
   ])
@@ -29,7 +29,7 @@ export async function POST(_req: NextRequest) {
         emailAddress: integration.email_address,
         encryptedPassword: integration.encrypted_password,
         encryptionIv: integration.encryption_iv,
-        senderEmails: senders.map(s => s.email),
+        senders: senders,
         accounts: (accounts ?? []) as AccountRef[],
         merchantRules: (rules ?? []) as MerchantRule[],
         supabase,

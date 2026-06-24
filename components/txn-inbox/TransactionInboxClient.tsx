@@ -27,7 +27,7 @@ interface Draft {
 interface Account { id: string; name: string; type: string; custom_type_name?: string | null }
 interface Category { id: string; name: string; type: string }
 interface Payee { id: string; name: string }
-interface Sender { id: string; email: string; name: string | null; is_active: boolean }
+interface Sender { id: string; email: string; name: string | null; is_active: boolean; default_account_id: string | null }
 
 interface Props {
   drafts: Draft[]
@@ -113,10 +113,16 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('monitored_senders')
       .insert({ user_id: user!.id, email, kind: 'bank_alert', is_active: true })
-      .select('id, email, name, is_active').single()
+      .select('id, email, name, is_active, default_account_id').single()
     if (error) { notify(error.message, 'error'); return }
     setSenders(prev => [...prev, data as Sender])
     setNewSender('')
+  }
+
+  async function setSenderAccount(id: string, accountId: string | null) {
+    setSenders(prev => prev.map(s => s.id === id ? { ...s, default_account_id: accountId } : s))
+    const supabase = createClient()
+    await supabase.from('monitored_senders').update({ default_account_id: accountId }).eq('id', id)
   }
 
   async function removeSender(id: string) {
@@ -158,10 +164,15 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
       {showSenders && (
         <div className="card p-4 space-y-3">
           <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Bank-alert sender addresses</p>
-          <p className="text-caption">Emails are fetched only from these addresses (inbox and spam). Add your banks&apos; alert addresses, e.g. alerts@hdfcbank.net.</p>
+          <p className="text-caption">Emails are fetched only from these addresses (inbox and spam). The default account is used when the email has no account number (e.g. Amazon Pay); for banks that show the last-4, leave it on Auto.</p>
           {senders.map(s => (
             <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
-              <span style={{ color: 'var(--text)' }}>{s.email}</span>
+              <span className="flex-1 min-w-0 truncate" style={{ color: 'var(--text)' }}>{s.email}</span>
+              <select value={s.default_account_id ?? ''} onChange={e => setSenderAccount(s.id, e.target.value || null)}
+                className="px-2 py-1 rounded-lg text-xs max-w-[40%]" style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                <option value="">Auto (by last-4)</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
               <button onClick={() => removeSender(s.id)} className="p-1.5 rounded-lg hover:bg-red-50"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
             </div>
           ))}

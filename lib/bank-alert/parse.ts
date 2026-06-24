@@ -112,7 +112,13 @@ export function extractMerchant(text: string): string | null {
 
 /** A date in the text, else the email's received date. */
 export function extractDate(text: string, fallbackIso?: string): string | null {
-  // "Mon DD, YYYY"  e.g. Jun 12, 2026  (ICICI and many banks)
+  // "DD Monthname[,] YYYY"  e.g. 24 June, 2026 / 5 Jun 2026  (Amazon Pay, etc.)
+  const dMonth = text.match(/\b(\d{1,2})\s+([A-Za-z]{3,9}),?\s+(\d{4})\b/)
+  if (dMonth) {
+    const mo = MONTHS[dMonth[2].slice(0, 3).toLowerCase()]
+    if (mo) return `${dMonth[3]}-${mo}-${dMonth[1].padStart(2, '0')}`
+  }
+  // "Monthname DD, YYYY"  e.g. Jun 12, 2026  (ICICI and many banks)
   const monDmy = text.match(/\b([A-Za-z]{3})[a-z]*\s+(\d{1,2}),?\s+(\d{4})\b/)
   if (monDmy) {
     const mo = MONTHS[monDmy[1].slice(0, 3).toLowerCase()]
@@ -125,8 +131,8 @@ export function extractDate(text: string, fallbackIso?: string): string | null {
     if (y.length === 2) y = '20' + y
     return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
   }
-  // dd Mon yyyy / dd-Mon-yyyy
-  const dMon = text.match(/\b(\d{1,2})[-\s]([A-Za-z]{3})[-\s](\d{2,4})\b/)
+  // dd-Mon-yyyy
+  const dMon = text.match(/\b(\d{1,2})[-]([A-Za-z]{3})[-](\d{2,4})\b/)
   if (dMon) {
     const mo = MONTHS[dMon[2].toLowerCase()]
     if (mo) {

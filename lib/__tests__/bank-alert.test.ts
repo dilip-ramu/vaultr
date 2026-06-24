@@ -109,6 +109,31 @@ describe('ICICI credit card parser', () => {
   })
 })
 
+describe('Amazon Pay parser', () => {
+  const amzn = (body: string) => parseAlert({ from: 'no-reply@amazonpay.in', subject: 'Your payment to SWIGGY was Approved', body })
+
+  it('parses a real Amazon Pay payment', () => {
+    const r = amzn('Hi Dilip, Your payment to SWIGGY was Approved. Paid to: SWIGGY Amount: ₹497.0 Seller: SWIGGY Payment date: Wednesday, 24 June, 2026 12:12:09 PM IST')!
+    expect(r.amount).toBe(497)
+    expect(r.currency).toBe('INR')
+    expect(r.direction).toBe('debit')
+    expect(r.merchant).toBe('SWIGGY')
+    expect(r.date).toBe('2026-06-24')
+    expect(r.partialAccount).toBe(null)   // no account number — routed by sender default
+  })
+
+  it('treats a refund/cashback as a credit', () => {
+    const r = amzn('₹100.00 cashback was added to your Amazon Pay balance on 24 June, 2026.')!
+    expect(r.direction).toBe('credit')
+    expect(r.amount).toBe(100)
+  })
+
+  it('skips non-payment Amazon emails', () => {
+    const r = parseAlert({ from: 'no-reply@amazonpay.in', subject: 'Deals of the day', body: 'Shop now and save big on Amazon!' })
+    expect(r).toBe(null)
+  })
+})
+
 const acct = (over: Partial<AccountRef>): AccountRef => ({ id: 'a', name: 'A', ...over })
 
 describe('account matching', () => {

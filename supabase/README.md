@@ -43,6 +43,7 @@ Run everything below from top to bottom:
 | 31 | `migration_v40_account_types.sql` | More account types: Auto/Home/Business Loan + Chit (expands the type CHECK) |
 | 32 | `migration_v41_drop_forex_split.sql` | Drop billing/expended forex columns (single market rate) |
 | 33 | `migration_v42_transaction_inbox.sql` | **Transaction Inbox**: transaction_drafts, merchant_rules, accounts.matching_digits, monitored_senders.kind |
+| 34 | `migration_v43_sender_default_account.sql` | Per-sender default account (for sources with no account number, e.g. Amazon Pay) |
 
 Not in the table: `supabase_commission_migration.sql` (root folder) — commission
 orders/styles; run after v15.
