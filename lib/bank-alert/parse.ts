@@ -6,11 +6,31 @@
 
 export interface ParsedAlert {
   amount: number | null
+  currency: string                // 'INR', 'USD', …
   direction: 'debit' | 'credit'
   partialAccount: string | null   // last 4 digits
   merchant: string | null
   date: string | null             // YYYY-MM-DD
   confidence: number              // 0..1
+}
+
+const MONTHS: Record<string, string> = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+}
+
+/** Normalise a currency token: Rs / Rs. / ₹ → INR, else the 3-letter code. */
+export function normalizeCurrency(token: string | null | undefined): string {
+  if (!token) return 'INR'
+  const t = token.trim().toLowerCase().replace(/\./g, '')
+  if (t === 'rs' || t === '₹' || t === 'inr') return 'INR'
+  return token.trim().toUpperCase().slice(0, 3)
+}
+
+/** Currency that appears next to a money amount in the text. */
+export function extractCurrency(text: string): string {
+  const m = text.match(/\b(inr|usd|eur|gbp|aed|sgd|rs\.?|₹)\s*[0-9]/i)
+  return m ? normalizeCurrency(m[1]) : 'INR'
 }
 
 export interface EmailInput {
@@ -91,17 +111,23 @@ export function extractMerchant(text: string): string | null {
 
 /** A date in the text, else the email's received date. */
 export function extractDate(text: string, fallbackIso?: string): string | null {
-  // dd-mm-yyyy / dd/mm/yy / dd Mon yyyy
+  // "Mon DD, YYYY"  e.g. Jun 12, 2026  (ICICI and many banks)
+  const monDmy = text.match(/\b([A-Za-z]{3})[a-z]*\s+(\d{1,2}),?\s+(\d{4})\b/)
+  if (monDmy) {
+    const mo = MONTHS[monDmy[1].slice(0, 3).toLowerCase()]
+    if (mo) return `${monDmy[3]}-${mo}-${monDmy[2].padStart(2, '0')}`
+  }
+  // dd-mm-yyyy / dd/mm/yy
   const dmy = text.match(/\b(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})\b/)
   if (dmy) {
     let [, d, mo, y] = dmy
     if (y.length === 2) y = '20' + y
     return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
   }
-  const months: Record<string, string> = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' }
+  // dd Mon yyyy / dd-Mon-yyyy
   const dMon = text.match(/\b(\d{1,2})[-\s]([A-Za-z]{3})[-\s](\d{2,4})\b/)
   if (dMon) {
-    const mo = months[dMon[2].toLowerCase()]
+    const mo = MONTHS[dMon[2].toLowerCase()]
     if (mo) {
       let y = dMon[3]; if (y.length === 2) y = '20' + y
       return `${y}-${mo}-${dMon[1].padStart(2, '0')}`
@@ -124,6 +150,7 @@ export function genericParse(email: EmailInput): ParsedAlert {
   if (merchant) confidence += 0.2
   return {
     amount,
+    currency: extractCurrency(text),
     direction: extractDirection(text),
     partialAccount,
     merchant,

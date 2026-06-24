@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { decryptPassword } from './crypto'
 import { parseAlert, type EmailInput } from '@/lib/bank-alert/parse'
 import { matchAccount, applyMerchantRule, type AccountRef, type MerchantRule } from '@/lib/bank-alert/drafts'
+import '@/lib/bank-alert/banks'   // registers bank-specific parsers (side effect)
 
 export interface AlertCheckResult {
   checked: number
@@ -111,6 +112,7 @@ export async function checkBankAlerts(opts: {
               merchant: a.merchant,
               name: rule?.default_name ?? a.merchant ?? null,
               amount: a.amount,
+              currency: a.currency,
               direction: a.direction,
               txn_date: a.date,
               partial_account: a.partialAccount,

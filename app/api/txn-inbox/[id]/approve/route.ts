@@ -46,6 +46,25 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     }
   }
 
+  // Currency: store INR amount. For a non-INR alert, convert at the market rate.
+  const currency = (draft.currency as string) || 'INR'
+  let inrAmount = Number(draft.amount)
+  let originalAmount: number | null = null
+  let exchangeRate: number | null = null
+  if (currency !== 'INR') {
+    const { data: rate } = await supabase
+      .from('currency_rates').select('market_rate')
+      .eq('user_id', user.id).eq('currency', currency)
+      .order('effective_from', { ascending: false }).limit(1).maybeSingle()
+    if (rate?.market_rate) {
+      originalAmount = Number(draft.amount)
+      exchangeRate = Number(rate.market_rate)
+      inrAmount = Math.round(originalAmount * exchangeRate * 100) / 100
+    } else {
+      return NextResponse.json({ error: `No exchange rate set for ${currency}. Add it under Currencies, then approve.` }, { status: 400 })
+    }
+  }
+
   // Create the transaction
   const { data: txn, error: txErr } = await supabase
     .from('transactions')
@@ -53,8 +72,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       user_id: user.id,
       type: draft.direction === 'credit' ? 'income' : 'expense',
       account_id: draft.matched_account_id,
-      amount: Number(draft.amount),
-      original_currency: 'INR',
+      amount: inrAmount,
+      original_currency: currency,
+      original_amount: originalAmount,
+      exchange_rate_used: exchangeRate,
       date: txnDate,
       name: (draft.name as string) || (draft.merchant as string) || null,
       category_id: draft.category_id ?? null,

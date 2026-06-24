@@ -13,6 +13,7 @@ interface Draft {
   merchant: string | null
   name: string | null
   amount: number | null
+  currency: string
   direction: 'debit' | 'credit'
   txn_date: string | null
   partial_account: string | null
@@ -176,7 +177,7 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
                   />
                   <div className="flex items-center gap-2 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
                     <span className="font-semibold" style={{ color: d.direction === 'credit' ? 'var(--income)' : 'var(--expense)' }}>
-                      {d.direction === 'credit' ? '+' : '−'}{d.amount != null ? fmt(d.amount) : '?'}
+                      {d.direction === 'credit' ? '+' : '−'}{d.currency && d.currency !== 'INR' ? `${d.currency} ` : ''}{d.amount != null ? (d.currency === 'INR' ? fmt(d.amount) : d.amount.toLocaleString('en-IN')) : '?'}
                     </span>
                     {d.txn_date && <span>· {d.txn_date}</span>}
                     {d.partial_account && <span>· a/c ••{d.partial_account}</span>}

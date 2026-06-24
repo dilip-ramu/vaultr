@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS transaction_drafts (
   merchant          TEXT,                                   -- raw extracted merchant
   name              TEXT,                                   -- editable; defaults to merchant
   amount            DECIMAL(14,2),
+  currency          TEXT        NOT NULL DEFAULT 'INR',
   direction         TEXT        NOT NULL DEFAULT 'debit',   -- 'debit' | 'credit'
   txn_date          DATE,
   partial_account   TEXT,                                   -- last 4 digits from the email
@@ -47,6 +48,9 @@ ALTER TABLE transaction_drafts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "td_all" ON transaction_drafts;
 CREATE POLICY "td_all" ON transaction_drafts FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 GRANT ALL ON transaction_drafts TO authenticated;
+
+-- Defensive: ensure currency exists even if the table was created before this column was added
+ALTER TABLE transaction_drafts ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'INR';
 
 CREATE INDEX IF NOT EXISTS idx_td_user_status ON transaction_drafts(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_td_msgid ON transaction_drafts(user_id, email_message_id);

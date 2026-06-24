@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   extractAmount, extractDirection, extractPartialAccount, extractMerchant, extractDate, genericParse,
+  parseAlert, normalizeCurrency, extractCurrency,
 } from '../bank-alert/parse'
+import '../bank-alert/banks'   // register ICICI etc.
 import {
   accountDigits, matchAccount, findDuplicate, findTransferPair, applyMerchantRule,
   type AccountRef, type TxnLike, type DraftLike,
@@ -48,6 +50,46 @@ describe('parser helpers', () => {
     expect(r.partialAccount).toBe('1234')
     expect(r.merchant).toBe('SWIGGY')
     expect(r.confidence).toBeGreaterThan(0.7)
+  })
+
+  it('normalises and extracts currency', () => {
+    expect(normalizeCurrency('Rs.')).toBe('INR')
+    expect(normalizeCurrency('₹')).toBe('INR')
+    expect(normalizeCurrency('usd')).toBe('USD')
+    expect(extractCurrency('charged USD 50.00 at')).toBe('USD')
+    expect(extractCurrency('Rs. 100 debited')).toBe('INR')
+  })
+
+  it('parses "Mon DD, YYYY" dates', () => {
+    expect(extractDate('on Jun 12, 2026 at 05:44')).toBe('2026-06-12')
+  })
+})
+
+describe('ICICI credit card parser', () => {
+  const icici = (body: string) => parseAlert({ from: 'credit_cards@icici.bank.in', subject: 'ICICI Bank Credit Card Transaction', body })
+
+  it('parses a real ICICI alert exactly', () => {
+    const r = icici('Your ICICI Bank Credit Card XX0015 has been used for a transaction of INR 3,808.67 on Jun 12, 2026 at 05:44:02. Info: TIRUPUR LORRY URIMAIYA.')!
+    expect(r.amount).toBe(3808.67)
+    expect(r.currency).toBe('INR')
+    expect(r.direction).toBe('debit')
+    expect(r.partialAccount).toBe('0015')
+    expect(r.merchant).toBe('TIRUPUR LORRY URIMAIYA')
+    expect(r.date).toBe('2026-06-12')
+    expect(r.confidence).toBeGreaterThan(0.9)
+  })
+
+  it('parses the second sample (different card + merchant)', () => {
+    const r = icici('Your ICICI Bank Credit Card XX3017 has been used for a transaction of INR 1,712.00 on Jun 12, 2026 at 07:42:56. Info: THE CHOCOLATE ROOM.')!
+    expect(r.amount).toBe(1712)
+    expect(r.partialAccount).toBe('3017')
+    expect(r.merchant).toBe('THE CHOCOLATE ROOM')
+  })
+
+  it('handles a foreign-currency card spend', () => {
+    const r = icici('Your ICICI Bank Credit Card XX0015 has been used for a transaction of USD 50.00 on Jun 12, 2026 at 05:44:02. Info: AMAZON US.')!
+    expect(r.currency).toBe('USD')
+    expect(r.amount).toBe(50)
   })
 })
 
