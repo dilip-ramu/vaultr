@@ -573,7 +573,7 @@ export default function DashboardClient({
 
       {/* Version stamp */}
       <p className="text-center text-[10px] pb-4" style={{ color: 'var(--text-faint)' }}>
-        v2.7
+        v2.8
       </p>
 
       {showAddTx && (
