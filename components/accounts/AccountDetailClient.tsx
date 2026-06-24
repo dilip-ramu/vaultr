@@ -133,7 +133,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
     account.swift_code || account.bank_address || account.open_date || account.closing_date
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       {/* Back */}
       <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 -ml-1">
         <ArrowLeft className="w-4 h-4" />
@@ -304,34 +304,34 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
           statementRows.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>No transactions yet</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[560px]">
+            <div>
+              <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <th className="text-left  px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Date</th>
-                    <th className="text-left  px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Description</th>
-                    <th className="text-right px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Debit</th>
-                    <th className="text-right px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Credit</th>
-                    <th className="text-right px-4 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Balance</th>
+                    <th className="text-left  px-3 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Date</th>
+                    <th className="text-left  px-3 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Description</th>
+                    <th className="text-right px-3 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Amount</th>
+                    <th className="text-right px-3 py-2.5 font-medium" style={{ color: 'var(--text-muted)' }}>Balance</th>
                   </tr>
                 </thead>
                 <tbody>
                   {statementRows.map(({ txn, effect, running }) => (
                     <tr key={txn.id} style={{ borderBottom: '1px solid var(--border-2)' }}>
-                      <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatDate(txn.date)}</td>
-                      <td className="px-4 py-2.5" style={{ color: 'var(--text)' }}>
+                      <td className="px-3 py-2.5 whitespace-nowrap align-top" style={{ color: 'var(--text-muted)' }}>{formatDate(txn.date)}</td>
+                      <td className="px-3 py-2.5 align-top" style={{ color: 'var(--text)' }}>
                         {txn.name || txn.payee_name || txn.category_name || (txn.type === 'transfer' ? 'Transfer' : txn.type)}
                       </td>
-                      <td className="px-4 py-2.5 text-right" style={{ color: 'var(--expense)' }}>{effect < 0 ? formatCurrency(-effect) : ''}</td>
-                      <td className="px-4 py-2.5 text-right" style={{ color: 'var(--income)' }}>{effect > 0 ? formatCurrency(effect) : ''}</td>
-                      <td className="px-4 py-2.5 text-right font-medium" style={{ color: running < 0 ? 'var(--expense)' : 'var(--text)' }}>{formatCurrency(running)}</td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap align-top font-medium" style={{ color: effect < 0 ? 'var(--expense)' : 'var(--income)' }}>
+                        {effect < 0 ? '−' : '+'}{formatCurrency(Math.abs(effect))}
+                      </td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap align-top font-medium" style={{ color: running < 0 ? 'var(--expense)' : 'var(--text)' }}>{formatCurrency(running)}</td>
                     </tr>
                   ))}
                   <tr style={{ background: 'var(--surface-2)' }}>
-                    <td className="px-4 py-2.5" style={{ color: 'var(--text-faint)' }}>—</td>
-                    <td className="px-4 py-2.5 italic" style={{ color: 'var(--text-muted)' }}>Opening balance</td>
-                    <td /><td />
-                    <td className="px-4 py-2.5 text-right font-medium" style={{ color: 'var(--text)' }}>{formatCurrency(Number(account.initial_balance) || 0)}</td>
+                    <td className="px-3 py-2.5 align-top" style={{ color: 'var(--text-faint)' }}>—</td>
+                    <td className="px-3 py-2.5 italic align-top" style={{ color: 'var(--text-muted)' }}>Opening balance</td>
+                    <td />
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap align-top font-medium" style={{ color: 'var(--text)' }}>{formatCurrency(Number(account.initial_balance) || 0)}</td>
                   </tr>
                 </tbody>
               </table>
