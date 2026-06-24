@@ -10,17 +10,30 @@ export interface UploadResult {
   error?: string
 }
 
-/** Upload a file. `prefix` is an optional sub-folder (e.g. "supplier-invoices"). */
+/** Upload a file. `prefix` is an optional sub-folder (e.g. "supplier-invoices").
+ *  Sent via XMLHttpRequest (not fetch) to our same-origin /api/upload route:
+ *  XHR avoids the Safari/iOS "Load failed" bug that breaks fetch() with a file
+ *  body, and the same-origin server route avoids all browser↔storage CORS. */
 export async function uploadAttachment(file: File, prefix = ''): Promise<UploadResult> {
-  try {
-    const fd = new FormData()
-    fd.append('file', file)
-    if (prefix) fd.append('prefix', prefix)
-    const res = await fetch('/api/upload', { method: 'POST', body: fd })
-    const data = await res.json()
-    if (!res.ok) return { error: data.error ?? `Upload failed (HTTP ${res.status})` }
-    return { path: data.path, name: data.name, size: data.size }
-  } catch (e) {
-    return { error: (e as Error).message }
-  }
+  const fd = new FormData()
+  fd.append('file', file)
+  if (prefix) fd.append('prefix', prefix)
+
+  return new Promise<UploadResult>((resolve) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', '/api/upload', true)
+    xhr.onload = () => {
+      let data: { path?: string; name?: string; size?: number; error?: string } = {}
+      try { data = JSON.parse(xhr.responseText) } catch { /* non-JSON response */ }
+      if (xhr.status >= 200 && xhr.status < 300 && data.path) {
+        resolve({ path: data.path, name: data.name, size: data.size })
+      } else {
+        resolve({ error: data.error ?? `Upload failed (HTTP ${xhr.status})` })
+      }
+    }
+    xhr.onerror = () => resolve({ error: 'Network error during upload — check your connection.' })
+    xhr.ontimeout = () => resolve({ error: 'Upload timed out — try again.' })
+    xhr.timeout = 120000
+    xhr.send(fd)
+  })
 }
