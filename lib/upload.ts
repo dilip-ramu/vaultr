@@ -1,52 +1,26 @@
-import { createClient } from '@/lib/supabase/client'
-
-// ── Storage uploader (XHR, not fetch) ────────────────────────────────────────
-// iOS Safari in standalone/home-screen mode fails fetch() requests with a File
-// body — the error surfaces as "Load failed". Supabase's storage client uses
-// fetch internally, so every attachment upload breaks. XMLHttpRequest is NOT
-// affected by that WebKit bug, so we upload via XHR directly to the storage
-// REST endpoint using the signed-in user's token.
+// ── Storage uploader (via our own server) ────────────────────────────────────
+// The browser POSTs the file to our same-origin /api/upload route; the server
+// uploads it to Supabase storage. This avoids all browser↔storage problems
+// (CORS, iOS standalone fetch bug) and returns the real storage error if any.
 
 export interface UploadResult {
+  path?: string
+  name?: string
+  size?: number
   error?: string
 }
 
-export async function uploadToBucket(bucket: string, path: string, file: Blob, contentType?: string): Promise<UploadResult> {
-  const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { error: 'Not signed in — please refresh and try again.' }
-
-  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!baseUrl || !anonKey) return { error: 'Storage not configured.' }
-
-  const url = `${baseUrl}/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`
-
-  return new Promise<UploadResult>((resolve) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', url, true)
-    // apikey is required by the Supabase gateway on every request
-    xhr.setRequestHeader('apikey', anonKey)
-    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
-    xhr.setRequestHeader('x-upsert', 'false')
-    const type = contentType || (file as File).type
-    if (type) xhr.setRequestHeader('Content-Type', type)
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve({})
-      } else {
-        let msg = `Upload failed (HTTP ${xhr.status})`
-        try {
-          const j = JSON.parse(xhr.responseText)
-          msg = j.message || j.error || msg
-        } catch { /* keep default */ }
-        resolve({ error: msg })
-      }
-    }
-    xhr.onerror = () => resolve({ error: 'Network error during upload — check your connection.' })
-    xhr.ontimeout = () => resolve({ error: 'Upload timed out — try again.' })
-    xhr.timeout = 120000
-    xhr.send(file)
-  })
+/** Upload a file. `prefix` is an optional sub-folder (e.g. "supplier-invoices"). */
+export async function uploadAttachment(file: File, prefix = ''): Promise<UploadResult> {
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (prefix) fd.append('prefix', prefix)
+    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    const data = await res.json()
+    if (!res.ok) return { error: data.error ?? `Upload failed (HTTP ${res.status})` }
+    return { path: data.path, name: data.name, size: data.size }
+  } catch (e) {
+    return { error: (e as Error).message }
+  }
 }

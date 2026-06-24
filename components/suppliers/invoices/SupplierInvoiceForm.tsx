@@ -5,7 +5,7 @@ import { X, Upload, FileText, Trash2 } from 'lucide-react'
 import type { SupplierInvoice, Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { INVOICE_CATEGORIES, PAYMENT_TERMS_OPTIONS, calcDueDateFromTerms } from '@/lib/suppliers/types'
 import { createClient } from '@/lib/supabase/client'
-import { uploadToBucket } from '@/lib/upload'
+import { uploadAttachment } from '@/lib/upload'
 
 interface Props {
   invoice: SupplierInvoice | null
@@ -111,19 +111,10 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
         return
       }
 
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setError('Session expired — please sign in again.'); return }
+      const up = await uploadAttachment(file, 'supplier-invoices')
+      if (up.error || !up.path) { setError('Upload failed: ' + (up.error ?? 'unknown error')); return }
 
-      const ext = file.name.split('.').pop() ?? 'bin'
-      const rand = Math.random().toString(36).slice(2, 8)
-      const path = `${user.id}/supplier-invoices/${Date.now()}-${rand}.${ext}`
-
-      // XHR-based upload — bypasses the iOS standalone fetch "Load failed" bug
-      const { error: upErr } = await uploadToBucket('vaultr-attachments', path, file, file.type)
-      if (upErr) { setError('Upload failed: ' + upErr); return }
-
-      set('attachment_path', path)
+      set('attachment_path', up.path)
       set('attachment_name', file.name)
       set('attachment_size', file.size)
     } catch (e) {
