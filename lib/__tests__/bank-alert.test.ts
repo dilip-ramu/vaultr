@@ -91,6 +91,22 @@ describe('ICICI credit card parser', () => {
     expect(r.currency).toBe('USD')
     expect(r.amount).toBe(50)
   })
+
+  it('a "used for a transaction" alert is always a debit (expense)', () => {
+    const r = icici('Your ICICI Bank Credit Card XX3017 has been used for a transaction of INR 1,712.00 on Jun 12, 2026. Info: THE CHOCOLATE ROOM. Total Credit Limit is INR 5,50,000.00')!
+    expect(r.direction).toBe('debit')
+  })
+
+  it('a payment-received alert is a credit', () => {
+    const r = icici('Payment received towards your ICICI Bank Credit Card XX0015 of INR 10,000.00 on Jun 12, 2026.')
+    expect(r?.direction).toBe('credit')
+  })
+
+  it('skips non-transaction ICICI emails (promos/statements) entirely', () => {
+    // matches ICICI (mentions credit card) but has no transaction line → null
+    const r = icici('Convert transactions of Rs 3,000 and above on your ICICI Bank Credit Card into EMI. Give a missed call on 9537667667. SMS iMobile Pay to 56767661.')
+    expect(r).toBe(null)
+  })
 })
 
 const acct = (over: Partial<AccountRef>): AccountRef => ({ id: 'a', name: 'A', ...over })

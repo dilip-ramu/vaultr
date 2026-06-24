@@ -53,8 +53,9 @@ export function registerBankParser(p: BankParser) { REGISTRY.push(p) }
 
 // ── Generic heuristic helpers ────────────────────────────────────────────────
 
-const DEBIT_WORDS = /\b(debited|debit|withdrawn|spent|paid|sent|purchase|deducted|charged)\b/i
-const CREDIT_WORDS = /\b(credited|credit|received|deposited|refund|added)\b/i
+// Use the verb forms so "Credit Card" / "Credit Limit" don't trip the detector.
+const DEBIT_WORDS = /\b(debited|withdrawn|spent|deducted|charged|purchase)\b/i
+const CREDIT_WORDS = /\b(credited|received|deposited|refunded|refund)\b/i
 
 /** Pull a money amount: "Rs. 1,234.56", "INR 1234", "₹1,03,428.15". */
 export function extractAmount(text: string): number | null {
@@ -159,13 +160,13 @@ export function genericParse(email: EmailInput): ParsedAlert {
   }
 }
 
-/** Parse an alert: use a registered bank parser if one matches, else generic. */
+/** Parse an alert. If a bank parser recognises the sender, IT decides — and a
+ *  null result means "recognised, but not a transaction" (promo/statement) so
+ *  the email is skipped rather than mis-parsed by the generic heuristic. Only
+ *  unrecognised senders fall through to the generic parser. */
 export function parseAlert(email: EmailInput): ParsedAlert | null {
   for (const p of REGISTRY) {
-    if (p.matches(email)) {
-      const r = p.parse(email)
-      if (r) return r
-    }
+    if (p.matches(email)) return p.parse(email)
   }
   return genericParse(email)
 }
