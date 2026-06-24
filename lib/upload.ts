@@ -17,13 +17,16 @@ export async function uploadToBucket(bucket: string, path: string, file: Blob, c
   if (!session) return { error: 'Not signed in — please refresh and try again.' }
 
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (!baseUrl) return { error: 'Storage not configured.' }
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!baseUrl || !anonKey) return { error: 'Storage not configured.' }
 
   const url = `${baseUrl}/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`
 
   return new Promise<UploadResult>((resolve) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', url, true)
+    // apikey is required by the Supabase gateway on every request
+    xhr.setRequestHeader('apikey', anonKey)
     xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
     xhr.setRequestHeader('x-upsert', 'false')
     const type = contentType || (file as File).type
