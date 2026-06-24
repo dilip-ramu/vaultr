@@ -15,6 +15,7 @@ import SupplierInvoiceForm from './SupplierInvoiceForm'
 import BulkPayModal from './BulkPayModal'
 import SupplierLinksModal from './SupplierLinksModal'
 import RowActions from './RowActions'
+import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import {
   fmt, fmtDate, daysOverdue, daysDue, displayName,
@@ -342,8 +343,11 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     const { data, error } = await supabase.storage
       .from('vaultr-attachments')
       .createSignedUrl(path, 300)   // 5-minute signed URL
-    if (error || !data?.signedUrl) return
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+    if (error || !data?.signedUrl) {
+      notify('Could not open the attachment' + (error ? `: ${error.message}` : ''), 'error')
+      return
+    }
+    window.open(data.signedUrl, '_blank')
   }
 
   const hasFilters = filterType !== 'all' || filterSupplier || filterRecoverable || filterRecStatus || filterRecurring

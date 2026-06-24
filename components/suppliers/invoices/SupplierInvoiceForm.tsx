@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { X, Upload, FileText, Trash2 } from 'lucide-react'
 import type { SupplierInvoice, Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { INVOICE_CATEGORIES, PAYMENT_TERMS_OPTIONS, calcDueDateFromTerms } from '@/lib/suppliers/types'
+import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   invoice: SupplierInvoice | null
@@ -101,18 +102,29 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
 
   async function handleFileUpload(file: File) {
     setUploading(true)
+    setError('')
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/supplier-invoices/attachment', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (res.ok) {
-        set('attachment_path', data.path)
-        set('attachment_name', data.name)
-        set('attachment_size', data.size)
-      } else {
-        setError(data.error ?? 'Upload failed')
-      }
+      // Upload straight from the browser to storage — avoids the serverless
+      // request-body size limit that was silently failing larger PDFs.
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setError('Session expired — please sign in again.'); return }
+
+      const ext = file.name.split('.').pop() ?? 'bin'
+      const rand = Math.random().toString(36).slice(2, 8)
+      const path = `${user.id}/supplier-invoices/${Date.now()}-${rand}.${ext}`
+
+      const { error: upErr } = await supabase.storage
+        .from('vaultr-attachments')
+        .upload(path, file, { contentType: file.type || undefined, upsert: false })
+
+      if (upErr) { setError('Upload failed: ' + upErr.message); return }
+
+      set('attachment_path', path)
+      set('attachment_name', file.name)
+      set('attachment_size', file.size)
+    } catch (e) {
+      setError('Upload failed: ' + (e as Error).message)
     } finally {
       setUploading(false)
     }
@@ -120,11 +132,8 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
 
   async function handleRemoveAttachment() {
     if (!form.attachment_path) return
-    await fetch('/api/supplier-invoices/attachment', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: form.attachment_path }),
-    })
+    const supabase = createClient()
+    await supabase.storage.from('vaultr-attachments').remove([form.attachment_path])
     set('attachment_path', null)
     set('attachment_name', null)
     set('attachment_size', null)
