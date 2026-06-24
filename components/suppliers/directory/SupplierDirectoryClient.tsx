@@ -2,12 +2,13 @@
 
 import { useState, useMemo, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Building2, Phone, Mail, Edit2, Trash2, ToggleLeft, ToggleRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Search, Building2, Phone, Mail, Edit2, Trash2, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, UserPlus } from 'lucide-react'
 import type { Supplier } from '@/lib/suppliers/types'
 import { PAYMENT_TERMS_OPTIONS } from '@/lib/suppliers/types'
 import SupplierForm from './SupplierForm'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
+import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   initialSuppliers: Supplier[]
@@ -82,6 +83,37 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
     } finally {
       setDeleting(null)
     }
+  }
+
+  // Create a customer record from a supplier's details (same entity, other side)
+  async function handleMakeCustomer(s: Supplier) {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: existing } = await supabase
+      .from('customers').select('id').eq('user_id', user.id).ilike('name', s.name).maybeSingle()
+    if (existing) {
+      notify(`"${s.name}" is already a customer.`, 'info')
+      return
+    }
+    if (!await confirmDialog({
+      title: 'Add as customer?',
+      message: `Create a customer from "${s.name}" using their contact and GST details. They'll remain a supplier too.`,
+      confirmLabel: 'Add as customer',
+    })) return
+
+    const { error } = await supabase.from('customers').insert({
+      user_id: user.id,
+      name: s.name,
+      email: s.email,
+      phone: s.mobile,
+      address: s.address,
+      gst_number: s.gst_number,
+      notes: s.notes,
+    })
+    if (error) notify('Could not add as customer: ' + error.message, 'error')
+    else notify(`"${s.name}" added as a customer ✓`, 'success')
   }
 
   const termsLabel = (s: Supplier) => {
@@ -185,6 +217,13 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
                           <button
+                            onClick={() => handleMakeCustomer(s)}
+                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
+                            title="Also add as customer"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                          </button>
+                          <button
                             onClick={() => { setEditingSupplier(s); setShowForm(true) }}
                             className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
                             title="Edit"
@@ -253,6 +292,9 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    <button onClick={() => handleMakeCustomer(s)} className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }} title="Also add as customer">
+                      <UserPlus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                    </button>
                     <button onClick={() => { setEditingSupplier(s); setShowForm(true) }} className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
                       <Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                     </button>

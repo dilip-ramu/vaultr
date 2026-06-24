@@ -7,6 +7,7 @@ import type { Customer } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import CustomerForm from './CustomerForm'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 export default function CustomersClient({ initialCustomers }: { initialCustomers: Customer[] }) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
@@ -35,6 +36,40 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
     const supabase = createClient()
     await supabase.from('customers').delete().eq('id', id)
     setCustomers(prev => prev.filter(c => c.id !== id))
+  }
+
+  // Create a supplier record from a customer's details (same entity, other side)
+  const handleMakeSupplier = async (customer: Customer) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data: existing } = await supabase
+      .from('suppliers').select('id').eq('user_id', user.id).ilike('name', customer.name).maybeSingle()
+    if (existing) {
+      notify(`"${customer.name}" is already a supplier.`, 'info')
+      return
+    }
+    if (!await confirmDialog({
+      title: 'Add as supplier?',
+      message: `Create a supplier from "${customer.name}" using their contact and GST details. They'll remain a customer too.`,
+      confirmLabel: 'Add as supplier',
+    })) return
+
+    const { error } = await supabase.from('suppliers').insert({
+      user_id: user.id,
+      name: customer.name,
+      email: customer.email,
+      mobile: customer.phone,
+      address: customer.address,
+      gst_number: customer.gst_number,
+      notes: customer.notes,
+      payment_terms: '30',
+      currency: 'INR',
+      is_active: true,
+    })
+    if (error) notify('Could not add as supplier: ' + error.message, 'error')
+    else notify(`"${customer.name}" added as a supplier ✓`, 'success')
   }
 
   return (
@@ -120,6 +155,13 @@ export default function CustomersClient({ initialCustomers }: { initialCustomers
                   >
                     <Receipt className="w-3.5 h-3.5" />
                   </Link>
+                  <button
+                    onClick={() => handleMakeSupplier(customer)}
+                    title="Also add as supplier"
+                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-all"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={() => { setEditCustomer(customer); setShowForm(true) }}
                     className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-all"
