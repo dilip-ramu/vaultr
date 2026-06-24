@@ -54,18 +54,18 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
     const supabase = createClient()
     supabase
       .from('currency_rates')
-      .select('expended_rate, market_rate')
+      .select('market_rate')
       .eq('currency', currency)
       .order('effective_from', { ascending: false })
       .limit(1)
       .single()
       .then(({ data }) => {
         if (data) {
-          setExchangeRate(data.expended_rate ?? data.market_rate)
+          setExchangeRate(data.market_rate)
         } else {
           fetch('/api/exchange-rates').then(r => r.json()).then(j => {
             const r = j.rates?.[currency]
-            if (r) setExchangeRate(r * 1.05)
+            if (r) setExchangeRate(r)
           }).catch(() => {})
         }
         setLoadingRate(false)

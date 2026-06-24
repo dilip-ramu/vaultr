@@ -43,7 +43,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const [payees, setPayees] = useState<Payee[]>([])
 
   // Currency rate state
-  const [currencyRate, setCurrencyRate] = useState<{ market: number; expended: number; billing: number } | null>(null)
+  const [currencyRate, setCurrencyRate] = useState<number | null>(null)
   const [loadingRate, setLoadingRate] = useState(false)
 
   // Payee UI state
@@ -95,26 +95,20 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
       const supabase = createClient()
       const { data } = await supabase
         .from('currency_rates')
-        .select('market_rate, expended_rate, billing_rate')
+        .select('market_rate')
         .eq('currency', currency)
         .order('effective_from', { ascending: false })
         .limit(1)
         .single()
       if (data) {
-        setCurrencyRate({
-          market: data.market_rate,
-          expended: data.expended_rate ?? data.market_rate * 1.05,
-          billing: data.billing_rate ?? data.market_rate * 0.95,
-        })
+        setCurrencyRate(data.market_rate)
       } else {
         // Try fetching from API
         try {
           const res = await fetch('/api/exchange-rates')
           const json = await res.json()
           const rate = json.rates?.[currency]
-          if (rate) {
-            setCurrencyRate({ market: rate, expended: rate * 1.05, billing: rate * 0.95 })
-          }
+          if (rate) setCurrencyRate(rate)
         } catch {}
       }
       setLoadingRate(false)
@@ -128,13 +122,10 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
     if (isNaN(amt) || amt <= 0) return null
     if (currency === 'INR') return amt
     if (!currencyRate) return null
-    const rate = type === 'income' ? currencyRate.billing : currencyRate.expended
-    return amt * rate
+    return amt * currencyRate
   })()
 
-  const rateUsed = currency !== 'INR' && currencyRate
-    ? (type === 'income' ? currencyRate.billing : currencyRate.expended)
-    : null
+  const rateUsed = currency !== 'INR' ? currencyRate : null
 
   // Income uses the same category list as expense so you can tag a reimbursement
   // back to the same category (e.g. 50k Vacation expense + 25k Vacation income = 25k net)
