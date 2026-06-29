@@ -35,16 +35,15 @@ async function InvoicesContent() {
       initialInvoices={invoices ?? []}
       suppliers={suppliers ?? []}
       accounts={accounts ?? []}
+      hideHeader
     />
   )
 }
 
 export default function SupplierInvoicesPage() {
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <Suspense fallback={<div style={{ color: 'var(--text-muted)' }} className="py-12 text-center text-sm">Loading…</div>}>
-        <InvoicesContent />
-      </Suspense>
-    </div>
+    <Suspense fallback={<div style={{ color: 'var(--text-muted)' }} className="py-12 text-center text-sm">Loading…</div>}>
+      <InvoicesContent />
+    </Suspense>
   )
 }

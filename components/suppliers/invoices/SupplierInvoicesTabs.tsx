@@ -2,18 +2,18 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Mail, Settings } from 'lucide-react'
+import { FileText, Mail, Settings } from 'lucide-react'
 
 const TABS = [
-  { href: '/suppliers/documents',             label: 'Documents',  icon: Mail },
-  { href: '/suppliers/documents/email-setup', label: 'Email Setup', icon: Settings },
+  { href: '/suppliers/invoices',             label: 'Invoices',       icon: FileText },
+  { href: '/suppliers/invoices/fetch',       label: 'Fetch Invoices', icon: Mail },
+  { href: '/suppliers/invoices/email-setup', label: 'Email Setup',    icon: Settings },
 ]
 
-export default function DocumentsTabs() {
+export default function SupplierInvoicesTabs() {
   const pathname = usePathname()
-  // Active tab: exact match for the parent; startsWith for nested.
   const isActive = (href: string) =>
-    href === '/suppliers/documents'
+    href === '/suppliers/invoices'
       ? pathname === href
       : pathname === href || pathname.startsWith(href + '/')
 

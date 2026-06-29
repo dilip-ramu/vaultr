@@ -4,15 +4,13 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import EmailDocumentsClient from '@/components/inbox/EmailDocumentsClient'
 
-export default async function SupplierDocumentsPage() {
+export default async function FetchInvoicesTabPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   // Supplier-only view: bank-alert senders (kind='bank_alert') belong to the
-  // Transaction Inbox and must not appear here, both for the dropdown options
-  // and for any pre-existing email_documents rows that were captured before
-  // we started filtering on kind.
+  // Transactions inbox and must not appear here.
   const { data: allSenders } = await supabase
     .from('monitored_senders')
     .select('email, name, kind')

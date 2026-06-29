@@ -67,7 +67,6 @@ const navSections: NavSection[] = [
         subItems: [
           { href: '/suppliers/directory',             label: 'Directory',     icon: BookOpen },
           { href: '/suppliers/invoices',              label: 'Invoices',      icon: FileText },
-          { href: '/suppliers/documents',             label: 'Documents',     icon: Mail },
           { href: '/suppliers/categories',            label: 'Categories',    icon: Tag },
         ],
       },

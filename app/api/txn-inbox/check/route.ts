@@ -17,7 +17,7 @@ export async function POST(_req: NextRequest) {
     supabase.from('merchant_rules').select('merchant_pattern, default_name, category_id, payee_id').eq('user_id', user.id),
   ])
 
-  if (!integration) return NextResponse.json({ error: 'Connect your email first (Suppliers → Documents → Email Setup).' }, { status: 404 })
+  if (!integration) return NextResponse.json({ error: 'Connect your email first (Suppliers → Invoices → Email Setup).' }, { status: 404 })
   if (!senders || senders.length === 0) {
     return NextResponse.json({ error: 'No bank-alert senders configured yet. Add one under Transactions → Fetch Transactions.' }, { status: 400 })
   }

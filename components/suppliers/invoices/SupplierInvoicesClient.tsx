@@ -26,11 +26,12 @@ interface Props {
   initialInvoices: SupplierInvoice[]
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
   accounts: PickerAccount[]
+  hideHeader?: boolean
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SupplierInvoicesClient({ initialInvoices, suppliers, accounts }: Props) {
+export default function SupplierInvoicesClient({ initialInvoices, suppliers, accounts, hideHeader = false }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -359,9 +360,20 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Bills &amp; Invoices</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+        {!hideHeader ? (
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Bills &amp; Invoices</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {enriched.length} item{enriched.length !== 1 ? 's' : ''}
+              {summary.overdueCount > 0 && (
+                <span className="ml-2 font-medium" style={{ color: '#dc2626' }}>
+                  · {summary.overdueCount} overdue
+                </span>
+              )}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             {enriched.length} item{enriched.length !== 1 ? 's' : ''}
             {summary.overdueCount > 0 && (
               <span className="ml-2 font-medium" style={{ color: '#dc2626' }}>
@@ -369,7 +381,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               </span>
             )}
           </p>
-        </div>
+        )}
         <button
           onClick={() => { setEditing(null); setShowForm(true) }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white"

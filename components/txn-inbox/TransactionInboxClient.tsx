@@ -58,7 +58,7 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
   }
 
   async function fetchNow() {
-    if (!integration) { notify('Connect your email first under Suppliers → Documents → Email Setup.', 'error'); return }
+    if (!integration) { notify('Connect your email first under Suppliers → Invoices → Email Setup.', 'error'); return }
     if (senders.length === 0) { notify('Add at least one bank-alert sender below first.', 'info'); setShowSenders(true); return }
     setFetching(true)
     notify('Fetching new alerts… this runs in the background, refresh in ~20s.', 'info')
@@ -182,7 +182,7 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
               className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }} />
             <button onClick={addSender} className="btn-brand px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1"><Plus className="w-4 h-4" /> Add</button>
           </div>
-          {!integration && <p className="text-xs" style={{ color: 'var(--expense)' }}>No email connected yet — set it up under Suppliers → Documents → Email Setup first.</p>}
+          {!integration && <p className="text-xs" style={{ color: 'var(--expense)' }}>No email connected yet — set it up under Suppliers → Invoices → Email Setup first.</p>}
         </div>
       )}
 
