@@ -62,7 +62,13 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   )
 
   const filtered = useMemo(() => enriched.filter(inv => {
-    if (statusTab && inv.status !== statusTab) return false
+    // 'unbilled' is a virtual tab: recoverable invoices still in pending_billing.
+    // For any other non-empty value, statusTab maps directly to the computed status.
+    if (statusTab === 'unbilled') {
+      if (!inv.is_recoverable || inv.recoverable_status !== 'pending_billing') return false
+    } else if (statusTab && inv.status !== statusTab) {
+      return false
+    }
     if (filterType === 'supplier' && inv.is_personal_bill) return false
     if (filterType === 'personal' && !inv.is_personal_bill) return false
     if (filterSupplier && inv.supplier_id !== filterSupplier) return false
@@ -96,8 +102,11 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   }), [enriched])
 
   const tabCounts = useMemo(() => {
-    const c: Record<string, number> = { '': enriched.length }
-    enriched.forEach(i => { c[i.status] = (c[i.status] ?? 0) + 1 })
+    const c: Record<string, number> = { '': enriched.length, unbilled: 0 }
+    enriched.forEach(i => {
+      c[i.status] = (c[i.status] ?? 0) + 1
+      if (i.is_recoverable && i.recoverable_status === 'pending_billing') c.unbilled += 1
+    })
     return c
   }, [enriched])
 
@@ -471,6 +480,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           { label: 'Pending',  value: 'pending' },
           { label: 'Due Soon', value: 'due' },
           { label: 'Overdue',  value: 'overdue' },
+          { label: 'To Bill',  value: 'unbilled' },
           { label: 'Paid',     value: 'paid' },
           { label: 'Partial',  value: 'partial' },
         ].map(tab => {
