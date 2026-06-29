@@ -16,6 +16,7 @@ interface Props {
   categories: Category[]
   totalCredits: number
   totalDebits: number
+  hideHeader?: boolean
 }
 
 type FilterType = 'all' | 'expense' | 'income' | 'transfer'
@@ -32,7 +33,7 @@ function addDeletedId(id: string) {
   } catch {}
 }
 
-export default function TransactionsClient({ initialTransactions, accounts, categories, totalCredits, totalDebits }: Props) {
+export default function TransactionsClient({ initialTransactions, accounts, categories, totalCredits, totalDebits, hideHeader = false }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -100,13 +101,17 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   }, [])
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
+    <div className={hideHeader ? '' : 'max-w-2xl mx-auto px-4 py-6'}>
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Transactions</h1>
+        {!hideHeader ? (
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Transactions</h1>
+            <p className="text-sm text-gray-500">{filtered.length} records</p>
+          </div>
+        ) : (
           <p className="text-sm text-gray-500">{filtered.length} records</p>
-        </div>
+        )}
         <button
           onClick={() => { setEditTx(null); setShowForm(true) }}
           className="flex items-center gap-1.5 bg-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm hover:bg-brand-600 transition-all"

@@ -42,7 +42,6 @@ const navSections: NavSection[] = [
       { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
       { href: '/accounts',     label: 'Accounts',     icon: Wallet },
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-      { href: '/txn-inbox',     label: 'Transaction Inbox', icon: Mail },
       { href: '/budget-insights', label: 'Budget & Insights', icon: Target },
       { href: '/profitability', label: 'Profitability', icon: Scale },
       { href: '/forecast', label: 'Forecast', icon: CalendarRange },

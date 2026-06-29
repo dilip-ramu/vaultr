@@ -50,6 +50,7 @@ export default async function TransactionsPage() {
         categories={categories ?? []}
         totalCredits={totalCredits}
         totalDebits={totalDebits}
+        hideHeader
       />
     </Suspense>
   )

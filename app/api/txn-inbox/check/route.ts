@@ -19,7 +19,7 @@ export async function POST(_req: NextRequest) {
 
   if (!integration) return NextResponse.json({ error: 'Connect your email first (Suppliers → Documents → Email Setup).' }, { status: 404 })
   if (!senders || senders.length === 0) {
-    return NextResponse.json({ error: 'No bank-alert senders configured yet. Add one in the Transaction Inbox settings.' }, { status: 400 })
+    return NextResponse.json({ error: 'No bank-alert senders configured yet. Add one under Transactions → Fetch Transactions.' }, { status: 400 })
   }
 
   after(async () => {

@@ -36,11 +36,12 @@ interface Props {
   payees: Payee[]
   senders: Sender[]
   integration: { email_address: string; last_checked_at: string | null } | null
+  hideHeader?: boolean
 }
 
 const fmt = (n: number) => formatCurrency(n)
 
-export default function TransactionInboxClient({ drafts: initial, accounts, categories, payees, senders: initialSenders, integration }: Props) {
+export default function TransactionInboxClient({ drafts: initial, accounts, categories, payees, senders: initialSenders, integration, hideHeader = false }: Props) {
   const router = useRouter()
   const [drafts, setDrafts] = useState<Draft[]>(initial)
   const [senders, setSenders] = useState<Sender[]>(initialSenders)
@@ -134,12 +135,12 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
   const expenseCats = categories.filter(c => c.type === 'expense')
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
+    <div className={hideHeader ? 'space-y-4' : 'max-w-3xl mx-auto px-4 py-6 space-y-4'}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <Inbox className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+          {!hideHeader && <Inbox className="w-5 h-5" style={{ color: 'var(--brand)' }} />}
           <div>
-            <h1 className="text-heading" style={{ color: 'var(--text)' }}>Transaction Inbox</h1>
+            {!hideHeader && <h1 className="text-heading" style={{ color: 'var(--text)' }}>Transaction Inbox</h1>}
             <p className="text-caption">
               {drafts.length} draft{drafts.length !== 1 ? 's' : ''} to review
               {integration?.last_checked_at && ` · last fetched ${new Date(integration.last_checked_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}

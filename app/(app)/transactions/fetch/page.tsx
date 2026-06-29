@@ -3,7 +3,7 @@ import TransactionInboxClient from '@/components/txn-inbox/TransactionInboxClien
 
 export const dynamic = 'force-dynamic'
 
-export default async function TransactionInboxPage() {
+export default async function FetchTransactionsTabPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const uid = user!.id
@@ -31,6 +31,7 @@ export default async function TransactionInboxPage() {
       payees={payees ?? []}
       senders={senders ?? []}
       integration={integration ?? null}
+      hideHeader
     />
   )
 }
