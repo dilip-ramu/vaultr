@@ -69,6 +69,7 @@ const navSections: NavSection[] = [
           { href: '/suppliers/invoices',              label: 'Invoices',      icon: FileText },
           { href: '/suppliers/invoices?recurring=true', label: 'Subscriptions', icon: RefreshCw },
           { href: '/suppliers/settled',               label: 'Settled',       icon: CheckCheck },
+          { href: '/suppliers/documents',             label: 'Documents',     icon: Mail },
           { href: '/suppliers/categories',            label: 'Categories',    icon: Tag },
         ],
       },
@@ -90,18 +91,6 @@ const navSections: NavSection[] = [
       { href: '/payroll/staff',      label: 'Staff',         icon: UserSquare },
       { href: '/payroll/slips',      label: 'Salary Slips',  icon: FileText },
       { href: '/payroll/history',    label: 'History',       icon: History },
-    ],
-  },
-  {
-    id: 'email',
-    label: 'Email',
-    items: [
-      {
-        href: '/inbox/email-documents', label: 'Documents', icon: Mail,
-        subItems: [
-          { href: '/settings/email-integration', label: 'Email Setup', icon: Settings },
-        ],
-      },
     ],
   },
   {

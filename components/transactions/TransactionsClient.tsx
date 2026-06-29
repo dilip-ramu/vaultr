@@ -14,6 +14,8 @@ interface Props {
   initialTransactions: Transaction[]
   accounts: Account[]
   categories: Category[]
+  totalCredits: number
+  totalDebits: number
 }
 
 type FilterType = 'all' | 'expense' | 'income' | 'transfer'
@@ -30,7 +32,7 @@ function addDeletedId(id: string) {
   } catch {}
 }
 
-export default function TransactionsClient({ initialTransactions, accounts, categories }: Props) {
+export default function TransactionsClient({ initialTransactions, accounts, categories, totalCredits, totalDebits }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -76,11 +78,6 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a))
   }, [filtered])
 
-  const { totalIncome, totalExpense } = useMemo(() => ({
-    totalIncome: filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
-    totalExpense: filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
-  }), [filtered])
-
   const handleSaved = useCallback((tx: Transaction) => {
     setTransactions(prev => {
       const exists = prev.find(t => t.id === tx.id)
@@ -119,20 +116,20 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         </button>
       </div>
 
-      {/* Summary chips */}
+      {/* Summary chips — all-time totals across every transaction */}
       <div className="flex gap-3 mb-4">
         <div className="flex-1 bg-green-50 rounded-xl px-3 py-2.5 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-green-500 shrink-0" />
           <div>
-            <p className="text-[10px] text-green-600">Income</p>
-            <p className="text-sm font-bold text-green-700">{formatCurrency(totalIncome)}</p>
+            <p className="text-[10px] text-green-600">Credits</p>
+            <p className="text-sm font-bold text-green-700">{formatCurrency(totalCredits)}</p>
           </div>
         </div>
         <div className="flex-1 bg-red-50 rounded-xl px-3 py-2.5 flex items-center gap-2">
           <TrendingDown className="w-4 h-4 text-red-500 shrink-0" />
           <div>
-            <p className="text-[10px] text-red-600">Expenses</p>
-            <p className="text-sm font-bold text-red-700">{formatCurrency(totalExpense)}</p>
+            <p className="text-[10px] text-red-600">Debits</p>
+            <p className="text-sm font-bold text-red-700">{formatCurrency(totalDebits)}</p>
           </div>
         </div>
       </div>

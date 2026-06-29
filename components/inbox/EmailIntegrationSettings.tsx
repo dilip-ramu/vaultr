@@ -37,6 +37,7 @@ interface CheckResult {
 interface Props {
   initialIntegration: Integration | null
   initialSenders: Sender[]
+  hideHeader?: boolean
 }
 
 // ── Input helper ──────────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ function Field({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function EmailIntegrationSettings({ initialIntegration, initialSenders }: Props) {
+export default function EmailIntegrationSettings({ initialIntegration, initialSenders, hideHeader = false }: Props) {
   const [integration, setIntegration] = useState<Integration | null>(initialIntegration)
   const [senders, setSenders] = useState<Sender[]>(initialSenders)
 
@@ -264,12 +265,14 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Email Setup</h1>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          Connect your Yahoo Mail inbox to automatically receive and review invoice documents
-        </p>
-      </div>
+      {!hideHeader && (
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Email Setup</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Connect your Yahoo Mail inbox to automatically receive and review invoice documents
+          </p>
+        </div>
+      )}
 
       {/* ── Section 1: Email Integration ── */}
       <div

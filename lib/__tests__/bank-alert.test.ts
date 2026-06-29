@@ -134,6 +134,54 @@ describe('Amazon Pay parser', () => {
   })
 })
 
+describe('HDFC parser', () => {
+  const hdfc = (body: string, from = 'alerts@hdfcbank.net') => parseAlert({ from, subject: 'HDFC Bank Alert', body })
+
+  it('parses a credit-card spend from alerts@hdfcbank.net', () => {
+    const r = hdfc('Rs.1308.00 is debited from your HDFC Bank Credit Card ending 7667 towards RHR HOTELS COIMBATORE on 02 Oct, 2025 at 15:31:04.')!
+    expect(r.amount).toBe(1308)
+    expect(r.direction).toBe('debit')
+    expect(r.partialAccount).toBe('7667')
+    expect(r.merchant).toBe('RHR HOTELS COIMBATORE')
+    expect(r.date).toBe('2025-10-02')
+  })
+
+  it('parses a UPI/account debit from alerts@hdfcbank.bank.in, using the source account', () => {
+    const r = hdfc(
+      'Rs.56000.00 has been debited from account **2172 to account **0456 on 03-08-24. Your UPI transaction reference number is 421669856335.',
+      'alerts@hdfcbank.bank.in',
+    )!
+    expect(r.amount).toBe(56000)
+    expect(r.direction).toBe('debit')
+    expect(r.partialAccount).toBe('2172')          // the user's source account
+    expect(r.merchant).toBe('UPI to a/c ••0456')
+    expect(r.date).toBe('2024-08-03')
+  })
+
+  it('IGNORES a declined transaction', () => {
+    const r = hdfc('We noticed that a transaction of Rs.8173.00 on your HDFC Bank Credit Card 7667 was declined at AMARILLY DESIGNER STUD.')
+    expect(r).toBe(null)
+  })
+
+  it('routes by sender: .net for cards, .bank.in for UPI', () => {
+    // card body from .net → card parser sets merchant
+    const card = hdfc('Rs.500.00 is debited from your HDFC Bank Credit Card ending 7667 towards SHOP on 02 Oct, 2025.', 'alerts@hdfcbank.net')!
+    expect(card.partialAccount).toBe('7667')
+    expect(card.merchant).toBe('SHOP')
+
+    // UPI body from .bank.in → UPI parser sets "UPI to a/c ••NNNN"
+    const upi = hdfc('Rs.250.00 has been debited from account **1111 to account **2222 on 01-01-26. UPI ref 123.', 'alerts@hdfcbank.bank.in')!
+    expect(upi.partialAccount).toBe('1111')
+    expect(upi.merchant).toBe('UPI to a/c ••2222')
+  })
+
+  it('falls back gracefully when sender is unknown but body mentions HDFC Bank', () => {
+    const r = hdfc('Rs.99.00 is debited from your HDFC Bank Credit Card ending 7667 towards CAFE on 02 Oct, 2025.', 'noreply@example.com')!
+    expect(r.amount).toBe(99)
+    expect(r.partialAccount).toBe('7667')
+  })
+})
+
 const acct = (over: Partial<AccountRef>): AccountRef => ({ id: 'a', name: 'A', ...over })
 
 describe('account matching', () => {

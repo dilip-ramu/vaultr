@@ -60,6 +60,7 @@ interface Props {
   pageTitle?: string
   pageDescription?: string
   showCheckNow?: boolean
+  hideHeader?: boolean
 }
 
 // ── Status badge ─────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export default function EmailDocumentsClient({
   pageTitle = 'Email Documents',
   pageDescription = 'Documents received from monitored email senders',
   showCheckNow = true,
+  hideHeader = false,
 }: Props) {
   const [documents, setDocuments] = useState<EmailDocument[]>(initialDocuments)
   // pageTab separates active (not invoiced) vs invoiced docs
@@ -393,10 +395,12 @@ export default function EmailDocumentsClient({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{pageTitle}</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{pageDescription}</p>
-        </div>
+        {!hideHeader ? (
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{pageTitle}</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{pageDescription}</p>
+          </div>
+        ) : <div />}
         <div className="flex items-center gap-3">
           {newCount > 0 && (
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">

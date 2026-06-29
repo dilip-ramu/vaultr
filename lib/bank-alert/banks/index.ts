@@ -2,3 +2,4 @@
 // Add new banks here as we tune them.
 import './icici'
 import './amazonpay'
+import './hdfc'
