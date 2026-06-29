@@ -4,7 +4,7 @@ import type { Budget } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-export default async function InsightsPage() {
+export default async function InsightsTabPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -14,7 +14,6 @@ export default async function InsightsPage() {
   const startOfMonth = `${cy}-${String(cm + 1).padStart(2, '0')}-01`
   const endOfMonth = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
 
-  // 120 days back gives us current + 3 full previous months for trend analysis
   const historyStart = new Date(cy, cm - 4, 1).toISOString().split('T')[0]
 
   const [
@@ -56,7 +55,6 @@ export default async function InsightsPage() {
       .gte('due_date', now.toISOString().split('T')[0]),
   ])
 
-  // Compute budget spent amounts
   const spentMap: Record<string, number> = {}
   for (const tx of budgetTx ?? []) {
     if (tx.category_id) spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + tx.amount
@@ -74,6 +72,7 @@ export default async function InsightsPage() {
       budgets={budgets}
       bills={(bills ?? []) as never[]}
       currentMonth={now.toISOString()}
+      hideHeader
     />
   )
 }

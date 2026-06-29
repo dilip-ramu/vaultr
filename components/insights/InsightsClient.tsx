@@ -11,6 +11,7 @@ interface Props {
   budgets: Budget[]
   bills: Bill[]
   currentMonth: string
+  hideHeader?: boolean
 }
 
 const TYPE_STYLE: Record<Insight['type'], { bg: string; border: string; dot: string }> = {
@@ -20,7 +21,7 @@ const TYPE_STYLE: Record<Insight['type'], { bg: string; border: string; dot: str
   alert:    { bg: 'rgba(239,68,68,0.07)',  border: 'rgba(239,68,68,0.2)',   dot: 'var(--expense)' },
 }
 
-export default function InsightsClient({ transactions, accounts, budgets, bills, currentMonth }: Props) {
+export default function InsightsClient({ transactions, accounts, budgets, bills, currentMonth, hideHeader = false }: Props) {
   const now = new Date(currentMonth)
   const insights = generateInsights({ transactions, accounts, budgets, bills, currentMonth: now })
 
@@ -48,13 +49,17 @@ export default function InsightsClient({ transactions, accounts, budgets, bills,
   const maxCatTotal = topCats[0]?.total ?? 1
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+    <div className={hideHeader ? 'space-y-5' : 'max-w-2xl mx-auto px-4 py-6 space-y-5'}>
 
       {/* Header */}
-      <div>
-        <h1 className="text-heading" style={{ color: 'var(--text)' }}>Your Financial Pulse</h1>
+      {!hideHeader ? (
+        <div>
+          <h1 className="text-heading" style={{ color: 'var(--text)' }}>Your Financial Pulse</h1>
+          <p className="text-caption">{getMonthYear(now)}</p>
+        </div>
+      ) : (
         <p className="text-caption">{getMonthYear(now)}</p>
-      </div>
+      )}
 
       {/* Insight cards */}
       {insights.length === 0 ? (

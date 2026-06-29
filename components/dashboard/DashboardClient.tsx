@@ -525,14 +525,14 @@ export default function DashboardClient({
           <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
               <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Budgets</p>
-              <Link href="/budgets" className="flex items-center gap-0.5 text-xs font-medium" style={{ color: 'var(--brand)' }}>
+              <Link href="/budget-insights" className="flex items-center gap-0.5 text-xs font-medium" style={{ color: 'var(--brand)' }}>
                 All <ChevronRight className="w-3 h-3" />
               </Link>
             </div>
             {activeBudgets.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 gap-2">
                 <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active budgets</p>
-                <Link href="/budgets" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Set one up →</Link>
+                <Link href="/budget-insights" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Set one up →</Link>
               </div>
             ) : (
               <div className="p-5 space-y-4">

@@ -43,6 +43,7 @@ const navSections: NavSection[] = [
       { href: '/accounts',     label: 'Accounts',     icon: Wallet },
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
       { href: '/txn-inbox',     label: 'Transaction Inbox', icon: Mail },
+      { href: '/budget-insights', label: 'Budget & Insights', icon: Target },
       { href: '/profitability', label: 'Profitability', icon: Scale },
       { href: '/forecast', label: 'Forecast', icon: CalendarRange },
       { href: '/cards', label: 'Cards', icon: CreditCard },
@@ -92,17 +93,9 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    id: 'finance',
-    label: 'Finance',
-    items: [
-      { href: '/budgets', label: 'Budgets', icon: Target },
-    ],
-  },
-  {
     id: 'tools',
     label: 'Tools',
     items: [
-      { href: '/insights',      label: 'Insights',       icon: Lightbulb },
       { href: '/downloads',     label: 'Export & Backup',icon: Archive },
       { href: '/categories',    label: 'Categories',     icon: Tag },
       { href: '/account-types', label: 'Account Types',  icon: Layers },

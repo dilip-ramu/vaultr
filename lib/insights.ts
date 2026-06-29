@@ -110,7 +110,7 @@ export function generateInsights(params: {
         icon: '🚨',
         title: 'Spending exceeded income this month',
         body: `Earned ${fmt(thisIncTotal)} but spent ${fmt(thisExpTotal)} — deficit of ${fmt(thisExpTotal - thisIncTotal)}.`,
-        action: { label: 'Review budgets', href: '/budgets' },
+        action: { label: 'Review budgets', href: '/budget-insights' },
         priority: 2,
       })
     }
@@ -163,7 +163,7 @@ export function generateInsights(params: {
       icon: pct >= 100 ? '🔴' : '🟡',
       title: `${b.category?.name ?? 'Budget'} is ${pct.toFixed(0)}% used`,
       body: `${fmt(b.spent ?? 0)} of ${fmt(b.amount)} spent with ${daysLeft} days left.`,
-      action: { label: 'View budgets', href: '/budgets' },
+      action: { label: 'View budgets', href: '/budget-insights' },
       priority: pct >= 100 ? 2 : 3,
     })
   }

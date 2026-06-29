@@ -17,6 +17,7 @@ interface Props {
   currentMonth: number
   currentYear: number
   contrastPayeeId: string | null
+  hideHeader?: boolean
 }
 
 interface BudgetTx {
@@ -48,7 +49,7 @@ function periodRange(period: string, month: number, year: number) {
 }
 
 export default function BudgetsClient({
-  budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeId,
+  budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeId, hideHeader = false,
 }: Props) {
   const [budgets, setBudgets] = useState<Budget[]>(initial)
   const [showForm, setShowForm] = useState(false)
@@ -146,14 +147,18 @@ export default function BudgetsClient({
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+    <div className={hideHeader ? 'space-y-5' : 'max-w-2xl mx-auto px-4 py-6 space-y-5'}>
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-heading" style={{ color: 'var(--text)' }}>Budgets</h1>
+        {!hideHeader ? (
+          <div>
+            <h1 className="text-heading" style={{ color: 'var(--text)' }}>Budgets</h1>
+            <p className="text-caption">{MONTH_NAMES[currentMonth - 1]} {currentYear}</p>
+          </div>
+        ) : (
           <p className="text-caption">{MONTH_NAMES[currentMonth - 1]} {currentYear}</p>
-        </div>
+        )}
         <button
           onClick={() => { setEditBudget(undefined); setShowForm(true) }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95"

@@ -4,7 +4,7 @@ import type { Budget } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
-export default async function BudgetsPage() {
+export default async function BudgetsTabPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -39,7 +39,6 @@ export default async function BudgetsPage() {
       .eq('user_id', user!.id)
       .eq('type', 'expense')
       .order('name'),
-    // Find the "Contrast" payee so we can exclude it from budget spending
     supabase
       .from('payees')
       .select('id')
@@ -50,19 +49,16 @@ export default async function BudgetsPage() {
 
   const contrastPayeeId = contrastPayee?.id ?? null
 
-  // Exclude contrast-billed transactions and the Contrast payee
   const monthTx = (monthTxRaw ?? []).filter(tx =>
     !contrastPayeeId || tx.payee_id !== contrastPayeeId
   )
 
-  // Net spend per category: expense adds, income subtracts (e.g. reimbursements)
   const spentMap: Record<string, number> = {}
   for (const tx of monthTx) {
     if (!tx.category_id) continue
     const delta = tx.type === 'income' ? -Number(tx.amount) : Number(tx.amount)
     spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + delta
   }
-  // Clamp at 0 — net income in a category doesn't create negative budget usage
   for (const k of Object.keys(spentMap)) {
     if (spentMap[k] < 0) spentMap[k] = 0
   }
@@ -82,6 +78,7 @@ export default async function BudgetsPage() {
       currentMonth={month}
       currentYear={year}
       contrastPayeeId={contrastPayeeId}
+      hideHeader
     />
   )
 }
