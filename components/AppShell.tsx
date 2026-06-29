@@ -43,9 +43,6 @@ const navSections: NavSection[] = [
       { href: '/accounts',     label: 'Accounts',     icon: Wallet },
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
       { href: '/budget-insights', label: 'Budget & Insights', icon: Target },
-      { href: '/profitability', label: 'Profitability', icon: Scale },
-      { href: '/forecast', label: 'Forecast', icon: CalendarRange },
-      { href: '/cards', label: 'Cards', icon: CreditCard },
     ],
   },
   {
@@ -94,6 +91,9 @@ const navSections: NavSection[] = [
     id: 'tools',
     label: 'Tools',
     items: [
+      { href: '/profitability', label: 'Profitability',  icon: Scale },
+      { href: '/forecast',      label: 'Forecast',       icon: CalendarRange },
+      { href: '/cards',         label: 'Cards',          icon: CreditCard },
       { href: '/downloads',     label: 'Export & Backup',icon: Archive },
       { href: '/categories',    label: 'Categories',     icon: Tag },
       { href: '/account-types', label: 'Account Types',  icon: Layers },
