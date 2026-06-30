@@ -19,6 +19,13 @@ export interface Employee {
   whatsapp_number: string | null
   email: string | null
   is_active: boolean
+  // Which customer this employee works for. When set, salary expenses can be
+  // included in that customer's reimbursable invoice (see /customers/reimbursables).
+  works_for_customer_id: string | null
+  // Even if works_for_customer_id is set, you can opt this employee out of
+  // invoicing — e.g. a personal assistant who works for Contrast but you cover
+  // their salary yourself.
+  exclude_from_invoicing: boolean
   created_at: string
 }
 

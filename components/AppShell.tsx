@@ -53,9 +53,12 @@ const navSections: NavSection[] = [
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
           // Directory now lives as a tab on the main /customers page.
-          { href: '/recoverables/invoices',  label: 'Invoices',    icon: FileText },
-          { href: '/recoverables/tds',       label: 'TDS',         icon: Receipt },
-          { href: '/customers/commission',   label: 'Incoming',    icon: DollarSign },
+          { href: '/recoverables/invoices',         label: 'Invoices',      icon: FileText },
+          { href: '/recoverables/tds',              label: 'TDS',           icon: Receipt },
+          { href: '/customers/commission',          label: 'Incoming',      icon: DollarSign },
+          // Reimbursables = the old Contrast workflow, generalised to live
+          // under the customer it belongs to. Tabs: Expenses · Invoices.
+          { href: '/customers/reimbursables',       label: 'Reimbursables', icon: ArrowDownUp },
         ],
       },
       {
@@ -66,24 +69,21 @@ const navSections: NavSection[] = [
           { href: '/suppliers/categories',            label: 'Categories',    icon: Tag },
         ],
       },
-      {
-        href: '/contrast', label: 'Contrast', icon: Globe,
-        subItems: [
-          { href: '/contrast',         label: 'Expenses',       icon: ArrowDownUp },
-          { href: '/contrast/invoice', label: 'Invoice',        icon: ReceiptText },
-          { href: '/contrast/history', label: 'History',        icon: History },
-        ],
-      },
+      // Contrast section retired — its three pages live under
+      // /customers/reimbursables now. The /contrast/* URLs still resolve in
+      // case anything internal still links to them, so revert by simply
+      // restoring this nav entry if needed.
     ],
   },
   {
     id: 'payroll',
     label: 'Payroll',
     items: [
+      // Processing now hosts Active and History as inner tabs; the
+      // standalone /payroll/history URL still works for any deep link.
       { href: '/payroll/processing', label: 'Processing',    icon: CalendarClock },
       { href: '/payroll/staff',      label: 'Staff',         icon: UserSquare },
       { href: '/payroll/slips',      label: 'Salary Slips',  icon: FileText },
-      { href: '/payroll/history',    label: 'History',       icon: History },
     ],
   },
   {

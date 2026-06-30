@@ -23,8 +23,21 @@ interface Props {
 }
 
 function fmtMonth(m: string) {
-  const [year, month] = m.split('-')
-  return new Date(Number(year), Number(month) - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  if (!m) return ''
+  // Try YYYY-MM or YYYY-MM-DD; otherwise just echo whatever the user stored.
+  // The user explicitly asked: no "Invalid Date" — show what was typed.
+  const parts = m.split('-')
+  if (parts.length >= 2) {
+    const y  = Number(parts[0])
+    const mo = Number(parts[1])
+    if (Number.isFinite(y) && Number.isFinite(mo) && mo >= 1 && mo <= 12) {
+      const d = new Date(y, mo - 1)
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+      }
+    }
+  }
+  return m
 }
 
 function fmtInr(n: number) {

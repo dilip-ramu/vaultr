@@ -6,8 +6,11 @@ import type { Employee } from '@/lib/payroll/types'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 
+interface Customer { id: string; name: string }
+
 interface Props {
   employees: Employee[]
+  customers?: Customer[]
 }
 
 const EMPTY: Partial<Employee> = {
@@ -29,6 +32,8 @@ const EMPTY: Partial<Employee> = {
   whatsapp_number: '',
   email: '',
   is_active: true,
+  works_for_customer_id: null,
+  exclude_from_invoicing: false,
 }
 
 function fmtDate(d: string | null) {
@@ -36,7 +41,7 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function StaffClient({ employees: initialEmployees }: Props) {
+export default function StaffClient({ employees: initialEmployees, customers = [] }: Props) {
   const router = useRouter()
   const [employees, setEmployees] = useState(initialEmployees)
   const [search, setSearch] = useState('')
@@ -494,6 +499,33 @@ export default function StaffClient({ employees: initialEmployees }: Props) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     placeholder="Street, City, State, PIN"
                   />
+                </div>
+
+                {/* Works for + invoicing toggle */}
+                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 mt-2 border-t border-gray-100">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Works for</label>
+                    <select
+                      value={form.works_for_customer_id ?? ''}
+                      onChange={e => setField('works_for_customer_id', e.target.value || (null as never))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Me (own work)</option>
+                      {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <p className="text-[10px] text-gray-400 mt-1">Drives where their salary gets invoiced.</p>
+                  </div>
+                  <div className="flex items-end">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!form.exclude_from_invoicing}
+                        onChange={e => setField('exclude_from_invoicing', !e.target.checked)}
+                        disabled={!form.works_for_customer_id}
+                      />
+                      Include salary in client invoice
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>

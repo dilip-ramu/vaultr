@@ -15,9 +15,20 @@ function fmtInr(n: number) {
 }
 
 function fmtMonth(m: string) {
-  const [year, month] = m.split('-')
-  const date = new Date(Number(year), Number(month) - 1)
-  return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  if (!m) return ''
+  // Tolerant: parse YYYY-MM or YYYY-MM-DD, otherwise echo as-is.
+  const parts = m.split('-')
+  if (parts.length >= 2) {
+    const y  = Number(parts[0])
+    const mo = Number(parts[1])
+    if (Number.isFinite(y) && Number.isFinite(mo) && mo >= 1 && mo <= 12) {
+      const date = new Date(y, mo - 1)
+      if (!Number.isNaN(date.getTime())) {
+        return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+      }
+    }
+  }
+  return m
 }
 
 function fmtDate(d: string | null) {
