@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import BudgetsClient from '@/components/budgets/BudgetsClient'
 import InsightsClient from '@/components/insights/InsightsClient'
 import type { Budget } from '@/lib/types'
-import { bounds, type PeriodKey } from '@/components/budget-insights/PeriodSelector'
+import { bounds, type PeriodKey } from '@/lib/budget-insights/period'
 
 export const dynamic = 'force-dynamic'
 
