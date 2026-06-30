@@ -4,11 +4,20 @@ import { getReimbursableCustomers } from '@/lib/reimbursables/customers'
 import ReimbursablesTabs from '@/components/customers/reimbursables/ReimbursablesTabs'
 import ReimbursableCustomerPicker from '@/components/customers/reimbursables/ReimbursableCustomerPicker'
 import ReimbursablesNewInvoiceLink from '@/components/customers/reimbursables/ReimbursablesNewInvoiceLink'
+import AddReimbursableButton from '@/components/customers/reimbursables/AddReimbursableButton'
 
 export default async function ReimbursablesLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const customers = user ? await getReimbursableCustomers(supabase, user.id) : []
+
+  // For the "Add reimbursable customer" picker: customers the user has, that
+  // aren't already in the reimbursables list.
+  const reimbursableIds = new Set(customers.map(c => c.id))
+  const { data: allCustomers } = user
+    ? await supabase.from('customers').select('id, name').eq('user_id', user.id).order('name')
+    : { data: [] }
+  const candidates = (allCustomers ?? []).filter(c => !reimbursableIds.has(c.id))
 
   return (
     <div>
@@ -26,9 +35,12 @@ export default async function ReimbursablesLayout({ children }: { children: Reac
             <ReimbursablesNewInvoiceLink />
           </Suspense>
         </div>
-        <Suspense fallback={null}>
-          <ReimbursableCustomerPicker customers={customers} />
-        </Suspense>
+        <div className="flex flex-wrap items-center gap-2">
+          <Suspense fallback={null}>
+            <ReimbursableCustomerPicker customers={customers} />
+          </Suspense>
+          <AddReimbursableButton candidates={candidates} />
+        </div>
         <ReimbursablesTabs />
       </div>
       <div>{children}</div>
