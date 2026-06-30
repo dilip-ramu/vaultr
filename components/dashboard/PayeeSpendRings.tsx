@@ -53,12 +53,21 @@ function Ring({ slices, total }: { slices: PayeeSlice[]; total: number }) {
 }
 
 export default function PayeeSpendRings({ rings }: { rings: PayeeRing[] }) {
+  // Lock the drill-down to "this month" so the linked Transactions page
+  // shows the same window the ring represents.
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const fmtDate = (d: Date) => d.toISOString().slice(0, 10)
+  const from = fmtDate(new Date(y, m, 1))
+  const to   = fmtDate(new Date(y, m + 1, 0))
+
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
         <div>
           <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Spend by Payee</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>This month, coloured by category</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>This month, coloured by category — tap a ring to see its transactions</p>
         </div>
         <Link href="/transactions" className="flex items-center gap-0.5 text-xs font-medium" style={{ color: 'var(--brand)' }}>
           All <ChevronRight className="w-3 h-3" />
@@ -72,34 +81,46 @@ export default function PayeeSpendRings({ rings }: { rings: PayeeRing[] }) {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-5">
-          {rings.map(ring => (
-            <div key={ring.payeeId} className="flex flex-col items-center text-center min-w-0">
-              <div className="relative">
-                <Ring slices={ring.slices} total={ring.total} />
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Total</p>
-                  <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--text)' }}>₹{fmt(ring.total)}</p>
-                </div>
-              </div>
-              <p className="mt-2 text-xs font-semibold truncate w-full" style={{ color: 'var(--text)' }} title={ring.payeeName}>
-                {ring.payeeName}
-              </p>
-              <div className="mt-1 space-y-0.5 w-full">
-                {ring.slices.slice(0, 3).map(s => (
-                  <div key={s.categoryId} className="flex items-center justify-between gap-1 text-[10px]">
-                    <span className="flex items-center gap-1 min-w-0">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
-                      <span className="truncate" style={{ color: 'var(--text-muted)' }} title={s.categoryName}>{s.categoryName}</span>
-                    </span>
-                    <span className="tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>₹{fmt(s.amount)}</span>
+          {rings.map(ring => {
+            const isRealPayee = ring.payeeId !== '__none__'
+            const href = isRealPayee
+              ? `/transactions?payee=${ring.payeeId}&from=${from}&to=${to}`
+              // "No payee" ring: still useful — just pre-fill the period
+              : `/transactions?from=${from}&to=${to}`
+            return (
+              <Link
+                key={ring.payeeId}
+                href={href}
+                className="flex flex-col items-center text-center min-w-0 group rounded-xl p-2 -m-2 transition-colors hover:bg-[var(--surface-2)]"
+                aria-label={`See ${ring.payeeName} transactions this month`}
+              >
+                <div className="relative">
+                  <Ring slices={ring.slices} total={ring.total} />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Total</p>
+                    <p className="text-sm font-bold tabular-nums" style={{ color: 'var(--text)' }}>₹{fmt(ring.total)}</p>
                   </div>
-                ))}
-                {ring.slices.length > 3 && (
-                  <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>+{ring.slices.length - 3} more</p>
-                )}
-              </div>
-            </div>
-          ))}
+                </div>
+                <p className="mt-2 text-xs font-semibold truncate w-full group-hover:underline" style={{ color: 'var(--text)' }} title={ring.payeeName}>
+                  {ring.payeeName}
+                </p>
+                <div className="mt-1 space-y-0.5 w-full">
+                  {ring.slices.slice(0, 3).map(s => (
+                    <div key={s.categoryId} className="flex items-center justify-between gap-1 text-[10px]">
+                      <span className="flex items-center gap-1 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                        <span className="truncate" style={{ color: 'var(--text-muted)' }} title={s.categoryName}>{s.categoryName}</span>
+                      </span>
+                      <span className="tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>₹{fmt(s.amount)}</span>
+                    </div>
+                  ))}
+                  {ring.slices.length > 3 && (
+                    <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>+{ring.slices.length - 3} more</p>
+                  )}
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>

@@ -50,12 +50,19 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
   const [accountFilter, setAccountFilter] = useState(() => searchParams.get('account') ?? 'all')
-  // Advanced filters
-  const [showFilters, setShowFilters] = useState(false)
-  const [filterPayee, setFilterPayee] = useState<string>(searchParams.get('payee') ?? '')
-  const [filterCategory, setFilterCategory] = useState<string>(searchParams.get('category') ?? '')
-  const [dateFrom, setDateFrom] = useState<string>('')
-  const [dateTo, setDateTo]     = useState<string>('')
+  // Advanced filters — pre-fill from URL so deep-links (e.g. from the dashboard
+  // ring chart) land with the filter already applied.
+  const initPayee    = searchParams.get('payee')    ?? ''
+  const initCategory = searchParams.get('category') ?? ''
+  const initFrom     = searchParams.get('from')     ?? ''
+  const initTo       = searchParams.get('to')       ?? ''
+  const [showFilters, setShowFilters] = useState(
+    !!(initPayee || initCategory || initFrom || initTo)
+  )
+  const [filterPayee, setFilterPayee]     = useState<string>(initPayee)
+  const [filterCategory, setFilterCategory] = useState<string>(initCategory)
+  const [dateFrom, setDateFrom] = useState<string>(initFrom)
+  const [dateTo, setDateTo]     = useState<string>(initTo)
   // Multi-select
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
