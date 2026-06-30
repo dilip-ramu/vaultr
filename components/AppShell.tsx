@@ -264,6 +264,55 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
     }
   }, [])
 
+  // Left-edge swipe to open the mobile drawer.
+  // Works reliably in PWA standalone mode (no Safari back-gesture conflict).
+  // Tuned to feel natural: start within 24 px of the left edge, then swipe at
+  // least 60 px to the right with a mostly-horizontal motion.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!('ontouchstart' in window)) return        // skip non-touch devices
+
+    let startX = 0
+    let startY = 0
+    let tracking = false
+    const EDGE_PX = 24
+    const OPEN_PX = 60
+
+    const onStart = (e: TouchEvent) => {
+      if (mobileSidebarOpen) return                 // already open — no-op
+      const t = e.touches[0]
+      if (!t) return
+      if (t.clientX > EDGE_PX) return               // didn't start at the edge
+      startX = t.clientX
+      startY = t.clientY
+      tracking = true
+    }
+    const onMove = (e: TouchEvent) => {
+      if (!tracking) return
+      const t = e.touches[0]
+      if (!t) return
+      const dx = t.clientX - startX
+      const dy = Math.abs(t.clientY - startY)
+      // Must be mostly horizontal (not a vertical scroll) and travel far enough
+      if (dx >= OPEN_PX && dx > dy * 2) {
+        tracking = false
+        setMobileSidebarOpen(true)
+      }
+    }
+    const stop = () => { tracking = false }
+
+    window.addEventListener('touchstart', onStart, { passive: true })
+    window.addEventListener('touchmove',  onMove,  { passive: true })
+    window.addEventListener('touchend',   stop,    { passive: true })
+    window.addEventListener('touchcancel', stop,   { passive: true })
+    return () => {
+      window.removeEventListener('touchstart', onStart)
+      window.removeEventListener('touchmove',  onMove)
+      window.removeEventListener('touchend',   stop)
+      window.removeEventListener('touchcancel', stop)
+    }
+  }, [mobileSidebarOpen])
+
   const toggleCollapsed = () => {
     setCollapsed(prev => {
       localStorage.setItem('sidebar-collapsed', String(!prev))
