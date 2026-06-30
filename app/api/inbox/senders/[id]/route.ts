@@ -32,16 +32,6 @@ export async function PATCH(
   if (body.is_bank_alert !== undefined) updates.is_bank_alert = body.is_bank_alert
   if (body.default_account_id !== undefined) updates.default_account_id = body.default_account_id
 
-  // Keep the legacy `kind` column in sync so older code paths still see the
-  // sender in their expected inbox. document wins as the canonical default;
-  // bank_alert is used only when document is off.
-  if (body.is_document !== undefined || body.is_bank_alert !== undefined) {
-    const isDoc   = body.is_document   ?? false
-    const isAlert = body.is_bank_alert ?? false
-    if (isDoc)        updates.kind = 'document'
-    else if (isAlert) updates.kind = 'bank_alert'
-  }
-
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }

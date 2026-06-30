@@ -52,8 +52,6 @@ export async function POST(req: NextRequest) {
       is_active: true,
       is_document: isDoc,
       is_bank_alert: isAlert,
-      // Keep legacy `kind` in sync for old readers.
-      kind: isDoc ? 'document' : 'bank_alert',
       default_account_id: body.default_account_id ?? null,
     })
     .select()

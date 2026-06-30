@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   for (const integ of integrations ?? []) {
     const uid = integ.user_id
     const [{ data: senders }, { data: accounts }, { data: rules }] = await Promise.all([
-      supabase.from('monitored_senders').select('email, default_account_id').eq('user_id', uid).eq('is_active', true).eq('kind', 'bank_alert'),
+      supabase.from('monitored_senders').select('email, default_account_id').eq('user_id', uid).eq('is_active', true).eq('is_bank_alert', true),
       supabase.from('accounts').select('id, name, account_number, matching_digits, type').eq('user_id', uid).eq('is_active', true),
       supabase.from('merchant_rules').select('merchant_pattern, default_name, category_id, payee_id').eq('user_id', uid),
     ])

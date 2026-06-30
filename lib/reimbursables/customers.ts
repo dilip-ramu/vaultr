@@ -47,3 +47,16 @@ export function resolveActiveCustomer(
   }
   return customers[0]
 }
+
+/** All payee IDs that point at a customer for this user — i.e. the payees
+ *  whose transactions are reimbursable. Used by Budgets / Insights / Payee
+ *  Rings to exclude reimbursable spending from "your" totals. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getBillablePayeeIds(supabase: SupabaseClient<any, any, any>, userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('payees')
+    .select('id')
+    .eq('user_id', userId)
+    .not('customer_id', 'is', null)
+  return (data ?? []).map((r: { id: string }) => r.id)
+}

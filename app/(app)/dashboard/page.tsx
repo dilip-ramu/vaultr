@@ -5,6 +5,7 @@ import { generateInsights, type Insight } from '@/lib/insights'
 import { fetchProfitLines } from '@/lib/profitability-server'
 import { summarize } from '@/lib/profitability'
 import { cardOverview, type CardTxn } from '@/lib/cards'
+import { getBillablePayeeIds } from '@/lib/reimbursables/customers'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface CardDue {
@@ -239,7 +240,9 @@ export default async function DashboardPage() {
   const historyStart = new Date(cy, cm - 4, 1).toISOString().split('T')[0]
 
   // Fast path: ONE round trip for all dashboard data (migration_v34) + profit lines + card dues
-  const [{ data: dash, error: dashError }, profitLines, cardDues] = await Promise.all([
+  // Also: every payee linked to a customer = reimbursable, exclude them from
+  // "your" spending (generalised from the old "Contrast"-by-name rule).
+  const [{ data: dash, error: dashError }, profitLines, cardDues, billablePayeeIds] = await Promise.all([
     supabase.rpc('get_dashboard_data', {
       p_month_start: startOfMonth,
       p_month_end: endOfMonth,
@@ -248,7 +251,9 @@ export default async function DashboardPage() {
     }),
     fetchProfitLines(supabase, user!.id),
     fetchCardDues(supabase, user!.id, todayStr),
+    getBillablePayeeIds(supabase, user!.id),
   ])
+  const billableSet = new Set<string>(billablePayeeIds)
 
   const d: DashboardData = !dashError && dash
     ? {
@@ -273,10 +278,14 @@ export default async function DashboardPage() {
   // Month-to-date profitability (1st → today)
   const profitMTD = summarize(profitLines, startOfMonth, todayStr)
 
-  // Net spend per category — expense adds, income subtracts; excludes Contrast payee
+  // Net spend per category — expense adds, income subtracts.
+  // Skip any payee linked to a customer (= reimbursable). Also keep the
+  // legacy contrast_payee_id check as a belt-and-suspenders for pre-link
+  // data (the RPC still returns it).
   const spentMap: Record<string, number> = {}
   for (const tx of d.budgetTx) {
     if (!tx.category_id) continue
+    if (tx.payee_id && billableSet.has(tx.payee_id)) continue
     if (d.contrastPayeeId && tx.payee_id === d.contrastPayeeId) continue
     const delta = tx.type === 'income' ? -Number(tx.amount) : Number(tx.amount)
     spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + delta

@@ -3,6 +3,7 @@ import BudgetsClient from '@/components/budgets/BudgetsClient'
 import InsightsClient from '@/components/insights/InsightsClient'
 import type { Budget } from '@/lib/types'
 import { bounds, type PeriodKey } from '@/lib/budget-insights/period'
+import { getBillablePayeeIds } from '@/lib/reimbursables/customers'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +35,7 @@ export default async function BudgetInsightsPage({
     { data: rawBudgets },
     { data: historyTxRaw },
     { data: expenseCategories },
-    { data: contrastPayee },
+    billablePayeeIds,
     { data: accounts },
     { data: bills },
   ] = await Promise.all([
@@ -56,12 +57,9 @@ export default async function BudgetInsightsPage({
       .eq('user_id', uid)
       .eq('type', 'expense')
       .order('name'),
-    supabase
-      .from('payees')
-      .select('id')
-      .eq('user_id', uid)
-      .ilike('name', 'contrast')
-      .maybeSingle(),
+    // ANY payee linked to a customer is reimbursable (generalised from the
+    // old "Contrast"-by-name rule).
+    getBillablePayeeIds(supabase, uid),
     supabase
       .from('account_balances')
       .select('*')
@@ -75,11 +73,12 @@ export default async function BudgetInsightsPage({
       .gte('due_date', new Date().toISOString().slice(0, 10)),
   ])
 
-  const contrastPayeeId = contrastPayee?.id ?? null
+  const billableSet = new Set(billablePayeeIds)
 
-  // Always-exclude Contrast — same rule as the dashboard's payee chart inverts.
+  // Exclude transactions tagged with any customer-linked payee from "your"
+  // spending (they're reimbursable, not real expense for budget purposes).
   const historyTx = (historyTxRaw ?? []).filter(tx =>
-    !contrastPayeeId || tx.payee_id !== contrastPayeeId
+    !tx.payee_id || !billableSet.has(tx.payee_id)
   )
 
   // Slice to the selected period for budget computation.
@@ -127,7 +126,7 @@ export default async function BudgetInsightsPage({
         expenseCategories={expenseCategories ?? []}
         currentMonth={now.getMonth() + 1}
         currentYear={now.getFullYear()}
-        contrastPayeeId={contrastPayeeId}
+        contrastPayeeIds={billablePayeeIds}
         hideHeader
         periodLabel={periodLabel}
       />

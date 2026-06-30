@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Plus, Target, AlertTriangle, RotateCcw, Pencil, Trash2, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import type { Budget, Category } from '@/lib/types'
@@ -16,7 +16,11 @@ interface Props {
   expenseCategories: Category[]
   currentMonth: number
   currentYear: number
-  contrastPayeeId: string | null
+  /** Payee IDs that are linked to a customer (= reimbursable). Their
+   *  transactions are excluded from per-budget spend so they don't inflate
+   *  "your" spending. Kept as an array for serialisability across the
+   *  server→client boundary; we deduplicate via a Set internally. */
+  contrastPayeeIds?: string[]
   hideHeader?: boolean
   periodLabel?: string
 }
@@ -50,8 +54,9 @@ function periodRange(period: string, month: number, year: number) {
 }
 
 export default function BudgetsClient({
-  budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeId, hideHeader = false, periodLabel,
+  budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeIds = [], hideHeader = false, periodLabel,
 }: Props) {
+  const billablePayeeSet = useMemo(() => new Set(contrastPayeeIds), [contrastPayeeIds])
   const [budgets, setBudgets] = useState<Budget[]>(initial)
   const [showForm, setShowForm] = useState(false)
   const [editBudget, setEditBudget] = useState<Budget | undefined>()
@@ -76,7 +81,7 @@ export default function BudgetsClient({
         .lte('date', to)
 
       const rows = (data ?? []).filter(t =>
-        !contrastPayeeId || t.payee_id !== contrastPayeeId
+        !t.payee_id || !billablePayeeSet.has(t.payee_id)
       )
       spent = Math.max(0, rows.reduce((s, t) =>
         s + (t.type === 'income' ? -Number(t.amount) : Number(t.amount)), 0
@@ -123,7 +128,7 @@ export default function BudgetsClient({
       .order('date', { ascending: false })
 
     const filtered = ((data ?? []) as unknown as (BudgetTx & { payee_id: string | null })[])
-      .filter(t => !contrastPayeeId || t.payee_id !== contrastPayeeId)
+      .filter(t => !t.payee_id || !billablePayeeSet.has(t.payee_id))
 
     setDetailTxs(filtered)
     setDetailLoading(false)

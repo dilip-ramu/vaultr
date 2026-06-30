@@ -19,6 +19,7 @@ import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
 import { ToastProvider } from '@/components/shared/Toast'
 import { ConfirmProvider } from '@/components/shared/ConfirmDialog'
+import PageViewTracker from '@/components/shared/PageViewTracker'
 import GlobalSearch from '@/components/shared/GlobalSearch'
 
 const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
@@ -370,6 +371,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   return (
     <ToastProvider>
     <ConfirmProvider>
+    <PageViewTracker />
     <>
       {/* ══════════════════════════════════════
           DESKTOP LAYOUT
