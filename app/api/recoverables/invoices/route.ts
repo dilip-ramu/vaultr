@@ -39,6 +39,7 @@ export async function GET(_req: NextRequest) {
 interface CreateInvoiceBody {
   customerName: string
   customerId?: string
+  companyId?: string                   // which of your own companies issued this
   markupType: 'percentage' | 'flat' | 'none'
   markupValue: number
   allocationIds: string[]
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    customerName, customerId, markupType, markupValue,
+    customerName, customerId, companyId, markupType, markupValue,
     allocationIds, invoiceDate, paymentTerms, notes,
   } = body
 
@@ -77,11 +78,19 @@ export async function POST(req: NextRequest) {
   if (allocErr) return NextResponse.json({ error: allocErr.message }, { status: 500 })
   if (!allocations?.length) return NextResponse.json({ error: 'No matching allocations found' }, { status: 400 })
 
-  // 2. Fetch shipments + settings (+ optional customer) in parallel
+  // 2. Fetch shipments + chosen-or-default company in parallel.
+  // Multi-company: each company carries its own GST rates / HSN / prefix /
+  // numbering counter. If companyId isn't passed, fall back to the user's
+  // default company; if none, fall through to the legacy settings row.
   const shipmentIds = [...new Set((allocations as RecoverableAllocation[]).map(a => a.shipment_id))]
 
-  const [{ data: shipments }, { data: settingsRow }] = await Promise.all([
+  const companyQuery = companyId
+    ? supabase.from('companies').select('*').eq('user_id', user.id).eq('id', companyId).maybeSingle()
+    : supabase.from('companies').select('*').eq('user_id', user.id).order('is_default', { ascending: false }).order('created_at', { ascending: true }).limit(1).maybeSingle()
+
+  const [{ data: shipments }, { data: company }, { data: settingsRow }] = await Promise.all([
     supabase.from('recoverable_shipments').select('*').in('id', shipmentIds),
+    companyQuery,
     supabase.from('recoverable_invoice_settings').select('*').eq('user_id', user.id).maybeSingle(),
   ])
 
@@ -103,13 +112,29 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const cgstRate = Number(settingsRow?.cgst_rate ?? 9)
-  const sgstRate = Number(settingsRow?.sgst_rate ?? 9)
-  const hsnSac   = (settingsRow?.hsn_sac as string | null) ?? '996812'
+  // Prefer the chosen company's settings; fall back to legacy single-row.
+  const cgstRate = Number(company?.cgst_rate ?? settingsRow?.cgst_rate ?? 9)
+  const sgstRate = Number(company?.sgst_rate ?? settingsRow?.sgst_rate ?? 9)
+  const hsnSac   = (company?.hsn_sac as string | null) ?? (settingsRow?.hsn_sac as string | null) ?? '996812'
 
-  // 3. Build invoice number + due date
-  const invoiceNumber = await getNextInvoiceNumber(supabase, user.id)
-  const dueDate       = calcDueDate(invoiceDate, paymentTerms)
+  // 3. Build invoice number + due date.
+  // Per-company numbering: claim the next number atomically from the chosen
+  // company's counter. (Race-safe for single-user accounts; concurrent writes
+  // would need an RPC, which we can add later if needed.)
+  let invoiceNumber: string
+  let resolvedCompanyId: string | null = company?.id ?? null
+  if (company) {
+    const current = Number(company.next_invoice_number ?? 1)
+    const prefix  = String(company.invoice_prefix ?? 'INV-')
+    invoiceNumber = prefix + String(current).padStart(6, '0')
+    await supabase
+      .from('companies')
+      .update({ next_invoice_number: current + 1 })
+      .eq('id', company.id).eq('user_id', user.id)
+  } else {
+    invoiceNumber = await getNextInvoiceNumber(supabase, user.id)
+  }
+  const dueDate = calcDueDate(invoiceDate, paymentTerms)
 
   // 4. Build lines + totals
   const lines  = buildInvoiceLines(
@@ -125,6 +150,7 @@ export async function POST(req: NextRequest) {
     .from('recoverable_invoices')
     .insert({
       user_id:          user.id,
+      company_id:       resolvedCompanyId,
       invoice_number:   invoiceNumber,
       customer_name:    customerName.trim(),
       customer_id:      customerId ?? null,

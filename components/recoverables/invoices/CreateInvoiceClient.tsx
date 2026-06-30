@@ -31,12 +31,21 @@ export interface PendingCustomer {
 
 // ── Props ─────────────────────────────────────────────────────────────────
 
+export interface CompanyOption {
+  id: string
+  name: string
+  is_default: boolean
+  cgst_rate: number
+  sgst_rate: number
+}
+
 interface Props {
   initialCustomerName: string | null
   pendingCustomers: PendingCustomer[]
   initialAllocations: AllocationRow[]
   cgstRate: number
   sgstRate: number
+  companies?: CompanyOption[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -59,6 +68,7 @@ export default function CreateInvoiceClient({
   initialAllocations,
   cgstRate,
   sgstRate,
+  companies = [],
 }: Props) {
   const router = useRouter()
   const { showToast } = useToast()
@@ -71,6 +81,13 @@ export default function CreateInvoiceClient({
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [notes, setNotes]             = useState('')
   const [submitting, setSubmitting]   = useState(false)
+  // Picked company. Default = company marked is_default (= Contrast after backfill).
+  const defaultCompanyId = companies.find(c => c.is_default)?.id ?? companies[0]?.id ?? ''
+  const [companyId, setCompanyId]     = useState<string>(defaultCompanyId)
+  const [showCompanyPicker, setShowCompanyPicker] = useState<boolean>(companies.length > 1)
+  const pickedCompany = companies.find(c => c.id === companyId) ?? null
+  const effCgst = pickedCompany ? pickedCompany.cgst_rate : cgstRate
+  const effSgst = pickedCompany ? pickedCompany.sgst_rate : sgstRate
 
   // ── Derived ──────────────────────────────────────────────────────────────
 
@@ -113,8 +130,8 @@ export default function CreateInvoiceClient({
                          : markupType === 'flat'       ? r4(baseRate + markupValue)
                          : baseRate
         const amount     = r2(a.pieces * rate)
-        const cgstAmount = r2(amount * cgstRate / 100)
-        const sgstAmount = r2(amount * sgstRate / 100)
+        const cgstAmount = r2(amount * effCgst / 100)
+        const sgstAmount = r2(amount * effSgst / 100)
         return { ...a, rate, amount, cgstAmount, sgstAmount }
       })
       .sort((a, b) => {
@@ -125,11 +142,11 @@ export default function CreateInvoiceClient({
         else if (b.shipmentDate)   return 1
         return a.awb.localeCompare(b.awb)
       })
-  }, [selectedAllocations, markupType, markupValue, cgstRate, sgstRate])
+  }, [selectedAllocations, markupType, markupValue, effCgst, effSgst])
 
   const subtotal     = useMemo(() => r2(reviewLines.reduce((s, l) => s + l.amount, 0)), [reviewLines])
-  const cgstTotal    = useMemo(() => r2(subtotal * cgstRate / 100), [subtotal, cgstRate])
-  const sgstTotal    = useMemo(() => r2(subtotal * sgstRate / 100), [subtotal, sgstRate])
+  const cgstTotal    = useMemo(() => r2(subtotal * effCgst / 100), [subtotal, effCgst])
+  const sgstTotal    = useMemo(() => r2(subtotal * effSgst / 100), [subtotal, effSgst])
   const invoiceTotal = useMemo(() => r2(subtotal + cgstTotal + sgstTotal), [subtotal, cgstTotal, sgstTotal])
 
   const customerId = useMemo(() => {
@@ -164,6 +181,7 @@ export default function CreateInvoiceClient({
         body: JSON.stringify({
           customerName:  initialCustomerName,
           customerId:    customerId ?? undefined,
+          companyId:     companyId || undefined,
           markupType,
           markupValue,
           allocationIds: [...selectedIds],
@@ -256,6 +274,42 @@ export default function CreateInvoiceClient({
 
   return (
     <div className="page-enter max-w-2xl mx-auto px-4 py-6 space-y-5">
+      {/* Company picker — opens when multiple companies exist */}
+      {showCompanyPicker && companies.length > 1 && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
+          <div className="w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-xl" style={{ background: 'var(--surface)' }}>
+            <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <h3 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Which company is this invoice from?</h3>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>The default is highlighted.</p>
+            </div>
+            <div className="px-3 py-3 space-y-2 max-h-[60dvh] overflow-y-auto">
+              {companies.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => { setCompanyId(c.id); setShowCompanyPicker(false) }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left text-sm"
+                  style={{
+                    background: companyId === c.id ? 'rgba(42,122,80,0.08)' : 'var(--surface)',
+                    borderColor: companyId === c.id ? 'var(--brand)' : 'var(--border)',
+                    color: 'var(--text)',
+                  }}
+                >
+                  <span className="font-medium">{c.name}</span>
+                  {c.is_default && (
+                    <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(42,122,80,0.1)', color: 'var(--brand)' }}>Default</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="px-5 py-3 border-t flex items-center justify-end" style={{ borderColor: 'var(--border)' }}>
+              <button onClick={() => setShowCompanyPicker(false)} className="px-4 py-2 rounded-xl text-sm font-semibold text-white" style={{ background: 'var(--brand)' }}>
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header + step indicator */}
       <div className="flex items-start gap-3">
         <button
@@ -269,6 +323,17 @@ export default function CreateInvoiceClient({
           <h1 className="text-base font-bold truncate" style={{ color: 'var(--text)' }}>
             New Invoice — {initialCustomerName}
           </h1>
+          {pickedCompany && (
+            <button
+              onClick={() => setShowCompanyPicker(true)}
+              className="mt-1 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+              style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+              title="Change company"
+            >
+              From <span className="font-semibold" style={{ color: 'var(--text)' }}>{pickedCompany.name}</span>
+              {companies.length > 1 && <span>· change</span>}
+            </button>
+          )}
           {/* Step indicator */}
           <div className="flex items-center gap-1 mt-2">
             {STEPS.map((s, i) => (
@@ -584,8 +649,8 @@ export default function CreateInvoiceClient({
           <div className="card space-y-2.5">
             {[
               { label: 'Sub Total',         value: subtotal },
-              { label: `CGST @ ${cgstRate}%`, value: cgstTotal },
-              { label: `SGST @ ${sgstRate}%`, value: sgstTotal },
+              { label: `CGST @ ${effCgst}%`, value: cgstTotal },
+              { label: `SGST @ ${effSgst}%`, value: sgstTotal },
             ].map(row => (
               <div key={row.label} className="flex items-center justify-between text-sm">
                 <span style={{ color: 'var(--text-muted)' }}>{row.label}</span>

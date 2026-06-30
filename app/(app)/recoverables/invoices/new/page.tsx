@@ -54,15 +54,18 @@ export default async function NewInvoicePage({
     }))
     .sort((a, b) => b.pendingAmount - a.pendingAmount)
 
-  // Fetch invoice settings (for GST rates)
-  const { data: settings } = await supabase
-    .from('recoverable_invoice_settings')
-    .select('cgst_rate, sgst_rate')
+  // Companies — used for the picker. GST rates come from the chosen company
+  // (defaulting to the user's default company).
+  const { data: companies } = await supabase
+    .from('companies')
+    .select('id, name, is_default, cgst_rate, sgst_rate')
     .eq('user_id', user.id)
-    .maybeSingle()
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: true })
 
-  const cgstRate = Number(settings?.cgst_rate ?? 9)
-  const sgstRate = Number(settings?.sgst_rate ?? 9)
+  const defaultCompany = (companies ?? []).find(c => c.is_default) ?? (companies ?? [])[0] ?? null
+  const cgstRate = Number(defaultCompany?.cgst_rate ?? 9)
+  const sgstRate = Number(defaultCompany?.sgst_rate ?? 9)
 
   // If customer specified, load their pending allocations with shipment + batch info
   let initialAllocations: AllocationRow[] = []
@@ -105,6 +108,7 @@ export default async function NewInvoicePage({
       initialAllocations={initialAllocations}
       cgstRate={cgstRate}
       sgstRate={sgstRate}
+      companies={(companies ?? []).map(c => ({ id: c.id, name: c.name, is_default: c.is_default, cgst_rate: Number(c.cgst_rate), sgst_rate: Number(c.sgst_rate) }))}
     />
   )
 }

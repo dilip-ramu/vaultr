@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import InvoiceSettingsClient from '@/components/recoverables/settings/InvoiceSettingsClient'
+import CompaniesClient from '@/components/company-details/CompaniesClient'
+import type { Company } from '@/components/company-details/CompanyForm'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,11 +10,21 @@ export default async function CompanyDetailsTabPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: settings } = await supabase
-    .from('recoverable_invoice_settings')
+  const { data: companies } = await supabase
+    .from('companies')
     .select('*')
     .eq('user_id', user.id)
-    .maybeSingle()
+    .order('is_default', { ascending: false })
+    .order('created_at', { ascending: true })
 
-  return <InvoiceSettingsClient settings={settings ?? null} hideHeader />
+  // Resolve public URLs for any companies with a logo
+  const logoUrls: Record<string, string> = {}
+  for (const c of (companies ?? []) as Company[]) {
+    if (c.logo_path) {
+      const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(c.logo_path)
+      if (publicUrl) logoUrls[c.id] = publicUrl
+    }
+  }
+
+  return <CompaniesClient initialCompanies={(companies ?? []) as Company[]} logoUrls={logoUrls} />
 }

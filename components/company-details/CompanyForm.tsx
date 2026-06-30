@@ -1,0 +1,262 @@
+'use client'
+
+import { useState } from 'react'
+import { X, Upload, Loader2, Trash2, Building2 } from 'lucide-react'
+import { notify } from '@/components/shared/Toast'
+
+export interface Company {
+  id: string
+  user_id: string
+  name: string
+  is_default: boolean
+  address: string | null
+  gstin: string | null
+  phone: string | null
+  email: string | null
+  bank_account_name: string | null
+  bank_account_number: string | null
+  bank_ifsc: string | null
+  bank_name: string | null
+  invoice_prefix: string
+  next_invoice_number: number
+  cgst_rate: number
+  sgst_rate: number
+  hsn_sac: string
+  payment_terms: string
+  terms_conditions: string | null
+  logo_path: string | null
+}
+
+const PAYMENT_TERMS = [
+  { value: 'due_on_receipt', label: 'Due on Receipt' },
+  { value: 'net_7',  label: 'Net 7' },
+  { value: 'net_15', label: 'Net 15' },
+  { value: 'net_30', label: 'Net 30' },
+  { value: 'net_60', label: 'Net 60' },
+  { value: 'net_90', label: 'Net 90' },
+]
+
+interface Props {
+  company: Company | null
+  existingLogoUrl?: string
+  onSaved: (c: Company, newLogoUrl?: string) => void
+  onClose: () => void
+}
+
+const inputCls = 'w-full px-3 py-2 rounded-lg text-sm border outline-none'
+const inputStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' } as const
+
+export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose }: Props) {
+  const isEdit = !!company
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [name,    setName]    = useState(company?.name ?? '')
+  const [isDefault, setIsDefault] = useState(company?.is_default ?? false)
+  const [address, setAddress] = useState(company?.address ?? '')
+  const [gstin,   setGstin]   = useState(company?.gstin ?? '')
+  const [phone,   setPhone]   = useState(company?.phone ?? '')
+  const [email,   setEmail]   = useState(company?.email ?? '')
+  const [bankAcctName, setBankAcctName] = useState(company?.bank_account_name ?? '')
+  const [bankAcctNum,  setBankAcctNum]  = useState(company?.bank_account_number ?? '')
+  const [bankIfsc,     setBankIfsc]     = useState(company?.bank_ifsc ?? '')
+  const [bankName,     setBankName]     = useState(company?.bank_name ?? '')
+  const [invoicePrefix, setInvoicePrefix] = useState(company?.invoice_prefix ?? 'INV-')
+  const [cgstRate, setCgstRate] = useState(String(company?.cgst_rate ?? 9))
+  const [sgstRate, setSgstRate] = useState(String(company?.sgst_rate ?? 9))
+  const [hsnSac,   setHsnSac]   = useState(company?.hsn_sac ?? '996812')
+  const [paymentTerms, setPaymentTerms] = useState(company?.payment_terms ?? 'due_on_receipt')
+  const [terms,        setTerms]        = useState(company?.terms_conditions ?? '')
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(existingLogoUrl)
+  const [logoBusy, setLogoBusy] = useState(false)
+
+  async function handleSave() {
+    if (!name.trim()) { setError('Company name is required'); return }
+    setError(null); setBusy(true)
+    try {
+      const payload = {
+        name: name.trim(),
+        is_default: isDefault,
+        address: address.trim() || null,
+        gstin: gstin.trim() || null,
+        phone: phone.trim() || null,
+        email: email.trim() || null,
+        bank_account_name: bankAcctName.trim() || null,
+        bank_account_number: bankAcctNum.trim() || null,
+        bank_ifsc: bankIfsc.trim() || null,
+        bank_name: bankName.trim() || null,
+        invoice_prefix: invoicePrefix.trim() || 'INV-',
+        cgst_rate: parseFloat(cgstRate) || 9,
+        sgst_rate: parseFloat(sgstRate) || 9,
+        hsn_sac: hsnSac.trim() || '996812',
+        payment_terms: paymentTerms,
+        terms_conditions: terms.trim() || null,
+      }
+      const url = isEdit ? `/api/companies/${company!.id}` : '/api/companies'
+      const method = isEdit ? 'PATCH' : 'POST'
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Save failed'); return }
+      onSaved(data.company as Company, logoUrl)
+    } finally { setBusy(false) }
+  }
+
+  async function handleLogoUpload(file: File) {
+    if (!company) { notify('Save the company first, then add a logo', 'info'); return }
+    setLogoBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/companies/${company.id}/logo`, { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { notify(data.error || 'Logo upload failed', 'error'); return }
+      setLogoUrl(data.publicUrl)
+      notify('Logo updated', 'success')
+    } finally { setLogoBusy(false) }
+  }
+
+  async function handleLogoRemove() {
+    if (!company || !logoUrl) return
+    setLogoBusy(true)
+    try {
+      const res = await fetch(`/api/companies/${company.id}/logo`, { method: 'DELETE' })
+      if (!res.ok) { notify('Could not remove logo', 'error'); return }
+      setLogoUrl(undefined)
+    } finally { setLogoBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
+      <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[92dvh]" style={{ background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>{isEdit ? `Edit ${company!.name}` : 'New company'}</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-xl" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Logo */}
+          <div>
+            <label className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Logo</label>
+            <div className="mt-2 flex items-center gap-3">
+              <div className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                {logoUrl
+                  ? <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                  : <Building2 className="w-7 h-7" style={{ color: 'var(--text-muted)' }} />
+                }
+              </div>
+              <div className="space-y-1.5">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+                  {logoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  {logoBusy ? 'Uploading…' : (logoUrl ? 'Replace logo' : 'Attach logo')}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) void handleLogoUpload(f) }}
+                  />
+                </label>
+                {logoUrl && (
+                  <button onClick={handleLogoRemove} disabled={logoBusy} className="inline-flex items-center gap-1 text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
+                    <Trash2 className="w-3 h-3" /> Remove
+                  </button>
+                )}
+                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
+                  PNG, JPG, WEBP, or SVG. Rendered at a fixed 80×80 on invoices.
+                </p>
+                {!isEdit && <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>Save the company first, then attach a logo.</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Name + default */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Company name</label>
+            <input className={inputCls} style={inputStyle} value={name} onChange={e => setName(e.target.value)} placeholder="Contrast" />
+            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text)' }}>
+              <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} />
+              Use as default when creating invoices
+            </label>
+          </div>
+
+          {/* Company contact */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="space-y-1">
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>GSTIN</span>
+              <input className={inputCls} style={inputStyle} value={gstin} onChange={e => setGstin(e.target.value)} placeholder="22AAAAA0000A1Z5" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Phone</span>
+              <input className={inputCls} style={inputStyle} value={phone} onChange={e => setPhone(e.target.value)} />
+            </label>
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Email</span>
+              <input className={inputCls} style={inputStyle} value={email} onChange={e => setEmail(e.target.value)} />
+            </label>
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Address</span>
+              <textarea className={inputCls} style={inputStyle} rows={2} value={address} onChange={e => setAddress(e.target.value)} />
+            </label>
+          </div>
+
+          {/* Bank details */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Bank details</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input className={inputCls} style={inputStyle} value={bankAcctName} onChange={e => setBankAcctName(e.target.value)} placeholder="Account name" />
+              <input className={inputCls} style={inputStyle} value={bankAcctNum}  onChange={e => setBankAcctNum(e.target.value)}  placeholder="Account number" />
+              <input className={inputCls} style={inputStyle} value={bankIfsc}     onChange={e => setBankIfsc(e.target.value)}     placeholder="IFSC code" />
+              <input className={inputCls} style={inputStyle} value={bankName}     onChange={e => setBankName(e.target.value)}     placeholder="Bank name & branch" />
+            </div>
+          </div>
+
+          {/* Invoice defaults */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Invoice defaults</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <label className="space-y-1">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Prefix</span>
+                <input className={inputCls} style={inputStyle} value={invoicePrefix} onChange={e => setInvoicePrefix(e.target.value)} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>CGST %</span>
+                <input type="number" className={inputCls} style={inputStyle} value={cgstRate} onChange={e => setCgstRate(e.target.value)} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>SGST %</span>
+                <input type="number" className={inputCls} style={inputStyle} value={sgstRate} onChange={e => setSgstRate(e.target.value)} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>HSN/SAC</span>
+                <input className={inputCls} style={inputStyle} value={hsnSac} onChange={e => setHsnSac(e.target.value)} />
+              </label>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Default payment terms</span>
+              <select className={inputCls} style={inputStyle} value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}>
+                {PAYMENT_TERMS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Terms &amp; conditions</span>
+              <textarea className={inputCls} style={inputStyle} rows={3} value={terms} onChange={e => setTerms(e.target.value)} />
+            </label>
+          </div>
+
+          {error && (
+            <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>{error}</div>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t flex items-center justify-end gap-2 shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>Cancel</button>
+          <button onClick={handleSave} disabled={busy} className="px-4 py-2 rounded-xl text-sm font-semibold text-white flex items-center gap-1.5 disabled:opacity-50" style={{ background: 'var(--brand)' }}>
+            {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+            {busy ? 'Saving…' : (isEdit ? 'Save changes' : 'Add company')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
