@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Plus, Tag, Pencil, Trash2 } from 'lucide-react'
 import type { Category } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
@@ -71,22 +72,24 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
               className="rounded-2xl border p-4 shadow-sm group relative"
               style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
             >
-              {/* Icon / Avatar */}
-              {cat.avatar_url ? (
-                <img src={cat.avatar_url} alt={cat.name} className="w-10 h-10 rounded-xl object-cover mb-3" />
-              ) : (
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3"
-                  style={{ backgroundColor: `${cat.color}18` }}
-                >
-                  {getCategoryEmoji(cat.icon)}
-                </div>
-              )}
-              <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{cat.name}</p>
-              <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: cat.color }} />
+              <Link href={`/categories/${cat.id}`} className="block">
+                {/* Icon / Avatar */}
+                {cat.avatar_url ? (
+                  <img src={cat.avatar_url} alt={cat.name} className="w-10 h-10 rounded-xl object-cover mb-3" />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3"
+                    style={{ backgroundColor: `${cat.color}18` }}
+                  >
+                    {getCategoryEmoji(cat.icon)}
+                  </div>
+                )}
+                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{cat.name}</p>
+                <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: cat.color }} />
+              </Link>
 
-              {/* Actions */}
-              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
+              {/* Actions — stop propagation so they don't trigger navigation */}
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={() => { setEditCat(cat); setShowForm(true) }}
                   className="w-7 h-7 rounded-lg flex items-center justify-center shadow-sm"
