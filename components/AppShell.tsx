@@ -12,7 +12,7 @@ import {
   Banknote, UserSquare, CalendarClock, History,
   Building2, BookOpen, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
-  CalendarRange, CreditCard,
+  CalendarRange, CreditCard, Wrench,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -90,15 +90,12 @@ const navSections: NavSection[] = [
     id: 'tools',
     label: 'Tools',
     items: [
-      { href: '/profitability',  label: 'Profitability',   icon: Scale },
-      { href: '/forecast',       label: 'Forecast',        icon: CalendarRange },
-      { href: '/cards',          label: 'Cards',           icon: CreditCard },
-      { href: '/downloads',      label: 'Export & Backup', icon: Archive },
-      { href: '/categories',     label: 'Categories',      icon: Tag },
-      { href: '/account-types',  label: 'Account Types',   icon: Layers },
-      { href: '/reconcile',      label: 'Reconcile',       icon: Scale },
-      { href: '/currencies',     label: 'Currencies',      icon: DollarSign },
-      { href: '/company-details', label: 'Company details', icon: Building2 },
+      { href: '/profitability', label: 'Profitability', icon: Scale },
+      { href: '/forecast',      label: 'Forecast',      icon: CalendarRange },
+      { href: '/cards',         label: 'Cards',         icon: CreditCard },
+      // Six previously-standalone items live inside /setup as tabs now:
+      // Company · Categories · Account types · Currencies · Reconcile · Export & Backup.
+      { href: '/setup',         label: 'Setup',         icon: Wrench },
     ],
   },
 ]
