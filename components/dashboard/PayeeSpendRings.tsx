@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ChevronRight, Users } from 'lucide-react'
 
 export type PayeeSlice = {
@@ -53,6 +54,7 @@ function Ring({ slices, total }: { slices: PayeeSlice[]; total: number }) {
 }
 
 export default function PayeeSpendRings({ rings }: { rings: PayeeRing[] }) {
+  const router = useRouter()
   // Lock the drill-down to "this month" so the linked Transactions page
   // shows the same window the ring represents.
   const now = new Date()
@@ -88,13 +90,15 @@ export default function PayeeSpendRings({ rings }: { rings: PayeeRing[] }) {
               // "No payee" ring: still useful — just pre-fill the period
               : `/transactions?from=${from}&to=${to}`
             return (
-              <Link
+              <button
                 key={ring.payeeId}
-                href={href}
-                className="flex flex-col items-center text-center min-w-0 group rounded-xl p-2 -m-2 transition-colors hover:bg-[var(--surface-2)]"
+                type="button"
+                onClick={() => router.push(href)}
+                className="flex flex-col items-center text-center min-w-0 group rounded-xl p-2 transition-colors hover:bg-[var(--surface-2)] active:bg-[var(--surface-2)] cursor-pointer"
                 aria-label={`See ${ring.payeeName} transactions this month`}
               >
-                <div className="relative">
+                {/* pointer-events-none on the center overlay so the whole ring counts as one tap target */}
+                <div className="relative pointer-events-none">
                   <Ring slices={ring.slices} total={ring.total} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Total</p>
@@ -118,7 +122,7 @@ export default function PayeeSpendRings({ rings }: { rings: PayeeRing[] }) {
                     <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>+{ring.slices.length - 3} more</p>
                   )}
                 </div>
-              </Link>
+              </button>
             )
           })}
         </div>
