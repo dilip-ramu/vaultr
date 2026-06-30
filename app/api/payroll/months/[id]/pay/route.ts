@@ -51,10 +51,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     .from('categories').select('id, name').eq('user_id', user.id).eq('type', 'expense')
   const salaryCategoryId = allCategories?.find(c => SALARY_PATTERN.test(c.name))?.id ?? null
 
-  // Create one expense transaction per entry
+  // Create one expense transaction per entry. We collect any per-row errors
+  // and surface them at the end so the UI shows a clear message instead of a
+  // false-success when an insert is rejected (amount <= 0, RLS, etc.).
   const updatedEntries: typeof entries = []
+  const failures: { name: string; reason: string }[] = []
   for (const entry of entries) {
     const empName = (entry.employee as { name?: string } | null)?.name ?? 'Employee'
+    const amount = Number(entry.final_payable)
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      failures.push({ name: empName, reason: `Final payable is ${entry.final_payable ?? 'null'} — needs to be > 0` })
+      continue
+    }
 
     const { data: tx, error: txErr } = await supabase
       .from('transactions')
@@ -62,7 +71,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         user_id:     user.id,
         account_id:  account_id,
         type:        'expense',
-        amount:      Number(entry.final_payable),
+        amount,
         date:        txDate,
         name:        `Salary – ${empName}`,
         notes:       `${monthLabel} payroll via Vaultr`,
@@ -71,7 +80,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       .select('id')
       .single()
 
-    if (txErr || !tx) continue
+    if (txErr || !tx) {
+      failures.push({ name: empName, reason: txErr?.message ?? 'unknown error' })
+      continue
+    }
 
     // Store transaction_id on entry
     await supabase
@@ -81,6 +93,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       .eq('user_id', user.id)
 
     updatedEntries.push({ ...entry, transaction_id: tx.id })
+  }
+
+  // If every entry failed, treat the whole call as a failure — don't mark the
+  // month paid (so the user can fix the data and retry).
+  if (updatedEntries.length === 0 && failures.length > 0) {
+    return NextResponse.json(
+      { error: `Could not create any salary transactions. ${failures.map(f => `${f.name}: ${f.reason}`).join('; ')}` },
+      { status: 500 },
+    )
   }
 
   // Mark month as paid
@@ -95,6 +116,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     month: updatedMonth,
     entries: updatedEntries,
     account,
+    failures,                            // [] when everything worked
   })
 }
 

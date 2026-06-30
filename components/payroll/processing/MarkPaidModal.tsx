@@ -48,7 +48,10 @@ export default function MarkPaidModal({
   month, entries, accounts, companyName, companyAddress, onSuccess, onClose
 }: Props) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
-  const [payDate, setPayDate] = useState(month.payment_date ?? new Date().toISOString().slice(0, 10))
+  // Default to today (the day you're actually paying). The month's pre-set
+  // payment_date was the *processing* date — used for slip headers, not what
+  // the bank account actually saw the money leave on. User can still override.
+  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10))
   const [step, setStep] = useState<Step>('select')
   const [progress, setProgress] = useState<{ name: string; done: boolean; error?: string }[]>([])
   const [error, setError] = useState<string | null>(null)
