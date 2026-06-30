@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Plus, Search, Pencil, X, Paperclip, ChevronDown, ChevronUp,
   CheckCircle2, Circle, CheckSquare, Square, RefreshCw,
-  XCircle, User, Link2,
+  XCircle, User, Link2, Trash2,
 } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
@@ -149,6 +149,27 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     if (!await confirmDialog('Delete this invoice?')) return
     const res = await fetch(`/api/supplier-invoices/${id}`, { method: 'DELETE' })
     if (res.ok) setInvoices(prev => prev.filter(i => i.id !== id))
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    if (!await confirmDialog({
+      title: `Delete ${ids.length} invoice${ids.length === 1 ? '' : 's'}?`,
+      message: 'This cannot be undone. Paid invoices will be deleted along with their linked records.',
+      confirmLabel: 'Delete all',
+    })) return
+    // Single DB round-trip via the client — matches the single-row API's
+    // behaviour (plain row delete, no special cleanup).
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('supplier_invoices')
+      .delete()
+      .in('id', ids)
+    if (error) { notify(error.message, 'error'); return }
+    setInvoices(prev => prev.filter(i => !selected.has(i.id)))
+    setSelected(new Set())
+    notify(`${ids.length} invoice${ids.length === 1 ? '' : 's'} deleted`, 'success')
   }
 
   function toggleSelect(id: string) {
@@ -726,6 +747,15 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                 Make Billable ({selBillableCount})
               </button>
             )}
+            {/* Bulk delete — always available when something is selected */}
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
+              style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.25)' }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete ({selected.size})
+            </button>
           </div>
           </div>
         </div>

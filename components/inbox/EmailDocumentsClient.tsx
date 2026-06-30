@@ -9,6 +9,9 @@ import {
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import ReviewModal from './ReviewModal'
+import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -351,21 +354,37 @@ export default function EmailDocumentsClient({
 
   const bulkUpdateStatus = async (status: EmailDocument['status']) => {
     const ids = [...selectedIds]
+    if (ids.length === 0) return
     setDocuments(prev => prev.map(d => ids.includes(d.id) ? { ...d, status } : d))
     setSelectedIds(new Set())
-    await Promise.all(ids.map(id =>
-      fetch(`/api/inbox/documents/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      })
-    ))
+    // One DB round-trip instead of N parallel HTTPs — same auth via RLS.
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('email_documents')
+      .update({ status })
+      .in('id', ids)
+    if (error) notify(error.message, 'error')
   }
 
   const bulkDelete = async () => {
     const ids = [...selectedIds]
+    if (ids.length === 0) return
+    if (!await confirmDialog({
+      title: `Delete ${ids.length} document${ids.length === 1 ? '' : 's'}?`,
+      message: 'They\'ll be hidden from this inbox and won\'t be re-imported.',
+      confirmLabel: 'Delete all',
+    })) return
+    // Soft-delete in one round-trip — matches the single-row API's behaviour
+    // (status='ignored' so dedup keeps blocking re-imports).
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('email_documents')
+      .update({ status: 'ignored' })
+      .in('id', ids)
+    if (error) { notify(error.message, 'error'); return }
     setDocuments(prev => prev.filter(d => !ids.includes(d.id)))
     setSelectedIds(new Set())
-    await Promise.all(ids.map(id => fetch(`/api/inbox/documents/${id}`, { method: 'DELETE' })))
+    notify(`${ids.length} document${ids.length === 1 ? '' : 's'} deleted`, 'success')
   }
 
   // ── Unique senders from docs ──────────────────────────────────────────────
