@@ -33,6 +33,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const [toAccountId, setToAccountId] = useState(transaction?.to_account_id ?? '')
   const [categoryId, setCategoryId] = useState(transaction?.category_id ?? '')
   const [payeeId, setPayeeId] = useState(transaction?.payee_id ?? '')
+  const [usedForCompanyId, setUsedForCompanyId] = useState<string | ''>(transaction?.used_for_company_id ?? '')
   const [date, setDate] = useState(transaction?.date ?? getTodayString())
   const [notes, setNotes] = useState(transaction?.notes ?? '')
   const [saving, setSaving] = useState(false)
@@ -41,6 +42,8 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const [accounts, setAccounts] = useState<Account[]>(propAccounts ?? [])
   const [categories, setCategories] = useState<Category[]>(propCategories ?? [])
   const [payees, setPayees] = useState<Payee[]>([])
+  // Your own companies (from /setup/company) — used for the "Used for" picker.
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
 
   // Currency rate state
   const [currencyRate, setCurrencyRate] = useState<number | null>(null)
@@ -83,8 +86,12 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
   const loadPayees = async () => {
     const supabase = createClient()
-    const { data } = await supabase.from('payees').select('*').order('name')
-    setPayees(data ?? [])
+    const [{ data: payeeRows }, { data: companyRows }] = await Promise.all([
+      supabase.from('payees').select('*').order('name'),
+      supabase.from('companies').select('id, name').order('is_default', { ascending: false }).order('created_at'),
+    ])
+    setPayees(payeeRows ?? [])
+    setCompanies(companyRows ?? [])
   }
 
   // Fetch currency rate when currency changes
@@ -191,6 +198,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
       to_account_id: type === 'transfer' ? toAccountId : null,
       category_id: type !== 'transfer' && categoryId ? categoryId : null,
       payee_id: payeeId || null,
+      used_for_company_id: usedForCompanyId || null,
       date,
       notes: notes.trim() || null,
     }
@@ -479,6 +487,24 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
             <input type="date" value={date} onChange={e => setDate(e.target.value)} required
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
           </div>
+
+          {/* Used for — which of YOUR companies bore this cost. Personal by default. */}
+          {companies.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Used for <span className="text-xs font-normal text-gray-400">(optional)</span>
+              </label>
+              <select
+                value={usedForCompanyId}
+                onChange={e => setUsedForCompanyId(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              >
+                <option value="">Personal (default)</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Slice spending by which business — doesn&apos;t affect who pays or invoices.</p>
+            </div>
+          )}
 
           {/* Notes */}
           <div>

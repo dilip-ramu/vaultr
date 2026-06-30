@@ -18,6 +18,7 @@ interface Props {
   accounts: Account[]
   categories: Category[]
   payees: Pick<Payee, 'id' | 'name'>[]
+  companies?: { id: string; name: string }[]
   totalCredits: number
   totalDebits: number
   hideHeader?: boolean
@@ -37,7 +38,7 @@ function addDeletedId(id: string) {
   } catch {}
 }
 
-export default function TransactionsClient({ initialTransactions, accounts, categories, payees, totalCredits, totalDebits, hideHeader = false }: Props) {
+export default function TransactionsClient({ initialTransactions, accounts, categories, payees, companies = [], totalCredits, totalDebits, hideHeader = false }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -54,13 +55,15 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   // ring chart) land with the filter already applied.
   const initPayee    = searchParams.get('payee')    ?? ''
   const initCategory = searchParams.get('category') ?? ''
+  const initUsedFor  = searchParams.get('usedFor')  ?? ''
   const initFrom     = searchParams.get('from')     ?? ''
   const initTo       = searchParams.get('to')       ?? ''
   const [showFilters, setShowFilters] = useState(
-    !!(initPayee || initCategory || initFrom || initTo)
+    !!(initPayee || initCategory || initUsedFor || initFrom || initTo)
   )
   const [filterPayee, setFilterPayee]     = useState<string>(initPayee)
   const [filterCategory, setFilterCategory] = useState<string>(initCategory)
+  const [filterUsedFor, setFilterUsedFor]   = useState<string>(initUsedFor)
   const [dateFrom, setDateFrom] = useState<string>(initFrom)
   const [dateTo, setDateTo]     = useState<string>(initTo)
   // Multi-select
@@ -84,6 +87,9 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
       if (filterPayee === 'none') { if (tx.payee_id != null) return false }
       else if (filterPayee && tx.payee_id !== filterPayee) return false
       if (filterCategory && tx.category_id !== filterCategory) return false
+      // 'personal' sentinel matches no company set (i.e. NULL = personal).
+      if (filterUsedFor === 'personal') { if (tx.used_for_company_id != null) return false }
+      else if (filterUsedFor && tx.used_for_company_id !== filterUsedFor) return false
       if (dateFrom && tx.date < dateFrom) return false
       if (dateTo && tx.date > dateTo) return false
       if (search) {
@@ -97,11 +103,11 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
       }
       return true
     })
-  }, [transactions, filter, accountFilter, filterPayee, filterCategory, dateFrom, dateTo, search])
+  }, [transactions, filter, accountFilter, filterPayee, filterCategory, filterUsedFor, dateFrom, dateTo, search])
 
-  const hasAdvFilters = !!(filterPayee || filterCategory || dateFrom || dateTo)
+  const hasAdvFilters = !!(filterPayee || filterCategory || filterUsedFor || dateFrom || dateTo)
   const clearAdvFilters = () => {
-    setFilterPayee(''); setFilterCategory(''); setDateFrom(''); setDateTo('')
+    setFilterPayee(''); setFilterCategory(''); setFilterUsedFor(''); setDateFrom(''); setDateTo('')
   }
 
   // Selection helpers
@@ -322,6 +328,18 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
               ))}
             </select>
           </div>
+          {companies.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Used for</label>
+              <select value={filterUsedFor} onChange={e => setFilterUsedFor(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+                style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+                <option value="">Any</option>
+                <option value="personal">— Personal —</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="space-y-1">
             <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>From</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}

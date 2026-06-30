@@ -135,6 +135,9 @@ export interface Transaction {
   is_contrast_billed: boolean
   contrast_billing_category_id: string | null
   contrast_invoice_id: string | null
+  // Which of YOUR own companies bore this cost. NULL = personal. Independent
+  // of payee/category/customer-billing — purely a slicer for per-business books.
+  used_for_company_id: string | null
   created_at: string
   account?: Account
   to_account?: Account

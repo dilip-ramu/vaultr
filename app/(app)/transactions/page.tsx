@@ -8,7 +8,7 @@ export default async function TransactionsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: transactions }, { data: accounts }, { data: categories }, { data: payees }, { data: lifetimeRows }] = await Promise.all([
+  const [{ data: transactions }, { data: accounts }, { data: categories }, { data: payees }, { data: companies }, { data: lifetimeRows }] = await Promise.all([
     supabase
       .from('transactions')
       .select(`*, account:accounts!account_id(id,name,color,type,custom_type_id), to_account:accounts!to_account_id(id,name,color), category:categories(id,name,icon,color,type,avatar_url), payee:payees(id,name), attachments(*)`)
@@ -31,6 +31,12 @@ export default async function TransactionsPage() {
       .select('id, name')
       .eq('user_id', user!.id)
       .order('name'),
+    supabase
+      .from('companies')
+      .select('id, name')
+      .eq('user_id', user!.id)
+      .order('is_default', { ascending: false })
+      .order('created_at'),
     // All-time totals for the Credits / Debits chips. Only the two columns we
     // need, so the row count doesn't matter performance-wise.
     supabase
@@ -54,6 +60,7 @@ export default async function TransactionsPage() {
         accounts={accounts ?? []}
         categories={categories ?? []}
         payees={payees ?? []}
+        companies={companies ?? []}
         totalCredits={totalCredits}
         totalDebits={totalDebits}
         hideHeader
