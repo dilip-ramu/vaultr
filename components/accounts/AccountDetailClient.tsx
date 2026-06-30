@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Pencil, Copy, Check, Calendar, CreditCard } from 'lucide-react'
+import { ArrowLeft, Pencil, Copy, Check, Calendar, CreditCard, Upload } from 'lucide-react'
 import type { Account, Transaction, BuiltinTypeOverride } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, EMOJI_MAP } from '@/lib/types'
 import { formatCurrency, formatDate, getRelativeDate } from '@/lib/utils'
 import { Avatar } from '../AppShell'
 import AccountForm from './AccountForm'
+import ImportStatementModal from './ImportStatementModal'
 import TransactionItem from '../transactions/TransactionItem'
 import Link from 'next/link'
 import { isCredit, isLoan, creditMetrics, loanMetrics } from '@/lib/account-metrics'
@@ -48,6 +49,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
   const router = useRouter()
   const [account, setAccount] = useState(initialAccount)
   const [showEdit, setShowEdit] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [view, setView] = useState<'statement' | 'list'>('statement')
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [transactions, setTransactions] = useState(() => {
@@ -164,6 +166,13 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
                 <p className="text-xs text-amber-500 mt-0.5">Excluded from net worth</p>
               )}
             </div>
+            <button
+              onClick={() => setShowImport(true)}
+              title="Import past statement"
+              className="w-9 h-9 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-brand-500 hover:bg-brand-50 transition-colors shrink-0"
+            >
+              <Upload className="w-4 h-4" />
+            </button>
             <button
               onClick={() => setShowEdit(true)}
               className="w-9 h-9 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-brand-500 hover:bg-brand-50 transition-colors shrink-0"
@@ -365,6 +374,19 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
           account={account}
           onSaved={handleSaved}
           onClose={() => setShowEdit(false)}
+        />
+      )}
+
+      {showImport && (
+        <ImportStatementModal
+          accountId={account.id}
+          accountName={account.name}
+          earliestExistingDate={
+            statementTxns.length > 0
+              ? [...statementTxns].sort((a, b) => a.date.localeCompare(b.date))[0].date
+              : null
+          }
+          onClose={() => setShowImport(false)}
         />
       )}
     </div>
