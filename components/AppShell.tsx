@@ -467,8 +467,8 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
         {/* Desktop main content */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <main className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}>
-            {children}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}>
+            <div className="min-w-0">{children}</div>
           </main>
         </div>
       </div>
@@ -514,14 +514,14 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         </header>
 
         <main
-          className="flex-1 overflow-y-auto"
+          className="flex-1 overflow-y-auto overflow-x-hidden"
           style={{
             WebkitOverflowScrolling: 'touch' as never,
             overscrollBehaviorY: 'contain',
             backgroundColor: 'var(--bg)',
           }}
         >
-          <div style={{ minHeight: '100%', backgroundColor: 'var(--bg)' }}>
+          <div className="min-w-0" style={{ minHeight: '100%', backgroundColor: 'var(--bg)' }}>
             {children}
           </div>
         </main>
