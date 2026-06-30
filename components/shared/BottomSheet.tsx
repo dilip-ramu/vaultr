@@ -18,12 +18,11 @@ export default function BottomSheet({ isOpen, onClose, children, title }: Props)
         onClick={onClose}
       />
 
-      {/* Sheet */}
+      {/* Sheet — rounded top only on mobile (slides up); fully rounded when centered on md+ */}
       <div
-        className="relative w-full md:max-w-md slide-up flex flex-col"
+        className="relative w-full md:max-w-md slide-up flex flex-col rounded-t-3xl md:rounded-3xl md:my-4 md:overflow-hidden"
         style={{
           backgroundColor: 'var(--surface)',
-          borderRadius: '24px 24px 0 0',
           maxHeight: '94dvh',
         }}
       >

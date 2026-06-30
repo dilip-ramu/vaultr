@@ -240,11 +240,11 @@ export default function DashboardClient({
         </div>
 
         {/* ── Row 1: Net worth + monthly summary ─────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
 
           {/* Net Worth — spans 2 on mobile to be prominent */}
           <div
-            className="col-span-2 lg:col-span-1 rounded-2xl p-5 flex flex-col"
+            className="col-span-2 md:col-span-1 rounded-2xl p-5 flex flex-col"
             style={{
               background: 'var(--brand-dark, #1F5C3A)',
               border: '1px solid rgba(255,255,255,0.08)',
@@ -290,7 +290,7 @@ export default function DashboardClient({
 
           {/* Leftover — full width on mobile so no empty column */}
           <div
-            className="col-span-2 lg:col-span-1 rounded-2xl p-4 md:p-5 flex flex-col gap-1"
+            className="col-span-2 md:col-span-1 rounded-2xl p-4 md:p-5 flex flex-col gap-1"
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
           >
             <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>Leftover</p>
@@ -335,7 +335,7 @@ export default function DashboardClient({
               </div>
               <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
                   Realised (actual)
@@ -402,7 +402,7 @@ export default function DashboardClient({
               <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Credit</p>
               <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Available credit</p>
                 <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--income)' }}>₹{fmt(credit.totalAvailable)}</p>
@@ -415,7 +415,7 @@ export default function DashboardClient({
                 </p>
               </div>
               {credit.overallUtilisation != null && (
-                <div className="col-span-2 lg:col-span-1">
+                <div className="col-span-2 md:col-span-1">
                   <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Card utilisation</p>
                   <p className="text-xl font-bold tracking-tight" style={{
                     color: credit.overallUtilisation >= 0.9 ? 'var(--expense)' : credit.overallUtilisation >= 0.5 ? '#F59E0B' : 'var(--text)',

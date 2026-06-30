@@ -71,7 +71,7 @@ export default function PayeeSpendRings({ rings }: { rings: PayeeRing[] }) {
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No payee spend recorded this month</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 p-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-5">
           {rings.map(ring => (
             <div key={ring.payeeId} className="flex flex-col items-center text-center min-w-0">
               <div className="relative">
