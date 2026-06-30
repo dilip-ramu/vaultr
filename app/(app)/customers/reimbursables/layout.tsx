@@ -27,7 +27,7 @@ export default async function ReimbursablesLayout({ children }: { children: Reac
           </Suspense>
         </div>
         <Suspense fallback={null}>
-          <ReimbursableCustomerPicker customers={customers} selectedId={null} />
+          <ReimbursableCustomerPicker customers={customers} />
         </Suspense>
         <ReimbursablesTabs />
       </div>

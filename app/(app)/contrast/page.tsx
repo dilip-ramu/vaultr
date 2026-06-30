@@ -1,37 +1,58 @@
 import { createClient } from '@/lib/supabase/server'
 import ContrastExpensesClient from '@/components/contrast/ContrastExpensesClient'
+import { getReimbursableCustomers, resolveActiveCustomer } from '@/lib/reimbursables/customers'
 
 export const dynamic = 'force-dynamic'
 
-export default async function ContrastExpensesPage() {
+export default async function ContrastExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ customer?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const uid = user!.id
 
-  // Find any payee whose name contains "contrast" (case-insensitive)
-  // This handles "Contrast", "Contrast Company A/S", etc.
-  const { data: payees } = await supabase
-    .from('payees')
-    .select('id, name')
-    .eq('user_id', user!.id)
-    .ilike('name', '%contrast%')
-    .order('name')
+  const { customer: customerParam } = await searchParams
 
-  const payee = payees?.[0] ?? null
+  // Multi-customer: figure out which reimbursable customer the user is viewing.
+  // The picker writes ?customer=<id>; if none, fall back to the first customer
+  // that has a payee linked (typically Contrast).
+  const reimbursables = await getReimbursableCustomers(supabase, uid)
+  const active = resolveActiveCustomer(reimbursables, customerParam ?? null)
 
-  // Billing categories — may not exist if migration v19 hasn't run; handle gracefully
-  const { data: billingCategories } = await supabase
+  // Resolve the payee row for the active customer (already in the helper).
+  const payee = active ? { id: active.payee_id!, name: active.name } : null
+
+  // Legacy fallback: if no reimbursable customer is set up yet, look for the
+  // old "Contrast" payee by name so this still works pre-migration.
+  let resolvedPayee = payee
+  if (!resolvedPayee) {
+    const { data: legacy } = await supabase
+      .from('payees')
+      .select('id, name')
+      .eq('user_id', uid)
+      .ilike('name', '%contrast%')
+      .order('name')
+    resolvedPayee = legacy?.[0] ?? null
+  }
+
+  // Billing categories — scoped to the active customer if the column exists
+  // (post-migration v47). Falls back to legacy un-scoped rows.
+  let billingCategoriesQuery = supabase
     .from('contrast_billing_categories')
     .select('*')
-    .eq('user_id', user!.id)
+    .eq('user_id', uid)
     .order('name')
+  if (active) billingCategoriesQuery = billingCategoriesQuery.eq('customer_id', active.id)
+  const { data: billingCategories } = await billingCategoriesQuery
 
-  const migrationsRun = billingCategories !== null // null means table doesn't exist
+  const migrationsRun = billingCategories !== null
 
   let transactions: unknown[] = []
 
-  if (payee) {
+  if (resolvedPayee) {
     if (migrationsRun) {
-      // Full query with new columns (migrations v18 + v19 applied)
       const { data, error } = await supabase
         .from('transactions')
         .select(`
@@ -42,15 +63,14 @@ export default async function ContrastExpensesPage() {
           billing_category:contrast_billing_categories(id, name),
           attachments(id, file_name, file_path, content_type, file_size)
         `)
-        .eq('user_id', user!.id)
-        .eq('payee_id', payee.id)
+        .eq('user_id', uid)
+        .eq('payee_id', resolvedPayee.id)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
 
       if (!error) {
         transactions = data ?? []
       } else {
-        // Columns might not exist yet — fall back to base query
         const { data: fallback } = await supabase
           .from('transactions')
           .select(`
@@ -59,8 +79,8 @@ export default async function ContrastExpensesPage() {
             category:categories(id, name, icon, color),
             attachments(id, file_name, file_path, content_type, file_size)
           `)
-          .eq('user_id', user!.id)
-          .eq('payee_id', payee.id)
+          .eq('user_id', uid)
+          .eq('payee_id', resolvedPayee.id)
           .order('date', { ascending: false })
           .order('created_at', { ascending: false })
 
@@ -73,7 +93,6 @@ export default async function ContrastExpensesPage() {
         }))
       }
     } else {
-      // Migrations not run — use base query only
       const { data: fallback } = await supabase
         .from('transactions')
         .select(`
@@ -82,8 +101,8 @@ export default async function ContrastExpensesPage() {
           category:categories(id, name, icon, color),
           attachments(id, file_name, file_path, content_type, file_size)
         `)
-        .eq('user_id', user!.id)
-        .eq('payee_id', payee.id)
+        .eq('user_id', uid)
+        .eq('payee_id', resolvedPayee.id)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
 
@@ -101,8 +120,8 @@ export default async function ContrastExpensesPage() {
     <ContrastExpensesClient
       transactions={transactions as never[]}
       billingCategories={(billingCategories ?? []) as never[]}
-      payeeFound={!!payee}
-      payeeName={payee?.name ?? 'Contrast'}
+      payeeFound={!!resolvedPayee}
+      payeeName={resolvedPayee?.name ?? active?.name ?? 'Contrast'}
       migrationsRun={migrationsRun}
     />
   )

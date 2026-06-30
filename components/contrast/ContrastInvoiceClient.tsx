@@ -88,11 +88,14 @@ interface Props {
   allExpenses: ExpenseTx[]
   companyName: string
   uncategorizedCount: number
+  customerId?: string | null
+  customerName?: string
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function ContrastInvoiceClient({
   employees, courierInvoices, allExpenses, companyName, uncategorizedCount,
+  customerId = null, customerName = 'Contrast',
 }: Props) {
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -200,7 +203,8 @@ export default function ContrastInvoiceClient({
       const createRes = await fetch('/api/contrast/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ invoice_month: currentMonth }),
+        // Multi-customer: tag the new invoice with the customer being billed.
+        body: JSON.stringify({ invoice_month: currentMonth, customer_id: customerId }),
       })
       if (!createRes.ok) throw new Error((await createRes.json()).error ?? 'Failed to create invoice')
       const inv = await createRes.json()

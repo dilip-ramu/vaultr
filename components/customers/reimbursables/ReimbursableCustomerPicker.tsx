@@ -10,15 +10,16 @@ export interface ReimbursableCustomer {
 
 interface Props {
   customers: ReimbursableCustomer[]
-  selectedId: string | null
 }
 
 // URL-driven picker so the chosen customer survives navigation between tabs
 // (Expenses / Invoices) and refreshes. The page's server component reads the
 // `?customer=<id>` param and filters accordingly.
-export default function ReimbursableCustomerPicker({ customers, selectedId }: Props) {
+export default function ReimbursableCustomerPicker({ customers }: Props) {
   const router = useRouter()
   const params = useSearchParams()
+  const urlSelected = params.get('customer')
+  const effective = (urlSelected && customers.some(c => c.id === urlSelected) ? urlSelected : customers[0]?.id) ?? ''
 
   function pick(id: string) {
     const sp = new URLSearchParams(params.toString())
@@ -45,7 +46,7 @@ export default function ReimbursableCustomerPicker({ customers, selectedId }: Pr
 
   return (
     <select
-      value={selectedId ?? customers[0]?.id ?? ''}
+      value={effective}
       onChange={e => pick(e.target.value)}
       className="px-3 py-1.5 rounded-lg text-sm border outline-none"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
