@@ -12,6 +12,11 @@ interface Props {
   bills: Bill[]
   currentMonth: string
   hideHeader?: boolean
+  // Optional explicit period. When provided, all "this period" summary numbers
+  // and insight copy use it instead of the calendar month.
+  periodStart?: string
+  periodEnd?: string
+  periodLabel?: string
 }
 
 const TYPE_STYLE: Record<Insight['type'], { bg: string; border: string; dot: string }> = {
@@ -21,15 +26,15 @@ const TYPE_STYLE: Record<Insight['type'], { bg: string; border: string; dot: str
   alert:    { bg: 'rgba(239,68,68,0.07)',  border: 'rgba(239,68,68,0.2)',   dot: 'var(--expense)' },
 }
 
-export default function InsightsClient({ transactions, accounts, budgets, bills, currentMonth, hideHeader = false }: Props) {
+export default function InsightsClient({ transactions, accounts, budgets, bills, currentMonth, hideHeader = false, periodStart, periodEnd, periodLabel }: Props) {
   const now = new Date(currentMonth)
-  const insights = generateInsights({ transactions, accounts, budgets, bills, currentMonth: now })
+  const insights = generateInsights({ transactions, accounts, budgets, bills, currentMonth: now, periodStart, periodEnd, periodLabel })
 
   // ── Summary computations ──────────────────────────────────
   const cy = now.getFullYear()
   const cm = now.getMonth()
-  const thisStart = `${cy}-${String(cm + 1).padStart(2, '0')}-01`
-  const thisEnd = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
+  const thisStart = periodStart ?? `${cy}-${String(cm + 1).padStart(2, '0')}-01`
+  const thisEnd   = periodEnd   ?? new Date(cy, cm + 1, 0).toISOString().split('T')[0]
 
   const thisTx = transactions.filter(t => t.date >= thisStart && t.date <= thisEnd)
   const thisIncome  = thisTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
@@ -55,10 +60,10 @@ export default function InsightsClient({ transactions, accounts, budgets, bills,
       {!hideHeader ? (
         <div>
           <h1 className="text-heading" style={{ color: 'var(--text)' }}>Your Financial Pulse</h1>
-          <p className="text-caption">{getMonthYear(now)}</p>
+          <p className="text-caption">{periodLabel ?? getMonthYear(now)}</p>
         </div>
       ) : (
-        <p className="text-caption">{getMonthYear(now)}</p>
+        <p className="text-caption">Insights — {periodLabel ?? getMonthYear(now)}</p>
       )}
 
       {/* Insight cards */}

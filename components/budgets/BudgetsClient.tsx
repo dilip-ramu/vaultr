@@ -18,6 +18,7 @@ interface Props {
   currentYear: number
   contrastPayeeId: string | null
   hideHeader?: boolean
+  periodLabel?: string
 }
 
 interface BudgetTx {
@@ -49,7 +50,7 @@ function periodRange(period: string, month: number, year: number) {
 }
 
 export default function BudgetsClient({
-  budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeId, hideHeader = false,
+  budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeId, hideHeader = false, periodLabel,
 }: Props) {
   const [budgets, setBudgets] = useState<Budget[]>(initial)
   const [showForm, setShowForm] = useState(false)
@@ -154,10 +155,10 @@ export default function BudgetsClient({
         {!hideHeader ? (
           <div>
             <h1 className="text-heading" style={{ color: 'var(--text)' }}>Budgets</h1>
-            <p className="text-caption">{MONTH_NAMES[currentMonth - 1]} {currentYear}</p>
+            <p className="text-caption">{periodLabel ?? `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`}</p>
           </div>
         ) : (
-          <p className="text-caption">{MONTH_NAMES[currentMonth - 1]} {currentYear}</p>
+          <p className="text-caption">{periodLabel ?? `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`}</p>
         )}
         <button
           onClick={() => { setEditBudget(undefined); setShowForm(true) }}

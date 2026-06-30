@@ -16,22 +16,54 @@ export function generateInsights(params: {
   budgets: Budget[]
   currentMonth: Date
   bills?: Bill[]
+  // Optional explicit period — when provided, all "this period" calculations
+  // use these bounds and the comparison window is the same length right before.
+  // Used by the Budget & Insights page when the user picks a non-month range.
+  periodStart?: string         // YYYY-MM-DD
+  periodEnd?: string           // YYYY-MM-DD
+  periodLabel?: string         // shown in insight copy (e.g. "this period")
 }): Insight[] {
-  const { transactions, accounts, budgets, currentMonth, bills = [] } = params
+  const { transactions, accounts, budgets, currentMonth, bills = [], periodStart, periodEnd, periodLabel } = params
   const insights: Insight[] = []
 
-  // ── Month bounds ──────────────────────────────────────────
+  // ── Period bounds ─────────────────────────────────────────
+  // If explicit period bounds were passed, use them. Otherwise default to the
+  // calendar month containing `currentMonth` (the original behaviour).
   const cy = currentMonth.getFullYear()
   const cm = currentMonth.getMonth()
 
-  const thisStart = `${cy}-${String(cm + 1).padStart(2, '0')}-01`
-  const thisEnd   = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
+  let thisStart: string
+  let thisEnd: string
+  let prevStart: string
+  let prevEnd: string
+  let thisLabel: string
+  let prevLabel: string
 
-  const prevDate  = new Date(cy, cm - 1, 1)
-  const py = prevDate.getFullYear()
-  const pm = prevDate.getMonth()
-  const prevStart = `${py}-${String(pm + 1).padStart(2, '0')}-01`
-  const prevEnd   = new Date(py, pm + 1, 0).toISOString().split('T')[0]
+  if (periodStart && periodEnd) {
+    thisStart = periodStart
+    thisEnd = periodEnd
+    thisLabel = periodLabel ?? 'this period'
+    // Previous period of equal length, ending the day before thisStart
+    const startDate = new Date(periodStart)
+    const endDate   = new Date(periodEnd)
+    const dayMs = 86400000
+    const lenMs = endDate.getTime() - startDate.getTime() + dayMs
+    const prevEndDate   = new Date(startDate.getTime() - dayMs)
+    const prevStartDate = new Date(prevEndDate.getTime() - lenMs + dayMs)
+    prevStart = prevStartDate.toISOString().slice(0, 10)
+    prevEnd   = prevEndDate.toISOString().slice(0, 10)
+    prevLabel = 'previous period'
+  } else {
+    thisStart = `${cy}-${String(cm + 1).padStart(2, '0')}-01`
+    thisEnd   = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
+    const prevDate = new Date(cy, cm - 1, 1)
+    const py = prevDate.getFullYear()
+    const pm = prevDate.getMonth()
+    prevStart = `${py}-${String(pm + 1).padStart(2, '0')}-01`
+    prevEnd   = new Date(py, pm + 1, 0).toISOString().split('T')[0]
+    thisLabel = 'this month'
+    prevLabel = 'last month'
+  }
 
   // ── Partition transactions ────────────────────────────────
   const thisTx   = transactions.filter(t => t.date >= thisStart && t.date <= thisEnd)
@@ -53,8 +85,8 @@ export function generateInsights(params: {
         id: 'spending-up',
         type: 'warning',
         icon: '📈',
-        title: `Spending up ${pct.toFixed(0)}% vs last month`,
-        body: `${fmt(thisExpTotal)} spent this month vs ${fmt(prevExpTotal)} last month.`,
+        title: `Spending up ${pct.toFixed(0)}% vs ${prevLabel}`,
+        body: `${fmt(thisExpTotal)} spent ${thisLabel} vs ${fmt(prevExpTotal)} ${prevLabel}.`,
         action: { label: 'View transactions', href: '/transactions' },
         priority: 4,
       })
@@ -63,7 +95,7 @@ export function generateInsights(params: {
         id: 'spending-down',
         type: 'positive',
         icon: '🎉',
-        title: `You spent ${Math.abs(pct).toFixed(0)}% less than last month`,
+        title: `You spent ${Math.abs(pct).toFixed(0)}% less than ${prevLabel}`,
         body: `Down to ${fmt(thisExpTotal)} from ${fmt(prevExpTotal)} — great discipline!`,
         priority: 8,
       })
@@ -85,7 +117,7 @@ export function generateInsights(params: {
       type: 'info',
       icon: '🏷️',
       title: `Biggest spend: ${topCat.name}`,
-      body: `You've spent ${fmt(topCat.total)} on ${topCat.name} this month.`,
+      body: `You've spent ${fmt(topCat.total)} on ${topCat.name} ${thisLabel}.`,
       action: { label: 'View categories', href: '/categories' },
       priority: 10,
     })
@@ -99,7 +131,7 @@ export function generateInsights(params: {
         id: 'savings-good',
         type: 'positive',
         icon: '💰',
-        title: `Great job — you saved ${rate.toFixed(0)}% of income this month`,
+        title: `Great job — you saved ${rate.toFixed(0)}% of income ${thisLabel}`,
         body: `Earned ${fmt(thisIncTotal)}, saved ${fmt(thisIncTotal - thisExpTotal)}.`,
         priority: 7,
       })
@@ -108,7 +140,7 @@ export function generateInsights(params: {
         id: 'overspend',
         type: 'alert',
         icon: '🚨',
-        title: 'Spending exceeded income this month',
+        title: `Spending exceeded income ${thisLabel}`,
         body: `Earned ${fmt(thisIncTotal)} but spent ${fmt(thisExpTotal)} — deficit of ${fmt(thisExpTotal - thisIncTotal)}.`,
         action: { label: 'Review budgets', href: '/budget-insights' },
         priority: 2,
@@ -152,6 +184,7 @@ export function generateInsights(params: {
   }
 
   // ── 5. Budget warnings ────────────────────────────────────
+  // Days-left only makes sense for "this month"; suppress for explicit ranges.
   const today = new Date()
   const daysLeft = new Date(cy, cm + 1, 0).getDate() - today.getDate()
   for (const b of budgets) {
@@ -162,7 +195,9 @@ export function generateInsights(params: {
       type: pct >= 100 ? 'alert' : 'warning',
       icon: pct >= 100 ? '🔴' : '🟡',
       title: `${b.category?.name ?? 'Budget'} is ${pct.toFixed(0)}% used`,
-      body: `${fmt(b.spent ?? 0)} of ${fmt(b.amount)} spent with ${daysLeft} days left.`,
+      body: periodStart
+        ? `${fmt(b.spent ?? 0)} of ${fmt(b.amount)} spent ${thisLabel}.`
+        : `${fmt(b.spent ?? 0)} of ${fmt(b.amount)} spent with ${daysLeft} days left.`,
       action: { label: 'View budgets', href: '/budget-insights' },
       priority: pct >= 100 ? 2 : 3,
     })
@@ -179,7 +214,7 @@ export function generateInsights(params: {
       type: 'info',
       icon: '💸',
       title: `Largest expense: ${fmt(biggest.amount)}`,
-      body: `"${label}" on ${fmtDate(biggest.date)} was your biggest single expense this month.`,
+      body: `"${label}" on ${fmtDate(biggest.date)} was your biggest single expense ${thisLabel}.`,
       action: { label: 'View transactions', href: '/transactions' },
       priority: 11,
     })
@@ -191,7 +226,7 @@ export function generateInsights(params: {
       id: 'no-income',
       type: 'info',
       icon: '📥',
-      title: 'No income recorded this month',
+      title: `No income recorded ${thisLabel}`,
       body: "Don't forget to log your income — it helps track your savings rate accurately.",
       action: { label: 'Add transaction', href: '/transactions' },
       priority: 6,
@@ -208,7 +243,7 @@ export function generateInsights(params: {
       id: 'net-worth-up',
       type: 'positive',
       icon: '📈',
-      title: `Net worth grew by ${fmt(netChange)} this month`,
+      title: `Net worth grew by ${fmt(netChange)} ${thisLabel}`,
       body: `Your finances are trending in the right direction. Current net worth: ${fmt(netWorth)}.`,
       priority: 9,
     })

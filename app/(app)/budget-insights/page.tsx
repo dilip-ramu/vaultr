@@ -2,25 +2,33 @@ import { createClient } from '@/lib/supabase/server'
 import BudgetsClient from '@/components/budgets/BudgetsClient'
 import InsightsClient from '@/components/insights/InsightsClient'
 import type { Budget } from '@/lib/types'
+import { bounds, type PeriodKey } from '@/components/budget-insights/PeriodSelector'
 
 export const dynamic = 'force-dynamic'
 
 // Single page that shows Budgets above and Insights below using one consistent
-// calculation. The earlier two-page split could disagree (Insights summed every
-// expense, Budgets excluded contrast-billed ones) which produced "339% over"
-// vs "38% used" for the same category. Now everything excludes contrast.
-export default async function BudgetInsightsPage() {
+// calculation across an arbitrary period (URL-driven). Contrast-billed
+// transactions are always excluded.
+export default async function BudgetInsightsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const uid = user!.id
 
-  const now = new Date()
-  const month = now.getMonth() + 1
-  const year = now.getFullYear()
-  const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01`
-  const endOfMonth = new Date(year, month, 0).toISOString().split('T')[0]
-  // 5-month history window for insights (current + 4 prior)
-  const historyStart = new Date(year, month - 5, 1).toISOString().split('T')[0]
+  const sp = await searchParams
+  const period = (sp.period as PeriodKey | undefined) ?? 'this_month'
+  const { from: periodStart, to: periodEnd, label: periodLabel, months: periodMonths } =
+    bounds(period, sp.from ?? null, sp.to ?? null)
+
+  // Pull enough history for trend comparison: the selected period + an equally
+  // long window right before it.
+  const startMs = new Date(periodStart).getTime()
+  const endMs   = new Date(periodEnd).getTime()
+  const lenMs   = endMs - startMs + 86400000
+  const historyStart = new Date(startMs - lenMs).toISOString().slice(0, 10)
 
   const [
     { data: rawBudgets },
@@ -35,13 +43,12 @@ export default async function BudgetInsightsPage() {
       .select('*, category:categories(id,name,icon,color,avatar_url)')
       .eq('user_id', uid)
       .eq('is_active', true),
-    // Pull the whole 5-month window once. We'll slice down to the current month
-    // for budget computation and pass the full set to the insights generator.
     supabase
       .from('transactions')
       .select('id, type, amount, date, name, category_id, payee_id, category:categories(id,name,icon,color,avatar_url), account:accounts!account_id(id,name,color,type)')
       .eq('user_id', uid)
       .gte('date', historyStart)
+      .lte('date', periodEnd)
       .order('date', { ascending: false }),
     supabase
       .from('categories')
@@ -65,53 +72,64 @@ export default async function BudgetInsightsPage() {
       .select('id, name, amount, due_date, status')
       .eq('user_id', uid)
       .eq('status', 'pending')
-      .gte('due_date', now.toISOString().split('T')[0]),
+      .gte('due_date', new Date().toISOString().slice(0, 10)),
   ])
 
   const contrastPayeeId = contrastPayee?.id ?? null
 
-  // Apply contrast exclusion once, to the whole 5-month window.
-  // Anything billed back via "Contrast" is not your spending; it never counts
-  // for budgets, top categories, savings rate, or the spending trend.
+  // Always-exclude Contrast — same rule as the dashboard's payee chart inverts.
   const historyTx = (historyTxRaw ?? []).filter(tx =>
     !contrastPayeeId || tx.payee_id !== contrastPayeeId
   )
 
-  // Slice the current month for budget computation.
-  const monthTx = historyTx.filter(tx =>
-    tx.date >= startOfMonth && tx.date <= endOfMonth && tx.category_id != null
+  // Slice to the selected period for budget computation.
+  const periodTx = historyTx.filter(tx =>
+    tx.date >= periodStart && tx.date <= periodEnd && tx.category_id != null
   )
 
-  // Net spend per category: expense adds, income (refunds/reimbursements) subtracts.
-  // Clamp at 0 — net income in a category doesn't create negative usage.
+  // Net spend per category: expense adds, income (refunds) subtracts. Clamp at 0.
   const spentMap: Record<string, number> = {}
-  for (const tx of monthTx) {
+  for (const tx of periodTx) {
     if (!tx.category_id) continue
     const delta = tx.type === 'income' ? -Number(tx.amount) : Number(tx.amount)
     spentMap[tx.category_id] = (spentMap[tx.category_id] ?? 0) + delta
   }
-  for (const k of Object.keys(spentMap)) {
-    if (spentMap[k] < 0) spentMap[k] = 0
+  for (const k of Object.keys(spentMap)) if (spentMap[k] < 0) spentMap[k] = 0
+
+  // Scale each budget's limit to match the selected period length so the
+  // percentage is fair. A ₹5,000 monthly budget across 3 months becomes ₹15,000.
+  const scaleForPeriod = (b: { period?: string | null; amount: number; rollover?: boolean; rollover_amount?: number }) => {
+    const base = b.amount + (b.rollover ? (b.rollover_amount ?? 0) : 0)
+    if (!periodMonths || periodMonths <= 0) return base
+    if (b.period === 'yearly') return base * (periodMonths / 12)
+    if (b.period === 'weekly') return base * (periodMonths * 52 / 12)
+    // monthly (default)
+    return base * periodMonths
   }
 
-  // One canonical budgets[] array — used by both sections.
   const budgets: Budget[] = (rawBudgets ?? []).map(b => {
     const spent = spentMap[b.category_id] ?? 0
-    const effective = b.amount + (b.rollover ? b.rollover_amount : 0)
-    const remaining = effective - spent
-    const percentage = effective > 0 ? (spent / effective) * 100 : 0
-    return { ...b, spent, remaining, percentage }
+    const effective = scaleForPeriod(b)
+    return {
+      ...b,
+      spent,
+      remaining: effective - spent,
+      percentage: effective > 0 ? (spent / effective) * 100 : 0,
+    }
   })
+
+  const now = new Date()
 
   return (
     <div className="space-y-6">
       <BudgetsClient
         budgets={budgets}
         expenseCategories={expenseCategories ?? []}
-        currentMonth={month}
-        currentYear={year}
+        currentMonth={now.getMonth() + 1}
+        currentYear={now.getFullYear()}
         contrastPayeeId={contrastPayeeId}
         hideHeader
+        periodLabel={periodLabel}
       />
       <div className="h-px" style={{ background: 'var(--border)' }} />
       <InsightsClient
@@ -121,6 +139,9 @@ export default async function BudgetInsightsPage() {
         bills={(bills ?? []) as never[]}
         currentMonth={now.toISOString()}
         hideHeader
+        periodStart={periodStart}
+        periodEnd={periodEnd}
+        periodLabel={periodLabel}
       />
     </div>
   )
