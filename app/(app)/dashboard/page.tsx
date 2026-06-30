@@ -300,6 +300,44 @@ export default async function DashboardPage() {
 
   const totalReceivables = d.receivableInvoices.reduce((s, inv) => s + (inv.balance_due ?? 0), 0)
 
+  // ── Per-payee expense breakdown (current month, by category) ───────────────
+  // One ring per payee, arc segments coloured per category. Contrast-billed
+  // transactions are excluded — same rule as budgets/insights.
+  const { data: payeeRingsRaw } = await supabase
+    .from('transactions')
+    .select('amount, payee_id, category_id, payees:payee_id(id, name), categories:category_id(id, name, color)')
+    .eq('user_id', user!.id)
+    .eq('type', 'expense')
+    .gte('date', startOfMonth)
+    .lte('date', endOfMonth)
+
+  type PayeeSlice = { categoryId: string; categoryName: string; color: string; amount: number }
+  type PayeeRing = { payeeId: string; payeeName: string; total: number; slices: PayeeSlice[] }
+  const payeeMap = new Map<string, PayeeRing>()
+  for (const tx of (payeeRingsRaw ?? []) as unknown as Array<{
+    amount: number; payee_id: string | null; category_id: string | null;
+    payees: { id: string; name: string } | null;
+    categories: { id: string; name: string; color: string } | null;
+  }>) {
+    if (d.contrastPayeeId && tx.payee_id === d.contrastPayeeId) continue
+    const pid = tx.payees?.id ?? '__none__'
+    const pname = tx.payees?.name ?? 'No payee'
+    const ring = payeeMap.get(pid) ?? { payeeId: pid, payeeName: pname, total: 0, slices: [] }
+    const amt = Math.abs(Number(tx.amount) || 0)
+    if (amt === 0) continue
+    ring.total += amt
+    const cid = tx.categories?.id ?? '__none__'
+    const cname = tx.categories?.name ?? 'Uncategorised'
+    const ccolor = tx.categories?.color ?? '#94a3b8'
+    const existing = ring.slices.find(s => s.categoryId === cid)
+    if (existing) existing.amount += amt
+    else ring.slices.push({ categoryId: cid, categoryName: cname, color: ccolor, amount: amt })
+    payeeMap.set(pid, ring)
+  }
+  const payeeRings: PayeeRing[] = Array.from(payeeMap.values())
+    .map(r => ({ ...r, slices: r.slices.sort((a, b) => b.amount - a.amount) }))
+    .sort((a, b) => b.total - a.total)
+
   const commissionPending = d.commissionStyles.reduce((s, c) => s + (Number(c.commission_inr) || 0), 0)
   const commissionPendingCount = d.commissionStyles.length
 
@@ -341,6 +379,7 @@ export default async function DashboardPage() {
       profitMTD={profitMTD}
       cardDues={cardDues}
       unbilledInvoices={d.unbilledInvoices as unknown as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
+      payeeRings={payeeRings}
     />
   )
 }

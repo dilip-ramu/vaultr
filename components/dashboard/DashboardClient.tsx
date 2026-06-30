@@ -16,6 +16,7 @@ import type { Insight } from '@/lib/insights'
 import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
+import PayeeSpendRings, { type PayeeRing } from './PayeeSpendRings'
 
 const TransactionForm = dynamic(() => import('../transactions/TransactionForm'), { ssr: false })
 
@@ -74,6 +75,7 @@ interface Props {
   billsDueCount?: number
   profitMTD?: ProfitSummary
   cardDues?: CardDue[]
+  payeeRings?: PayeeRing[]
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -156,6 +158,7 @@ export default function DashboardClient({
   billsDueCount = 0,
   profitMTD,
   cardDues = [],
+  payeeRings = [],
 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
@@ -517,6 +520,9 @@ export default function DashboardClient({
             )}
           </div>
         </div>
+
+        {/* ── Spend by Payee (one ring per payee, coloured by category) ──── */}
+        <PayeeSpendRings rings={payeeRings} />
 
         {/* ── Budgets ────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 gap-4">
