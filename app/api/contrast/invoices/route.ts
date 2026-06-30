@@ -1,30 +1,35 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-// GET  – list all contrast invoices
-export async function GET() {
+// GET  – list contrast invoices. Optional ?customer=<id> filter.
+export async function GET(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-  const { data, error } = await supabase
+  const customerId = new URL(req.url).searchParams.get('customer')
+
+  let query = supabase
     .from('contrast_invoices')
     .select('*, items:contrast_invoice_items(*)')
     .eq('user_id', user.id)
     .order('invoice_month', { ascending: false })
 
+  if (customerId) query = query.eq('customer_id', customerId)
+
+  const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
-// POST – create (draft) invoice for a month
-// Body: { invoice_month: "YYYY-MM" }
+// POST – create (draft) invoice for a month, tagged to a customer.
+// Body: { invoice_month: "YYYY-MM", customer_id?: UUID }
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-  const { invoice_month } = await req.json() as { invoice_month: string }
+  const { invoice_month, customer_id } = await req.json() as { invoice_month: string; customer_id?: string }
   if (!invoice_month) return NextResponse.json({ error: 'invoice_month required' }, { status: 400 })
 
   // Generate invoice number: PI-YYYYMM-NNN
@@ -49,6 +54,7 @@ export async function POST(req: Request) {
     .from('contrast_invoices')
     .insert({
       user_id: user.id,
+      customer_id: customer_id ?? null,
       invoice_number,
       invoice_month,
       invoice_date: new Date().toISOString().split('T')[0],

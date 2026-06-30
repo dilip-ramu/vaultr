@@ -14,14 +14,6 @@ export default async function ContrastInvoicePage() {
     .eq('id', user!.id)
     .single()
 
-  // ── Active employees (for salary lines) ───────────────────────────────────
-  const { data: employees } = await supabase
-    .from('employees')
-    .select('id, name, salary_euro, designation')
-    .eq('user_id', user!.id)
-    .eq('is_active', true)
-    .order('name')
-
   // ── Contrast customer (for recoverable invoice matching) ──────────────────
   const { data: contrastCustomers } = await supabase
     .from('customers')
@@ -30,6 +22,21 @@ export default async function ContrastInvoicePage() {
     .ilike('name', '%contrast%')
     .order('name')
   const contrastCustomer = contrastCustomers?.[0] ?? null
+
+  // ── Employees billable to THIS customer (works_for + not excluded) ────────
+  // Was: every active employee — which incorrectly added "Me" staff to the
+  // Contrast invoice. Now: only employees whose Works-for is Contrast AND
+  // whose "Include salary in client invoice" is on.
+  const { data: employees } = contrastCustomer
+    ? await supabase
+        .from('employees')
+        .select('id, name, salary_euro, designation, works_for_customer_id, exclude_from_invoicing')
+        .eq('user_id', user!.id)
+        .eq('is_active', true)
+        .eq('works_for_customer_id', contrastCustomer.id)
+        .eq('exclude_from_invoicing', false)
+        .order('name')
+    : { data: [] }
 
   // ── Unlinked courier (recoverable) invoices for Contrast ──────────────────
   // These are invoices in the Recoverables module sent to Contrast Company A/S

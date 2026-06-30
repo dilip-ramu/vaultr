@@ -516,10 +516,16 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     <p className="text-[10px] text-gray-400 mt-1">Drives where their salary gets invoiced.</p>
                   </div>
                   <div className="flex items-end">
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <label
+                      className="inline-flex items-center gap-2 text-sm cursor-pointer"
+                      style={{ color: form.works_for_customer_id ? '#374151' : '#9ca3af' }}
+                    >
                       <input
                         type="checkbox"
-                        checked={!form.exclude_from_invoicing}
+                        // Only meaningful when Works-for is a customer. When
+                        // Works-for is Me, the box is forced off (the salary
+                        // is never invoiced) and disabled to make that clear.
+                        checked={!!form.works_for_customer_id && !form.exclude_from_invoicing}
                         onChange={e => setField('exclude_from_invoicing', !e.target.checked)}
                         disabled={!form.works_for_customer_id}
                       />
