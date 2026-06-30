@@ -52,7 +52,7 @@ const navSections: NavSection[] = [
       {
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
-          { href: '/customers/directory',    label: 'Directory',   icon: BookOpen },
+          // Directory now lives as a tab on the main /customers page.
           { href: '/recoverables/invoices',  label: 'Invoices',    icon: FileText },
           { href: '/recoverables/tds',       label: 'TDS',         icon: Receipt },
           { href: '/customers/commission',   label: 'Incoming',    icon: DollarSign },
@@ -61,7 +61,7 @@ const navSections: NavSection[] = [
       {
         href: '/suppliers', label: 'Suppliers', icon: Building2,
         subItems: [
-          { href: '/suppliers/directory',             label: 'Directory',     icon: BookOpen },
+          // Directory now lives as a tab on the main /suppliers page.
           { href: '/suppliers/invoices',              label: 'Invoices',      icon: FileText },
           { href: '/suppliers/categories',            label: 'Categories',    icon: Tag },
         ],
