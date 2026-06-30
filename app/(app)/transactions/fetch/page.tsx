@@ -19,7 +19,7 @@ export default async function FetchTransactionsTabPage() {
       .eq('user_id', uid).eq('is_active', true),
     supabase.from('categories').select('id, name, type, icon, color').eq('user_id', uid),
     supabase.from('payees').select('id, name').eq('user_id', uid).order('name'),
-    supabase.from('monitored_senders').select('id, email, name, is_active, default_account_id').eq('user_id', uid).eq('kind', 'bank_alert').order('email'),
+    supabase.from('monitored_senders').select('id, email, name, is_active, default_account_id').eq('user_id', uid).eq('is_bank_alert', true).order('email'),
     supabase.from('email_integrations').select('email_address, last_checked_at').eq('user_id', uid).eq('is_active', true).maybeSingle(),
   ])
 

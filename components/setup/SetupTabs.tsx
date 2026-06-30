@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, Tag, Layers, DollarSign, Scale, Archive } from 'lucide-react'
+import { Building2, Tag, Layers, DollarSign, Scale, Archive, Mail } from 'lucide-react'
 
 const TABS = [
   { href: '/setup',               label: 'Company',         icon: Building2 },
+  { href: '/setup/email',         label: 'Email',           icon: Mail },
   { href: '/setup/categories',    label: 'Categories',      icon: Tag },
   { href: '/setup/account-types', label: 'Account types',   icon: Layers },
   { href: '/setup/currencies',    label: 'Currencies',      icon: DollarSign },

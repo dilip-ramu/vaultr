@@ -19,19 +19,19 @@ export async function POST(_req: NextRequest) {
   if (intErr) return NextResponse.json({ error: intErr.message }, { status: 500 })
   if (!integration) return NextResponse.json({ error: 'No active email integration found. Please connect your email first.' }, { status: 404 })
 
-  // Fetch active monitored senders for supplier documents only.
-  // Bank-alert senders (kind='bank_alert') are handled by /api/txn-inbox/check
-  // and must NOT be pulled into the email documents inbox.
+  // Fetch active monitored senders flagged as supplier-document sources.
+  // A sender may also be flagged as a bank-alert — that's handled by the
+  // transaction inbox separately.
   const { data: senders, error: sendErr } = await supabase
     .from('monitored_senders')
     .select('email')
     .eq('user_id', user.id)
     .eq('is_active', true)
-    .eq('kind', 'document')
+    .eq('is_document', true)
 
   if (sendErr) return NextResponse.json({ error: sendErr.message }, { status: 500 })
   if (!senders || senders.length === 0) {
-    return NextResponse.json({ error: 'No supplier senders configured. Add a supplier email under Senders first.' }, { status: 400 })
+    return NextResponse.json({ error: 'No supplier senders configured. Add one under Setup → Email (with the Supplier role).' }, { status: 400 })
   }
 
   const monitoredEmails = senders.map(s => s.email)

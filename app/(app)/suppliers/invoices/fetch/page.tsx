@@ -9,21 +9,23 @@ export default async function FetchInvoicesTabPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Supplier-only view: bank-alert senders (kind='bank_alert') belong to the
-  // Transactions inbox and must not appear here.
+  // Supplier-only view: pull senders flagged as supplier-document sources.
+  // A sender that's also flagged for bank alerts is fine — both flags can be on.
   const { data: allSenders } = await supabase
     .from('monitored_senders')
-    .select('email, name, kind')
+    .select('email, name, is_document, is_bank_alert')
     .eq('user_id', user.id)
     .eq('is_active', true)
     .order('email')
 
   const documentSenderEmails = (allSenders ?? [])
-    .filter(s => s.kind === 'document')
+    .filter(s => s.is_document)
     .map(s => s.email.toLowerCase())
 
-  const bankAlertEmails = new Set(
-    (allSenders ?? []).filter(s => s.kind === 'bank_alert').map(s => s.email.toLowerCase())
+  // Hide rows that came from senders we DON'T consider supplier-documents,
+  // belt-and-suspenders against rows created before the role flags existed.
+  const nonDocEmails = new Set(
+    (allSenders ?? []).filter(s => !s.is_document).map(s => s.email.toLowerCase())
   )
 
   let documentsQuery = supabase
@@ -43,11 +45,11 @@ export default async function FetchInvoicesTabPage() {
   const { data: rawDocuments } = await documentsQuery
 
   const documents = (rawDocuments ?? []).filter(
-    d => !bankAlertEmails.has((d.sender_email ?? '').toLowerCase())
+    d => !nonDocEmails.has((d.sender_email ?? '').toLowerCase())
   )
 
   const senders = (allSenders ?? [])
-    .filter(s => s.kind === 'document')
+    .filter(s => s.is_document)
     .map(({ email, name }) => ({ email, name }))
 
   return (

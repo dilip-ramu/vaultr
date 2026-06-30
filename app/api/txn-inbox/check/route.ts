@@ -12,14 +12,14 @@ export async function POST(_req: NextRequest) {
 
   const [{ data: integration }, { data: senders }, { data: accounts }, { data: rules }] = await Promise.all([
     supabase.from('email_integrations').select('*').eq('user_id', user.id).eq('is_active', true).maybeSingle(),
-    supabase.from('monitored_senders').select('email, default_account_id').eq('user_id', user.id).eq('is_active', true).eq('kind', 'bank_alert'),
+    supabase.from('monitored_senders').select('email, default_account_id').eq('user_id', user.id).eq('is_active', true).eq('is_bank_alert', true),
     supabase.from('accounts').select('id, name, account_number, matching_digits, type').eq('user_id', user.id).eq('is_active', true),
     supabase.from('merchant_rules').select('merchant_pattern, default_name, category_id, payee_id').eq('user_id', user.id),
   ])
 
-  if (!integration) return NextResponse.json({ error: 'Connect your email first (Suppliers → Invoices → Email Setup).' }, { status: 404 })
+  if (!integration) return NextResponse.json({ error: 'Connect your email first (Setup → Email).' }, { status: 404 })
   if (!senders || senders.length === 0) {
-    return NextResponse.json({ error: 'No bank-alert senders configured yet. Add one under Transactions → Fetch Transactions.' }, { status: 400 })
+    return NextResponse.json({ error: 'No transaction-email senders configured. Add one under Setup → Email (with the Transaction role).' }, { status: 400 })
   }
 
   after(async () => {

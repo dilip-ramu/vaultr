@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FileText, Mail, Settings } from 'lucide-react'
+import { FileText, Mail } from 'lucide-react'
 
 const TABS = [
+  // Email Setup moved out of here into /setup/email so a single place manages
+  // all senders (with per-sender Supplier / Transaction role flags).
   { href: '/suppliers/invoices',             label: 'Invoices',       icon: FileText },
   { href: '/suppliers/invoices/fetch',       label: 'Fetch Invoices', icon: Mail },
-  { href: '/suppliers/invoices/email-setup', label: 'Email Setup',    icon: Settings },
 ]
 
 export default function SupplierInvoicesTabs() {
