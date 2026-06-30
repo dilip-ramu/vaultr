@@ -10,15 +10,18 @@ import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 import { createClient } from '@/lib/supabase/client'
 
+interface PartyTotals { outstanding: number; overdue: number }
+
 interface Props {
   initialSuppliers: Supplier[]
+  outstandingBySupplier?: Record<string, PartyTotals>
 }
 
 function fmtAmt(n: number) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
 }
 
-export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
+export default function SupplierDirectoryClient({ initialSuppliers, outstandingBySupplier = {} }: Props) {
   const router = useRouter()
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
   const [search, setSearch] = useState('')
@@ -122,13 +125,21 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
     return opt?.label ?? s.payment_terms
   }
 
+  // Totals across all currently-visible suppliers
+  const grandOutstanding = filtered.reduce((sum, s) => sum + (outstandingBySupplier[s.id]?.outstanding ?? 0), 0)
+  const grandOverdue     = filtered.reduce((sum, s) => sum + (outstandingBySupplier[s.id]?.overdue     ?? 0), 0)
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Supplier Directory</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{suppliers.filter(s => s.is_active).length} active suppliers</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            {suppliers.filter(s => s.is_active).length} active suppliers
+            {grandOutstanding > 0 && <> · ₹{fmtAmt(grandOutstanding)} outstanding</>}
+            {grandOverdue > 0 && <> · <span style={{ color: '#dc2626' }}>₹{fmtAmt(grandOverdue)} overdue</span></>}
+          </p>
         </div>
         <button
           onClick={() => { setEditingSupplier(null); setShowForm(true) }}
@@ -171,7 +182,7 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
             <table className="w-full text-sm">
               <thead style={{ backgroundColor: 'var(--surface-2, var(--surface))' }}>
                 <tr>
-                  {['Supplier', 'Contact', 'Payment Terms', 'Currency', 'Status', ''].map(h => (
+                  {['Supplier', 'Contact', 'Payment Terms', 'Currency', 'Outstanding', 'Overdue', 'Status', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{h}</th>
                   ))}
                 </tr>
@@ -208,6 +219,12 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
                         <span className="px-2 py-0.5 rounded-md text-xs font-medium" style={{ backgroundColor: 'var(--brand-light)', color: 'var(--brand)' }}>
                           {s.currency}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums" style={{ color: 'var(--text)' }}>
+                        {outstandingBySupplier[s.id]?.outstanding ? `₹${fmtAmt(outstandingBySupplier[s.id].outstanding)}` : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums" style={{ color: (outstandingBySupplier[s.id]?.overdue ?? 0) > 0 ? '#dc2626' : 'var(--text-muted)' }}>
+                        {outstandingBySupplier[s.id]?.overdue ? `₹${fmtAmt(outstandingBySupplier[s.id].overdue)}` : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -257,7 +274,7 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
                     </tr>
                     {expandedId === s.id && (
                       <tr key={`${s.id}-detail`} style={{ backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                        <td colSpan={6} className="px-6 py-4">
+                        <td colSpan={8} className="px-6 py-4">
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                             <InfoCell label="Email" value={s.email} />
                             <InfoCell label="GST Number" value={s.gst_number} />
@@ -324,6 +341,20 @@ export default function SupplierDirectoryClient({ initialSuppliers }: Props) {
                     {s.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
+                {(outstandingBySupplier[s.id]?.outstanding || outstandingBySupplier[s.id]?.overdue) ? (
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs tabular-nums">
+                    {outstandingBySupplier[s.id]?.outstanding ? (
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Outstanding <span className="font-semibold" style={{ color: 'var(--text)' }}>₹{fmtAmt(outstandingBySupplier[s.id].outstanding)}</span>
+                      </span>
+                    ) : null}
+                    {outstandingBySupplier[s.id]?.overdue ? (
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Overdue <span className="font-semibold" style={{ color: '#dc2626' }}>₹{fmtAmt(outstandingBySupplier[s.id].overdue)}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
