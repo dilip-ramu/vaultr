@@ -17,6 +17,7 @@ import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
 import PayeeSpendRings, { type PayeeRing } from './PayeeSpendRings'
+import MarkCardPaidModal from './MarkCardPaidModal'
 
 const TransactionForm = dynamic(() => import('../transactions/TransactionForm'), { ssr: false })
 
@@ -162,6 +163,7 @@ export default function DashboardClient({
 }: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
+  const [payCard, setPayCard] = useState<CardDue | null>(null)
 
   // ── Money math ──────────────────────────────────────────────────────────────
 
@@ -446,27 +448,45 @@ export default function DashboardClient({
                 const urgent = daysLeft <= 5
                 const color = cd.color ?? '#6366f1'
                 return (
-                  <Link
+                  <div
                     key={cd.id}
-                    href="/cards"
-                    className="snap-start shrink-0 w-[72%] sm:w-56 md:w-auto rounded-xl p-3 md:p-4 flex flex-col gap-0.5 transition-opacity hover:opacity-80"
+                    className="snap-start shrink-0 w-[72%] sm:w-56 md:w-auto rounded-xl p-3 md:p-4 flex flex-col gap-2"
                     style={{
                       background: urgent ? 'rgba(239,68,68,0.07)' : 'var(--surface)',
                       border: `1px solid ${urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
                       borderLeft: `3px solid ${urgent ? '#ef4444' : color}`,
                     }}
                   >
-                    <p className="text-[10px] font-semibold uppercase tracking-widest truncate flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <CreditCard className="w-3 h-3 shrink-0" /> {cd.name}
-                    </p>
-                    <p className="text-lg font-bold" style={{ color: urgent ? '#ef4444' : 'var(--text)' }}>
-                      ₹{fmt(cd.amount)}
-                    </p>
-                    <p className="text-[10px]" style={{ color: urgent ? '#ef4444' : 'var(--text-faint)' }}>
-                      due {new Date(cd.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                      {daysLeft >= 0 ? ` · ${daysLeft === 0 ? 'today' : `${daysLeft}d left`}` : ` · ${-daysLeft}d overdue`}
-                    </p>
-                  </Link>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest truncate flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                        <CreditCard className="w-3 h-3 shrink-0" /> {cd.name}
+                      </p>
+                      <p className="text-lg font-bold" style={{ color: urgent ? '#ef4444' : 'var(--text)' }}>
+                        ₹{fmt(cd.amount)}
+                      </p>
+                      <p className="text-[10px]" style={{ color: urgent ? '#ef4444' : 'var(--text-faint)' }}>
+                        due {new Date(cd.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        {daysLeft >= 0 ? ` · ${daysLeft === 0 ? 'today' : `${daysLeft}d left`}` : ` · ${-daysLeft}d overdue`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-auto">
+                      <button
+                        type="button"
+                        onClick={() => setPayCard(cd)}
+                        className="flex-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-white"
+                        style={{ background: urgent ? '#ef4444' : 'var(--brand)' }}
+                      >
+                        Mark Paid
+                      </button>
+                      <Link
+                        href="/cards"
+                        className="text-xs font-medium px-2 py-1.5 rounded-lg"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                      >
+                        Details
+                      </Link>
+                    </div>
+                  </div>
                 )
               })}
             </div>
@@ -586,6 +606,16 @@ export default function DashboardClient({
 
       {showAddTx && (
         <TransactionForm onSaved={tx => { setTxs(prev => [tx, ...prev.slice(0,7)]); setShowAddTx(false) }} onClose={() => setShowAddTx(false)} />
+      )}
+
+      {payCard && (
+        <MarkCardPaidModal
+          cardId={payCard.id}
+          cardName={payCard.name}
+          remainingDue={payCard.amount}
+          accounts={accounts}
+          onClose={() => setPayCard(null)}
+        />
       )}
     </div>
   )
