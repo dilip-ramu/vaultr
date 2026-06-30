@@ -17,7 +17,8 @@ const EMPTY: Partial<Employee> = {
   employee_id: '',
   name: '',
   designation: '',
-  salary_euro: 0,
+  salary_amount: 0,
+  salary_currency: 'EUR',
   account_number: '',
   account_type: '10',
   ifsc: '',
@@ -93,7 +94,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
   async function handleSave() {
     if (!form.name?.trim()) { setError('Employee name is required'); return }
     if (!form.employee_id?.trim()) { setError('Employee ID is required'); return }
-    if (!form.salary_euro || form.salary_euro <= 0) { setError('Salary (EUR) must be > 0'); return }
+    if (!form.salary_amount || form.salary_amount <= 0) { setError('Salary must be > 0'); return }
 
     setSaving(true)
     setError(null)
@@ -314,18 +315,29 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                   />
                 </div>
 
-                {/* Salary EUR */}
+                {/* Salary amount + currency */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Salary (€) *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.salary_euro ?? ''}
-                    onChange={e => setField('salary_euro', parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
-                  />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Salary *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.salary_amount ?? ''}
+                      onChange={e => setField('salary_amount', parseFloat(e.target.value) || 0)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="0.00"
+                    />
+                    <select
+                      value={form.salary_currency ?? 'EUR'}
+                      onChange={e => setField('salary_currency', e.target.value)}
+                      className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {['EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF','INR'].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Joining Date */}

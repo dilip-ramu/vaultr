@@ -38,13 +38,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   await supabase.from('payroll_entries').delete().eq('payroll_month_id', id).eq('user_id', user.id)
 
   const rows = employees.map(emp => {
-    const salary_inr = calcSalaryInr(emp.salary_euro, expended_rate)
+    const salary_inr = calcSalaryInr(emp.salary_amount, expended_rate)
     const final_payable = calcFinalPayable(salary_inr, 0, 0, 0, 0, 0)
     return {
       user_id:          user.id,
       payroll_month_id: id,
       employee_id:      emp.id,
-      salary_euro:      emp.salary_euro,
+      salary_amount:      emp.salary_amount,
       expended_rate,
       salary_inr,
       allowances:   0,

@@ -34,7 +34,7 @@ interface InvoiceItem {
   id: string
   item_type: 'salary' | 'courier' | 'expense'
   description: string
-  salary_euro: number | null
+  salary_amount: number | null
   expended_rate: number | null
   amount_inr: number   // stores EUR amount (legacy field name)
   sort_order: number

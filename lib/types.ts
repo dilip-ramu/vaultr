@@ -404,7 +404,7 @@ export interface ContrastInvoiceItem {
   invoice_id: string
   item_type: 'salary' | 'courier' | 'expense'
   description: string
-  salary_euro: number | null
+  salary_amount: number | null
   expended_rate: number | null
   amount_inr: number
   sort_order: number

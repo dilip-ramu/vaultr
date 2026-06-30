@@ -97,7 +97,7 @@ function buildCSVs(data: Record<string, any[]>): Record<string, string> {
     ['Month', 'Employee', 'Employee ID', 'Designation', 'Salary (EUR)', 'Exchange Rate', 'Salary (INR)', 'Allowances', 'Overtime', 'Incentives', 'Deductions', 'Advance', 'Net Payable (INR)', 'Finalized', 'Paid', 'Payment Date'],
     rows('payroll_entries', e => [
       safe(e.payroll_month?.payroll_month), safe(e.employee?.name), safe(e.employee?.employee_id),
-      safe(e.employee?.designation), e.salary_euro, e.expended_rate, e.salary_inr,
+      safe(e.employee?.designation), e.salary_amount, e.expended_rate, e.salary_inr,
       e.allowances, e.overtime, e.incentives, e.deductions, e.advance, e.final_payable,
       e.payroll_month?.is_finalized ? 'Yes' : 'No',
       e.payroll_month?.is_paid ? 'Yes' : 'No',
@@ -108,7 +108,7 @@ function buildCSVs(data: Record<string, any[]>): Record<string, string> {
   out['staff'] = csv(
     ['Name', 'Employee ID', 'Designation', 'Salary (EUR)', 'Bank', 'Branch', 'Account Number', 'IFSC', 'Active', 'Joining Date'],
     rows('staff', emp => [
-      emp.name, emp.employee_id, safe(emp.designation), emp.salary_euro,
+      emp.name, emp.employee_id, safe(emp.designation), emp.salary_amount,
       safe(emp.bank_name), safe(emp.branch), safe(emp.account_number),
       safe(emp.ifsc), emp.is_active ? 'Yes' : 'No', fmtDate(emp.joining_date),
     ])

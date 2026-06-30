@@ -68,7 +68,7 @@ export default async function ContrastInvoicePage({
   const { data: employees } = activeCustomer
     ? await supabase
         .from('employees')
-        .select('id, name, salary_euro, designation, works_for_customer_id, exclude_from_invoicing')
+        .select('id, name, salary_amount, designation, works_for_customer_id, exclude_from_invoicing')
         .eq('user_id', uid)
         .eq('is_active', true)
         .eq('works_for_customer_id', activeCustomer.id)

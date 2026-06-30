@@ -8,6 +8,7 @@ import { formatCurrency, formatDate, getTodayString } from '@/lib/utils'
 import { cardOverview, type CardTxn, type CardCycle } from '@/lib/cards'
 import AccountChipPicker, { type PickerAccount } from '@/components/shared/AccountChipPicker'
 import { Avatar } from '@/components/AppShell'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface CardAccount {
   id: string
@@ -190,6 +191,11 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
   async function markUnpaid(cycle: CardCycle) {
     const row = stmtRows[cycle.statementDate]
     if (!row?.payment_transaction_id) return
+    if (!await confirmDialog({
+      title: 'Mark cycle as unpaid?',
+      message: 'The card-payment transaction recorded for this cycle will be deleted. This can\'t be undone.',
+      confirmLabel: 'Mark unpaid',
+    })) return
     setSaving(true)
     await supabase.from('transactions').delete().eq('id', row.payment_transaction_id)
     await supabase.from('card_statements')

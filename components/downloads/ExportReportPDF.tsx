@@ -274,7 +274,7 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           return [
             e.payroll_month?.payroll_month ?? '—',
             e.employee?.name ?? '—',
-            fmtAmt(e.salary_euro, 'EUR '),
+            fmtAmt(e.salary_amount, 'EUR '),
             e.expended_rate ? Number(e.expended_rate).toFixed(2) : '—',
             fmtAmt(e.salary_inr, 'Rs.'),
             adj >= 0 ? `+${fmtAmt(adj)}` : fmtAmt(adj),
@@ -302,7 +302,7 @@ export default function ExportReportPDF({ data }: { data: Record<string, any> })
           emp.name,
           emp.employee_id,
           emp.designation ?? '—',
-          fmtAmt(emp.salary_euro, 'EUR '),
+          fmtAmt(emp.salary_amount, 'EUR '),
           emp.bank_name ?? '—',
           emp.account_number ?? '—',
           emp.ifsc ?? '—',

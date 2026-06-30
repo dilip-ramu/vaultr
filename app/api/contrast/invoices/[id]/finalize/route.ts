@@ -6,7 +6,7 @@ function round2(n: number) { return Math.round(n * 100) / 100 }
 interface InvoiceItem {
   item_type: 'salary' | 'courier' | 'expense'
   description: string
-  salary_euro?: number | null
+  salary_amount?: number | null
   expended_rate?: number | null
   amount_inr: number
   sort_order: number
@@ -14,7 +14,7 @@ interface InvoiceItem {
 
 interface SalaryEmployee {
   employee_id: string
-  salary_euro: number
+  salary_amount: number
 }
 
 // POST /api/contrast/invoices/[id]/finalize
@@ -49,8 +49,8 @@ export async function POST(
   if (items.length > 0) {
     const { error: itemErr } = await supabase
       .from('contrast_invoice_items')
-      .insert(items.map(({ item_type, description, salary_euro, expended_rate, amount_inr, sort_order }) => ({
-        invoice_id: id, item_type, description, salary_euro, expended_rate, amount_inr, sort_order,
+      .insert(items.map(({ item_type, description, salary_amount, expended_rate, amount_inr, sort_order }) => ({
+        invoice_id: id, item_type, description, salary_amount, expended_rate, amount_inr, sort_order,
       })))
     if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 500 })
   }
@@ -124,7 +124,7 @@ export async function POST(
 
     // Auto-create payroll month + entries for included salary lines
     if (salary_employees.length > 0 && invoice_month) {
-      const totalBilledEuros = round2(salary_employees.reduce((s, e) => s + e.salary_euro, 0))
+      const totalBilledEuros = round2(salary_employees.reduce((s, e) => s + e.salary_amount, 0))
 
       // Upsert so retries don't duplicate months
       const { data: pm, error: pmErr } = await supabase
@@ -152,7 +152,7 @@ export async function POST(
           user_id: user.id,
           payroll_month_id: pm.id,
           employee_id: e.employee_id,
-          salary_euro: e.salary_euro,
+          salary_amount: e.salary_amount,
           expended_rate: 0,   // filled later in Monthly Processing after receiving payment
           salary_inr: 0,
           final_payable: 0,

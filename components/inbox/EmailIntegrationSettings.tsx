@@ -7,6 +7,7 @@ import {
   Eye, EyeOff, ToggleLeft, ToggleRight, ExternalLink,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -145,7 +146,12 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
     })
   }
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
+    if (!await confirmDialog({
+      title: 'Disconnect this mailbox?',
+      message: 'Vaultr will stop fetching mail from this account. Monitored senders stay configured — you can reconnect later.',
+      confirmLabel: 'Disconnect',
+    })) return
     setIntError(null)
     setIntSuccess(null)
     startIntTransition(async () => {
@@ -223,7 +229,12 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
     })
   }
 
-  const handleDeleteSender = (id: string) => {
+  const handleDeleteSender = async (id: string) => {
+    if (!await confirmDialog({
+      title: 'Remove this sender?',
+      message: 'Future fetches won\'t pull mail from this address. Already-imported items stay.',
+      confirmLabel: 'Remove',
+    })) return
     setSenders(prev => prev.filter(s => s.id !== id))
     fetch(`/api/inbox/senders/${id}`, { method: 'DELETE' }).then(res => {
       if (!res.ok) {

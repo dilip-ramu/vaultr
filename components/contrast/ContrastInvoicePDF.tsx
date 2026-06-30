@@ -15,7 +15,7 @@ Font.register({
 export interface InvoiceItem {
   item_type: 'salary' | 'courier' | 'expense' | 'fixed_expense' | 'deduction'
   description: string
-  salary_euro?: number | null   // salary lines: EUR amount
+  salary_amount?: number | null   // salary lines: EUR amount
   expended_rate?: number | null // kept for DB compat, unused in display
   amount_inr: number            // billing amount in EUR (field name legacy)
   inr_source?: number | null    // original INR amount (courier/expense, display only)

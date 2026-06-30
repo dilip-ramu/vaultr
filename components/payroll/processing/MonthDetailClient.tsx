@@ -477,7 +477,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                         <div className="text-xs text-gray-400">{entry.employee?.employee_id ?? ''}</div>
                       </td>
                       <td className="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
-                        €{Number(entry.salary_euro).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        €{Number(entry.salary_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
                         {fmtInr(Number(entry.salary_inr))}

@@ -381,7 +381,7 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
                               )}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-gray-700">
-                              €{Number(entry.salary_euro).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              €{Number(entry.salary_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-gray-700">
                               {fmtInr(Number(entry.salary_inr))}

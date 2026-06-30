@@ -4,7 +4,10 @@ export interface Employee {
   employee_id: string
   name: string
   designation: string | null
-  salary_euro: number
+  salary_amount: number
+  /** 3-letter currency the salary is denominated in (EUR, USD, etc.). Driven
+   *  by the customer they bill against; defaults to EUR for back-compat. */
+  salary_currency: string
   account_number: string | null
   account_type: string | null
   ifsc: string | null
@@ -55,7 +58,7 @@ export interface PayrollEntry {
   user_id: string
   payroll_month_id: string
   employee_id: string
-  salary_euro: number
+  salary_amount: number
   expended_rate: number
   salary_inr: number
   allowances: number

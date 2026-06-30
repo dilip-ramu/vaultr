@@ -196,7 +196,7 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
           </View>
           {Number(entry.expended_rate) > 0 ? (
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontSize: 8, color: '#666' }}>Salary (EUR): {fmtInr(Number(entry.salary_euro))} EUR</Text>
+              <Text style={{ fontSize: 8, color: '#666' }}>Salary (EUR): {fmtInr(Number(entry.salary_amount))} EUR</Text>
               <Text style={{ fontSize: 8, color: '#666' }}>Exchange Rate: Rs. {fmtInr(Number(entry.expended_rate))} / EUR</Text>
             </View>
           ) : null}

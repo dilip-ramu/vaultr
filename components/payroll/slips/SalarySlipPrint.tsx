@@ -189,7 +189,7 @@ export default function SalarySlipPrint({ entry, month, employee, companyName, c
           </div>
           {month.expended_rate > 0 && (
             <div className="text-right text-xs text-gray-500">
-              <div>Salary (€): €{Number(entry.salary_euro).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div>Salary (€): €{Number(entry.salary_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               <div>Exchange Rate: ₹{Number(entry.expended_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} / €</div>
             </div>
           )}

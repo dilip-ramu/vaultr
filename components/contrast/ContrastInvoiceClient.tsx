@@ -32,7 +32,7 @@ function round2(n: number) { return Math.round(n * 100) / 100 }
 interface Employee {
   id: string
   name: string
-  salary_euro: number
+  salary_amount: number
   designation?: string | null
 }
 
@@ -166,7 +166,7 @@ export default function ContrastInvoiceClient({
   }, [allExpenses])
 
   // ── EUR Totals ─────────────────────────────────────────────────────────────
-  const salaryEurTotal  = useMemo(() => selectedEmployees.reduce((s, e) => s + (e.salary_euro || 0), 0), [selectedEmployees])
+  const salaryEurTotal  = useMemo(() => selectedEmployees.reduce((s, e) => s + (e.salary_amount || 0), 0), [selectedEmployees])
   const courierInrTotal = useMemo(() => selectedCouriers.reduce((s, ci) => s + ci.total, 0), [selectedCouriers])
   const expenseInrTotal = useMemo(() => allExpenses.reduce((s, e) => s + e.amount, 0), [allExpenses])
   const courierEurTotal = hasValidRate ? round2(courierInrTotal / forexRateNum) : 0
@@ -220,7 +220,7 @@ export default function ContrastInvoiceClient({
       const items: ContrastInvoiceData['items'] = []
 
       for (const emp of selectedEmployees) {
-        items.push({ item_type: 'salary', description: `Salary for ${emp.name}`, salary_euro: emp.salary_euro, amount_inr: round2(emp.salary_euro || 0), sort_order: sortOrder++ })
+        items.push({ item_type: 'salary', description: `Salary for ${emp.name}`, salary_amount: emp.salary_amount, amount_inr: round2(emp.salary_amount || 0), sort_order: sortOrder++ })
       }
       for (const ci of selectedCouriers) {
         const eurAmt = round2(ci.total / forexRateNum)
@@ -251,7 +251,7 @@ export default function ContrastInvoiceClient({
           items,
           transaction_ids: allExpenses.map(e => e.id),
           recoverable_invoice_ids: selectedCouriers.map(ci => ci.id),
-          salary_employees: selectedEmployees.map(e => ({ employee_id: e.id, salary_euro: e.salary_euro })),
+          salary_employees: selectedEmployees.map(e => ({ employee_id: e.id, salary_amount: e.salary_amount })),
           invoice_month: currentMonth,
         }),
       })
@@ -386,7 +386,7 @@ export default function ContrastInvoiceClient({
                       {emp.designation && <p className="text-xs text-gray-400">{emp.designation}</p>}
                     </div>
                     <span className="text-xs text-gray-400">EUR salary</span>
-                    <span className="text-sm font-medium text-gray-900 w-32 text-right">{fmtEur(emp.salary_euro || 0)}</span>
+                    <span className="text-sm font-medium text-gray-900 w-32 text-right">{fmtEur(emp.salary_amount || 0)}</span>
                   </div>
                 )
               })}
