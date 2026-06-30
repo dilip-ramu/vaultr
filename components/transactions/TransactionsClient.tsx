@@ -79,7 +79,10 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     return transactions.filter(tx => {
       if (filter !== 'all' && tx.type !== filter) return false
       if (accountFilter !== 'all' && tx.account_id !== accountFilter && tx.to_account_id !== accountFilter) return false
-      if (filterPayee && tx.payee_id !== filterPayee) return false
+      // 'none' is a sentinel meaning "transactions without any payee" — used
+      // by the dashboard's "No payee" ring drill-down so the user can triage.
+      if (filterPayee === 'none') { if (tx.payee_id != null) return false }
+      else if (filterPayee && tx.payee_id !== filterPayee) return false
       if (filterCategory && tx.category_id !== filterCategory) return false
       if (dateFrom && tx.date < dateFrom) return false
       if (dateTo && tx.date > dateTo) return false
@@ -304,6 +307,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
               className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
               style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
               <option value="">All payees</option>
+              <option value="none">— No payee —</option>
               {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>

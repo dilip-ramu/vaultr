@@ -85,10 +85,12 @@ export default function PayeeSpendRings({ rings }: { rings: PayeeRing[] }) {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 p-5">
           {rings.map(ring => {
             const isRealPayee = ring.payeeId !== '__none__'
+            // "No payee" ring: use sentinel ?payee=none so the Transactions
+            // page filters to rows with NO payee set — that's the bucket the
+            // user wants to triage, not all-payee transactions.
             const href = isRealPayee
               ? `/transactions?payee=${ring.payeeId}&from=${from}&to=${to}`
-              // "No payee" ring: still useful — just pre-fill the period
-              : `/transactions?from=${from}&to=${to}`
+              : `/transactions?payee=none&from=${from}&to=${to}`
             return (
               <button
                 key={ring.payeeId}
