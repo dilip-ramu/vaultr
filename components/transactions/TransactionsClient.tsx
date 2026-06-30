@@ -3,10 +3,13 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Search, ArrowLeftRight, TrendingUp, TrendingDown } from 'lucide-react'
-import type { Transaction, Account, Category } from '@/lib/types'
+import { Plus, Search, ArrowLeftRight, TrendingUp, TrendingDown, Filter, X, CheckSquare, Square, Trash2 } from 'lucide-react'
+import type { Transaction, Account, Category, Payee } from '@/lib/types'
 import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
 import TransactionItem from './TransactionItem'
+import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 const TransactionForm = dynamic(() => import('./TransactionForm'), { ssr: false })
 
@@ -14,6 +17,7 @@ interface Props {
   initialTransactions: Transaction[]
   accounts: Account[]
   categories: Category[]
+  payees: Pick<Payee, 'id' | 'name'>[]
   totalCredits: number
   totalDebits: number
   hideHeader?: boolean
@@ -33,7 +37,7 @@ function addDeletedId(id: string) {
   } catch {}
 }
 
-export default function TransactionsClient({ initialTransactions, accounts, categories, totalCredits, totalDebits, hideHeader = false }: Props) {
+export default function TransactionsClient({ initialTransactions, accounts, categories, payees, totalCredits, totalDebits, hideHeader = false }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -46,6 +50,16 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
   const [accountFilter, setAccountFilter] = useState(() => searchParams.get('account') ?? 'all')
+  // Advanced filters
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterPayee, setFilterPayee] = useState<string>(searchParams.get('payee') ?? '')
+  const [filterCategory, setFilterCategory] = useState<string>(searchParams.get('category') ?? '')
+  const [dateFrom, setDateFrom] = useState<string>('')
+  const [dateTo, setDateTo]     = useState<string>('')
+  // Multi-select
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     const deleted = getDeletedIds()
@@ -58,16 +72,80 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     return transactions.filter(tx => {
       if (filter !== 'all' && tx.type !== filter) return false
       if (accountFilter !== 'all' && tx.account_id !== accountFilter && tx.to_account_id !== accountFilter) return false
+      if (filterPayee && tx.payee_id !== filterPayee) return false
+      if (filterCategory && tx.category_id !== filterCategory) return false
+      if (dateFrom && tx.date < dateFrom) return false
+      if (dateTo && tx.date > dateTo) return false
       if (search) {
         const q = search.toLowerCase()
+        const matchName = tx.name?.toLowerCase().includes(q)
         const matchNotes = tx.notes?.toLowerCase().includes(q)
         const matchCategory = (tx.category as Category | undefined)?.name?.toLowerCase().includes(q)
         const matchAccount = (tx.account as Account | undefined)?.name?.toLowerCase().includes(q)
-        if (!matchNotes && !matchCategory && !matchAccount) return false
+        const matchPayee = (tx.payee as Payee | undefined)?.name?.toLowerCase().includes(q)
+        if (!matchName && !matchNotes && !matchCategory && !matchAccount && !matchPayee) return false
       }
       return true
     })
-  }, [transactions, filter, accountFilter, search])
+  }, [transactions, filter, accountFilter, filterPayee, filterCategory, dateFrom, dateTo, search])
+
+  const hasAdvFilters = !!(filterPayee || filterCategory || dateFrom || dateTo)
+  const clearAdvFilters = () => {
+    setFilterPayee(''); setFilterCategory(''); setDateFrom(''); setDateTo('')
+  }
+
+  // Selection helpers
+  const toggleSelected = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+  const selectAllVisible = useCallback(() => {
+    setSelected(prev => {
+      const all = filtered.map(t => t.id)
+      const allSelected = all.length > 0 && all.every(id => prev.has(id))
+      if (allSelected) {
+        const next = new Set(prev)
+        for (const id of all) next.delete(id)
+        return next
+      }
+      const next = new Set(prev)
+      for (const id of all) next.add(id)
+      return next
+    })
+  }, [filtered])
+  const clearSelection = () => setSelected(new Set())
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return
+    if (!await confirmDialog({
+      title: `Delete ${selected.size} transaction${selected.size === 1 ? '' : 's'}?`,
+      message: 'This cannot be undone. Linked drafts will be unlinked.',
+      confirmLabel: 'Delete all',
+    })) return
+    setDeleting(true)
+    const ids = Array.from(selected)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from('transactions').delete().in('id', ids)
+      if (error) {
+        notify(error.message, 'error')
+        return
+      }
+      // Optimistically remove and persist to the deleted-ids guard
+      ids.forEach(addDeletedId)
+      setTransactions(prev => prev.filter(t => !selected.has(t.id)))
+      setSelected(new Set())
+      setSelectMode(false)
+      notify(`${ids.length} transaction${ids.length === 1 ? '' : 's'} deleted`, 'success')
+      router.refresh()
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const grouped = useMemo(() => {
     const groups: Record<string, Transaction[]> = {}
@@ -139,20 +217,46 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-3">
-        <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search transactions..."
-          className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm"
-        />
+      {/* Search + Filter + Select */}
+      <div className="flex gap-2 mb-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search transactions..."
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm"
+          />
+        </div>
+        <button
+          onClick={() => setShowFilters(s => !s)}
+          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium shrink-0"
+          style={{
+            background: hasAdvFilters ? 'rgba(42,122,80,0.08)' : 'var(--surface)',
+            borderColor: hasAdvFilters ? 'var(--brand)' : 'var(--border)',
+            color: hasAdvFilters ? 'var(--brand)' : 'var(--text-muted)',
+          }}
+        >
+          <Filter className="w-3.5 h-3.5" />
+          {hasAdvFilters ? 'Filtered' : 'Filter'}
+        </button>
+        <button
+          onClick={() => { setSelectMode(s => !s); setSelected(new Set()) }}
+          className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium shrink-0"
+          style={{
+            background: selectMode ? 'rgba(42,122,80,0.08)' : 'var(--surface)',
+            borderColor: selectMode ? 'var(--brand)' : 'var(--border)',
+            color: selectMode ? 'var(--brand)' : 'var(--text-muted)',
+          }}
+        >
+          {selectMode ? <X className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
+          {selectMode ? 'Cancel' : 'Select'}
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1">
+      {/* Quick type / account filter row */}
+      <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1">
         {(['all', 'expense', 'income', 'transfer'] as FilterType[]).map(f => (
           <button
             key={f}
@@ -183,6 +287,80 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
           ))}
         </select>
       </div>
+
+      {/* Advanced filters */}
+      {showFilters && (
+        <div className="rounded-xl border p-3 mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+          <div className="space-y-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Payee</label>
+            <select value={filterPayee} onChange={e => setFilterPayee(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+              <option value="">All payees</option>
+              {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Category</label>
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+              <option value="">All categories</option>
+              {[...categories].sort((a, b) => a.name.localeCompare(b.name)).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>From</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>To</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+          </div>
+          {hasAdvFilters && (
+            <div className="sm:col-span-2 flex justify-end">
+              <button onClick={clearAdvFilters} className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                <X className="w-3 h-3" /> Clear filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Select-all row + bulk delete bar */}
+      {selectMode && (
+        <div className="sticky top-3 z-10 mb-3 flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 shadow-sm"
+          style={{ background: 'var(--surface)', borderColor: selected.size > 0 ? 'var(--brand)' : 'var(--border)' }}>
+          <button onClick={selectAllVisible} className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text)' }}>
+            {selected.size === filtered.length && filtered.length > 0
+              ? <CheckSquare className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+              : <Square className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+            }
+            <span>{selected.size === 0 ? `Select all (${filtered.length})` : `${selected.size} selected`}</span>
+          </button>
+          {selected.size > 0 && (
+            <div className="flex items-center gap-2">
+              <button onClick={clearSelection} className="text-xs px-2 py-1 rounded-lg" style={{ color: 'var(--text-muted)' }}>
+                Clear
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.25)' }}
+              >
+                <Trash2 className="w-3.5 h-3.5" /> {deleting ? 'Deleting…' : `Delete ${selected.size}`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Transaction List */}
       {grouped.length === 0 ? (
@@ -216,15 +394,41 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
               </div>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
                 {txs.map((tx, i) => (
-                  <TransactionItem
-                    key={tx.id}
-                    transaction={tx}
-                    isFirst={i === 0}
-                    isLast={i === txs.length - 1}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    contextAccountId={accountFilter !== 'all' ? accountFilter : undefined}
-                  />
+                  selectMode ? (
+                    <div key={tx.id} className="flex items-stretch">
+                      <button
+                        onClick={() => toggleSelected(tx.id)}
+                        className="flex items-center justify-center px-3 shrink-0 border-r"
+                        style={{ borderColor: 'var(--border)' }}
+                        aria-label={selected.has(tx.id) ? 'Deselect' : 'Select'}
+                      >
+                        {selected.has(tx.id)
+                          ? <CheckSquare className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+                          : <Square className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />
+                        }
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <TransactionItem
+                          transaction={tx}
+                          isFirst={i === 0}
+                          isLast={i === txs.length - 1}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          contextAccountId={accountFilter !== 'all' ? accountFilter : undefined}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <TransactionItem
+                      key={tx.id}
+                      transaction={tx}
+                      isFirst={i === 0}
+                      isLast={i === txs.length - 1}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      contextAccountId={accountFilter !== 'all' ? accountFilter : undefined}
+                    />
+                  )
                 ))}
               </div>
             </div>
