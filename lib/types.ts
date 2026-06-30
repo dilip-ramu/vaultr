@@ -162,6 +162,9 @@ export interface Customer {
   country: string | null
   csv_alias: string | null
   pays_commission: boolean
+  // 3-letter currency this customer is billed in (e.g. EUR, USD). Drives
+  // labels and conversion in the reimbursable-invoice flow.
+  billing_currency: string
   created_at: string
 }
 

@@ -22,21 +22,47 @@ export default async function ContrastInvoicePage({
     .eq('id', uid)
     .single()
 
-  // ── Active reimbursable customer ──────────────────────────────────────────
+  // ── Active reimbursable customer (+ billing currency) ─────────────────────
   const reimbursables = await getReimbursableCustomers(supabase, uid)
   const active = resolveActiveCustomer(reimbursables, customerParam ?? null)
 
+  let activeCustomer: { id: string; name: string; billing_currency: string } | null = null
+  if (active) {
+    const { data: full } = await supabase
+      .from('customers')
+      .select('id, name, billing_currency')
+      .eq('id', active.id)
+      .eq('user_id', uid)
+      .maybeSingle()
+    activeCustomer = full as { id: string; name: string; billing_currency: string } | null
+  }
   // Legacy fallback for the Contrast customer if none configured yet.
-  let activeCustomer: { id: string; name: string } | null = active
   if (!activeCustomer) {
     const { data: legacy } = await supabase
       .from('customers')
-      .select('id, name')
+      .select('id, name, billing_currency')
       .eq('user_id', uid)
       .ilike('name', '%contrast%')
       .order('name')
-    activeCustomer = legacy?.[0] ?? null
+    activeCustomer = (legacy?.[0] as { id: string; name: string; billing_currency: string } | undefined) ?? null
   }
+
+  const billingCurrency = activeCustomer?.billing_currency ?? 'EUR'
+
+  // ── Latest market rate for the customer's currency ────────────────────────
+  // The user types their own preferred billing rate; we just show this as a
+  // hint so they know what the market is doing.
+  const { data: latestRateRows } = await supabase
+    .from('currency_rates')
+    .select('market_rate, effective_from')
+    .eq('user_id', uid)
+    .eq('currency', billingCurrency)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+  const marketRate = latestRateRows?.[0]?.market_rate
+    ? Number(latestRateRows[0].market_rate)
+    : null
+  const marketRateAsOf = latestRateRows?.[0]?.effective_from ?? null
 
   // ── Employees billable to THIS customer ───────────────────────────────────
   const { data: employees } = activeCustomer
@@ -122,6 +148,9 @@ export default async function ContrastInvoicePage({
       uncategorizedCount={uncategorizedCount ?? 0}
       customerId={activeCustomer?.id ?? null}
       customerName={activeCustomer?.name ?? 'Contrast'}
+      billingCurrency={billingCurrency}
+      marketRate={marketRate}
+      marketRateAsOf={marketRateAsOf}
     />
   )
 }

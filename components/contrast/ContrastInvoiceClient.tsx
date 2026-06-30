@@ -90,12 +90,19 @@ interface Props {
   uncategorizedCount: number
   customerId?: string | null
   customerName?: string
+  /** Currency the customer is billed in (e.g. EUR, USD). Drives all labels. */
+  billingCurrency?: string
+  /** Latest market rate from currency_rates for the billing currency. Shown
+   *  as a hint next to the rate input so the user has a reference. */
+  marketRate?: number | null
+  marketRateAsOf?: string | null
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function ContrastInvoiceClient({
   employees, courierInvoices, allExpenses, companyName, uncategorizedCount,
   customerId = null, customerName = 'Contrast',
+  billingCurrency = 'EUR', marketRate = null, marketRateAsOf = null,
 }: Props) {
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -298,25 +305,46 @@ export default function ContrastInvoiceClient({
         <div className="flex items-end gap-4">
           <div className="flex-1">
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Forex Rate <span className="text-xs font-normal text-gray-400">(INR per EUR)</span>
+              Forex Rate <span className="text-xs font-normal text-gray-400">(INR per {billingCurrency})</span>
             </label>
             <p className="text-xs text-gray-400 mb-2">
-              Used to convert courier charges and expenses from INR to EUR. Salaries and fixed expenses are already in EUR.
+              Used to convert courier charges and expenses from INR to {billingCurrency}. Salaries and fixed expenses are already in {billingCurrency}.
             </p>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">1 EUR =</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-500">1 {billingCurrency} =</span>
               <input
                 type="number" value={forexRate} onChange={e => setForexRate(e.target.value)}
-                placeholder="e.g. 92.50" min="0" step="0.01" disabled={isFinalized}
+                placeholder={marketRate ? marketRate.toFixed(2) : 'e.g. 92.50'} min="0" step="0.01" disabled={isFinalized}
                 className="w-36 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 disabled:opacity-50"
               />
               <span className="text-sm text-gray-500">INR</span>
               {hasValidRate && (
                 <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
-                  ✓ EUR 1 = Rs. {forexRateNum.toFixed(2)}
+                  ✓ {billingCurrency} 1 = Rs. {forexRateNum.toFixed(2)}
                 </span>
               )}
+              {marketRate != null && (
+                <button
+                  type="button"
+                  onClick={() => !isFinalized && setForexRate(String(marketRate))}
+                  disabled={isFinalized}
+                  className="text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                  title="Tap to use the current market rate"
+                >
+                  Market: 1 {billingCurrency} = ₹{marketRate.toFixed(2)}
+                  {marketRateAsOf && (
+                    <span className="ml-1 text-blue-500">
+                      ({new Date(marketRateAsOf).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
+            {marketRate == null && (
+              <p className="text-xs text-gray-400 mt-1.5">
+                No market rate stored for {billingCurrency}. Set one in <a href="/setup/currencies" className="text-blue-600 hover:underline">Setup → Currencies</a> if you want a reference.
+              </p>
+            )}
           </div>
           {(selectedCouriers.length > 0 || allExpenses.length > 0) && hasValidRate && (
             <div className="text-right text-xs text-gray-400 space-y-0.5 pb-2">

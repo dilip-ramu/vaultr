@@ -26,6 +26,7 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
   const [csvAlias, setCsvAlias] = useState(customer?.csv_alias ?? '')
   const [notes, setNotes] = useState(customer?.notes ?? '')
   const [paysCommission, setPaysCommission] = useState(customer?.pays_commission ?? false)
+  const [billingCurrency, setBillingCurrency] = useState(customer?.billing_currency ?? 'EUR')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -49,9 +50,10 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
       state_code: stateCode.trim() || null,
       pincode:    pincode.trim() || null,
       country:    country.trim() || null,
-      csv_alias:       csvAlias.trim() || null,
-      notes:           notes.trim() || null,
-      pays_commission: paysCommission,
+      csv_alias:        csvAlias.trim() || null,
+      notes:            notes.trim() || null,
+      pays_commission:  paysCommission,
+      billing_currency: billingCurrency.trim().toUpperCase() || 'EUR',
     }
 
     let data, err
@@ -139,10 +141,25 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Country</label>
-            <input type="text" value={country} onChange={e => setCountry(e.target.value)}
-              placeholder="India" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Country</label>
+              <input type="text" value={country} onChange={e => setCountry(e.target.value)}
+                placeholder="India" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Billing currency</label>
+              <select
+                value={billingCurrency}
+                onChange={e => setBillingCurrency(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              >
+                {['EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF','INR'].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Used when billing this customer for reimbursable expenses.</p>
+            </div>
           </div>
 
           <div>
