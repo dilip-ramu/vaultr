@@ -64,9 +64,11 @@ const navSections: NavSection[] = [
       {
         href: '/suppliers', label: 'Suppliers', icon: Building2,
         subItems: [
-          // Directory now lives as a tab on the main /suppliers page.
-          { href: '/suppliers/invoices',              label: 'Invoices',      icon: FileText },
-          { href: '/suppliers/categories',            label: 'Categories',    icon: Tag },
+          // Directory lives as a tab on the main /suppliers page.
+          // "Categories" sub-item dropped — set the default category per
+          // supplier in their Edit form. The bulk /suppliers/categories URL
+          // still works for power-edit if needed.
+          { href: '/suppliers/invoices', label: 'Invoices', icon: FileText },
         ],
       },
       // Contrast section retired — its three pages live under
