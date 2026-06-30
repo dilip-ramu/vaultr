@@ -539,7 +539,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
 
       {showFilters && (
         <div
-          className="rounded-xl border p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+          className="rounded-xl border p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3"
           style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
         >
           {/* Type filter */}

@@ -120,7 +120,7 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           icon={<Clock className="w-5 h-5" />}
           label="Pending Incoming"
@@ -154,9 +154,9 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
       </div>
 
       {/* Main Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         {/* Top customers by pending commission */}
-        <div className="lg:col-span-2 rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
+        <div className="md:col-span-2 rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
             <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Top Pending Customers</h2>
             <Link href="/customers/commission" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>

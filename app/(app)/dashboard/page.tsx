@@ -301,8 +301,9 @@ export default async function DashboardPage() {
   const totalReceivables = d.receivableInvoices.reduce((s, inv) => s + (inv.balance_due ?? 0), 0)
 
   // ── Per-payee expense breakdown (current month, by category) ───────────────
-  // One ring per payee, arc segments coloured per category. Contrast-billed
-  // transactions are excluded — same rule as budgets/insights.
+  // One ring per payee, arc segments coloured per category. Contrast IS
+  // included here — the user wants to see it on the dashboard even though it's
+  // excluded from budgets/insights (where it would distort the limits).
   const { data: payeeRingsRaw } = await supabase
     .from('transactions')
     .select('amount, payee_id, category_id, payees:payee_id(id, name), categories:category_id(id, name, color)')
@@ -319,7 +320,6 @@ export default async function DashboardPage() {
     payees: { id: string; name: string } | null;
     categories: { id: string; name: string; color: string } | null;
   }>) {
-    if (d.contrastPayeeId && tx.payee_id === d.contrastPayeeId) continue
     const pid = tx.payees?.id ?? '__none__'
     const pname = tx.payees?.name ?? 'No payee'
     const ring = payeeMap.get(pid) ?? { payeeId: pid, payeeName: pname, total: 0, slices: [] }

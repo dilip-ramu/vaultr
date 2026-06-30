@@ -438,7 +438,9 @@ export default function DashboardClient({
             <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
               Card payments due
             </p>
-            <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+            {/* Mobile: horizontal swipe with snap so each card lines up.
+                ≥md: even grid that fits up to 4 across with wrapping. */}
+            <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible">
               {cardDues.map(cd => {
                 const daysLeft = Math.ceil((new Date(cd.dueDate).getTime() - Date.now()) / 86400000)
                 const urgent = daysLeft <= 5
@@ -447,7 +449,7 @@ export default function DashboardClient({
                   <Link
                     key={cd.id}
                     href="/cards"
-                    className="flex-1 min-w-0 rounded-xl p-3 md:p-4 flex flex-col gap-0.5 transition-opacity hover:opacity-80"
+                    className="snap-start shrink-0 w-[72%] sm:w-56 md:w-auto rounded-xl p-3 md:p-4 flex flex-col gap-0.5 transition-opacity hover:opacity-80"
                     style={{
                       background: urgent ? 'rgba(239,68,68,0.07)' : 'var(--surface)',
                       border: `1px solid ${urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
