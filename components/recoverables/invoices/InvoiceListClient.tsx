@@ -2,12 +2,17 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { CheckSquare, Square, X, XCircle } from 'lucide-react'
 import type { RecoverableInvoice, InvoiceStatus } from '@/lib/recoverables/types'
 import StatusBadge from '@/components/recoverables/shared/StatusBadge'
 import MarkPaidModal from './MarkPaidModal'
+import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface Props {
   invoices: RecoverableInvoice[]
+  hideHeader?: boolean
 }
 
 type FilterTab = 'all' | InvoiceStatus
@@ -36,11 +41,14 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function InvoiceListClient({ invoices: initialInvoices }: Props) {
+export default function InvoiceListClient({ invoices: initialInvoices, hideHeader = false }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<FilterTab>('all')
   const [invoices, setInvoices] = useState(initialInvoices)
   const [modalInvoice, setModalInvoice] = useState<RecoverableInvoice | null>(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [cancelling, setCancelling] = useState(false)
 
   const enriched = useMemo(
     () => invoices.map(inv => ({ ...inv, resolvedStatus: resolveStatus(inv) })),
@@ -95,27 +103,118 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
     }
   }
 
+  function toggleSelected(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function selectAllVisible() {
+    const all = filtered.map(i => i.id)
+    setSelected(prev => {
+      const allSelected = all.length > 0 && all.every(id => prev.has(id))
+      if (allSelected) {
+        const next = new Set(prev); for (const id of all) next.delete(id); return next
+      }
+      const next = new Set(prev); for (const id of all) next.add(id); return next
+    })
+  }
+  async function handleBulkCancel() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) return
+    if (!await confirmDialog({
+      title: `Cancel ${ids.length} invoice${ids.length === 1 ? '' : 's'}?`,
+      message: 'They\'ll be marked cancelled. You can revert individually later.',
+      confirmLabel: 'Cancel invoices',
+    })) return
+    setCancelling(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('recoverable_invoices')
+        .update({ status: 'cancelled' })
+        .in('id', ids)
+      if (error) { notify(error.message, 'error'); return }
+      setInvoices(prev => prev.map(i => ids.includes(i.id) ? { ...i, status: 'cancelled' as const } : i))
+      setSelected(new Set()); setSelectMode(false)
+      notify(`${ids.length} invoice${ids.length === 1 ? '' : 's'} cancelled`, 'success')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   return (
     <>
-    <div className="min-h-screen" style={{ background: 'var(--background)' }}>
-      <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className={hideHeader ? '' : 'min-h-screen'} style={hideHeader ? {} : { background: 'var(--background)' }}>
+      <div className={hideHeader ? '' : 'max-w-4xl mx-auto px-4 py-6'}>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Invoices</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          {!hideHeader ? (
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Invoices</h1>
+              <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {enriched.length} invoice{enriched.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
               {enriched.length} invoice{enriched.length !== 1 ? 's' : ''}
             </p>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setSelectMode(s => !s); setSelected(new Set()) }}
+              className="px-3 py-2 rounded-lg text-sm font-medium"
+              style={{
+                background: selectMode ? 'rgba(42,122,80,0.08)' : 'var(--surface)',
+                color:      selectMode ? 'var(--brand)' : 'var(--text-muted)',
+                border:    `1px solid ${selectMode ? 'var(--brand)' : 'var(--border)'}`,
+              }}
+            >
+              {selectMode ? 'Cancel select' : 'Select'}
+            </button>
+            <button
+              onClick={() => router.push('/recoverables/invoices/new')}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: 'var(--brand)', color: '#fff' }}
+            >
+              + New Invoice
+            </button>
           </div>
-          <button
-            onClick={() => router.push('/recoverables/invoices/new')}
-            className="px-4 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: 'var(--brand)', color: '#fff' }}
-          >
-            + New Invoice
-          </button>
         </div>
+
+        {/* Select-all + bulk cancel bar */}
+        {selectMode && (
+          <div className="sticky top-3 z-10 mb-3 flex items-center justify-between gap-3 rounded-2xl border px-3 py-2 shadow-sm"
+            style={{ background: 'var(--surface)', borderColor: selected.size > 0 ? 'var(--brand)' : 'var(--border)' }}>
+            <button onClick={selectAllVisible} className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text)' }}>
+              {selected.size === filtered.length && filtered.length > 0
+                ? <CheckSquare className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                : <Square className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+              }
+              <span>{selected.size === 0 ? `Select all (${filtered.length})` : `${selected.size} selected`}</span>
+            </button>
+            {selected.size > 0 && (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelected(new Set())} className="text-xs px-2 py-1 rounded-lg" style={{ color: 'var(--text-muted)' }}>
+                  Clear
+                </button>
+                <button
+                  onClick={handleBulkCancel}
+                  disabled={cancelling}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.25)' }}
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  {cancelling ? 'Cancelling…' : `Cancel ${selected.size}`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Totals summary */}
         {enriched.length > 0 && (
@@ -186,9 +285,22 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
             {filtered.map(inv => (
               <div
                 key={inv.id}
-                className="rounded-xl p-4"
+                className="rounded-xl p-4 flex gap-3 items-start"
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
               >
+                {selectMode && (
+                  <button
+                    onClick={() => toggleSelected(inv.id)}
+                    className="shrink-0 mt-1"
+                    aria-label={selected.has(inv.id) ? 'Deselect' : 'Select'}
+                  >
+                    {selected.has(inv.id)
+                      ? <CheckSquare className="w-5 h-5" style={{ color: 'var(--brand)' }} />
+                      : <Square className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />
+                    }
+                  </button>
+                )}
+                <div className="flex-1 min-w-0">
                 {/* Clickable area */}
                 <button
                   onClick={() => router.push(`/recoverables/invoices/${inv.id}`)}
@@ -254,6 +366,7 @@ export default function InvoiceListClient({ invoices: initialInvoices }: Props) 
                     )}
                   </div>
                 )}
+                </div>
               </div>
             ))}
           </div>

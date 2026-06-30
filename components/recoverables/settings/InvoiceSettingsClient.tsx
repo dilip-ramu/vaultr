@@ -26,6 +26,7 @@ interface Settings {
 
 interface Props {
   settings: Settings | null
+  hideHeader?: boolean
 }
 
 const PAYMENT_TERMS = [
@@ -73,7 +74,7 @@ const inputStyle = {
   color: 'var(--text)',
 }
 
-export default function InvoiceSettingsClient({ settings }: Props) {
+export default function InvoiceSettingsClient({ settings, hideHeader = false }: Props) {
   const router = useRouter()
   const { showToast } = useToast()
   const [saving, setSaving] = useState(false)
@@ -136,20 +137,22 @@ export default function InvoiceSettingsClient({ settings }: Props) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+    <div className={hideHeader ? 'space-y-6' : 'max-w-2xl mx-auto px-4 py-6 space-y-6'}>
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 text-sm"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          <ChevronLeft className="w-4 h-4" />
-          Back
-        </button>
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Invoice Settings</h1>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 text-sm"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back
+          </button>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Invoice Settings</h1>
+        </div>
+      )}
 
       <div className="card space-y-5">
 
