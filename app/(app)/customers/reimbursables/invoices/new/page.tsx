@@ -64,15 +64,44 @@ export default async function ReimbursableNewInvoicePage({
     activeCustomer = ((legacy?.[0] ?? null) as ActiveCustomer | null)
   }
 
-  // Bill-From = the user's default company (companies.is_default=true).
-  // Full bank details flow into the PDF's Bank block. Company picker (choose
-  // a different Bill-From per invoice) will land in a follow-up deploy.
-  const { data: defaultCompany } = await supabase
+  // Bill-From: fetch EVERY company the user has so they can pick from any of
+  // them per-invoice (default company preselected). Includes logo public URL
+  // — the companies bucket is public so getPublicUrl gives us a stable link.
+  const { data: allCompanies } = await supabase
     .from('companies')
-    .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name')
+    .select('id, name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, logo_path, is_default')
     .eq('user_id', uid)
-    .eq('is_default', true)
-    .maybeSingle()
+    .order('is_default', { ascending: false })
+    .order('name')
+  type CompanyRow = {
+    id: string; name: string
+    address: string | null; gstin: string | null; phone: string | null; email: string | null
+    bank_account_name: string | null; bank_account_number: string | null
+    bank_ifsc: string | null; bank_name: string | null
+    logo_path: string | null; is_default: boolean
+  }
+  const companies = ((allCompanies ?? []) as CompanyRow[]).map(c => {
+    let logoUrl: string | null = null
+    if (c.logo_path) {
+      const { data } = supabase.storage.from('vaultr-avatars').getPublicUrl(c.logo_path)
+      logoUrl = data.publicUrl ?? null
+    }
+    return {
+      id:                  c.id,
+      name:                c.name,
+      address:             c.address,
+      gstin:               c.gstin,
+      phone:               c.phone,
+      email:               c.email,
+      bank_account_name:   c.bank_account_name,
+      bank_account_number: c.bank_account_number,
+      bank_ifsc:           c.bank_ifsc,
+      bank_name:           c.bank_name,
+      logo_url:            logoUrl,
+      is_default:          c.is_default,
+    }
+  })
+  const defaultCompany = companies.find(c => c.is_default) ?? companies[0] ?? null
 
   // No-customer fallback is INR (matches the app-wide default). In practice a
   // customer is always chosen before the invoice can be finalised, so this
@@ -186,17 +215,9 @@ export default async function ReimbursableNewInvoicePage({
       marketRate={marketRate}
       marketRateAsOf={marketRateAsOf}
       initialFixedExpenses={activeCustomer?.fixed_expenses ?? []}
-      billFrom={defaultCompany ? {
-        name:                defaultCompany.name,
-        contact:             profile?.full_name ?? undefined,
-        email:               defaultCompany.email ?? undefined,
-        phone:               defaultCompany.phone ?? undefined,
-        address:             defaultCompany.address ?? undefined,
-        bank_account_name:   defaultCompany.bank_account_name   ?? undefined,
-        bank_account_number: defaultCompany.bank_account_number ?? undefined,
-        bank_ifsc:           defaultCompany.bank_ifsc           ?? undefined,
-        bank_name:           defaultCompany.bank_name           ?? undefined,
-      } : undefined}
+      companies={companies}
+      defaultCompanyId={defaultCompany?.id ?? null}
+      profileFullName={profile?.full_name ?? null}
       billTo={activeCustomer ? {
         name:    activeCustomer.name,
         address: activeCustomer.address ?? undefined,

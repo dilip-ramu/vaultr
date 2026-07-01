@@ -1,5 +1,5 @@
 import {
-  Document, Page, Text, View, StyleSheet, Font,
+  Document, Page, Text, View, StyleSheet, Font, Image,
 } from '@react-pdf/renderer'
 
 const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -38,6 +38,10 @@ export interface ReimbursableInvoiceData {
    *  "Your Company" placeholder so nothing crashes for old callers. */
   bill_from?: {
     name: string
+    /** Public URL to the company logo (companies.logo_path resolved via
+     *  vaultr-avatars public bucket). Rendered top-left in place of the
+     *  uppercase text header. */
+    logo_url?: string | null
     contact?: string
     email?: string
     phone?: string
@@ -175,10 +179,14 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
     <Document>
       <Page size="A4" style={s.page}>
 
-        {/* ── Header ── */}
+        {/* ── Header ── Logo (from companies.logo_path) replaces the
+             uppercase company-name text when present. Falls back to the text
+             so the header still reads cleanly for companies without a logo. */}
         <View style={s.topRow}>
           <View>
-            <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{from.name.toUpperCase()}</Text>
+            {from.logo_url
+              ? <Image src={from.logo_url} style={{ height: 42, width: 'auto', objectFit: 'contain' }} />
+              : <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{from.name.toUpperCase()}</Text>}
             {from.address && (
               <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>{from.address}</Text>
             )}

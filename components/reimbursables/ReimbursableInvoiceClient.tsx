@@ -74,7 +74,12 @@ interface ManualLine {
 interface FixedExpenseRow {
   id: string
   description: string
-  amount: number    // EUR
+  amount: number
+  /** Per-row currency override. Empty/undefined = the customer's
+   *  billingCurrency (no conversion). If set to something else — commonly
+   *  'INR' when the customer is billed in EUR — the amount is converted via
+   *  the forex rate before being added to the invoice total. */
+  currency?: string
 }
 
 interface DeductionRow {
@@ -104,21 +109,27 @@ interface Props {
   /** Customer's own fixed monthly expenses (v63) — pre-populates the "Fixed"
    *  section. Empty array means no template; the user can add rows inline. */
   initialFixedExpenses?: { description: string; amount: number; currency?: string }[]
-  /** Bill-from (default company) details — flows into the PDF's From block
-   *  and Bank Details section. Provided by the server-side page from the
-   *  companies table so the PDF isn't hardcoded to Contrast anymore. */
-  billFrom?: {
+  /** All companies the user has (v44). The picker at the top of the invoice
+   *  builder lets the user pick which one this invoice is billed FROM. */
+  companies?: {
+    id: string
     name: string
-    contact?: string
-    email?: string
-    phone?: string
-    address?: string
-    bank_account_name?: string
-    bank_account_number?: string
-    bank_ifsc?: string
-    bank_name?: string
-    swift_code?: string
-  }
+    address: string | null
+    gstin: string | null
+    phone: string | null
+    email: string | null
+    bank_account_name: string | null
+    bank_account_number: string | null
+    bank_ifsc: string | null
+    bank_name: string | null
+    logo_url: string | null
+    is_default: boolean
+  }[]
+  /** Which company is selected by default (companies.is_default=true). */
+  defaultCompanyId?: string | null
+  /** Auth profile full-name — flows into the PDF's "Contact" line under
+   *  Bill From when the company doesn't have a dedicated contact field. */
+  profileFullName?: string | null
   /** Bill-to (customer) details — flows into the PDF's To block. */
   billTo?: {
     name: string
@@ -135,8 +146,30 @@ export default function ReimbursableInvoiceClient({
   customerId = null, customerName = '',
   billingCurrency = 'INR', marketRate = null, marketRateAsOf = null,
   initialFixedExpenses = [],
-  billFrom, billTo,
+  companies = [], defaultCompanyId = null, profileFullName = null,
+  billTo,
 }: Props) {
+  // Bill-From company picker — user can override per-invoice. Initial
+  // selection is the company flagged is_default in v44.
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(
+    defaultCompanyId ?? companies[0]?.id ?? ''
+  )
+  const selectedCompany = useMemo(
+    () => companies.find(c => c.id === selectedCompanyId) ?? null,
+    [companies, selectedCompanyId]
+  )
+  const billFrom = useMemo(() => selectedCompany ? ({
+    name:                selectedCompany.name,
+    logo_url:            selectedCompany.logo_url,
+    contact:             profileFullName ?? undefined,
+    email:               selectedCompany.email             ?? undefined,
+    phone:               selectedCompany.phone             ?? undefined,
+    address:             selectedCompany.address           ?? undefined,
+    bank_account_name:   selectedCompany.bank_account_name ?? undefined,
+    bank_account_number: selectedCompany.bank_account_number ?? undefined,
+    bank_ifsc:           selectedCompany.bank_ifsc         ?? undefined,
+    bank_name:           selectedCompany.bank_name         ?? undefined,
+  }) : undefined, [selectedCompany, profileFullName])
   // When the customer is billed in INR, courier/expense INR amounts don't
   // need conversion — hide the forex-rate block entirely and short-circuit
   // any downstream conversions to a 1:1 pass-through.
@@ -166,9 +199,11 @@ export default function ReimbursableInvoiceClient({
   const [newAmount, setNewAmount] = useState('')
 
   // Fixed expenses — seeded from customers.fixed_expenses via prop.
+  // Currency preserved verbatim; if a row is in a currency other than the
+  // customer's billing currency, it's converted below via the forex rate.
   // Any per-invoice edits are local; not written back to the customer row.
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpenseRow[]>(
-    initialFixedExpenses.map((f, i) => ({ id: `seed-${i}`, description: f.description, amount: f.amount }))
+    initialFixedExpenses.map((f, i) => ({ id: `seed-${i}`, description: f.description, amount: f.amount, currency: f.currency }))
   )
 
   // Deductions
@@ -218,7 +253,26 @@ export default function ReimbursableInvoiceClient({
   const courierEurTotal = hasValidRate ? round2(courierInrTotal / forexDivisor) : 0
   const expenseEurTotal = hasValidRate ? round2(expenseInrTotal / forexDivisor) : 0
   const manualEurTotal  = useMemo(() => manualLines.reduce((s, l) => s + l.amount, 0), [manualLines])
-  const fixedExpTotal   = useMemo(() => fixedExpenses.reduce((s, r) => s + (r.amount || 0), 0), [fixedExpenses])
+  /** Convert a fixed-expense row's amount into the customer's billing
+   *  currency. Same rule set as courier/expense conversion:
+   *   - Row currency matches billingCurrency (or unset)   → pass through
+   *   - Row currency is INR, billing is a foreign currency → divide by forex
+   *   - Row currency is a foreign currency, billing is INR → multiply by forex
+   *   - Any other cross-currency mismatch                 → pass through
+   *     (rare; user should pre-convert manually — future work).
+   */
+  const convertFixedRowToBilling = (r: FixedExpenseRow): number => {
+    const cur = (r.currency || billingCurrency).toUpperCase()
+    if (cur === (billingCurrency || 'INR').toUpperCase()) return r.amount || 0
+    if (cur === 'INR' && !isInrBilled && forexRateNum > 0) return (r.amount || 0) / forexRateNum
+    if (isInrBilled && forexRateNum > 0)                   return (r.amount || 0) * forexRateNum
+    return r.amount || 0
+  }
+  const fixedExpTotal   = useMemo(
+    () => fixedExpenses.reduce((s, r) => s + convertFixedRowToBilling(r), 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fixedExpenses, billingCurrency, isInrBilled, forexRateNum]
+  )
   const deductionTotal  = useMemo(() => deductions.reduce((s, r) => s + (r.amount || 0), 0), [deductions])
   const subtotalEur     = salaryEurTotal + courierEurTotal + expenseEurTotal + manualEurTotal + fixedExpTotal - deductionTotal
   const gstEur          = round2(subtotalEur * 0.18)
@@ -257,7 +311,7 @@ export default function ReimbursableInvoiceClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // Multi-customer: tag the new invoice with the customer being billed.
-        body: JSON.stringify({ invoice_month: currentMonth, customer_id: customerId }),
+        body: JSON.stringify({ invoice_month: currentMonth, customer_id: customerId, company_id: selectedCompanyId || undefined }),
       })
       if (!createRes.ok) throw new Error((await createRes.json()).error ?? 'Failed to create invoice')
       const inv = await createRes.json()
@@ -278,7 +332,11 @@ export default function ReimbursableInvoiceClient({
       }
       for (const fe of fixedExpenses) {
         if ((fe.amount || 0) > 0) {
-          items.push({ item_type: 'fixed_expense', description: fe.description, amount_inr: round2(fe.amount), sort_order: sortOrder++ })
+          // Convert to billing currency before persisting the line's amount.
+          // If the row was in the same currency as the invoice this is a
+          // no-op; otherwise the forex rate scales it.
+          const billed = convertFixedRowToBilling(fe)
+          items.push({ item_type: 'fixed_expense', description: fe.description, amount_inr: round2(billed), sort_order: sortOrder++ })
         }
       }
       for (const line of manualLines) {
@@ -334,11 +392,13 @@ export default function ReimbursableInvoiceClient({
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-          <ReceiptText className="w-5 h-5 text-indigo-600" />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center overflow-hidden">
+          {selectedCompany?.logo_url
+            ? <img src={selectedCompany.logo_url} alt={selectedCompany.name} className="w-full h-full object-contain" />
+            : <ReceiptText className="w-5 h-5 text-indigo-600" />}
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900">
             Invoice{customerName ? ` · ${customerName}` : ''}
           </h1>
@@ -346,6 +406,22 @@ export default function ReimbursableInvoiceClient({
             Invoice for <strong>{monthLabel(currentMonth)}</strong> · {billingCurrency} · salaries direct, expenses via forex rate
           </p>
         </div>
+        {/* Bill From company picker — hidden when only one company exists. */}
+        {companies.length > 1 && (
+          <div className="flex flex-col items-end gap-1">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Bill From</label>
+            <select
+              value={selectedCompanyId}
+              onChange={e => setSelectedCompanyId(e.target.value)}
+              disabled={isFinalized}
+              className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white disabled:opacity-50"
+            >
+              {companies.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (default)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Uncategorized nudge */}
@@ -524,30 +600,52 @@ export default function ReimbursableInvoiceClient({
           )}
         </div>
 
-        {/* Fixed Expenses */}
+        {/* Fixed Expenses — each row can override the customer's billing
+             currency. Rows in a different currency get converted to the
+             billing currency in the total (via the forex rate). */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-teal-50">
             <Building2 className="w-4 h-4 text-teal-600" />
             <span className="text-sm font-semibold text-teal-700">Fixed Expenses</span>
-            <span className="text-xs text-teal-400 ml-1">(enter in {billingCurrency})</span>
+            <span className="text-xs text-teal-400 ml-1">(default: {billingCurrency})</span>
             <span className="ml-auto text-sm font-bold text-teal-700">{fmtCur(fixedExpTotal, billingCurrency)}</span>
           </div>
           <div className="divide-y divide-gray-50">
-            {fixedExpenses.map(fe => (
-              <div key={fe.id} className="flex items-center px-5 py-2.5 gap-4">
-                <span className="flex-1 text-sm text-gray-800">{fe.description}</span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-400">EUR</span>
+            {fixedExpenses.map(fe => {
+              const rowCur = (fe.currency || billingCurrency).toUpperCase()
+              const converted = rowCur !== (billingCurrency || 'INR').toUpperCase()
+                ? convertFixedRowToBilling(fe)
+                : null
+              return (
+                <div key={fe.id} className="flex items-center px-5 py-2.5 gap-3">
+                  <span className="flex-1 text-sm text-gray-800">{fe.description}</span>
+                  <select
+                    value={fe.currency ?? ''}
+                    onChange={e => setFixedExpenses(prev => prev.map(r => r.id === fe.id ? { ...r, currency: e.target.value || undefined } : r))}
+                    disabled={isFinalized}
+                    className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-50"
+                    title="Per-row currency. Blank = customer's billing currency."
+                  >
+                    <option value="">{billingCurrency}</option>
+                    {['INR','EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF'].filter(c => c !== billingCurrency).map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
                   <input
                     type="number"
                     value={fe.amount === 0 ? '' : fe.amount}
                     onChange={e => updateFixedExpense(fe.id, parseFloat(e.target.value) || 0)}
                     placeholder="0.00" min="0" step="0.01" disabled={isFinalized}
-                    className="w-32 px-3 py-1.5 text-sm text-right border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 disabled:opacity-50"
+                    className="w-28 px-3 py-1.5 text-sm text-right border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 disabled:opacity-50"
                   />
+                  {converted != null && (
+                    <span className="text-[10px] text-teal-500 w-24 text-right tabular-nums">
+                      ≈ {fmtCur(converted, billingCurrency)}
+                    </span>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 

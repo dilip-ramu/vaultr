@@ -86,7 +86,9 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-  const { invoice_month, customer_id } = await req.json() as { invoice_month: string; customer_id?: string }
+  const { invoice_month, customer_id, company_id } = await req.json() as {
+    invoice_month: string; customer_id?: string; company_id?: string
+  }
   if (!invoice_month) return NextResponse.json({ error: 'invoice_month required' }, { status: 400 })
 
   // Reuse the atomic PI-YYYYMM-NNN sequence — this RPC is shared across old
@@ -137,6 +139,10 @@ export async function POST(req: Request) {
       invoice_month,
       invoice_date: new Date().toISOString().slice(0, 10),
       status: 'draft',
+      // company_id: which of the user's companies this invoice is billed
+      // FROM. Falls back to null when the client doesn't send one (older
+      // callers) — the PDF then reads from the default company anyway.
+      company_id: company_id ?? null,
       customer_id: customer_id ?? null,
       customer_name,
       customer_address,
