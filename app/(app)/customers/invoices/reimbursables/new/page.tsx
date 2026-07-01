@@ -233,17 +233,32 @@ export default async function ReimbursableNewInvoicePage({
   // filter, the courier-charges picker was accidentally offering the user's
   // own reimbursement invoices as bundleable courier items — showing them
   // with EUR-denominated totals rendered as ₹ and causing visible glitches.
-  const { data: courierInvoices } = activeCustomer
-    ? await supabase
-        .from('recoverable_invoices')
-        .select('id, invoice_number, total, invoice_date, status, customer_name')
-        .eq('user_id', uid)
-        .eq('customer_id', activeCustomer.id)
-        .eq('invoice_type', 'tax_invoice')          // ← only real tax invoices
-        .is('contrast_invoice_id', null)
-        .not('status', 'eq', 'cancelled')
-        .order('invoice_date', { ascending: false })
+  // In edit mode we ALSO include courier invoices already linked to this
+  // reimbursement invoice (otherwise they'd disappear from the picker even
+  // though they were persisted as selected).
+  const courierInvoicesResp = activeCustomer
+    ? (existingInvoice
+        ? await supabase
+            .from('recoverable_invoices')
+            .select('id, invoice_number, total, invoice_date, status, customer_name')
+            .eq('user_id', uid)
+            .eq('customer_id', activeCustomer.id)
+            .eq('invoice_type', 'tax_invoice')
+            .not('status', 'eq', 'cancelled')
+            .or(`contrast_invoice_id.is.null,contrast_invoice_id.eq.${existingInvoice.id}`)
+            .order('invoice_date', { ascending: false })
+        : await supabase
+            .from('recoverable_invoices')
+            .select('id, invoice_number, total, invoice_date, status, customer_name')
+            .eq('user_id', uid)
+            .eq('customer_id', activeCustomer.id)
+            .eq('invoice_type', 'tax_invoice')
+            .not('status', 'eq', 'cancelled')
+            .is('contrast_invoice_id', null)
+            .order('invoice_date', { ascending: false })
+      )
     : { data: [] }
+  const courierInvoices = courierInvoicesResp.data
 
   // ── Payee linked to THIS customer (for expense transactions) ──────────────
   const { data: payeeRows } = activeCustomer
@@ -267,22 +282,40 @@ export default async function ReimbursableNewInvoicePage({
   }
 
   // ── Queued expenses — categorized, unbilled ───────────────────────────────
-  const { data: queuedExpenses } = payee
-    ? await supabase
-        .from('transactions')
-        .select(`
-          id, name, amount, date, type, notes, is_contrast_billed,
-          contrast_billing_category_id, contrast_invoice_id,
-          category:categories(id, name, icon, color),
-          billing_category:contrast_billing_categories(id, name)
-        `)
-        .eq('user_id', uid)
-        .eq('payee_id', payee.id)
-        .eq('is_contrast_billed', false)
-        .is('contrast_invoice_id', null)
-        .not('contrast_billing_category_id', 'is', null)
-        .order('date', { ascending: false })
+  // Edit-mode expansion: include expenses already billed to THIS invoice so
+  // they show + stay selected.
+  const queuedExpensesResp = payee
+    ? (existingInvoice
+        ? await supabase
+            .from('transactions')
+            .select(`
+              id, name, amount, date, type, notes, is_contrast_billed,
+              contrast_billing_category_id, contrast_invoice_id,
+              category:categories(id, name, icon, color),
+              billing_category:contrast_billing_categories(id, name)
+            `)
+            .eq('user_id', uid)
+            .eq('payee_id', payee.id)
+            .not('contrast_billing_category_id', 'is', null)
+            .or(`contrast_invoice_id.is.null,contrast_invoice_id.eq.${existingInvoice.id}`)
+            .order('date', { ascending: false })
+        : await supabase
+            .from('transactions')
+            .select(`
+              id, name, amount, date, type, notes, is_contrast_billed,
+              contrast_billing_category_id, contrast_invoice_id,
+              category:categories(id, name, icon, color),
+              billing_category:contrast_billing_categories(id, name)
+            `)
+            .eq('user_id', uid)
+            .eq('payee_id', payee.id)
+            .not('contrast_billing_category_id', 'is', null)
+            .eq('is_contrast_billed', false)
+            .is('contrast_invoice_id', null)
+            .order('date', { ascending: false })
+      )
     : { data: [] }
+  const queuedExpenses = queuedExpensesResp.data
 
   // ── Count of uncategorized expenses (nudge banner) ────────────────────────
   const { count: uncategorizedCount } = payee

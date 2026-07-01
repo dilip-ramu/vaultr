@@ -174,6 +174,7 @@ export default function ReimbursableInvoiceClient({
   initialFixedExpenses = [],
   companies = [], defaultCompanyId = null, profileFullName = null,
   billTo,
+  existingInvoice = null,
 }: Props) {
   // Bill-From company picker — user can override per-invoice. Initial
   // selection is the company flagged is_default in v44.
@@ -210,11 +211,16 @@ export default function ReimbursableInvoiceClient({
   const [error, setError] = useState('')
   // Tracks the DB id of an invoice that's already been finalized once so
   // clicking "Edit invoice" → tweak → Finalize UPDATES the same row instead
-  // of creating a duplicate. Null on first render (fresh invoice).
-  const [existingInvoiceId, setExistingInvoiceId] = useState<string | null>(null)
+  // of creating a duplicate. Seeded from existingInvoice.id when we're
+  // editing an existing invoice from the URL (?invoice=<id>).
+  const [existingInvoiceId, setExistingInvoiceId] = useState<string | null>(existingInvoice?.id ?? null)
 
-  // Forex rate: INR per EUR
-  const [forexRate, setForexRate] = useState('')
+  /** Seed the forex rate from any existing line that carries one — courier
+   *  and expense items both persist forex_rate. First non-null wins. */
+  const seededForexRate = existingInvoice
+    ? String(existingInvoice.items.find(it => it.forex_rate != null)?.forex_rate ?? '')
+    : ''
+  const [forexRate, setForexRate] = useState(seededForexRate)
   const forexRateNum = parseFloat(forexRate) || 0
   // INR-billed customers don't need conversion — treat as 1:1 always.
   // Non-INR customers need an actual rate to be typed.
@@ -224,30 +230,66 @@ export default function ReimbursableInvoiceClient({
    *  user-typed forex rate. */
   const forexDivisor = isInrBilled ? 1 : forexRateNum
 
+  // ── State seeded from existingInvoice when editing ───────────────────────
+  // Reconstruction rules:
+  //   • fixed_expense items → fixedExpenses rows
+  //   • deduction items    → deductions rows (stored positive here; sign
+  //                            was flipped negative for persistence)
+  //   • expense items      → manualLines UNLESS they came from a category
+  //                            (inr_source is set for category expenses).
+  //                            Category expenses will re-derive at Finalize
+  //                            time from `allExpenses`; skipping them here
+  //                            avoids double-counting.
+  //   • salary / courier items → not re-added to state; the employee/courier
+  //                            SELECTION is what drives their inclusion at
+  //                            Finalize time. The prop feeds selectedEmployee/
+  //                            CourierIds directly (see below).
+  const editItems = existingInvoice?.items ?? []
+  const seededFixed: FixedExpenseRow[] = existingInvoice
+    ? editItems.filter(it => it.item_type === 'fixed_expense')
+        .map((it, i) => ({
+          id:          `edit-fx-${i}`,
+          description: it.description ?? '',
+          amount:      Number(it.amount ?? 0),
+          currency:    it.salary_currency ?? undefined,
+        }))
+    : initialFixedExpenses.map((f, i) => ({ id: `seed-${i}`, description: f.description, amount: f.amount, currency: f.currency }))
+  const seededDeductions: DeductionRow[] = existingInvoice
+    ? editItems.filter(it => it.item_type === 'deduction')
+        .map((it, i) => ({
+          id:          `edit-ded-${i}`,
+          description: it.description ?? '',
+          amount:      Math.abs(Number(it.amount ?? 0)),
+        }))
+    : []
+  const seededManualLines: ManualLine[] = existingInvoice
+    ? editItems.filter(it => it.item_type === 'expense' && it.inr_source == null)
+        .map(it => ({ description: it.description ?? '', amount: Number(it.amount ?? 0) }))
+    : []
+
   // Manual EUR lines
-  const [manualLines, setManualLines] = useState<ManualLine[]>([])
+  const [manualLines, setManualLines] = useState<ManualLine[]>(seededManualLines)
   const [newDesc, setNewDesc] = useState('')
   const [newAmount, setNewAmount] = useState('')
 
-  // Fixed expenses — seeded from customers.fixed_expenses via prop.
-  // Currency preserved verbatim; if a row is in a currency other than the
-  // customer's billing currency, it's converted below via the forex rate.
-  // Any per-invoice edits are local; not written back to the customer row.
-  const [fixedExpenses, setFixedExpenses] = useState<FixedExpenseRow[]>(
-    initialFixedExpenses.map((f, i) => ({ id: `seed-${i}`, description: f.description, amount: f.amount, currency: f.currency }))
-  )
+  // Fixed expenses — seeded from existingInvoice items OR from the customer's
+  // template. Per-invoice edits are local — never written back to the customer.
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpenseRow[]>(seededFixed)
 
   // Deductions
-  const [deductions, setDeductions] = useState<DeductionRow[]>([])
+  const [deductions, setDeductions] = useState<DeductionRow[]>(seededDeductions)
   const [newDedDesc, setNewDedDesc] = useState('')
   const [newDedAmount, setNewDedAmount] = useState('')
 
-  // ── Selection state — all items selected by default ───────────────────────
+  // ── Selection state ───────────────────────────────────────────────────────
+  // Default: every fetched employee / courier selected. In edit mode we
+  // instead restore the exact selection that was persisted (from payroll
+  // entries / linked courier invoices).
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(
-    () => new Set(employees.map(e => e.id))
+    () => new Set(existingInvoice?.selectedEmployeeIds ?? employees.map(e => e.id))
   )
   const [selectedCourierIds, setSelectedCourierIds] = useState<Set<string>>(
-    () => new Set(courierInvoices.map(ci => ci.id))
+    () => new Set(existingInvoice?.selectedCourierIds ?? courierInvoices.map(ci => ci.id))
   )
 
   const selectedEmployees = useMemo(
