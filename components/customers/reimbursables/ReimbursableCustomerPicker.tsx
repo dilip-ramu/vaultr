@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Users } from 'lucide-react'
+import { useTransition } from 'react'
+import { Users, Loader2 } from 'lucide-react'
 
 export interface ReimbursableCustomer {
   id: string
@@ -23,35 +24,35 @@ function hueFor(name: string): string {
 }
 
 /**
- * URL-driven chip picker.
- *   ─ Each customer is a chip; clicking sets ?customer=<id>
- *   ─ An "All" chip clears the customer filter (?customer=all — the page
- *     treats it as "no filter" and shows combined data)
- *   ─ Uses router.push + router.refresh so the server component actually
- *     refetches with the new param (router.replace alone was leaving stale
- *     RSC output — that's why old data lingered until a hard refresh).
+ * Chip picker with pending state — this is the Next 15 recommended pattern
+ * for router-driven filters:
+ *
+ *   startTransition(() => { router.replace(newUrl, { scroll: false }) })
+ *
+ * That makes React treat the navigation as a low-priority update. isPending
+ * flips true the instant you click and stays true until the server component
+ * finishes rendering the new data. The chips show a spinner + dim tint the
+ * whole time so the UI feels responsive instead of "did anything happen?".
+ *
+ * router.replace (not push) so the back button doesn't stack up every
+ * customer-switch as a separate history entry.
  */
 export default function ReimbursableCustomerPicker({ customers }: Props) {
   const router = useRouter()
   const params = useSearchParams()
+  const [isPending, startTransition] = useTransition()
   const urlSelected = params.get('customer')
 
-  // Selection semantics:
-  //   'all'  → All chip active
-  //   valid customer id → that chip active
-  //   anything else (or missing) → fall back to first customer (legacy default)
   const effective = urlSelected === 'all'
     ? 'all'
     : (urlSelected && customers.some(c => c.id === urlSelected)) ? urlSelected : (customers[0]?.id ?? '')
 
   function pick(id: string) {
     const sp = new URLSearchParams(params.toString())
-    if (id) sp.set('customer', id)
-    else sp.delete('customer')
-    router.push(`?${sp.toString()}`)
-    // Force the server component tree above us to re-fetch — router.push
-    // alone was serving cached RSC output for the same segment.
-    router.refresh()
+    sp.set('customer', id)
+    startTransition(() => {
+      router.replace(`?${sp.toString()}`, { scroll: false })
+    })
   }
 
   if (customers.length === 0) {
@@ -63,15 +64,14 @@ export default function ReimbursableCustomerPicker({ customers }: Props) {
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5" role="tablist">
-      {/* "All" chip — hides the customer filter so both tabs show combined
-          data across every reimbursable customer. */}
+    <div className="flex flex-wrap items-center gap-1.5" role="tablist">
       <Chip
         active={effective === 'all'}
         onClick={() => pick('all')}
         label="All"
         hue="#6B7280"
         icon={<Users className="w-3.5 h-3.5" />}
+        dim={isPending && effective !== 'all'}
       />
       {customers.map(c => {
         const hue = hueFor(c.name)
@@ -83,15 +83,21 @@ export default function ReimbursableCustomerPicker({ customers }: Props) {
             label={c.name}
             hue={hue}
             initial={c.name[0]?.toUpperCase() ?? '?'}
+            dim={isPending && effective !== c.id}
           />
         )
       })}
+      {isPending && (
+        <span className="flex items-center gap-1 text-xs px-2" style={{ color: 'var(--text-muted)' }}>
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> loading…
+        </span>
+      )}
     </div>
   )
 }
 
 function Chip({
-  active, onClick, label, hue, initial, icon,
+  active, onClick, label, hue, initial, icon, dim,
 }: {
   active:  boolean
   onClick: () => void
@@ -99,6 +105,7 @@ function Chip({
   hue:     string
   initial?: string
   icon?:   React.ReactNode
+  dim:     boolean
 }) {
   return (
     <button
@@ -106,7 +113,7 @@ function Chip({
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className="flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-sm font-medium transition-colors whitespace-nowrap"
+      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-sm font-medium transition-all whitespace-nowrap ${dim ? 'opacity-50' : ''}`}
       style={{
         borderColor: active ? hue : 'var(--border)',
         background:  active ? `${hue}18` : 'var(--surface)',

@@ -183,6 +183,10 @@ export default function ReimbursableInvoiceClient({
   const [invoiceData, setInvoiceData] = useState<ReimbursableInvoiceData | null>(null)
   const [isFinalized, setIsFinalized] = useState(false)
   const [error, setError] = useState('')
+  // Tracks the DB id of an invoice that's already been finalized once so
+  // clicking "Edit invoice" → tweak → Finalize UPDATES the same row instead
+  // of creating a duplicate. Null on first render (fresh invoice).
+  const [existingInvoiceId, setExistingInvoiceId] = useState<string | null>(null)
 
   // Forex rate: INR per EUR
   const [forexRate, setForexRate] = useState('')
@@ -309,14 +313,26 @@ export default function ReimbursableInvoiceClient({
     setFinalizing(true)
     setError('')
     try {
-      const createRes = await fetch('/api/contrast/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // Multi-customer: tag the new invoice with the customer being billed.
-        body: JSON.stringify({ invoice_month: currentMonth, customer_id: customerId, company_id: selectedCompanyId || undefined }),
-      })
-      if (!createRes.ok) throw new Error((await createRes.json()).error ?? 'Failed to create invoice')
-      const inv = await createRes.json()
+      // Re-use the same invoice row when re-finalizing (Edit → Finalize
+      // again). Otherwise create a fresh draft.
+      let inv: { id: string; invoice_number: string; invoice_date: string }
+      if (existingInvoiceId) {
+        inv = {
+          id: existingInvoiceId,
+          invoice_number: invoiceData?.invoice_number ?? '',
+          invoice_date:   invoiceData?.invoice_date   ?? new Date().toISOString().slice(0, 10),
+        }
+      } else {
+        const createRes = await fetch('/api/contrast/invoices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // Multi-customer: tag the new invoice with the customer being billed.
+          body: JSON.stringify({ invoice_month: currentMonth, customer_id: customerId, company_id: selectedCompanyId || undefined }),
+        })
+        if (!createRes.ok) throw new Error((await createRes.json()).error ?? 'Failed to create invoice')
+        inv = await createRes.json()
+        setExistingInvoiceId(inv.id)
+      }
 
       let sortOrder = 0
       const items: ReimbursableInvoiceData['items'] = []
@@ -408,20 +424,45 @@ export default function ReimbursableInvoiceClient({
             Invoice for <strong>{monthLabel(currentMonth)}</strong> · {billingCurrency} · salaries direct, expenses via forex rate
           </p>
         </div>
-        {/* Bill From company picker — hidden when only one company exists. */}
+        {/* Bill From company chips — hidden when only one company exists.
+            Same visual language as the customer chips at the top of the page:
+            colored circle + name, active chip tinted with the company's hue.
+            The logo (if any) replaces the initial inside the circle. */}
         {companies.length > 1 && (
           <div className="flex flex-col items-end gap-1">
             <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Bill From</label>
-            <select
-              value={selectedCompanyId}
-              onChange={e => setSelectedCompanyId(e.target.value)}
-              disabled={isFinalized}
-              className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white disabled:opacity-50"
-            >
-              {companies.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' (default)' : ''}</option>
-              ))}
-            </select>
+            <div className="flex flex-wrap gap-1.5 justify-end">
+              {companies.map(c => {
+                const active = c.id === selectedCompanyId
+                const hue    = c.is_default ? '#3B4AC7' : '#2A7A50'
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => !isFinalized && setSelectedCompanyId(c.id)}
+                    disabled={isFinalized}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
+                    style={{
+                      borderColor: active ? hue : 'var(--border)',
+                      background:  active ? `${hue}18` : 'var(--surface)',
+                      color:       active ? hue : 'var(--text)',
+                    }}
+                  >
+                    <span
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden"
+                      style={{ background: hue }}
+                    >
+                      {c.logo_url
+                        ? <img src={c.logo_url} alt={c.name} className="w-full h-full object-cover" />
+                        : c.name[0]?.toUpperCase() ?? '?'}
+                    </span>
+                    {c.name}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -807,12 +848,22 @@ export default function ReimbursableInvoiceClient({
             <CheckCircle2 className="w-5 h-5" />
             Invoice finalized — payroll month created, all items marked as billed. Finalize payroll after receiving payment.
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <ReimbursableInvoicePDFDownload
               data={invoiceData!}
               label="Download PDF"
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all"
             />
+            {/* "Edit invoice" flips the form back to draft. The next Finalize
+                call re-runs delete-then-insert on the API side so the mirror
+                stays consistent. Historical PDF is superseded by the new one. */}
+            <button
+              type="button"
+              onClick={() => setIsFinalized(false)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-semibold text-sm transition-all"
+            >
+              <ReceiptText className="w-4 h-4" /> Edit invoice
+            </button>
             <a href="/customers/reimbursables/invoices" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">View Invoice History →</a>
             <a href="/payroll/monthly" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">Monthly Processing →</a>
           </div>
@@ -826,7 +877,9 @@ export default function ReimbursableInvoiceClient({
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
           >
             {finalizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
-            {finalizing ? 'Finalizing…' : 'Finalize Invoice'}
+            {finalizing
+              ? (existingInvoiceId ? 'Updating…' : 'Finalizing…')
+              : (existingInvoiceId ? 'Update invoice' : 'Finalize Invoice')}
           </button>
           {needsRate ? (
             <p className="text-xs text-amber-600">Enter forex rate to enable</p>
