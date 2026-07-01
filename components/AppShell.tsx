@@ -55,13 +55,12 @@ const navSections: NavSection[] = [
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
           // Directory now lives as a tab on the main /customers page.
-          // TDS moved to Tools (annual, low-touch — doesn't belong under the
-          // per-customer workflow). URL /recoverables/tds still resolves.
-          { href: '/recoverables/invoices',         label: 'Invoices',      icon: FileText },
-          { href: '/customers/commission',          label: 'Incoming',      icon: DollarSign },
-          // Reimbursables = the old Contrast workflow, generalised to live
-          // under the customer it belongs to. Tabs: Expenses · Invoices.
-          { href: '/customers/reimbursables',       label: 'Reimbursables', icon: ArrowDownUp },
+          // Invoices is a single page with three tabs (Couriers / Reimbursables /
+          // Invoices) — see /customers/invoices/layout.tsx. Reimbursables
+          // used to be its own sidebar item; it's now a tab inside Invoices
+          // (Deploy 4 restructure).
+          { href: '/customers/invoices',   label: 'Invoices', icon: FileText },
+          { href: '/customers/commission', label: 'Incoming', icon: DollarSign },
         ],
       },
       {

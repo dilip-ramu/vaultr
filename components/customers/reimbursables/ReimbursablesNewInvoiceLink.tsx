@@ -10,8 +10,8 @@ export default function ReimbursablesNewInvoiceLink() {
   const params = useSearchParams()
   const customerId = params.get('customer')
   const href = customerId
-    ? `/customers/reimbursables/invoices/new?customer=${customerId}`
-    : '/customers/reimbursables/invoices/new'
+    ? `/customers/invoices/reimbursables/new?customer=${customerId}`
+    : '/customers/invoices/reimbursables/new'
 
   return (
     <Link

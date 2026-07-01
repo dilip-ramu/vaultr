@@ -474,7 +474,7 @@ export default function ReimbursableInvoiceClient({
           <p className="flex-1 text-sm text-amber-800">
             <strong>{uncategorizedCount} expense{uncategorizedCount !== 1 ? 's' : ''}</strong> have no billing category and won&apos;t be included.
           </p>
-          <a href="/customers/reimbursables" className="shrink-0 flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
+          <a href="/customers/invoices/reimbursables" className="shrink-0 flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
             Go to Expenses <ArrowRight className="w-3 h-3" />
           </a>
         </div>
@@ -627,7 +627,7 @@ export default function ReimbursableInvoiceClient({
           {allExpenses.length === 0 ? (
             <div className="px-5 py-4 text-sm text-gray-400">
               No expenses queued.{' '}
-              <a href="/customers/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue them.
+              <a href="/customers/invoices/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue them.
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
@@ -830,7 +830,7 @@ export default function ReimbursableInvoiceClient({
             <a href="/customers/reimbursables/invoices" className="underline font-medium">Invoice History</a>
             {' '}— the invoice may have saved despite the error.
             If not there, go to{' '}
-            <a href="/customers/reimbursables" className="underline font-medium">Contrast Expenses</a>
+            <a href="/customers/invoices/reimbursables" className="underline font-medium">Contrast Expenses</a>
             {' '}and use &quot;Mark unbilled&quot; to restore transactions.
           </p>
         </div>
@@ -840,7 +840,7 @@ export default function ReimbursableInvoiceClient({
       {!hasAnything ? (
         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center text-sm text-gray-400">
           Nothing to invoice.{' '}
-          <a href="/customers/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue expenses.
+          <a href="/customers/invoices/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue expenses.
         </div>
       ) : isFinalized ? (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-5 space-y-3">
