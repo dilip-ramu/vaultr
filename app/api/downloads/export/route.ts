@@ -59,10 +59,14 @@ export async function POST(req: Request) {
       .gte('date', from).lte('date', to)
       .order('date', { ascending: false }),
 
-    // Contrast invoices
-    supabase.from('contrast_invoices')
-      .select('*')
+    // Contrast (now reimbursement) invoices — Batch E · Deploy 6 dropped the
+    // contrast_invoices table; reimbursements live in recoverable_invoices
+    // with invoice_type='reimbursement'. Shape-adapted below so downstream
+    // download CSV/PDF code doesn't have to change.
+    supabase.from('recoverable_invoices')
+      .select('id, invoice_number, invoice_month, invoice_date, status, subtotal, cgst_amount, sgst_amount, total, notes, sent_at, created_at, customer_id, customer_name')
       .eq('user_id', user.id)
+      .eq('invoice_type', 'reimbursement')
       .gte('invoice_date', from).lte('invoice_date', to)
       .order('invoice_date', { ascending: false }),
 
@@ -195,13 +199,39 @@ export async function POST(req: Request) {
     console.error('[downloads/export] query errors:', errors)
   }
 
+  // Shape-adapt reimbursement rows back to the historical contrast_invoices
+  // field names the CSV/PDF renderers expect: sent_at→finalized_at,
+  // cgst_amount+sgst_amount→gst_amount.
+  type ReimbRow = {
+    id: string; invoice_number: string; invoice_month: string | null;
+    invoice_date: string; status: string;
+    subtotal: number; cgst_amount: number; sgst_amount: number; total: number;
+    notes: string | null; sent_at: string | null; created_at: string;
+    customer_id: string | null; customer_name: string;
+  }
+  const contrastInvoicesAdapted = ((ciRes.data ?? []) as ReimbRow[]).map(r => ({
+    id:             r.id,
+    invoice_number: r.invoice_number,
+    invoice_month:  r.invoice_month ?? '',
+    invoice_date:   r.invoice_date,
+    status:         r.status,
+    subtotal:       Number(r.subtotal ?? 0),
+    gst_amount:     Number(r.cgst_amount ?? 0) + Number(r.sgst_amount ?? 0),
+    total:          Number(r.total ?? 0),
+    notes:          r.notes,
+    finalized_at:   r.sent_at,
+    created_at:     r.created_at,
+    customer_id:    r.customer_id,
+    customer_name:  r.customer_name,
+  }))
+
   return NextResponse.json({
     transactions,
     accounts:             acRes.data  ?? [],
     recoverable_invoices: riRes.data  ?? [],
     supplier_invoices,
     contrast_expenses,
-    contrast_invoices:    ciRes.data  ?? [],
+    contrast_invoices:    contrastInvoicesAdapted,
     payroll_entries,
     staff:                stRes.data  ?? [],
     bills:                blRes.data  ?? [],

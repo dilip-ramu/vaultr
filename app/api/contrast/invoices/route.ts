@@ -98,14 +98,12 @@ export async function POST(req: Request) {
   if (!rpcError && typeof claimed === 'string' && claimed.length > 0) {
     invoice_number = claimed
   } else {
-    // Fallback (RPC missing): count-based across BOTH tables to avoid
-    // reusing a number that already exists in either.
-    const { count: oldCount } = await supabase
-      .from('contrast_invoices').select('*', { count: 'exact', head: true }).eq('user_id', user.id)
-    const { count: newCount } = await supabase
+    // Fallback (RPC missing): count reimbursement rows in the unified table.
+    // Deploy 6 dropped contrast_invoices, so it's a single-table count.
+    const { count } = await supabase
       .from('recoverable_invoices').select('*', { count: 'exact', head: true })
       .eq('user_id', user.id).eq('invoice_type', 'reimbursement')
-    const seq = String((oldCount ?? 0) + (newCount ?? 0) + 1).padStart(3, '0')
+    const seq = String((count ?? 0) + 1).padStart(3, '0')
     invoice_number = `PI-${invoice_month.replace('-', '')}-${seq}`
   }
 

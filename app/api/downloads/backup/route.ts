@@ -36,8 +36,9 @@ const TABLES: { name: string; key?: string }[] = [
   { name: 'commission_orders' },
   { name: 'commission_styles' },
   { name: 'contrast_billing_categories' },
-  { name: 'contrast_invoices' },
-  { name: 'contrast_invoice_items' },
+  // contrast_invoices + contrast_invoice_items dropped in Batch E · Deploy 6.
+  // Reimbursement invoices now live in recoverable_invoices (already backed
+  // up above by the recoverable_invoices + recoverable_invoice_lines entries).
   { name: 'employees' },
   { name: 'payroll_months' },
   { name: 'payroll_entries' },
