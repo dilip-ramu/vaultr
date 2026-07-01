@@ -18,8 +18,17 @@ function monthLabel(ym: string) {
   return `${MONTHS_LONG[parseInt(m) - 1]} ${y}`
 }
 
-function fmtEur(n: number) {
-  return `EUR ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+/** Currency-aware number formatter. Was hardcoded to EUR because Contrast
+ *  was the only reimbursable customer; now every customer picks their own
+ *  billing currency and this needs to reflect it. Falls back to a
+ *  code-prefixed string when Intl doesn't have a canonical symbol for the
+ *  currency (rare). */
+function fmtCur(n: number, cur: string) {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: 2 }).format(n)
+  } catch {
+    return `${cur} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
 }
 
 function fmtInr(n: number) {
@@ -74,13 +83,9 @@ interface DeductionRow {
   amount: number    // EUR (positive; stored as negative in items)
 }
 
-const DEFAULT_FIXED_EXPENSES: FixedExpenseRow[] = [
-  { id: 'rent',         description: 'Office Rent',   amount: 709.50 },
-  { id: 'housekeeping', description: 'House Keeping', amount: 205.06 },
-  { id: 'internet',     description: 'Internet',      amount: 224.09 },
-  { id: 'electricity',  description: 'Electricity',   amount: 109.82 },
-  { id: 'bank_charges', description: 'Bank Charges',  amount: 78 },
-]
+// v63: the previous DEFAULT_FIXED_EXPENSES hardcode was Contrast-specific
+// (Office Rent 709.50 EUR, etc). It's gone — the customer's own list is
+// seeded from customers.fixed_expenses via the initialFixedExpenses prop.
 
 interface Props {
   employees: Employee[]
@@ -96,14 +101,22 @@ interface Props {
    *  as a hint next to the rate input so the user has a reference. */
   marketRate?: number | null
   marketRateAsOf?: string | null
+  /** Customer's own fixed monthly expenses (v63) — pre-populates the "Fixed"
+   *  section. Empty array means no template; the user can add rows inline. */
+  initialFixedExpenses?: { description: string; amount: number }[]
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function ReimbursableInvoiceClient({
   employees, courierInvoices, allExpenses, companyName, uncategorizedCount,
-  customerId = null, customerName = 'Contrast',
+  customerId = null, customerName = '',
   billingCurrency = 'INR', marketRate = null, marketRateAsOf = null,
+  initialFixedExpenses = [],
 }: Props) {
+  // When the customer is billed in INR, courier/expense INR amounts don't
+  // need conversion — hide the forex-rate block entirely and short-circuit
+  // any downstream conversions to a 1:1 pass-through.
+  const isInrBilled = (billingCurrency || 'INR').toUpperCase() === 'INR'
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
@@ -115,15 +128,24 @@ export default function ReimbursableInvoiceClient({
   // Forex rate: INR per EUR
   const [forexRate, setForexRate] = useState('')
   const forexRateNum = parseFloat(forexRate) || 0
-  const hasValidRate = forexRateNum > 0
+  // INR-billed customers don't need conversion — treat as 1:1 always.
+  // Non-INR customers need an actual rate to be typed.
+  const hasValidRate = isInrBilled || forexRateNum > 0
+  /** Divisor used to convert INR-denominated inputs (courier, expense) into
+   *  the customer's billing currency. 1 for INR-billed customers, else the
+   *  user-typed forex rate. */
+  const forexDivisor = isInrBilled ? 1 : forexRateNum
 
   // Manual EUR lines
   const [manualLines, setManualLines] = useState<ManualLine[]>([])
   const [newDesc, setNewDesc] = useState('')
   const [newAmount, setNewAmount] = useState('')
 
-  // Fixed expenses (editable EUR amounts, pre-populated)
-  const [fixedExpenses, setFixedExpenses] = useState<FixedExpenseRow[]>(DEFAULT_FIXED_EXPENSES)
+  // Fixed expenses — seeded from customers.fixed_expenses via prop.
+  // Any per-invoice edits are local; not written back to the customer row.
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpenseRow[]>(
+    initialFixedExpenses.map((f, i) => ({ id: `seed-${i}`, description: f.description, amount: f.amount }))
+  )
 
   // Deductions
   const [deductions, setDeductions] = useState<DeductionRow[]>([])
@@ -169,8 +191,8 @@ export default function ReimbursableInvoiceClient({
   const salaryEurTotal  = useMemo(() => selectedEmployees.reduce((s, e) => s + (e.salary_amount || 0), 0), [selectedEmployees])
   const courierInrTotal = useMemo(() => selectedCouriers.reduce((s, ci) => s + ci.total, 0), [selectedCouriers])
   const expenseInrTotal = useMemo(() => allExpenses.reduce((s, e) => s + e.amount, 0), [allExpenses])
-  const courierEurTotal = hasValidRate ? round2(courierInrTotal / forexRateNum) : 0
-  const expenseEurTotal = hasValidRate ? round2(expenseInrTotal / forexRateNum) : 0
+  const courierEurTotal = hasValidRate ? round2(courierInrTotal / forexDivisor) : 0
+  const expenseEurTotal = hasValidRate ? round2(expenseInrTotal / forexDivisor) : 0
   const manualEurTotal  = useMemo(() => manualLines.reduce((s, l) => s + l.amount, 0), [manualLines])
   const fixedExpTotal   = useMemo(() => fixedExpenses.reduce((s, r) => s + (r.amount || 0), 0), [fixedExpenses])
   const deductionTotal  = useMemo(() => deductions.reduce((s, r) => s + (r.amount || 0), 0), [deductions])
@@ -223,12 +245,12 @@ export default function ReimbursableInvoiceClient({
         items.push({ item_type: 'salary', description: `Salary for ${emp.name}`, salary_amount: emp.salary_amount, amount_inr: round2(emp.salary_amount || 0), sort_order: sortOrder++ })
       }
       for (const ci of selectedCouriers) {
-        const eurAmt = round2(ci.total / forexRateNum)
-        items.push({ item_type: 'courier', description: `Courier Invoice ${ci.invoice_number}`, amount_inr: eurAmt, inr_source: ci.total, forex_rate: forexRateNum, sort_order: sortOrder++ })
+        const eurAmt = round2(ci.total / forexDivisor)
+        items.push({ item_type: 'courier', description: `Courier Invoice ${ci.invoice_number}`, amount_inr: eurAmt, inr_source: ci.total, forex_rate: forexDivisor, sort_order: sortOrder++ })
       }
       for (const cat of expenseByCategory) {
-        const eurAmt = round2(cat.amountInr / forexRateNum)
-        items.push({ item_type: 'expense', description: cat.name, amount_inr: eurAmt, inr_source: cat.amountInr, forex_rate: forexRateNum, sort_order: sortOrder++ })
+        const eurAmt = round2(cat.amountInr / forexDivisor)
+        items.push({ item_type: 'expense', description: cat.name, amount_inr: eurAmt, inr_source: cat.amountInr, forex_rate: forexDivisor, sort_order: sortOrder++ })
       }
       for (const fe of fixedExpenses) {
         if ((fe.amount || 0) > 0) {
@@ -280,9 +302,11 @@ export default function ReimbursableInvoiceClient({
           <ReceiptText className="w-5 h-5 text-indigo-600" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Contrast Invoice</h1>
+          <h1 className="text-xl font-bold text-gray-900">
+            Invoice{customerName ? ` · ${customerName}` : ''}
+          </h1>
           <p className="text-sm text-gray-500">
-            Invoice for <strong>{monthLabel(currentMonth)}</strong> · EUR · salaries direct, expenses via forex rate
+            Invoice for <strong>{monthLabel(currentMonth)}</strong> · {billingCurrency} · salaries direct, expenses via forex rate
           </p>
         </div>
       </div>
@@ -300,7 +324,9 @@ export default function ReimbursableInvoiceClient({
         </div>
       )}
 
-      {/* ── Forex Rate ── */}
+      {/* ── Forex Rate ── Hidden entirely for INR-billed customers since no
+             conversion is needed (all amounts already in rupees). */}
+      {!isInrBilled && (
       <div className={`bg-white border rounded-2xl p-5 shadow-sm ${needsRate ? 'border-amber-300' : 'border-gray-100'}`}>
         <div className="flex items-end gap-4">
           <div className="flex-1">
@@ -348,13 +374,14 @@ export default function ReimbursableInvoiceClient({
           </div>
           {(selectedCouriers.length > 0 || allExpenses.length > 0) && hasValidRate && (
             <div className="text-right text-xs text-gray-400 space-y-0.5 pb-2">
-              {selectedCouriers.length > 0 && <p>{fmtInr(courierInrTotal)} → {fmtEur(courierEurTotal)}</p>}
-              {allExpenses.length > 0 && <p>{fmtInr(expenseInrTotal)} → {fmtEur(expenseEurTotal)}</p>}
+              {selectedCouriers.length > 0 && <p>{fmtInr(courierInrTotal)} → {fmtCur(courierEurTotal, billingCurrency)}</p>}
+              {allExpenses.length > 0 && <p>{fmtInr(expenseInrTotal)} → {fmtCur(expenseEurTotal, billingCurrency)}</p>}
             </div>
           )}
         </div>
-        {needsRate && <p className="mt-2 text-xs text-amber-600">⚠ Enter the forex rate to see EUR amounts for courier and expense lines.</p>}
+        {needsRate && <p className="mt-2 text-xs text-amber-600">⚠ Enter the forex rate to see {billingCurrency} amounts for courier and expense lines.</p>}
       </div>
+      )}
 
       {/* ── Sections ── */}
       <div className="space-y-3">
@@ -366,7 +393,7 @@ export default function ReimbursableInvoiceClient({
             <span className="text-sm font-semibold text-indigo-700">Salaries</span>
             <span className="text-xs text-indigo-400 ml-1">({employees.length} active staff)</span>
             <span className="text-xs text-indigo-300 ml-1">· payroll month auto-created on finalize</span>
-            <span className="ml-auto text-sm font-bold text-indigo-700">{fmtEur(salaryEurTotal)}</span>
+            <span className="ml-auto text-sm font-bold text-indigo-700">{fmtCur(salaryEurTotal, billingCurrency)}</span>
           </div>
           {employees.length === 0 ? (
             <div className="flex items-center gap-2 px-5 py-4 text-sm text-gray-400">
@@ -386,7 +413,7 @@ export default function ReimbursableInvoiceClient({
                       {emp.designation && <p className="text-xs text-gray-400">{emp.designation}</p>}
                     </div>
                     <span className="text-xs text-gray-400">EUR salary</span>
-                    <span className="text-sm font-medium text-gray-900 w-32 text-right">{fmtEur(emp.salary_amount || 0)}</span>
+                    <span className="text-sm font-medium text-gray-900 w-32 text-right">{fmtCur(emp.salary_amount || 0, billingCurrency)}</span>
                   </div>
                 )
               })}
@@ -401,9 +428,9 @@ export default function ReimbursableInvoiceClient({
             <span className="text-sm font-semibold text-blue-700">Courier Charges</span>
             <span className="text-xs text-blue-400 ml-1">(from Recoverables — Contrast invoices)</span>
             {hasValidRate && selectedCouriers.length > 0 && (
-              <span className="text-xs text-blue-400 ml-1">· {fmtInr(courierInrTotal)} → <strong>{fmtEur(courierEurTotal)}</strong></span>
+              <span className="text-xs text-blue-400 ml-1">· {fmtInr(courierInrTotal)} → <strong>{fmtCur(courierEurTotal, billingCurrency)}</strong></span>
             )}
-            <span className="ml-auto text-sm font-bold text-blue-700">{hasValidRate ? fmtEur(courierEurTotal) : fmtInr(courierInrTotal)}</span>
+            <span className="ml-auto text-sm font-bold text-blue-700">{hasValidRate ? fmtCur(courierEurTotal, billingCurrency) : fmtInr(courierInrTotal)}</span>
           </div>
           {courierInvoices.length === 0 ? (
             <div className="px-5 py-4 text-sm text-gray-400">
@@ -422,7 +449,7 @@ export default function ReimbursableInvoiceClient({
                       <p className="text-xs text-gray-400">{ci.invoice_date} · {ci.status}</p>
                     </div>
                     <span className="text-sm text-gray-500 w-28 text-right">{fmtInr(ci.total)}</span>
-                    {hasValidRate && <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtEur(round2(ci.total / forexRateNum))}</span>}
+                    {hasValidRate && <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtCur(round2(ci.total / forexDivisor), billingCurrency)}</span>}
                   </div>
                 )
               })}
@@ -437,9 +464,9 @@ export default function ReimbursableInvoiceClient({
             <span className="text-sm font-semibold text-purple-700">Operational Expenses</span>
             <span className="text-xs text-purple-400 ml-1">({allExpenses.length} queued)</span>
             {hasValidRate && allExpenses.length > 0 && (
-              <span className="text-xs text-purple-400 ml-1">· {fmtInr(expenseInrTotal)} → <strong>{fmtEur(expenseEurTotal)}</strong></span>
+              <span className="text-xs text-purple-400 ml-1">· {fmtInr(expenseInrTotal)} → <strong>{fmtCur(expenseEurTotal, billingCurrency)}</strong></span>
             )}
-            <span className="ml-auto text-sm font-bold text-purple-700">{hasValidRate ? fmtEur(expenseEurTotal) : fmtInr(expenseInrTotal)}</span>
+            <span className="ml-auto text-sm font-bold text-purple-700">{hasValidRate ? fmtCur(expenseEurTotal, billingCurrency) : fmtInr(expenseInrTotal)}</span>
           </div>
           {allExpenses.length === 0 ? (
             <div className="px-5 py-4 text-sm text-gray-400">
@@ -453,7 +480,7 @@ export default function ReimbursableInvoiceClient({
                   <span className="flex-1 text-sm text-gray-800">{cat.name}</span>
                   <span className="text-xs text-gray-400 mr-4">{cat.ids.length} tx</span>
                   <span className="text-sm text-gray-500 w-28 text-right">{fmtInr(cat.amountInr)}</span>
-                  {hasValidRate && <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtEur(round2(cat.amountInr / forexRateNum))}</span>}
+                  {hasValidRate && <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtCur(round2(cat.amountInr / forexDivisor), billingCurrency)}</span>}
                 </div>
               ))}
             </div>
@@ -466,7 +493,7 @@ export default function ReimbursableInvoiceClient({
             <Building2 className="w-4 h-4 text-teal-600" />
             <span className="text-sm font-semibold text-teal-700">Fixed Expenses</span>
             <span className="text-xs text-teal-400 ml-1">(enter in EUR)</span>
-            <span className="ml-auto text-sm font-bold text-teal-700">{fmtEur(fixedExpTotal)}</span>
+            <span className="ml-auto text-sm font-bold text-teal-700">{fmtCur(fixedExpTotal, billingCurrency)}</span>
           </div>
           <div className="divide-y divide-gray-50">
             {fixedExpenses.map(fe => (
@@ -493,7 +520,7 @@ export default function ReimbursableInvoiceClient({
             <Plus className="w-4 h-4 text-orange-600" />
             <span className="text-sm font-semibold text-orange-700">Additional Items</span>
             <span className="text-xs text-orange-400 ml-1">(enter in EUR)</span>
-            <span className="ml-auto text-sm font-bold text-orange-700">{fmtEur(manualEurTotal)}</span>
+            <span className="ml-auto text-sm font-bold text-orange-700">{fmtCur(manualEurTotal, billingCurrency)}</span>
           </div>
           <div className="px-5 py-4 space-y-3">
             <div className="flex gap-2 items-end">
@@ -514,7 +541,7 @@ export default function ReimbursableInvoiceClient({
                 {manualLines.map((line, i) => (
                   <div key={i} className="flex items-center px-4 py-2.5 gap-3">
                     <span className="flex-1 text-sm text-gray-800">{line.description}</span>
-                    <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtEur(line.amount)}</span>
+                    <span className="text-sm font-medium text-gray-900 w-28 text-right">{fmtCur(line.amount, billingCurrency)}</span>
                     {!isFinalized && <button onClick={() => removeManualLine(i)} className="text-gray-300 hover:text-red-400 transition-colors ml-1"><X className="w-4 h-4" /></button>}
                   </div>
                 ))}
@@ -532,7 +559,7 @@ export default function ReimbursableInvoiceClient({
             <span className="text-sm font-semibold text-red-600">Deductions</span>
             <span className="text-xs text-red-400 ml-1">(subtracted from total · enter in EUR)</span>
             {deductionTotal > 0 && (
-              <span className="ml-auto text-sm font-bold text-red-600">− {fmtEur(deductionTotal)}</span>
+              <span className="ml-auto text-sm font-bold text-red-600">− {fmtCur(deductionTotal, billingCurrency)}</span>
             )}
           </div>
           <div className="px-5 py-4 space-y-3">
@@ -554,7 +581,7 @@ export default function ReimbursableInvoiceClient({
                 {deductions.map(ded => (
                   <div key={ded.id} className="flex items-center px-4 py-2.5 gap-3">
                     <span className="flex-1 text-sm text-gray-800">{ded.description}</span>
-                    <span className="text-sm font-medium text-red-600 w-28 text-right">− {fmtEur(ded.amount)}</span>
+                    <span className="text-sm font-medium text-red-600 w-28 text-right">− {fmtCur(ded.amount, billingCurrency)}</span>
                     {!isFinalized && <button onClick={() => removeDeduction(ded.id)} className="text-gray-300 hover:text-red-400 transition-colors ml-1"><X className="w-4 h-4" /></button>}
                   </div>
                 ))}
@@ -573,44 +600,44 @@ export default function ReimbursableInvoiceClient({
           <div className="divide-y divide-gray-100">
             {salaryEurTotal > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
-                <span>Salaries</span><span>{fmtEur(salaryEurTotal)}</span>
+                <span>Salaries</span><span>{fmtCur(salaryEurTotal, billingCurrency)}</span>
               </div>
             )}
             {selectedCouriers.length > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
                 <span>Courier Charges</span>
-                <span>{hasValidRate ? fmtEur(courierEurTotal) : <span className="text-amber-500">enter rate ↑</span>}</span>
+                <span>{hasValidRate ? fmtCur(courierEurTotal, billingCurrency) : <span className="text-amber-500">enter rate ↑</span>}</span>
               </div>
             )}
             {allExpenses.length > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
                 <span>Operational Expenses</span>
-                <span>{hasValidRate ? fmtEur(expenseEurTotal) : <span className="text-amber-500">enter rate ↑</span>}</span>
+                <span>{hasValidRate ? fmtCur(expenseEurTotal, billingCurrency) : <span className="text-amber-500">enter rate ↑</span>}</span>
               </div>
             )}
             {fixedExpTotal > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
-                <span>Fixed Expenses</span><span>{fmtEur(fixedExpTotal)}</span>
+                <span>Fixed Expenses</span><span>{fmtCur(fixedExpTotal, billingCurrency)}</span>
               </div>
             )}
             {manualEurTotal > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
-                <span>Additional Items</span><span>{fmtEur(manualEurTotal)}</span>
+                <span>Additional Items</span><span>{fmtCur(manualEurTotal, billingCurrency)}</span>
               </div>
             )}
             {deductionTotal > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-red-600">
-                <span>Deductions</span><span>− {fmtEur(deductionTotal)}</span>
+                <span>Deductions</span><span>− {fmtCur(deductionTotal, billingCurrency)}</span>
               </div>
             )}
             <div className="flex justify-between px-5 py-3 text-sm font-medium text-gray-700">
-              <span>Sub Total</span><span>{fmtEur(subtotalEur)}</span>
+              <span>Sub Total</span><span>{fmtCur(subtotalEur, billingCurrency)}</span>
             </div>
             <div className="flex justify-between px-5 py-3 text-sm text-gray-600">
-              <span>GST @ 18%</span><span>{fmtEur(gstEur)}</span>
+              <span>GST @ 18%</span><span>{fmtCur(gstEur, billingCurrency)}</span>
             </div>
             <div className="flex justify-between px-5 py-4 text-base font-bold text-gray-900 bg-gray-50">
-              <span>Grand Total</span><span>{fmtEur(grandTotalEur)}</span>
+              <span>Grand Total</span><span>{fmtCur(grandTotalEur, billingCurrency)}</span>
             </div>
           </div>
         </div>

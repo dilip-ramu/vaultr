@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
-import type { Customer } from '@/lib/types'
+import { X, Plus, Trash2 } from 'lucide-react'
+import type { Customer, FixedExpenseTemplate } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 
 interface Props {
@@ -34,6 +34,12 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
   // EUR because Contrast was the archetypal customer, but that's no longer
   // representative and users had to remember to switch it every time.
   const [billingCurrency, setBillingCurrency] = useState(customer?.billing_currency ?? 'INR')
+  // v63 — editable per-customer fixed monthly expenses (Office Rent, etc).
+  // Rows are stored in the customer's billing currency, editable inline.
+  // Empty rows are dropped on save so we never persist half-typed lines.
+  const [fixedExpenses, setFixedExpenses] = useState<FixedExpenseTemplate[]>(
+    customer?.fixed_expenses ?? []
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -45,6 +51,12 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
 
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
+
+    // Drop empty fixed-expense rows (either field missing) so we never
+    // persist a half-typed placeholder.
+    const cleanedFixed: FixedExpenseTemplate[] = fixedExpenses
+      .map(f => ({ description: f.description.trim(), amount: Number(f.amount) || 0 }))
+      .filter(f => f.description.length > 0 && f.amount !== 0)
 
     const payload = {
       name:       name.trim(),
@@ -61,6 +73,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
       notes:            notes.trim() || null,
       pays_commission:  paysCommission,
       billing_currency: billingCurrency.trim().toUpperCase() || 'INR',
+      fixed_expenses:   cleanedFixed.length > 0 ? cleanedFixed : null,
     }
 
     let data, err
@@ -243,6 +256,56 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
               <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isReimbursable ? 'right-0.5' : 'left-0.5'}`} />
             </button>
           </div>
+
+          {/* Per-customer fixed monthly expenses. Only relevant when the
+              customer is reimbursable — pre-populates the invoice builder so
+              you don't retype rent/internet/etc every month. Amounts are
+              stored and displayed in the customer's billing currency. */}
+          {isReimbursable && (
+            <div className="px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Fixed monthly expenses</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Templates seeded into every reimbursement invoice for this customer. Amounts in {billingCurrency}. Editable per-invoice.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {fixedExpenses.map((f, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={f.description}
+                      onChange={e => setFixedExpenses(prev => prev.map((row, i) => i === idx ? { ...row, description: e.target.value } : row))}
+                      placeholder="e.g. Office Rent"
+                      className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                    />
+                    <input
+                      type="number"
+                      value={f.amount === 0 ? '' : f.amount}
+                      onChange={e => setFixedExpenses(prev => prev.map((row, i) => i === idx ? { ...row, amount: parseFloat(e.target.value) || 0 } : row))}
+                      placeholder="0.00"
+                      className="w-28 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-right tabular-nums"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFixedExpenses(prev => prev.filter((_, i) => i !== idx))}
+                      className="w-9 h-9 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg"
+                      title="Remove row"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setFixedExpenses(prev => [...prev, { description: '', amount: 0 }])}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium bg-white border border-dashed border-gray-300 text-gray-500 hover:bg-gray-50"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add expense row
+                </button>
+              </div>
+            </div>
+          )}
 
           <button type="submit" disabled={saving}
             className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60">

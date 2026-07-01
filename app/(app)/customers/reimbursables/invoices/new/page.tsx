@@ -32,25 +32,33 @@ export default async function ReimbursableNewInvoicePage({
   const reimbursables = await getReimbursableCustomers(supabase, uid)
   const active = resolveActiveCustomer(reimbursables, customerParam ?? null)
 
-  let activeCustomer: { id: string; name: string; billing_currency: string } | null = null
+  // v63: also pull fixed_expenses so the invoice builder can seed the
+  // customer's own template instead of the retired Contrast hardcode.
+  type ActiveCustomer = {
+    id: string
+    name: string
+    billing_currency: string
+    fixed_expenses: { description: string; amount: number }[] | null
+  }
+  let activeCustomer: ActiveCustomer | null = null
   if (active) {
     const { data: full } = await supabase
       .from('customers')
-      .select('id, name, billing_currency')
+      .select('id, name, billing_currency, fixed_expenses')
       .eq('id', active.id)
       .eq('user_id', uid)
       .maybeSingle()
-    activeCustomer = full as { id: string; name: string; billing_currency: string } | null
+    activeCustomer = (full ?? null) as ActiveCustomer | null
   }
   // Legacy fallback for the Contrast customer if none configured yet.
   if (!activeCustomer) {
     const { data: legacy } = await supabase
       .from('customers')
-      .select('id, name, billing_currency')
+      .select('id, name, billing_currency, fixed_expenses')
       .eq('user_id', uid)
       .ilike('name', '%contrast%')
       .order('name')
-    activeCustomer = (legacy?.[0] as { id: string; name: string; billing_currency: string } | undefined) ?? null
+    activeCustomer = ((legacy?.[0] ?? null) as ActiveCustomer | null)
   }
 
   // No-customer fallback is INR (matches the app-wide default). In practice a
@@ -160,10 +168,11 @@ export default async function ReimbursableNewInvoicePage({
       companyName={profile?.full_name ?? ''}
       uncategorizedCount={uncategorizedCount ?? 0}
       customerId={activeCustomer?.id ?? null}
-      customerName={activeCustomer?.name ?? 'Contrast'}
+      customerName={activeCustomer?.name ?? ''}
       billingCurrency={billingCurrency}
       marketRate={marketRate}
       marketRateAsOf={marketRateAsOf}
+      initialFixedExpenses={activeCustomer?.fixed_expenses ?? []}
     />
   )
 }

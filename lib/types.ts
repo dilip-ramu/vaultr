@@ -173,7 +173,18 @@ export interface Customer {
   // 3-letter currency this customer is billed in (e.g. EUR, USD). Drives
   // labels and conversion in the reimbursable-invoice flow.
   billing_currency: string
+  // v63 — per-customer default fixed monthly expenses (Office Rent, Bank
+  // Charges, etc). Stored in the customer's billing currency. The invoice
+  // builder pre-populates these into every new reimbursement invoice.
+  fixed_expenses: FixedExpenseTemplate[] | null
   created_at: string
+}
+
+/** A row in customers.fixed_expenses. Description + amount in the customer's
+ *  billing currency. Amounts are editable per-invoice — this is just the seed. */
+export interface FixedExpenseTemplate {
+  description: string
+  amount: number
 }
 
 export type CommissionType = 'percentage' | 'per_piece' | 'fixed'
