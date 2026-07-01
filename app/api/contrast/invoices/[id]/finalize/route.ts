@@ -1,10 +1,26 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+/**
+ * Reimbursement invoice — finalize.
+ * Batch E · Deploy 5: writes flipped to recoverable_invoices +
+ * recoverable_invoice_lines. Historical field mapping:
+ *   items.amount_inr  → line.amount
+ *   items.sort_order  → line.line_number
+ *   items.description → line.description (added by v60a)
+ *   items.item_type   → line.item_type
+ * Constant fields required by recoverable_invoice_lines' NOT NULL:
+ *   awb='' | hsn_sac='996812' | qty=1 | rates+amounts=0
+ * (the item_type marker tells the reimbursables UI to ignore them)
+ *
+ * status is set to 'finalized' — added to the recoverable_invoices status
+ * CHECK in v58 so this write is legal on the unified table.
+ */
+
 function round2(n: number) { return Math.round(n * 100) / 100 }
 
 interface InvoiceItem {
-  item_type: 'salary' | 'courier' | 'expense'
+  item_type: 'salary' | 'courier' | 'expense' | 'fixed_expense' | 'deduction'
   description: string
   salary_amount?: number | null
   expended_rate?: number | null
@@ -18,7 +34,6 @@ interface SalaryEmployee {
 }
 
 // POST /api/contrast/invoices/[id]/finalize
-// Body: { items, transaction_ids, recoverable_invoice_ids, salary_employees, invoice_month }
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -38,36 +53,68 @@ export async function POST(
 
   const { items, transaction_ids, recoverable_invoice_ids, salary_employees, invoice_month } = body
 
-  // Compute EUR totals (amount_inr field stores EUR amounts — legacy field name)
   const subtotal   = round2(items.reduce((s, i) => s + i.amount_inr, 0))
   const gst_amount = round2(subtotal * 0.18)
   const total      = round2(subtotal + gst_amount)
 
-  // ── Step 1: Save line items ────────────────────────────────────────────────
-  await supabase.from('contrast_invoice_items').delete().eq('invoice_id', id)
+  // ── Step 1: Save line items (delete-then-insert; idempotent for retries) ──
+  await supabase
+    .from('recoverable_invoice_lines')
+    .delete()
+    .eq('invoice_id', id)
+    .eq('user_id', user.id)
 
   if (items.length > 0) {
     const { error: itemErr } = await supabase
-      .from('contrast_invoice_items')
-      .insert(items.map(({ item_type, description, salary_amount, expended_rate, amount_inr, sort_order }) => ({
-        invoice_id: id, item_type, description, salary_amount, expended_rate, amount_inr, sort_order,
+      .from('recoverable_invoice_lines')
+      .insert(items.map(it => ({
+        user_id:       user.id,
+        invoice_id:    id,
+        line_number:   it.sort_order,
+        awb:           '',
+        shipment_date: null,
+        hsn_sac:       '996812',
+        qty:           1,
+        base_rate:     0,
+        rate:          0,
+        amount:        it.amount_inr,
+        cgst_rate:     0,
+        cgst_amount:   0,
+        sgst_rate:     0,
+        sgst_amount:   0,
+        item_type:     it.item_type,
+        description:   it.description,
+        salary_amount: it.salary_amount ?? null,
+        salary_currency: 'EUR',
+        expended_rate: it.expended_rate ?? null,
       })))
     if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 500 })
   }
 
   // ── Step 2: Mark invoice as finalized ─────────────────────────────────────
+  // gst_amount is split into cgst_amount for storage — sum matches on read.
+  // sent_at gets the finalize timestamp (Deploy 4's read adapter maps sent_at
+  // → finalized_at for the client).
+  const nowIso = new Date().toISOString()
   const { data: invoice, error: invErr } = await supabase
-    .from('contrast_invoices')
+    .from('recoverable_invoices')
     .update({
       status: 'finalized',
       subtotal,
-      gst_amount,
+      cgst_amount: gst_amount,
+      sgst_amount: 0,
       total,
-      finalized_at: new Date().toISOString(),
+      balance_due: total,      // unpaid until a linked income transaction lands
+      sent_at: nowIso,
     })
     .eq('id', id)
     .eq('user_id', user.id)
-    .select()
+    .eq('invoice_type', 'reimbursement')
+    .select(`
+      id, invoice_number, invoice_month, invoice_date, status,
+      subtotal, cgst_amount, sgst_amount, total,
+      notes, sent_at, created_at, customer_id
+    `)
     .single()
   if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })
 
@@ -83,7 +130,6 @@ export async function POST(
         .update({ contrast_invoice_id: null })
         .in('id', recoverable_invoice_ids).eq('user_id', user.id)
     }
-    // Delete auto-created payroll month if not yet finalized
     if (salary_employees.length > 0 && invoice_month) {
       const { data: pm } = await supabase
         .from('payroll_months')
@@ -97,14 +143,14 @@ export async function POST(
         await supabase.from('payroll_months').delete().eq('id', pm.id).eq('user_id', user.id)
       }
     }
-    await supabase.from('contrast_invoices')
-      .update({ status: 'draft', finalized_at: null }).eq('id', id).eq('user_id', user.id)
-    await supabase.from('contrast_invoice_items').delete().eq('invoice_id', id)
+    await supabase.from('recoverable_invoices')
+      .update({ status: 'draft', sent_at: null, subtotal: 0, cgst_amount: 0, total: 0, balance_due: 0 })
+      .eq('id', id).eq('user_id', user.id).eq('invoice_type', 'reimbursement')
+    await supabase.from('recoverable_invoice_lines').delete().eq('invoice_id', id).eq('user_id', user.id)
     console.error(`[finalize] Reverted invoice ${id}: ${reason}`)
   }
 
   try {
-    // Mark expense transactions as billed
     if (transaction_ids.length > 0) {
       const { error: txErr } = await supabase
         .from('transactions')
@@ -113,7 +159,6 @@ export async function POST(
       if (txErr) throw new Error(`Transactions: ${txErr.message}`)
     }
 
-    // Link courier (recoverable) invoices to this contrast invoice
     if (recoverable_invoice_ids.length > 0) {
       const { error: riErr } = await supabase
         .from('recoverable_invoices')
@@ -122,11 +167,9 @@ export async function POST(
       if (riErr) throw new Error(`Courier invoices: ${riErr.message}`)
     }
 
-    // Auto-create payroll month + entries for included salary lines
     if (salary_employees.length > 0 && invoice_month) {
       const totalBilledEuros = round2(salary_employees.reduce((s, e) => s + e.salary_amount, 0))
 
-      // Upsert so retries don't duplicate months
       const { data: pm, error: pmErr } = await supabase
         .from('payroll_months')
         .upsert(
@@ -143,7 +186,6 @@ export async function POST(
         .single()
       if (pmErr) throw new Error(`Payroll month: ${pmErr.message}`)
 
-      // Replace entries (safe for retries)
       await supabase.from('payroll_entries').delete()
         .eq('payroll_month_id', pm.id).eq('user_id', user.id)
 
@@ -153,7 +195,7 @@ export async function POST(
           payroll_month_id: pm.id,
           employee_id: e.employee_id,
           salary_amount: e.salary_amount,
-          expended_rate: 0,   // filled later in Monthly Processing after receiving payment
+          expended_rate: 0,
           salary_inr: 0,
           final_payable: 0,
         }))
@@ -168,5 +210,24 @@ export async function POST(
     )
   }
 
-  return NextResponse.json({ invoice, subtotal, gst_amount, total })
+  // Adapt the response to the client's expected historical shape.
+  return NextResponse.json({
+    invoice: {
+      id:             invoice.id,
+      invoice_number: invoice.invoice_number,
+      invoice_month:  invoice.invoice_month ?? '',
+      invoice_date:   invoice.invoice_date,
+      status:         invoice.status,
+      subtotal:       Number(invoice.subtotal ?? 0),
+      gst_amount:     Number(invoice.cgst_amount ?? 0) + Number(invoice.sgst_amount ?? 0),
+      total:          Number(invoice.total ?? 0),
+      notes:          invoice.notes,
+      finalized_at:   invoice.sent_at,
+      created_at:     invoice.created_at,
+      customer_id:    invoice.customer_id,
+    },
+    subtotal,
+    gst_amount,
+    total,
+  })
 }
