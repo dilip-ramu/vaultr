@@ -17,8 +17,8 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { CheckCircle2, DollarSign, Clock, Loader2, Truck, FileText, Filter, Pencil, Trash2 } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { CheckCircle2, DollarSign, Clock, Loader2, Truck, FileText, Filter, Pencil, Trash2, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -65,7 +65,18 @@ function fmtCur(n: number, cur: string): string {
 
 export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerIds }: Props) {
   const router = useRouter()
+  const params = useSearchParams()
   const reimbursableSet = useMemo(() => new Set(reimbursableCustomerIds), [reimbursableCustomerIds])
+
+  // "+ New invoice" href — preserves the currently-picked customer chip so
+  // the builder lands on the same customer without another click. Skipped
+  // when All is selected (the builder handles the empty state itself).
+  const newInvoiceHref = useMemo(() => {
+    const cust = params.get('customer')
+    return cust && cust !== 'all'
+      ? `/customers/invoices/reimbursables/new?customer=${cust}`
+      : '/customers/invoices/reimbursables/new'
+  }, [params])
   const [markingId,  setMarkingId]  = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType,   setFilterType]   = useState<'all' | 'tax_invoice' | 'reimbursement'>('all')
@@ -155,6 +166,19 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+
+      {/* Action row — New invoice button. Courier tax invoices are created
+          from the Couriers tab (via CSV import + batch allocations); this
+          button drives the manual/reimbursement creation path. */}
+      <div className="flex justify-end">
+        <Link
+          href={newInvoiceHref}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white"
+          style={{ background: 'var(--brand)' }}
+        >
+          <Plus className="w-4 h-4" /> New invoice
+        </Link>
+      </div>
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">
