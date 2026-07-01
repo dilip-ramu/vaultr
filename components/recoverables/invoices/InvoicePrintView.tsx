@@ -21,6 +21,15 @@ interface Props {
   invoice: RecoverableInvoice
   lines: RecoverableInvoiceLine[]
   settings: InvoiceSettings | null
+  /** Short-lived signed URL to the company logo in the private
+   *  vaultr-attachments bucket. `null` if the user hasn't uploaded a logo
+   *  yet — the print view renders without it. Was `/invoice-logo.png` from
+   *  public/, which anyone could download by URL guessing. */
+  logoUrl?: string | null
+  /** Short-lived signed URL to the authorised signature image. Same story
+   *  as logoUrl — this is the higher-risk file, since a real signature
+   *  could be lifted for fraud. */
+  signatureUrl?: string | null
 }
 
 function fmtInr(n: number, dp = 2) {
@@ -45,7 +54,7 @@ const paymentTermsLabel: Record<string, string> = {
   net_60: 'Net 60', net_90: 'Net 90', due_on_receipt: 'Due on Receipt',
 }
 
-export default function InvoicePrintView({ invoice, lines, settings }: Props) {
+export default function InvoicePrintView({ invoice, lines, settings, logoUrl = null, signatureUrl = null }: Props) {
   const companyName  = settings?.company_name  ?? 'Your Company'
   const balanceDue   = invoice.balance_due
   const termsLabel   = paymentTermsLabel[invoice.payment_terms ?? ''] ?? (invoice.payment_terms ?? '—')
@@ -167,13 +176,13 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
 
       <div className="sheet">
 
-        {/* 1 — Header */}
-        {/*  TODO(batch-e): stop reading the logo from /public and read it from
-             companies.logo_path (Supabase Storage) instead, once the invoice
-             systems are unified. Right now the file lives at /invoice-logo.png
-             (renamed from Contrast.png — the old name leaked the customer). */}
+        {/* 1 — Header. Logo comes from a signed URL (private bucket) — was
+             hardcoded to /invoice-logo.png in public/, world-readable. If the
+             user hasn't uploaded a logo yet, the header just skips the img. */}
         <div className="header">
-          <img src="/invoice-logo.png" alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
+          {logoUrl
+            ? <img src={logoUrl} alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
+            : <div style={{ height: '1.5cm' }} />}
           <div className="tax-invoice-block">
             <h2>Tax Invoice</h2>
             <div className="invoice-number"># {invoice.invoice_number}</div>
@@ -333,10 +342,15 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
           </div>
         )}
 
-        {/* 12 — Signature */}
+        {/* 12 — Signature. Same story as the logo — was /signedcopy.png in
+             public/, now a short-lived signed URL out of the private bucket.
+             Higher-risk asset than the logo: a real signature image, so
+             putting it behind auth is meaningful, not just cosmetic. */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
           <div style={{ textAlign: 'right' }}>
-            <img src="/signedcopy.png" alt="Authorised Signature" style={{ height: '3cm', width: 'auto', display: 'block', marginLeft: 'auto' }} />
+            {signatureUrl
+              ? <img src={signatureUrl} alt="Authorised Signature" style={{ height: '3cm', width: 'auto', display: 'block', marginLeft: 'auto' }} />
+              : <div style={{ height: '3cm', width: '5cm', borderBottom: '1px solid #999', marginLeft: 'auto' }} />}
             <div style={{ fontSize: '10.5px', marginTop: '4px' }}>Authorised Signature</div>
           </div>
         </div>
