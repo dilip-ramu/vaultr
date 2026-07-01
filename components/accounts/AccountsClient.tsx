@@ -63,6 +63,17 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
     setShowForm(true)
   }, [])
 
+  /** Instant local update after a successful reconcile stamp — patches the
+   *  matching account's last_reconciled_* fields so the badge re-renders
+   *  green ("✓ Reconciled today") without waiting for router.refresh(). */
+  const handleReconciled = useCallback((accountId: string, atIso: string, balance: number) => {
+    setAccounts(prev => prev.map(a =>
+      a.id === accountId
+        ? { ...a, last_reconciled_at: atIso, last_reconciled_balance: balance }
+        : a
+    ))
+  }, [])
+
   // Group accounts, then order: Current → Savings → Credit → rest
   const accountGroups = useMemo(() => {
     const groups: { key: string; label: string; color: string; type?: string; accounts: Account[] }[] = []
@@ -182,6 +193,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                     txns={reconcileTxns}
                     currencyById={currencyById}
                     today={today}
+                    onReconciled={handleReconciled}
                   />
                 ))}
               </div>

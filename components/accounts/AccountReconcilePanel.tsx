@@ -38,30 +38,37 @@ export interface ReconcileAccountLite {
 }
 
 export default function AccountReconcilePanel({
-  account, txns, currencyById, today,
+  account, txns, currencyById, today, onReconciled,
 }: {
   account: ReconcileAccountLite
   txns: ReconTxn[]
   currencyById: Record<string, string>
   today: string
+  /** Fires after a successful stamp so the parent list can update its local
+   *  copy of the account and re-render the "✓ Reconciled today" badge without
+   *  waiting for a full router.refresh() round-trip. */
+  onReconciled?: (accountId: string, atIso: string, balance: number) => void
 }) {
   const router = useRouter()
   const [actual, setActual] = useState('')
   const [reconciling, setReconciling] = useState(false)
   const [marking, setMarking] = useState(false)
 
-  /** Write last_reconciled_at + last_reconciled_balance for this account so
-   *  the AccountCard can show "✓ reconciled N days ago" without expanding. */
+  /** Write last_reconciled_at + last_reconciled_balance, then push the same
+   *  values back up so the parent state matches — router.refresh() alone won't
+   *  update the badge because AccountsClient keeps accounts in useState. */
   async function stampReconciled(balance: number) {
+    const atIso = new Date().toISOString()
     const supabase = createClient()
     const { error } = await supabase
       .from('accounts')
       .update({
-        last_reconciled_at:      new Date().toISOString(),
+        last_reconciled_at:      atIso,
         last_reconciled_balance: balance,
       })
       .eq('id', account.id)
     if (error) throw error
+    onReconciled?.(account.id, atIso, balance)
   }
 
   const { rows, computedBalance } = useMemo(() => buildLedger({

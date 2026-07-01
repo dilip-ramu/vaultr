@@ -26,9 +26,12 @@ interface AccountCardProps {
   /** Today's date (YYYY-MM-DD) — passed as a prop so the whole page uses a
    *  single consistent "today" and future-dated flagging stays deterministic. */
   today?: string
+  /** Bubbles up successful reconcile-stamps so AccountsClient can update the
+   *  badge instantly (router.refresh() alone doesn't touch its useState). */
+  onReconciled?: (accountId: string, atIso: string, balance: number) => void
 }
 
-export default function AccountCard({ account, onEdit, onDelete, txns, currencyById, today }: AccountCardProps) {
+export default function AccountCard({ account, onEdit, onDelete, txns, currencyById, today, onReconciled }: AccountCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [reconcileOpen, setReconcileOpen] = useState(false)
@@ -297,6 +300,7 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
          txns={txns!}
          currencyById={currencyById!}
          today={today!}
+         onReconciled={onReconciled}
        />
      )}
     </div>
