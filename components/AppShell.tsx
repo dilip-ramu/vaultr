@@ -55,8 +55,9 @@ const navSections: NavSection[] = [
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
           // Directory now lives as a tab on the main /customers page.
+          // TDS moved to Tools (annual, low-touch — doesn't belong under the
+          // per-customer workflow). URL /recoverables/tds still resolves.
           { href: '/recoverables/invoices',         label: 'Invoices',      icon: FileText },
-          { href: '/recoverables/tds',              label: 'TDS',           icon: Receipt },
           { href: '/customers/commission',          label: 'Incoming',      icon: DollarSign },
           // Reimbursables = the old Contrast workflow, generalised to live
           // under the customer it belongs to. Tabs: Expenses · Invoices.
@@ -85,21 +86,27 @@ const navSections: NavSection[] = [
       // Processing lists every month (in-progress + finalised) in one place.
       // Salary Slips are reachable from each month's detail page — no longer
       // a top-level sidebar entry. /payroll/slips still resolves for deep links.
+      // Staff moved to Tools/"Employees" (set-once config, doesn't belong in
+      // the day-to-day payroll workflow). URL /payroll/staff still resolves.
       { href: '/payroll/processing', label: 'Processing', icon: CalendarClock },
-      { href: '/payroll/staff',      label: 'Staff',      icon: UserSquare },
     ],
   },
   {
     id: 'tools',
     label: 'Tools',
     items: [
-      { href: '/profitability', label: 'Profitability', icon: Scale },
-      { href: '/forecast',      label: 'Forecast',      icon: CalendarRange },
-      { href: '/cards',         label: 'Cards',         icon: CreditCard },
+      { href: '/profitability',     label: 'Profitability', icon: Scale },
+      { href: '/forecast',          label: 'Forecast',      icon: CalendarRange },
+      { href: '/cards',             label: 'Cards',         icon: CreditCard },
+      // Employees was Payroll → Staff. Set-once config lives with the other
+      // set-once things (categories, account types, etc.).
+      { href: '/payroll/staff',     label: 'Employees',     icon: UserSquare },
+      // TDS was Customers → Recoverables → TDS. Annual, not day-to-day.
+      { href: '/recoverables/tds',  label: 'TDS',           icon: Receipt },
       // Previously-standalone items live inside /setup as tabs now:
       // Company · Email · Categories · Account types · Currencies · Export & Backup.
       // Reconcile moved onto the Accounts page (per-account inline panel).
-      { href: '/setup',         label: 'Setup',         icon: Wrench },
+      { href: '/setup',             label: 'Setup',         icon: Wrench },
     ],
   },
 ]
