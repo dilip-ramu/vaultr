@@ -89,8 +89,16 @@ export function calcEffectiveRate(receivedInr: number, bankCharges: number, bill
   return Math.round(((receivedInr - bankCharges) / billedEuros) * 10000) / 10000
 }
 
-export function calcSalaryInr(salaryEuro: number, expendedRate: number): number {
-  return Math.round(salaryEuro * expendedRate * 100) / 100
+/** Convert an employee's salary to INR for payroll.
+ *  If the salary is already stored in INR, no conversion — pay-through 1:1.
+ *  Any other currency (EUR / USD / etc.) is multiplied by the shared batch
+ *  exchange rate (INR per unit of that currency).
+ *  The second-parameter default keeps back-compat with callers that don't
+ *  pass currency yet — those callers treat everything as convertible. */
+export function calcSalaryInr(salaryAmount: number, expendedRate: number, salaryCurrency: string = 'EUR'): number {
+  const cur = (salaryCurrency || 'EUR').toUpperCase()
+  if (cur === 'INR') return Math.round(salaryAmount * 100) / 100
+  return Math.round(salaryAmount * expendedRate * 100) / 100
 }
 
 export function calcFinalPayable(

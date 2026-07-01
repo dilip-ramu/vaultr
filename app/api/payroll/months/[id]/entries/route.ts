@@ -38,7 +38,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   await supabase.from('payroll_entries').delete().eq('payroll_month_id', id).eq('user_id', user.id)
 
   const rows = employees.map(emp => {
-    const salary_inr = calcSalaryInr(emp.salary_amount, expended_rate)
+    // INR-native employees pay through 1:1; others convert at the batch rate.
+    const salary_inr = calcSalaryInr(emp.salary_amount, expended_rate, emp.salary_currency ?? 'EUR')
     const final_payable = calcFinalPayable(salary_inr, 0, 0, 0, 0, 0)
     return {
       user_id:          user.id,

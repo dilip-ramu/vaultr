@@ -104,11 +104,18 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     )
   }
 
-  // Mark month as paid
+  // Mark month as paid. Also stamp `payment_date` with the actual settlement
+  // date (from the request, or today), so the salary slip reads the real
+  // date-of-payment and not the earlier finalisation date.
   const now = new Date().toISOString()
   const { data: updatedMonth } = await supabase
     .from('payroll_months')
-    .update({ is_paid: true, paid_at: now, payment_account_id: account_id })
+    .update({
+      is_paid: true,
+      paid_at: now,
+      payment_account_id: account_id,
+      payment_date: txDate,
+    })
     .eq('id', id).eq('user_id', user.id)
     .select().single()
 
@@ -154,10 +161,11 @@ export async function DELETE(_req: NextRequest, { params }: RouteContext) {
     .eq('payroll_month_id', id)
     .eq('user_id', user.id)
 
-  // Unmark paid
+  // Unmark paid — also clear payment_date so it doesn't linger and confuse
+  // the next slip regeneration.
   const { data: updatedMonth } = await supabase
     .from('payroll_months')
-    .update({ is_paid: false, paid_at: null, payment_account_id: null })
+    .update({ is_paid: false, paid_at: null, payment_account_id: null, payment_date: null })
     .eq('id', id).eq('user_id', user.id)
     .select().single()
 
