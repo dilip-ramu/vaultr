@@ -77,18 +77,13 @@ const navSections: NavSection[] = [
       // Contrast section retired — its three pages live under
       // /customers/reimbursables now. The /contrast/* URLs are redirect stubs
       // pointing at the new locations, so old bookmarks still resolve.
-    ],
-  },
-  {
-    id: 'payroll',
-    label: 'Payroll',
-    items: [
-      // Processing lists every month (in-progress + finalised) in one place.
-      // Salary Slips are reachable from each month's detail page — no longer
-      // a top-level sidebar entry. /payroll/slips still resolves for deep links.
-      // Staff moved to Tools/"Employees" (set-once config, doesn't belong in
-      // the day-to-day payroll workflow). URL /payroll/staff still resolves.
-      { href: '/payroll/processing', label: 'Processing', icon: CalendarClock },
+      //
+      // Payroll Processing moved into Business (from its own section) — the
+      // trigger for actually running payroll now comes from a business event
+      // (a reimbursement invoice being marked paid → cascade unlocks the
+      // month). Staff & Salary Slip URLs still live under /payroll/* but
+      // no longer own a sidebar section.
+      { href: '/payroll/processing', label: 'Payroll Processing', icon: CalendarClock },
     ],
   },
   {

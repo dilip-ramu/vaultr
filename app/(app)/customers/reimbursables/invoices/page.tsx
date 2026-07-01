@@ -53,6 +53,21 @@ export default async function ReimbursableInvoicesPage({
 
   const { data: raw } = await query
 
+  // v65: fetch every payroll month linked to a reimbursement invoice so
+  // the "Process payroll" CTA can appear once the cascade unlocks the month.
+  const { data: payrollMonths } = await supabase
+    .from('payroll_months')
+    .select('id, contrast_invoice_id, status, payroll_month')
+    .eq('user_id', uid)
+    .not('contrast_invoice_id', 'is', null)
+  type PMRow = { id: string; contrast_invoice_id: string; status: string; payroll_month: string }
+  const payrollByInvoice: Record<string, { id: string; status: string; payroll_month: string }> = {}
+  for (const pm of ((payrollMonths ?? []) as PMRow[])) {
+    payrollByInvoice[pm.contrast_invoice_id] = {
+      id: pm.id, status: pm.status, payroll_month: pm.payroll_month,
+    }
+  }
+
   // Shape-adapter: map recoverable_invoices columns back to the historical
   // contrast_invoices/items field names the client expects.
   type RawLine = {
@@ -94,6 +109,7 @@ export default async function ReimbursableInvoicesPage({
     finalized_at:   inv.sent_at,
     created_at:     inv.created_at,
     customer_id:    inv.customer_id,
+    payroll:        payrollByInvoice[inv.id] ?? null,
     items: (inv.items ?? [])
       .slice()
       .sort((a, b) => (a.line_number ?? 0) - (b.line_number ?? 0))

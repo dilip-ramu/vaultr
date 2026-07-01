@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation'
 import {
   History, CheckCircle2, Clock, Download, Trash2,
   FileEdit, X, Check, ChevronDown, ChevronUp, AlertTriangle,
+  DollarSign, ArrowRight, CalendarClock,
 } from 'lucide-react'
 import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
 import { notify } from '@/components/shared/Toast'
+import { createClient } from '@/lib/supabase/client'
 
 const ReimbursableInvoicePDFDownload = dynamic(() => import('./ReimbursableInvoicePDFDownload'), { ssr: false })
 
@@ -45,7 +47,9 @@ interface Invoice {
   invoice_number: string
   invoice_month: string
   invoice_date: string
-  status: 'draft' | 'finalized'
+  // v65: 'paid' added — customer settled the reimbursement invoice and the
+  // cascade trigger has flipped the linked courier invoices to paid too.
+  status: 'draft' | 'finalized' | 'paid'
   subtotal: number
   gst_amount: number
   total: number
@@ -53,6 +57,10 @@ interface Invoice {
   finalized_at: string | null
   created_at: string
   items: InvoiceItem[]
+  /** v65: linked payroll month info — set when the invoice's finalize step
+   *  auto-created a payroll month. Used to render the "Process payroll" CTA
+   *  once the month's status hits 'ready_to_process'. */
+  payroll: { id: string; status: string; payroll_month: string } | null
 }
 
 // ── Delete confirm modal ───────────────────────────────────────────────────────
@@ -160,6 +168,36 @@ function InvoiceRow({
     setConfirmDelete(false)
   }
 
+  /** Flip status to 'paid'. The DB trigger v65 does the rest:
+   *   ─ bundled courier tax invoices become paid (settled via the customer's
+   *     reimbursement payment)
+   *   ─ the linked payroll month status becomes 'ready_to_process' so the
+   *     "Process payroll" CTA lights up. */
+  const [markingPaid, setMarkingPaid] = useState(false)
+  const handleMarkPaid = async () => {
+    setMarkingPaid(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { notify('Session expired'); return }
+      const { error } = await supabase
+        .from('recoverable_invoices')
+        .update({
+          status:      'paid',
+          paid_amount: inv.total,
+          balance_due: 0,
+          paid_at:     new Date().toISOString(),
+        })
+        .eq('id', inv.id)
+        .eq('user_id', user.id)
+        .eq('invoice_type', 'reimbursement')
+      if (error) { notify(error.message); return }
+      router.refresh()
+    } finally {
+      setMarkingPaid(false)
+    }
+  }
+
   const sortedItems = inv.items.slice().sort((a, b) => a.sort_order - b.sort_order)
   const previewItems = expanded ? sortedItems : sortedItems.slice(0, 4)
 
@@ -180,9 +218,13 @@ function InvoiceRow({
           {/* Left: icon + number + month */}
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-              inv.status === 'finalized' ? 'bg-green-100' : 'bg-amber-100'
+              inv.status === 'paid'      ? 'bg-emerald-100'
+              : inv.status === 'finalized' ? 'bg-green-100'
+              : 'bg-amber-100'
             }`}>
-              {inv.status === 'finalized'
+              {inv.status === 'paid'
+                ? <DollarSign className="w-4 h-4 text-emerald-600" />
+                : inv.status === 'finalized'
                 ? <CheckCircle2 className="w-4 h-4 text-green-600" />
                 : <Clock className="w-4 h-4 text-amber-600" />
               }
@@ -201,12 +243,27 @@ function InvoiceRow({
             </div>
 
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-              inv.status === 'finalized'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-amber-100 text-amber-700'
+              inv.status === 'paid'      ? 'bg-emerald-100 text-emerald-700'
+              : inv.status === 'finalized' ? 'bg-green-100 text-green-700'
+              : 'bg-amber-100 text-amber-700'
             }`}>
-              {inv.status === 'finalized' ? 'Finalized' : 'Draft'}
+              {inv.status === 'paid' ? 'Paid' : inv.status === 'finalized' ? 'Finalized' : 'Draft'}
             </span>
+
+            {/* Mark paid — appears only while finalized. Clicking triggers
+                the v65 cascade: courier invoices settled + payroll month
+                becomes ready-to-process. */}
+            {inv.status === 'finalized' && (
+              <button
+                onClick={handleMarkPaid}
+                disabled={markingPaid}
+                title="Mark this reimbursement invoice as paid. Bundled courier invoices settle automatically and payroll unlocks."
+                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50 transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {markingPaid ? 'Marking…' : 'Mark paid'}
+              </button>
+            )}
 
             {/* Download */}
             {inv.items.length > 0 && (
@@ -246,6 +303,26 @@ function InvoiceRow({
             )}
           </div>
         </div>
+
+        {/* Process payroll CTA — appears once the v65 cascade has flipped
+            the linked payroll_month to 'ready_to_process' (i.e. this
+            reimbursement invoice has been marked paid by the customer). */}
+        {inv.payroll?.status === 'ready_to_process' && (
+          <a
+            href={`/payroll/processing/${inv.payroll.id}`}
+            className="mt-3 ml-11 flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors max-w-fit"
+          >
+            <CalendarClock className="w-4 h-4" />
+            Process payroll for {monthLabel(inv.payroll.payroll_month)}
+            <ArrowRight className="w-3.5 h-3.5" />
+          </a>
+        )}
+        {inv.payroll?.status === 'finalized' && (
+          <p className="mt-3 ml-11 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <CheckCircle2 className="w-3 h-3 inline mr-1 text-green-600" />
+            Payroll for {monthLabel(inv.payroll.payroll_month)} finalized.
+          </p>
+        )}
 
         {/* ── Notes editor ── */}
         {editingNotes && (
