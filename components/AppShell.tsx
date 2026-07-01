@@ -83,6 +83,10 @@ const navSections: NavSection[] = [
       // month). Staff & Salary Slip URLs still live under /payroll/* but
       // no longer own a sidebar section.
       { href: '/payroll/processing', label: 'Payroll Processing', icon: CalendarClock },
+      // Organization (v66) — Companies + Employees as tabs. Companies was
+      // pulled out of Setup; Employees was pulled out of Tools. Together
+      // they're "the business entities you have", which sits under Business.
+      { href: '/organization',       label: 'Organization',       icon: Building2 },
     ],
   },
   {
@@ -92,9 +96,7 @@ const navSections: NavSection[] = [
       { href: '/profitability',     label: 'Profitability', icon: Scale },
       { href: '/forecast',          label: 'Forecast',      icon: CalendarRange },
       { href: '/cards',             label: 'Cards',         icon: CreditCard },
-      // Employees was Payroll → Staff. Set-once config lives with the other
-      // set-once things (categories, account types, etc.).
-      { href: '/payroll/staff',     label: 'Employees',     icon: UserSquare },
+      // Employees moved out of Tools into Business → Organization (v66).
       // TDS was Customers → Recoverables → TDS. Annual, not day-to-day.
       { href: '/recoverables/tds',  label: 'TDS',           icon: Receipt },
       // Previously-standalone items live inside /setup as tabs now:

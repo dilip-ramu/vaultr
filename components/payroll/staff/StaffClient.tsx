@@ -7,10 +7,16 @@ import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 
 interface Customer { id: string; name: string }
+interface Company  { id: string; name: string; is_default?: boolean }
 
 interface Props {
   employees: Employee[]
   customers?: Customer[]
+  /** v66 — companies the user has. Drives:
+   *   ─ the Company dropdown on the employee form
+   *   ─ the chip filter row at the top of the list
+   *  Undefined/empty = single-company setups; UI hides those affordances. */
+  companies?: Company[]
 }
 
 const EMPTY: Partial<Employee> = {
@@ -37,6 +43,7 @@ const EMPTY: Partial<Employee> = {
   is_active: true,
   works_for_customer_id: null,
   exclude_from_invoicing: false,
+  company_id: null,
 }
 
 function fmtDate(d: string | null) {
@@ -44,11 +51,15 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function StaffClient({ employees: initialEmployees, customers = [] }: Props) {
+export default function StaffClient({ employees: initialEmployees, customers = [], companies = [] }: Props) {
   const router = useRouter()
   const [employees, setEmployees] = useState(initialEmployees)
   const [search, setSearch] = useState('')
   const [showInactive, setShowInactive] = useState(false)
+  /** v66 — Company chip filter. 'all' shows every row; 'personal' shows
+   *  employees without a company_id; a specific company id shows just its
+   *  own. Hidden entirely when the user has fewer than 2 companies. */
+  const [companyFilter, setCompanyFilter] = useState<'all' | 'personal' | string>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [form, setForm] = useState<Partial<Employee>>(EMPTY)
@@ -59,6 +70,11 @@ export default function StaffClient({ employees: initialEmployees, customers = [
     const q = search.toLowerCase()
     return employees.filter(e => {
       if (!showInactive && !e.is_active) return false
+      // Company filter: 'personal' = null company_id; a real id = exact match.
+      if (companyFilter === 'personal' && (e as { company_id?: string | null }).company_id != null) return false
+      if (companyFilter !== 'all' && companyFilter !== 'personal') {
+        if ((e as { company_id?: string | null }).company_id !== companyFilter) return false
+      }
       if (!q) return true
       return (
         e.name.toLowerCase().includes(q) ||
@@ -170,7 +186,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <input
           type="text"
           placeholder="Search by name, ID or designation…"
@@ -188,6 +204,24 @@ export default function StaffClient({ employees: initialEmployees, customers = [
           Show inactive
         </label>
       </div>
+
+      {/* v66 — Company chips. Hidden when the user only has one company
+          (or none), since filtering wouldn't be useful there. */}
+      {companies.length >= 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          <CompanyChip active={companyFilter === 'all'}       onClick={() => setCompanyFilter('all')}      label="All" />
+          <CompanyChip active={companyFilter === 'personal'}  onClick={() => setCompanyFilter('personal')} label="Personal" hue="#6B7280" />
+          {companies.map(c => (
+            <CompanyChip
+              key={c.id}
+              active={companyFilter === c.id}
+              onClick={() => setCompanyFilter(c.id)}
+              label={c.name + (c.is_default ? ' · default' : '')}
+              hue="#3B4AC7"
+            />
+          ))}
+        </div>
+      )}
 
       {/* Table */}
       {filtered.length === 0 ? (
@@ -515,10 +549,24 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                   />
                 </div>
 
-                {/* Works for + invoicing toggle */}
-                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 mt-2 border-t border-gray-100">
+                {/* Company + Works for + invoicing toggle */}
+                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 mt-2 border-t border-gray-100">
+                  {/* v66 — which of the user's own companies employs this person.
+                       Blank / "Personal" = not attached to any business entity. */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Works for</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Company</label>
+                    <select
+                      value={(form.company_id as string | null) ?? ''}
+                      onChange={e => setField('company_id', (e.target.value || null) as never)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Personal (no company)</option>
+                      {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <p className="text-[10px] text-gray-400 mt-1">Which company employs them.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Works for (customer)</label>
                     <select
                       value={form.works_for_customer_id ?? ''}
                       onChange={e => setField('works_for_customer_id', e.target.value || (null as never))}
@@ -569,5 +617,26 @@ export default function StaffClient({ employees: initialEmployees, customers = [
         </div>
       )}
     </div>
+  )
+}
+
+/** Tiny chip button used by the company filter row above the employees list. */
+function CompanyChip({
+  active, onClick, label, hue,
+}: { active: boolean; onClick: () => void; label: string; hue?: string }) {
+  const color = hue ?? '#2A7A50'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium whitespace-nowrap transition-colors"
+      style={{
+        borderColor: active ? color : 'var(--border)',
+        background:  active ? `${color}18` : 'var(--surface)',
+        color:       active ? color : 'var(--text)',
+      }}
+    >
+      {label}
+    </button>
   )
 }

@@ -29,6 +29,9 @@ export interface Employee {
   // invoicing — e.g. a personal assistant who works for Contrast but you cover
   // their salary yourself.
   exclude_from_invoicing: boolean
+  // v66 — which of the user's own companies employs this person.
+  // NULL means "Personal" (not attached to any business entity).
+  company_id: string | null
   created_at: string
 }
 

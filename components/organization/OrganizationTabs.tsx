@@ -2,22 +2,19 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Tag, Layers, DollarSign, Archive, Mail } from 'lucide-react'
+import { Building2, Users } from 'lucide-react'
 
-// Reconcile used to be a Setup tab; it now lives inline on each account card
-// (Accounts page → Scale icon), so it's no longer surfaced here.
-// Company moved to /organization (v66) — Setup keeps only app-config tabs.
 const TABS = [
-  { href: '/setup/email',         label: 'Email',           icon: Mail },
-  { href: '/setup/categories',    label: 'Categories',      icon: Tag },
-  { href: '/setup/account-types', label: 'Account types',   icon: Layers },
-  { href: '/setup/currencies',    label: 'Currencies',      icon: DollarSign },
-  { href: '/setup/export',        label: 'Export & Backup', icon: Archive },
+  { href: '/organization',           label: 'Companies', icon: Building2 },
+  { href: '/organization/employees', label: 'Employees', icon: Users },
 ]
 
-export default function SetupTabs() {
+export default function OrganizationTabs() {
   const pathname = usePathname()
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  const isActive = (href: string) =>
+    href === '/organization'
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + '/')
 
   return (
     <div
