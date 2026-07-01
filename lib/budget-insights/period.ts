@@ -14,6 +14,18 @@ export const PERIOD_LABEL: Record<PeriodKey, string> = {
   custom: 'Custom range',
 }
 
+/** India-standard financial year bounds (April 1 → March 31) containing `today`. */
+export function fyBounds(today = new Date()): { start: string; end: string; label: string } {
+  const y = today.getFullYear()
+  const m = today.getMonth() // 0-indexed
+  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  // If today is Jan/Feb/Mar, we're in the FY that started April of last year.
+  const fyStartYear = m < 3 ? y - 1 : y
+  const start = fmt(new Date(fyStartYear, 3, 1))         // 1 April
+  const end   = fmt(new Date(fyStartYear + 1, 2, 31))    // 31 March next year
+  return { start, end, label: `FY ${fyStartYear}-${String((fyStartYear + 1) % 100).padStart(2, '0')}` }
+}
+
 /** Compute YYYY-MM-DD start/end and an inclusive month count for the period. */
 export function bounds(
   period: PeriodKey,

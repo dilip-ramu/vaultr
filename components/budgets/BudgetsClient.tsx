@@ -43,7 +43,14 @@ function periodRange(period: string, month: number, year: number) {
     return { from, to }
   }
   if (period === 'yearly') {
-    return { from: `${year}-01-01`, to: `${year}-12-31` }
+    // India financial year: 1 April → 31 March. If we're currently in
+    // Jan/Feb/Mar, the FY started April of the previous calendar year.
+    const now = new Date(year, month - 1)
+    const fyStartYear = now.getMonth() < 3 ? year - 1 : year
+    return {
+      from: `${fyStartYear}-04-01`,
+      to:   `${fyStartYear + 1}-03-31`,
+    }
   }
   // weekly: current Mon–Sun
   const d = new Date()

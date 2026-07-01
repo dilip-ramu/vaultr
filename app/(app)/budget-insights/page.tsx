@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import BudgetsClient from '@/components/budgets/BudgetsClient'
 import InsightsClient from '@/components/insights/InsightsClient'
 import type { Budget } from '@/lib/types'
-import { bounds, type PeriodKey } from '@/lib/budget-insights/period'
+import { bounds, fyBounds, type PeriodKey } from '@/lib/budget-insights/period'
 import { getBillablePayeeIds } from '@/lib/reimbursables/customers'
 
 export const dynamic = 'force-dynamic'
@@ -86,7 +86,8 @@ export default async function BudgetInsightsPage({
     tx.date >= periodStart && tx.date <= periodEnd && tx.category_id != null
   )
 
-  // Net spend per category: expense adds, income (refunds) subtracts. Clamp at 0.
+  // Net spend per category (over the selected period): expense adds, income
+  // (refunds) subtracts. Clamp at 0. Used by monthly / weekly budgets.
   const spentMap: Record<string, number> = {}
   for (const tx of periodTx) {
     if (!tx.category_id) continue
@@ -95,19 +96,47 @@ export default async function BudgetInsightsPage({
   }
   for (const k of Object.keys(spentMap)) if (spentMap[k] < 0) spentMap[k] = 0
 
-  // Scale each budget's limit to match the selected period length so the
-  // percentage is fair. A ₹5,000 monthly budget across 3 months becomes ₹15,000.
+  // Yearly budgets are ALWAYS tracked across the whole financial year
+  // (India: 1 April → 31 March), independent of the top-level period filter.
+  // A yearly ₹60,000 budget shows spent-to-date against the full ₹60,000,
+  // not sliced per month.
+  const yearlyBudgetCategoryIds = new Set(
+    (rawBudgets ?? []).filter(b => b.period === 'yearly').map(b => b.category_id)
+  )
+  const fySpentMap: Record<string, number> = {}
+  if (yearlyBudgetCategoryIds.size > 0) {
+    const { start: fyStart, end: fyEnd } = fyBounds(new Date())
+    const { data: fyTx } = await supabase
+      .from('transactions')
+      .select('category_id, amount, payee_id, type')
+      .eq('user_id', uid)
+      .in('type', ['expense', 'income'])
+      .not('category_id', 'is', null)
+      .gte('date', fyStart)
+      .lte('date', fyEnd)
+    for (const tx of (fyTx ?? [])) {
+      if (!tx.category_id || !yearlyBudgetCategoryIds.has(tx.category_id)) continue
+      if (tx.payee_id && billableSet.has(tx.payee_id)) continue
+      const delta = tx.type === 'income' ? -Number(tx.amount) : Number(tx.amount)
+      fySpentMap[tx.category_id] = (fySpentMap[tx.category_id] ?? 0) + delta
+    }
+    for (const k of Object.keys(fySpentMap)) if (fySpentMap[k] < 0) fySpentMap[k] = 0
+  }
+
+  // Scale monthly + weekly budgets to match the selected period length.
+  // Yearly budgets are NEVER scaled — they track the full FY.
   const scaleForPeriod = (b: { period?: string | null; amount: number; rollover?: boolean; rollover_amount?: number }) => {
     const base = b.amount + (b.rollover ? (b.rollover_amount ?? 0) : 0)
+    if (b.period === 'yearly') return base
     if (!periodMonths || periodMonths <= 0) return base
-    if (b.period === 'yearly') return base * (periodMonths / 12)
     if (b.period === 'weekly') return base * (periodMonths * 52 / 12)
     // monthly (default)
     return base * periodMonths
   }
 
   const budgets: Budget[] = (rawBudgets ?? []).map(b => {
-    const spent = spentMap[b.category_id] ?? 0
+    const isYearly = b.period === 'yearly'
+    const spent = isYearly ? (fySpentMap[b.category_id] ?? 0) : (spentMap[b.category_id] ?? 0)
     const effective = scaleForPeriod(b)
     return {
       ...b,
