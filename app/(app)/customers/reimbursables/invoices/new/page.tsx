@@ -206,6 +206,11 @@ export default async function ReimbursableNewInvoicePage({
 
   return (
     <ReimbursableInvoiceClient
+      // key forces a full remount when the active customer changes so the
+      // client's useState seeds (billing_currency, fixed_expenses, employees,
+      // courier invoices, etc.) actually pick up the new customer's data
+      // instead of keeping the previous customer's state.
+      key={activeCustomer?.id ?? 'none'}
       employees={(employees ?? []) as never[]}
       courierInvoices={(courierInvoices ?? []) as never[]}
       allExpenses={(queuedExpenses ?? []) as never[]}
