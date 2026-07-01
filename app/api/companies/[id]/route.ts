@@ -7,7 +7,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 const UPDATABLE = new Set([
   'name', 'is_default',
   'address', 'gstin', 'phone', 'email',
-  'bank_account_name', 'bank_account_number', 'bank_ifsc', 'bank_name',
+  'bank_account_name', 'bank_account_number', 'bank_ifsc', 'bank_name', 'swift_code',
   'invoice_prefix', 'cgst_rate', 'sgst_rate', 'hsn_sac',
   'payment_terms', 'terms_conditions',
   'logo_path',

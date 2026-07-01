@@ -122,6 +122,7 @@ interface Props {
     bank_account_number: string | null
     bank_ifsc: string | null
     bank_name: string | null
+    swift_code: string | null
     logo_url: string | null
     is_default: boolean
   }[]
@@ -169,6 +170,7 @@ export default function ReimbursableInvoiceClient({
     bank_account_number: selectedCompany.bank_account_number ?? undefined,
     bank_ifsc:           selectedCompany.bank_ifsc         ?? undefined,
     bank_name:           selectedCompany.bank_name         ?? undefined,
+    swift_code:          selectedCompany.swift_code        ?? undefined,
   }) : undefined, [selectedCompany, profileFullName])
   // When the customer is billed in INR, courier/expense INR amounts don't
   // need conversion — hide the forex-rate block entirely and short-circuit

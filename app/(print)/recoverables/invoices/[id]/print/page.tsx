@@ -40,7 +40,7 @@ export default async function InvoicePrintPage({ params }: Props) {
       .from('recoverable_invoice_settings')
       // logo_path / signature_path added in v57 — files live in the private
       // vaultr-attachments bucket and are rendered from signed URLs below.
-      .select('company_name, company_address, company_gstin, company_phone, company_email, bank_account_name, bank_account_number, bank_ifsc, bank_name, terms_conditions, hsn_sac, logo_path, signature_path')
+      .select('company_name, company_address, company_gstin, company_phone, company_email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, terms_conditions, hsn_sac, logo_path, signature_path')
       .eq('user_id', user.id)
       .maybeSingle(),
   ])

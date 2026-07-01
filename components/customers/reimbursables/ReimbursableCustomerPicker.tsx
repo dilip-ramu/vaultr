@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Users } from 'lucide-react'
 
 export interface ReimbursableCustomer {
   id: string
@@ -12,23 +13,44 @@ interface Props {
   customers: ReimbursableCustomer[]
 }
 
-// URL-driven picker so the chosen customer survives navigation between tabs
-// (Expenses / Invoices) and refreshes. The page's server component reads the
-// `?customer=<id>` param and filters accordingly.
+/** Deterministic tint per customer name so the chip badge is stable across
+ *  reloads without a DB avatar_url column. */
+const CHIP_HUES = ['#2A7A50', '#3B4AC7', '#B4530F', '#B45309', '#9333EA', '#0891B2', '#DC2626', '#EA580C']
+function hueFor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0
+  return CHIP_HUES[Math.abs(hash) % CHIP_HUES.length]
+}
+
+/**
+ * URL-driven chip picker.
+ *   ─ Each customer is a chip; clicking sets ?customer=<id>
+ *   ─ An "All" chip clears the customer filter (?customer=all — the page
+ *     treats it as "no filter" and shows combined data)
+ *   ─ Uses router.push + router.refresh so the server component actually
+ *     refetches with the new param (router.replace alone was leaving stale
+ *     RSC output — that's why old data lingered until a hard refresh).
+ */
 export default function ReimbursableCustomerPicker({ customers }: Props) {
   const router = useRouter()
   const params = useSearchParams()
   const urlSelected = params.get('customer')
-  const effective = (urlSelected && customers.some(c => c.id === urlSelected) ? urlSelected : customers[0]?.id) ?? ''
+
+  // Selection semantics:
+  //   'all'  → All chip active
+  //   valid customer id → that chip active
+  //   anything else (or missing) → fall back to first customer (legacy default)
+  const effective = urlSelected === 'all'
+    ? 'all'
+    : (urlSelected && customers.some(c => c.id === urlSelected)) ? urlSelected : (customers[0]?.id ?? '')
 
   function pick(id: string) {
     const sp = new URLSearchParams(params.toString())
     if (id) sp.set('customer', id)
     else sp.delete('customer')
-    // push (not replace) so the server component re-runs its data-fetches
-    // for the new ?customer param — replace alone wasn't refetching, which
-    // is why picking Lullabee kept showing the previous customer's invoices.
     router.push(`?${sp.toString()}`)
+    // Force the server component tree above us to re-fetch — router.push
+    // alone was serving cached RSC output for the same segment.
     router.refresh()
   }
 
@@ -40,24 +62,64 @@ export default function ReimbursableCustomerPicker({ customers }: Props) {
     )
   }
 
-  if (customers.length === 1) {
-    return (
-      <p className="text-xs px-3 py-1.5 rounded-lg" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-        Showing <span className="font-semibold" style={{ color: 'var(--text)' }}>{customers[0].name}</span>
-      </p>
-    )
-  }
-
   return (
-    <select
-      value={effective}
-      onChange={e => pick(e.target.value)}
-      className="px-3 py-1.5 rounded-lg text-sm border outline-none"
-      style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+    <div className="flex flex-wrap gap-1.5" role="tablist">
+      {/* "All" chip — hides the customer filter so both tabs show combined
+          data across every reimbursable customer. */}
+      <Chip
+        active={effective === 'all'}
+        onClick={() => pick('all')}
+        label="All"
+        hue="#6B7280"
+        icon={<Users className="w-3.5 h-3.5" />}
+      />
+      {customers.map(c => {
+        const hue = hueFor(c.name)
+        return (
+          <Chip
+            key={c.id}
+            active={effective === c.id}
+            onClick={() => pick(c.id)}
+            label={c.name}
+            hue={hue}
+            initial={c.name[0]?.toUpperCase() ?? '?'}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function Chip({
+  active, onClick, label, hue, initial, icon,
+}: {
+  active:  boolean
+  onClick: () => void
+  label:   string
+  hue:     string
+  initial?: string
+  icon?:   React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className="flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-sm font-medium transition-colors whitespace-nowrap"
+      style={{
+        borderColor: active ? hue : 'var(--border)',
+        background:  active ? `${hue}18` : 'var(--surface)',
+        color:       active ? hue : 'var(--text)',
+      }}
     >
-      {customers.map(c => (
-        <option key={c.id} value={c.id}>{c.name}</option>
-      ))}
-    </select>
+      <span
+        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+        style={{ background: hue }}
+      >
+        {icon ?? initial}
+      </span>
+      {label}
+    </button>
   )
 }

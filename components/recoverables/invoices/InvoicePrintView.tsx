@@ -13,6 +13,9 @@ interface InvoiceSettings {
   bank_account_number: string | null
   bank_ifsc: string | null
   bank_name: string | null
+  /** v64 — SWIFT/BIC code for foreign transfers. Rendered under the bank
+   *  block on the tax invoice; hidden when null. */
+  swift_code: string | null
   terms_conditions: string | null
   hsn_sac: string | null
 }
@@ -328,6 +331,7 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
                     {settings.bank_account_name   && <tr><td>Account Name</td><td>{settings.bank_account_name}</td></tr>}
                     {settings.bank_account_number && <tr><td>Account Number</td><td>{settings.bank_account_number}</td></tr>}
                     {settings.bank_ifsc           && <tr><td>IFSC Code</td><td>{settings.bank_ifsc}</td></tr>}
+                    {settings.swift_code          && <tr><td>SWIFT / BIC</td><td>{settings.swift_code}</td></tr>}
                     {settings.bank_name           && <tr><td>Bank Name</td><td>{settings.bank_name}</td></tr>}
                   </tbody>
                 </table>

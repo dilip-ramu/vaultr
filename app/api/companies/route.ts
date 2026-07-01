@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     bank_account_number: body.bank_account_number ?? null,
     bank_ifsc:           body.bank_ifsc           ?? null,
     bank_name:           body.bank_name           ?? null,
+    swift_code:          body.swift_code          ?? null,
     invoice_prefix:      body.invoice_prefix      ?? 'INV-',
     cgst_rate:           body.cgst_rate           ?? 9,
     sgst_rate:           body.sgst_rate           ?? 9,

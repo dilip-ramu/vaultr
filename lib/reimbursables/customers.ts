@@ -34,13 +34,18 @@ export async function getReimbursableCustomers(supabase: SupabaseClient<any, any
   return list
 }
 
-/** Resolve the active customer from a URL param + the list. Falls back to
- *  the first one when nothing is selected (or selection is invalid). */
+/** Resolve the active customer from a URL param + the list.
+ *   ─ 'all' → returns null (caller should NOT filter by customer)
+ *   ─ a real customer id → returns that customer if it exists
+ *   ─ null/undefined/unknown → falls back to the first customer (legacy default)
+ *  The "All customers" chip on the picker writes ?customer=all so the pages
+ *  can show combined data across every reimbursable customer. */
 export function resolveActiveCustomer(
   customers: ReimbursableCustomer[],
   paramId: string | null,
 ): ReimbursableCustomer | null {
   if (customers.length === 0) return null
+  if (paramId === 'all') return null
   if (paramId) {
     const match = customers.find(c => c.id === paramId)
     if (match) return match

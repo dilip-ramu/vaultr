@@ -17,6 +17,8 @@ export interface Company {
   bank_account_number: string | null
   bank_ifsc: string | null
   bank_name: string | null
+  // v64 — SWIFT/BIC code for foreign-currency invoices (customers outside India)
+  swift_code: string | null
   invoice_prefix: string
   next_invoice_number: number
   cgst_rate: number
@@ -61,6 +63,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   const [bankAcctNum,  setBankAcctNum]  = useState(company?.bank_account_number ?? '')
   const [bankIfsc,     setBankIfsc]     = useState(company?.bank_ifsc ?? '')
   const [bankName,     setBankName]     = useState(company?.bank_name ?? '')
+  const [swiftCode,    setSwiftCode]    = useState(company?.swift_code ?? '')
   const [invoicePrefix, setInvoicePrefix] = useState(company?.invoice_prefix ?? 'INV-')
   const [cgstRate, setCgstRate] = useState(String(company?.cgst_rate ?? 9))
   const [sgstRate, setSgstRate] = useState(String(company?.sgst_rate ?? 9))
@@ -85,6 +88,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
         bank_account_number: bankAcctNum.trim() || null,
         bank_ifsc: bankIfsc.trim() || null,
         bank_name: bankName.trim() || null,
+        swift_code: swiftCode.trim().toUpperCase() || null,
         invoice_prefix: invoicePrefix.trim() || 'INV-',
         cgst_rate: parseFloat(cgstRate) || 9,
         sgst_rate: parseFloat(sgstRate) || 9,
@@ -208,6 +212,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
               <input className={inputCls} style={inputStyle} value={bankAcctNum}  onChange={e => setBankAcctNum(e.target.value)}  placeholder="Account number" />
               <input className={inputCls} style={inputStyle} value={bankIfsc}     onChange={e => setBankIfsc(e.target.value)}     placeholder="IFSC code" />
               <input className={inputCls} style={inputStyle} value={bankName}     onChange={e => setBankName(e.target.value)}     placeholder="Bank name & branch" />
+              <input className={inputCls} style={inputStyle} value={swiftCode}    onChange={e => setSwiftCode(e.target.value)}    placeholder="SWIFT / BIC code (foreign transfers)" />
             </div>
           </div>
 

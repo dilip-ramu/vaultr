@@ -27,14 +27,17 @@ export default async function ReimbursableExpensesPage({
   // that has a payee linked (typically Contrast).
   const reimbursables = await getReimbursableCustomers(supabase, uid)
   const active = resolveActiveCustomer(reimbursables, customerParam ?? null)
+  // customerParam === 'all' → show every reimbursable customer's data.
+  const showAll = customerParam === 'all'
 
   // Resolve the payee row for the active customer (already in the helper).
   const payee = active ? { id: active.payee_id!, name: active.name } : null
 
-  // Legacy fallback: if no reimbursable customer is set up yet, look for the
-  // old "Contrast" payee by name so this still works pre-migration.
+  // Legacy fallback: if no reimbursable customer is set up yet AND we're not
+  // in "All" mode, look for the old "Contrast" payee by name so pre-migration
+  // installs still work.
   let resolvedPayee = payee
-  if (!resolvedPayee) {
+  if (!resolvedPayee && !showAll) {
     const { data: legacy } = await supabase
       .from('payees')
       .select('id, name')
@@ -43,6 +46,10 @@ export default async function ReimbursableExpensesPage({
       .order('name')
     resolvedPayee = legacy?.[0] ?? null
   }
+  // For "All" mode we filter by ANY reimbursable payee (i.e. every payee
+  // that's linked to a customer). Empty list yields no results, which is
+  // correct — no payees means no billable expenses.
+  const allPayeeIds = reimbursables.map(c => c.payee_id).filter((v): v is string => !!v)
 
   // Billing categories — scoped to the active customer if the column exists
   // (post-migration v47). Falls back to legacy un-scoped rows.
@@ -58,9 +65,11 @@ export default async function ReimbursableExpensesPage({
 
   let transactions: unknown[] = []
 
-  if (resolvedPayee) {
+  // Fetch when either a single payee is resolved OR we're in "All" mode with
+  // at least one reimbursable payee to filter by.
+  if (resolvedPayee || (showAll && allPayeeIds.length > 0)) {
     if (migrationsRun) {
-      const { data, error } = await supabase
+      let q = supabase
         .from('transactions')
         .select(`
           id, name, amount, date, type, notes, is_contrast_billed,
@@ -71,14 +80,17 @@ export default async function ReimbursableExpensesPage({
           attachments(id, file_name, file_path, content_type, file_size)
         `)
         .eq('user_id', uid)
-        .eq('payee_id', resolvedPayee.id)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
+      q = showAll
+        ? q.in('payee_id', allPayeeIds)
+        : q.eq('payee_id', resolvedPayee!.id)
+      const { data, error } = await q
 
       if (!error) {
         transactions = data ?? []
       } else {
-        const { data: fallback } = await supabase
+        let fq = supabase
           .from('transactions')
           .select(`
             id, name, amount, date, type, notes, created_at,
@@ -87,9 +99,10 @@ export default async function ReimbursableExpensesPage({
             attachments(id, file_name, file_path, content_type, file_size)
           `)
           .eq('user_id', uid)
-          .eq('payee_id', resolvedPayee.id)
           .order('date', { ascending: false })
           .order('created_at', { ascending: false })
+        fq = showAll ? fq.in('payee_id', allPayeeIds) : fq.eq('payee_id', resolvedPayee!.id)
+        const { data: fallback } = await fq
 
         transactions = (fallback ?? []).map(t => ({
           ...t,
@@ -100,7 +113,7 @@ export default async function ReimbursableExpensesPage({
         }))
       }
     } else {
-      const { data: fallback } = await supabase
+      let fq = supabase
         .from('transactions')
         .select(`
           id, name, amount, date, type, notes, created_at,
@@ -109,9 +122,10 @@ export default async function ReimbursableExpensesPage({
           attachments(id, file_name, file_path, content_type, file_size)
         `)
         .eq('user_id', uid)
-        .eq('payee_id', resolvedPayee.id)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
+      fq = showAll ? fq.in('payee_id', allPayeeIds) : fq.eq('payee_id', resolvedPayee!.id)
+      const { data: fallback } = await fq
 
       transactions = (fallback ?? []).map(t => ({
         ...t,
