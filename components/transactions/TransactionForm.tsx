@@ -207,7 +207,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
     let data, err
     if (isEdit) {
-      const res = await supabase.from('transactions').update(payload).eq('id', transaction!.id).select(selectQuery).single()
+      const res = await supabase.from('transactions').update(payload).eq('id', transaction!.id).eq('user_id', user!.id).select(selectQuery).single()
       data = res.data; err = res.error
     } else {
       const res = await supabase.from('transactions').insert({ ...payload, user_id: user!.id }).select(selectQuery).single()

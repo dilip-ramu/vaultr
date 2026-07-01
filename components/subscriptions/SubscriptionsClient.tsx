@@ -92,14 +92,15 @@ export default function SubscriptionsClient({
     setPayingSaving(true)
     try {
       const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
       const now = new Date().toISOString()
       await supabase.from('bills').update({
         status: 'paid',
         settled_at: now,
         account_id: payAccountId,
-      }).eq('id', payBill.id)
+      }).eq('id', payBill.id).eq('user_id', user.id)
 
-      const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         await supabase.from('transactions').insert({
           user_id: user.id,
@@ -123,15 +124,19 @@ export default function SubscriptionsClient({
   const handleMarkUnpaid = async (bill: Bill) => {
     if (!await confirmDialog(`Mark "${bill.name}" as unpaid? The linked expense transaction will be deleted.`)) return
     const supabase = createClient()
-    await supabase.from('transactions').delete().eq('bill_id', bill.id)
-    await supabase.from('bills').update({ status: 'pending', settled_at: null }).eq('id', bill.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('transactions').delete().eq('bill_id', bill.id).eq('user_id', user.id)
+    await supabase.from('bills').update({ status: 'pending', settled_at: null }).eq('id', bill.id).eq('user_id', user.id)
     setSubs(prev => prev.map(b => b.id === bill.id ? { ...b, status: 'pending', settled_at: null } : b))
   }
 
   const handleCancel = async (bill: Bill) => {
     if (!await confirmDialog(`Cancel "${bill.name}" subscription? It will no longer recur.`)) return
     const supabase = createClient()
-    await supabase.from('bills').update({ is_recurring: false }).eq('id', bill.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('bills').update({ is_recurring: false }).eq('id', bill.id).eq('user_id', user.id)
     setSubs(prev => prev.filter(b => b.id !== bill.id))
   }
 

@@ -18,7 +18,9 @@ const EMPTY: Partial<Employee> = {
   name: '',
   designation: '',
   salary_amount: 0,
-  salary_currency: 'EUR',
+  // INR by default — most staff are paid in rupees. EUR/USD is the exception,
+  // set explicitly per-employee.
+  salary_currency: 'INR',
   account_number: '',
   account_type: '10',
   ifsc: '',
@@ -329,11 +331,11 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                       placeholder="0.00"
                     />
                     <select
-                      value={form.salary_currency ?? 'EUR'}
+                      value={form.salary_currency ?? 'INR'}
                       onChange={e => setField('salary_currency', e.target.value)}
                       className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {['EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF','INR'].map(c => (
+                      {['INR','EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF'].map(c => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>

@@ -66,7 +66,7 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
     let data, err
 
     if (isEdit) {
-      const res = await supabase.from('categories').update(payload).eq('id', category.id).select().single()
+      const res = await supabase.from('categories').update(payload).eq('id', category.id).eq('user_id', user!.id).select().single()
       data = res.data; err = res.error
     } else {
       const res = await supabase.from('categories').insert({ ...payload, user_id: user!.id }).select().single()

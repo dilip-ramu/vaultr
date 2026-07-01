@@ -39,7 +39,10 @@ function fmtInr(n: number) {
 /** Currency symbol for the employee's salary_currency. Falls back to the 3-letter
  *  code when we don't have a canonical symbol. */
 function currencySymbol(cur?: string | null): string {
-  const c = (cur ?? 'EUR').toUpperCase()
+  // Fallback to INR when salary_currency is missing — most staff are paid in
+  // rupees, and using EUR here was showing € on payroll rows that had no
+  // currency set yet.
+  const c = (cur ?? 'INR').toUpperCase()
   if (c === 'INR') return '₹'
   if (c === 'EUR') return '€'
   if (c === 'USD') return '$'

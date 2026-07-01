@@ -93,10 +93,11 @@ export function calcEffectiveRate(receivedInr: number, bankCharges: number, bill
  *  If the salary is already stored in INR, no conversion — pay-through 1:1.
  *  Any other currency (EUR / USD / etc.) is multiplied by the shared batch
  *  exchange rate (INR per unit of that currency).
- *  The second-parameter default keeps back-compat with callers that don't
- *  pass currency yet — those callers treat everything as convertible. */
-export function calcSalaryInr(salaryAmount: number, expendedRate: number, salaryCurrency: string = 'EUR'): number {
-  const cur = (salaryCurrency || 'EUR').toUpperCase()
+ *  The second-parameter default is INR — most staff are paid in rupees, so
+ *  callers that legitimately forget to pass a currency get 1:1 passthrough
+ *  (the safe, non-lossy answer) instead of the old silent EUR × rate. */
+export function calcSalaryInr(salaryAmount: number, expendedRate: number, salaryCurrency: string = 'INR'): number {
+  const cur = (salaryCurrency || 'INR').toUpperCase()
   if (cur === 'INR') return Math.round(salaryAmount * 100) / 100
   return Math.round(salaryAmount * expendedRate * 100) / 100
 }

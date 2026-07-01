@@ -199,7 +199,7 @@ export default function CommissionForm({ order, customers, accounts, onSaved, on
       const keptIds = new Set(styles.filter(s => s.id).map(s => s.id))
       const toDelete = order!.styles.filter(s => !keptIds.has(s.id)).map(s => s.id)
       if (toDelete.length > 0) {
-        await supabase.from('commission_styles').delete().in('id', toDelete)
+        await supabase.from('commission_styles').delete().in('id', toDelete).eq('user_id', user!.id)
       }
     }
 

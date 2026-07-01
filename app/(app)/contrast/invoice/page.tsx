@@ -47,7 +47,10 @@ export default async function ContrastInvoicePage({
     activeCustomer = (legacy?.[0] as { id: string; name: string; billing_currency: string } | undefined) ?? null
   }
 
-  const billingCurrency = activeCustomer?.billing_currency ?? 'EUR'
+  // No-customer fallback is INR (matches the app-wide default). In practice a
+  // customer is always chosen before the invoice can be finalised, so this
+  // only affects the empty-state render.
+  const billingCurrency = activeCustomer?.billing_currency ?? 'INR'
 
   // ── Latest market rate for the customer's currency ────────────────────────
   // The user types their own preferred billing rate; we just show this as a

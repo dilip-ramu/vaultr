@@ -107,7 +107,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
 
     let data, err
     if (isEdit) {
-      const res = await supabase.from('accounts').update(payload).eq('id', account.id).select().single()
+      const res = await supabase.from('accounts').update(payload).eq('id', account.id).eq('user_id', user!.id).select().single()
       data = res.data; err = res.error
     } else {
       const res = await supabase.from('accounts').insert({ ...payload, user_id: user!.id }).select().single()

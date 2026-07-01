@@ -226,10 +226,12 @@ export default function CommissionClient() {
       for (const s of (sR.data ?? []) as CommissionStyle[]) {
         const arr = byOrder.get(s.order_id) ?? []; arr.push(s); byOrder.set(s.order_id, arr)
       }
-      setOrders((oR.data ?? []).map((o: any) => ({ ...o, styles: byOrder.get(o.id) ?? [] })))
-      setCustomers(cR.data ?? [])
-      setAccounts((aR.data ?? []) as any)
-    } catch (e: any) { setLoadErr(e.message ?? 'Unknown error') }
+      // Supabase returns rows without the derived `styles` array — we stitch
+      // them in from `byOrder`, so we can safely narrow to CommissionOrder here.
+      setOrders(((oR.data ?? []) as Omit<CommissionOrder, 'styles'>[]).map(o => ({ ...o, styles: byOrder.get(o.id) ?? [] })))
+      setCustomers((cR.data ?? []) as Customer[])
+      setAccounts((aR.data ?? []) as Account[])
+    } catch (e) { setLoadErr(e instanceof Error ? e.message : 'Unknown error') }
     finally { setLoading(false) }
   }, [])
 
@@ -285,19 +287,26 @@ export default function CommissionClient() {
     // If this row is part of a multi-selection, apply to all selected rows
     if (selected.has(row.id) && selected.size > 1) { await handleBulkStatus(newStatus); return }
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     const today = new Date().toISOString().split('T')[0]
     const termDays = row.order.payment_term ? PAYMENT_TERM_DAYS[row.order.payment_term] : null
-    const patch: any = { order_status: newStatus }
+    // Narrow shape — only fields the DB update touches. Was `any`, which hid
+    // typos and let unrelated fields sneak into the write.
+    const patch: { order_status: OrderStatus; shipped_date?: string; expected_payment_date?: string } = { order_status: newStatus }
     if (newStatus === 'shipped') { patch.shipped_date = today; if (termDays) patch.expected_payment_date = new Date(Date.now()+termDays*86400000).toISOString().split('T')[0] }
-    await supabase.from('commission_styles').update(patch).eq('id', row.id)
+    await supabase.from('commission_styles').update(patch).eq('id', row.id).eq('user_id', user.id)
     patchStyle({ id: row.id, ...patch })
   }
 
   const handleUnreceive = async (row: StyleRow) => {
     if (!await confirmDialog('Undo received? This deletes the linked transaction.')) return
     const supabase = createClient()
-    if (row.linked_transaction_id) await supabase.from('transactions').delete().eq('id', row.linked_transaction_id)
-    await supabase.from('commission_styles').update({ order_status: 'shipped', received_date: null, linked_transaction_id: null }).eq('id', row.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    // Defensive user_id filter on both writes — RLS + client-side belt.
+    if (row.linked_transaction_id) await supabase.from('transactions').delete().eq('id', row.linked_transaction_id).eq('user_id', user.id)
+    await supabase.from('commission_styles').update({ order_status: 'shipped', received_date: null, linked_transaction_id: null }).eq('id', row.id).eq('user_id', user.id)
     patchStyle({ id: row.id, order_status: 'shipped', received_date: null, linked_transaction_id: null })
   }
 
@@ -305,6 +314,8 @@ export default function CommissionClient() {
     const rows = selectedRows.filter(r => r.order_status !== 'received')
     if (rows.length === 0) return
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     const today = new Date().toISOString().split('T')[0]
     if (newStatus === 'shipped') {
       // expected_payment_date depends on each order's payment term — group rows by it
@@ -320,6 +331,7 @@ export default function CommissionClient() {
         supabase.from('commission_styles')
           .update({ order_status: 'shipped', shipped_date: today, ...(g.expected ? { expected_payment_date: g.expected } : {}) })
           .in('id', g.ids)
+          .eq('user_id', user.id)
       ))
       for (const g of groups.values()) {
         for (const id of g.ids) {
@@ -327,7 +339,7 @@ export default function CommissionClient() {
         }
       }
     } else {
-      await supabase.from('commission_styles').update({ order_status: newStatus }).in('id', rows.map(r => r.id))
+      await supabase.from('commission_styles').update({ order_status: newStatus }).in('id', rows.map(r => r.id)).eq('user_id', user.id)
       rows.forEach(r => patchStyle({ id: r.id, order_status: newStatus }))
     }
     setSelected(new Set())
@@ -336,7 +348,9 @@ export default function CommissionClient() {
   const handleBulkDelete = async () => {
     if (!await confirmDialog(`Delete ${selectedRows.length} style${selectedRows.length!==1?'s':''}?`)) return
     const supabase = createClient()
-    await supabase.from('commission_styles').delete().in('id', selectedRows.map(r=>r.id))
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('commission_styles').delete().in('id', selectedRows.map(r=>r.id)).eq('user_id', user.id)
     const ids = new Set(selectedRows.map(r=>r.id))
     setOrders(prev => prev.map(o => ({...o, styles:(o.styles??[]).filter(s=>!ids.has(s.id))})).filter(o=>(o.styles??[]).length>0))
     setSelected(new Set())
@@ -596,8 +610,8 @@ export default function CommissionClient() {
         </>
       )}
 
-      {showForm && <CommissionForm order={editOrder} customers={customers} accounts={accounts as any} onSaved={handleOrderSaved} onClose={()=>{setShowForm(false);setEditOrder(null)}}/>}
-      {showImport && <CommissionImport customers={customers} accounts={accounts as any} onImported={handleImported} onClose={()=>setShowImport(false)}/>}
+      {showForm && <CommissionForm order={editOrder} customers={customers} accounts={accounts} onSaved={handleOrderSaved} onClose={()=>{setShowForm(false);setEditOrder(null)}}/>}
+      {showImport && <CommissionImport customers={customers} accounts={accounts} onImported={handleImported} onClose={()=>setShowImport(false)}/>}
       {showRecv && selectedRows.length > 0 && <BulkReceiveModal rows={selectedRows} accounts={accounts} onDone={handleBulkReceiveDone} onClose={()=>setShowRecv(false)}/>}
     </div>
   )

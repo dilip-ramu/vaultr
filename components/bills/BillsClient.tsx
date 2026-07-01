@@ -66,13 +66,14 @@ export default function BillsClient({ initialBills, accounts, categories, custom
     setPayingSaving(true)
     try {
       const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
       const now = new Date().toISOString()
-      await supabase.from('bills').update({ status: 'paid', settled_at: now, account_id: payAccountId || payBill.account_id }).eq('id', payBill.id)
+      await supabase.from('bills').update({ status: 'paid', settled_at: now, account_id: payAccountId || payBill.account_id }).eq('id', payBill.id).eq('user_id', user.id)
       setBills(prev => prev.map(b => b.id === payBill.id ? { ...b, status: 'paid', settled_at: now, account_id: payAccountId || b.account_id } : b))
 
       // Auto-create transaction for received bills
       if (payBill.direction !== 'sent') {
-        const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           await supabase.from('transactions').insert({
             user_id: user.id,
@@ -95,17 +96,21 @@ export default function BillsClient({ initialBills, accounts, categories, custom
   const handleMarkUnpaid = async (bill: Bill) => {
     if (!await confirmDialog(`Mark "${bill.name}" as unpaid? This will also delete the linked expense transaction.`)) return
     const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     // Delete linked transactions
-    await supabase.from('transactions').delete().eq('bill_id', bill.id)
+    await supabase.from('transactions').delete().eq('bill_id', bill.id).eq('user_id', user.id)
     // Reset bill status
-    await supabase.from('bills').update({ status: 'pending', settled_at: null }).eq('id', bill.id)
+    await supabase.from('bills').update({ status: 'pending', settled_at: null }).eq('id', bill.id).eq('user_id', user.id)
     setBills(prev => prev.map(b => b.id === bill.id ? { ...b, status: 'pending', settled_at: null } : b))
   }
 
   const handleDelete = async (id: string) => {
     if (!await confirmDialog('Delete this bill?')) return
     const supabase = createClient()
-    await supabase.from('bills').delete().eq('id', id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('bills').delete().eq('id', id).eq('user_id', user.id)
     setBills(prev => prev.filter(b => b.id !== id))
   }
 

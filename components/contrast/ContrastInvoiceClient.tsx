@@ -102,7 +102,7 @@ interface Props {
 export default function ContrastInvoiceClient({
   employees, courierInvoices, allExpenses, companyName, uncategorizedCount,
   customerId = null, customerName = 'Contrast',
-  billingCurrency = 'EUR', marketRate = null, marketRateAsOf = null,
+  billingCurrency = 'INR', marketRate = null, marketRateAsOf = null,
 }: Props) {
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`

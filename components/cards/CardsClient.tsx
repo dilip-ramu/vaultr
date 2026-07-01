@@ -107,7 +107,9 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
   async function saveDay(field: 'statement_day' | 'statement_due_day', value: number) {
     if (field === 'statement_day') setStmtDay(value)
     else setDueDay(value)
-    await supabase.from('accounts').update({ [field]: value }).eq('id', card.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('accounts').update({ [field]: value }).eq('id', card.id).eq('user_id', user.id)
     onSaved()
   }
 
@@ -177,7 +179,7 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
     )
     if (upErr) {
       // roll back the transaction so we never leave a half-recorded payment
-      await supabase.from('transactions').delete().eq('id', txn.id)
+      await supabase.from('transactions').delete().eq('id', txn.id).eq('user_id', user!.id)
       setPayError(upErr.message)
       setPayBusy(false)
       return
@@ -197,11 +199,14 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
       confirmLabel: 'Mark unpaid',
     })) return
     setSaving(true)
-    await supabase.from('transactions').delete().eq('id', row.payment_transaction_id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSaving(false); return }
+    await supabase.from('transactions').delete().eq('id', row.payment_transaction_id).eq('user_id', user.id)
     await supabase.from('card_statements')
       .update({ payment_transaction_id: null })
       .eq('account_id', card.id)
       .eq('statement_date', cycle.statementDate)
+      .eq('user_id', user.id)
     setSaving(false)
     onSaved()
   }

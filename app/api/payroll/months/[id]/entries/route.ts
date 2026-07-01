@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const rows = employees.map(emp => {
     // INR-native employees pay through 1:1; others convert at the batch rate.
-    const salary_inr = calcSalaryInr(emp.salary_amount, expended_rate, emp.salary_currency ?? 'EUR')
+    const salary_inr = calcSalaryInr(emp.salary_amount, expended_rate, emp.salary_currency ?? 'INR')
     const final_payable = calcFinalPayable(salary_inr, 0, 0, 0, 0, 0)
     return {
       user_id:          user.id,

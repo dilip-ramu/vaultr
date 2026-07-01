@@ -29,7 +29,9 @@ export default function TransactionItem({ transaction: tx, isFirst, isLast, onEd
   const handleDelete = async () => {
     if (!await confirmDialog('Delete this transaction?')) return
     const supabase = createClient()
-    await supabase.from('transactions').delete().eq('id', tx.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('transactions').delete().eq('id', tx.id).eq('user_id', user.id)
     onDelete(tx.id)
   }
 

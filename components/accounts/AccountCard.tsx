@@ -92,7 +92,9 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
 
     setDeleting(true)
     const supabase = createClient()
-    const { error } = await supabase.from('accounts').update({ is_active: false }).eq('id', account.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setDeleting(false); return }
+    const { error } = await supabase.from('accounts').update({ is_active: false }).eq('id', account.id).eq('user_id', user.id)
     if (error) {
       notify('Could not delete account: ' + error.message)
       setDeleting(false)

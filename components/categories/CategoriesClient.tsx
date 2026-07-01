@@ -32,7 +32,9 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
   const handleDelete = async (id: string) => {
     if (!await confirmDialog('Delete this category? Existing transactions will be uncategorised.')) return
     const supabase = createClient()
-    await supabase.from('categories').delete().eq('id', id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('categories').delete().eq('id', id).eq('user_id', user.id)
     setCategories(prev => prev.filter(c => c.id !== id))
   }
 

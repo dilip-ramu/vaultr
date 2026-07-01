@@ -28,7 +28,9 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
     if (!await confirmDialog('Delete this transaction?')) return
     setDeleting(true)
     const supabase = createClient()
-    const { error } = await supabase.from('transactions').delete().eq('id', tx.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setDeleting(false); return }
+    const { error } = await supabase.from('transactions').delete().eq('id', tx.id).eq('user_id', user.id)
     if (error) {
       notify('Could not delete: ' + error.message)
       setDeleting(false)

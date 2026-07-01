@@ -59,7 +59,11 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
     setDeleting(id)
     try {
       const supabase = createClient()
-      const { error } = await supabase.from('customers').delete().eq('id', id)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { notify('Session expired', 'error'); return }
+      // Belt-and-suspenders: rely on RLS but also filter client-side so a
+      // missing/misconfigured policy can't quietly cross tenants.
+      const { error } = await supabase.from('customers').delete().eq('id', id).eq('user_id', user.id)
       if (error) {
         notify(error.message, 'error')
       } else {

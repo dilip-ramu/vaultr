@@ -146,7 +146,9 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     const ids = Array.from(selected)
     try {
       const supabase = createClient()
-      const { error } = await supabase.from('transactions').delete().in('id', ids)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { notify('Session expired', 'error'); return }
+      const { error } = await supabase.from('transactions').delete().in('id', ids).eq('user_id', user.id)
       if (error) {
         notify(error.message, 'error')
         return

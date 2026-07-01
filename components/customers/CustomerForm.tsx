@@ -26,7 +26,10 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
   const [csvAlias, setCsvAlias] = useState(customer?.csv_alias ?? '')
   const [notes, setNotes] = useState(customer?.notes ?? '')
   const [paysCommission, setPaysCommission] = useState(customer?.pays_commission ?? false)
-  const [billingCurrency, setBillingCurrency] = useState(customer?.billing_currency ?? 'EUR')
+  // Default to INR — most customers are Indian. Pre-Batch-E this defaulted to
+  // EUR because Contrast was the archetypal customer, but that's no longer
+  // representative and users had to remember to switch it every time.
+  const [billingCurrency, setBillingCurrency] = useState(customer?.billing_currency ?? 'INR')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -53,12 +56,12 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
       csv_alias:        csvAlias.trim() || null,
       notes:            notes.trim() || null,
       pays_commission:  paysCommission,
-      billing_currency: billingCurrency.trim().toUpperCase() || 'EUR',
+      billing_currency: billingCurrency.trim().toUpperCase() || 'INR',
     }
 
     let data, err
     if (isEdit) {
-      const res = await supabase.from('customers').update(payload).eq('id', customer.id).select().single()
+      const res = await supabase.from('customers').update(payload).eq('id', customer.id).eq('user_id', user!.id).select().single()
       data = res.data; err = res.error
     } else {
       const res = await supabase.from('customers').insert({ ...payload, user_id: user!.id }).select().single()
@@ -154,7 +157,7 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
                 onChange={e => setBillingCurrency(e.target.value)}
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               >
-                {['EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF','INR'].map(c => (
+                {['INR','EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF'].map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

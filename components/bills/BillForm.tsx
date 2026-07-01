@@ -120,7 +120,7 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
 
     let data, err
     if (isEdit) {
-      const res = await supabase.from('bills').update(payload).eq('id', bill.id)
+      const res = await supabase.from('bills').update(payload).eq('id', bill.id).eq('user_id', user!.id)
         .select('*, account:accounts(id,name,color,type), category:categories(id,name,icon,color), customer:customers(id,name,email,phone)')
         .single()
       data = res.data; err = res.error
