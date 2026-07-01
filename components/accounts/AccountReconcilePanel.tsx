@@ -13,7 +13,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Loader2, Scale } from 'lucide-react'
+import { AlertTriangle, Check, Loader2, Scale } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { buildLedger, accountIsForeign, type ReconTxn } from '@/lib/reconcile'
 import { createClient } from '@/lib/supabase/client'
@@ -48,6 +48,21 @@ export default function AccountReconcilePanel({
   const router = useRouter()
   const [actual, setActual] = useState('')
   const [reconciling, setReconciling] = useState(false)
+  const [marking, setMarking] = useState(false)
+
+  /** Write last_reconciled_at + last_reconciled_balance for this account so
+   *  the AccountCard can show "✓ reconciled N days ago" without expanding. */
+  async function stampReconciled(balance: number) {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('accounts')
+      .update({
+        last_reconciled_at:      new Date().toISOString(),
+        last_reconciled_balance: balance,
+      })
+      .eq('id', account.id)
+    if (error) throw error
+  }
 
   const { rows, computedBalance } = useMemo(() => buildLedger({
     accountId: account.id,
@@ -92,11 +107,36 @@ export default function AccountReconcilePanel({
         notes:              'Manual reconciliation entry to match the bank balance.',
       })
       if (error) { notify(error.message, 'error'); return }
+      // The plug transaction makes app == bank, so we can also stamp the
+      // reconciled-at marker in the same click — no second confirmation.
+      try { await stampReconciled(actualNum) } catch (e) {
+        // Non-fatal: the transaction landed, just the stamp didn't. Surface it
+        // so the user knows to try Mark-as-reconciled from the panel if needed.
+        notify('Transaction logged, but couldn’t update the reconciled date.', 'error')
+      }
       notify(`${direction === 'income' ? 'Income' : 'Expense'} of ${fmt(diffAbs)} logged`, 'success')
       setActual('')
       router.refresh()
     } finally {
       setReconciling(false)
+    }
+  }
+
+  /** Called when app == bank (diff < 0.01) and the user confirms the balance
+   *  is actually correct. Nothing to insert — just stamp the marker. */
+  async function markReconciled() {
+    if (Number.isNaN(actualNum)) return
+    setMarking(true)
+    try {
+      await stampReconciled(actualNum)
+      notify(`${account.name} marked reconciled`, 'success')
+      setActual('')
+      router.refresh()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not mark reconciled'
+      notify(msg, 'error')
+    } finally {
+      setMarking(false)
     }
   }
 
@@ -125,10 +165,25 @@ export default function AccountReconcilePanel({
           className="px-2 py-1 rounded-lg text-sm w-32"
           style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
         />
-        {diff !== null && (
-          <span className="text-sm font-medium" style={{ color: Math.abs(diff) < 0.01 ? 'var(--income)' : 'var(--expense)' }}>
-            {Math.abs(diff) < 0.01 ? '✓ matches' : `off by ${fmt(Math.abs(diff))} (app is ${diff > 0 ? 'higher' : 'lower'})`}
+        {diff !== null && Math.abs(diff) >= 0.01 && (
+          <span className="text-sm font-medium" style={{ color: 'var(--expense)' }}>
+            off by {fmt(Math.abs(diff))} (app is {diff > 0 ? 'higher' : 'lower'})
           </span>
+        )}
+        {diff !== null && Math.abs(diff) < 0.01 && (
+          <button
+            onClick={e => { e.preventDefault(); e.stopPropagation(); markReconciled() }}
+            disabled={marking}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
+            style={{ background: 'var(--income)', color: '#fff' }}
+            title="Balances match — stamp this account as reconciled so you can see it at a glance on the Accounts page."
+          >
+            {marking
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Check className="w-3.5 h-3.5" />
+            }
+            {marking ? 'Marking…' : '✓ Matches — Mark as reconciled'}
+          </button>
         )}
         {diff !== null && Math.abs(diff) >= 0.01 && (
           <button

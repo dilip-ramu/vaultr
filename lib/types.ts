@@ -60,6 +60,11 @@ export interface Account {
   loan_principal: number | null
   interest_rate: number | null
   emi_amount: number | null
+  // Reconciliation stamp (v55) — set when the user confirms the app balance
+  // matches the actual bank balance (or logs a Reconciliation to bring it in
+  // line). Read by AccountCard to show a "✓ reconciled N days ago" badge.
+  last_reconciled_at: string | null
+  last_reconciled_balance: number | null
   include_in_net_worth: boolean
   is_active: boolean
   created_at: string

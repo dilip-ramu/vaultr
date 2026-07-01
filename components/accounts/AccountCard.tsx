@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal, Pencil, Trash2, ExternalLink, Info, Scale, ChevronDown, ChevronRight } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, ExternalLink, Info, Scale, ChevronDown, ChevronRight, Check } from 'lucide-react'
 import Link from 'next/link'
 import type { Account } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, EMOJI_MAP } from '@/lib/types'
@@ -48,6 +48,20 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
   const cm = credit ? creditMetrics(account) : null
   const lm = loan ? loanMetrics(account) : null
   const fmt = (n: number) => formatCurrency(n)
+
+  // Reconciliation-status badge shown at-a-glance under the account name.
+  // "fresh" (<= 7 days), "stale" (8-30 days), "old" (> 30 days), "never".
+  const reconStatus = (() => {
+    if (!account.last_reconciled_at) {
+      return { key: 'never', label: 'Not reconciled', color: 'var(--text-faint)', bg: 'transparent', tick: false }
+    }
+    const ts = new Date(account.last_reconciled_at).getTime()
+    const days = Math.floor((Date.now() - ts) / 86400000)
+    const when = days < 1 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`
+    if (days <= 7)  return { key: 'fresh', label: `Reconciled ${when}`, color: 'var(--income)',  bg: 'rgba(34,197,94,0.10)',  tick: true  }
+    if (days <= 30) return { key: 'stale', label: `Reconciled ${when}`, color: '#b45309',        bg: 'rgba(245,158,11,0.10)', tick: true  }
+    return             { key: 'old',   label: `Reconciled ${when}`, color: 'var(--expense)', bg: 'rgba(239,68,68,0.10)',  tick: false }
+  })()
 
   const handleDelete = async () => {
     setShowMenu(false)
@@ -114,6 +128,22 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
         <p className="text-xs text-gray-400">{typeLabel}</p>
         {txCount !== null && txCount > 0 && (
           <p className="text-[10px] text-gray-300">{txCount} transaction{txCount > 1 ? 's' : ''}</p>
+        )}
+        {canReconcile && (
+          <span
+            className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+            style={{ color: reconStatus.color, background: reconStatus.bg }}
+            title={
+              account.last_reconciled_at
+                ? `Last matched the bank on ${new Date(account.last_reconciled_at).toLocaleDateString()}${
+                    account.last_reconciled_balance != null ? ` at ${fmt(account.last_reconciled_balance)}` : ''
+                  }.`
+                : 'You haven’t reconciled this account against the bank yet — tap the scale icon to check.'
+            }
+          >
+            {reconStatus.tick && <Check className="w-3 h-3" />}
+            {reconStatus.label}
+          </span>
         )}
       </div>
 
