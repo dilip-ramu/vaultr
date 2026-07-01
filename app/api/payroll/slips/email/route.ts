@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   const fromEmail = process.env.PAYROLL_FROM_EMAIL
   if (!apiKey || !fromEmail) {
     return NextResponse.json({
-      error: 'Email sending is not configured yet. Add BREVO_API_KEY and PAYROLL_FROM_EMAIL in Vercel → Settings → Environment Variables (see SETUP.md).',
+      error: 'Email sending is not configured yet. Add BREVO_API_KEY and PAYROLL_FROM_EMAIL in Vercel → Settings → Environment Variables (see docs/SETUP.md).',
     }, { status: 400 })
   }
 

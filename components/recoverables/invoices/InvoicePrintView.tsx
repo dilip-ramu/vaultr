@@ -168,8 +168,12 @@ export default function InvoicePrintView({ invoice, lines, settings }: Props) {
       <div className="sheet">
 
         {/* 1 — Header */}
+        {/*  TODO(batch-e): stop reading the logo from /public and read it from
+             companies.logo_path (Supabase Storage) instead, once the invoice
+             systems are unified. Right now the file lives at /invoice-logo.png
+             (renamed from Contrast.png — the old name leaked the customer). */}
         <div className="header">
-          <img src="/Contrast.png" alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
+          <img src="/invoice-logo.png" alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
           <div className="tax-invoice-block">
             <h2>Tax Invoice</h2>
             <div className="invoice-number"># {invoice.invoice_number}</div>

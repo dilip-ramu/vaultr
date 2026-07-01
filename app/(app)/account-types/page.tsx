@@ -1,23 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
-import AccountTypesClient from '@/components/accounts/AccountTypesClient'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AccountTypesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const [{ data: types }, { data: overrides }] = await Promise.all([
-    supabase
-      .from('custom_account_types')
-      .select('*')
-      .eq('user_id', user!.id)
-      .order('created_at', { ascending: true }),
-    supabase
-      .from('builtin_account_type_overrides')
-      .select('*')
-      .eq('user_id', user!.id),
-  ])
-
-  return <AccountTypesClient initialTypes={types ?? []} initialOverrides={overrides ?? []} />
+/** Account types is a Setup tab now; this stub keeps old bookmarks and iOS
+ *  home-screen shortcuts working. Same story as /reconcile. */
+export default function AccountTypesRedirect() {
+  redirect('/setup/account-types')
 }

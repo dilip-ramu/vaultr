@@ -1,15 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
-import CategoriesClient from '@/components/categories/CategoriesClient'
+import { redirect } from 'next/navigation'
 
-export default async function CategoriesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export const dynamic = 'force-dynamic'
 
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .eq('user_id', user!.id)
-    .order('name')
-
-  return <CategoriesClient initialCategories={categories ?? []} />
+/** Categories index moved into Setup. /categories/[id] still resolves
+ *  (category detail page) — only the index is a redirect. */
+export default function CategoriesRedirect() {
+  redirect('/setup/categories')
 }
