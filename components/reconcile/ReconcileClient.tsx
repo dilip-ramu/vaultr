@@ -1,10 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, Scale } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, Scale, Loader2 } from 'lucide-react'
 import { Avatar } from '@/components/AppShell'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { buildLedger, accountIsForeign, type ReconTxn } from '@/lib/reconcile'
+import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 export interface ReconcileAccount {
   id: string
@@ -35,8 +39,51 @@ function AccountRow({ account, txns, currencyById, today }: {
   currencyById: Record<string, string>
   today: string
 }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [actual, setActual] = useState('')
+  const [reconciling, setReconciling] = useState(false)
+
+  /** Log a "Reconciliation" transaction on this account to bring the app
+   *  balance in line with the actual bank balance the user typed.
+   *  - App is higher (diff > 0) → the app has a phantom credit → book an
+   *    expense to knock it down.
+   *  - App is lower (diff < 0) → the actual bank has more than we've tracked
+   *    → book an income so the app catches up. */
+  async function logReconciliationEntry(diffAbs: number, direction: 'income' | 'expense') {
+    if (diffAbs <= 0) return
+    const label = direction === 'income'
+      ? `Add income of ${fmt(diffAbs)} on ${account.name}?`
+      : `Add expense of ${fmt(diffAbs)} on ${account.name}?`
+    if (!await confirmDialog({
+      title: 'Log a reconciliation transaction?',
+      message: `${label} It'll be named "Reconciliation" and dated today.`,
+      confirmLabel: 'Log it',
+    })) return
+
+    setReconciling(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { notify('Session expired', 'error'); return }
+      const { error } = await supabase.from('transactions').insert({
+        user_id:            user.id,
+        account_id:         account.id,
+        type:               direction,
+        amount:             diffAbs,
+        original_currency:  account.currency ?? 'INR',
+        date:               today,
+        name:               'Reconciliation',
+        notes:              'Manual reconciliation entry to match the bank balance.',
+      })
+      if (error) { notify(error.message, 'error'); return }
+      notify(`${direction === 'income' ? 'Income' : 'Expense'} of ${fmt(diffAbs)} logged`, 'success')
+      setActual('')
+      router.refresh()
+    } finally {
+      setReconciling(false)
+    }
+  }
 
   const { rows, computedBalance } = useMemo(() => buildLedger({
     accountId: account.id,
@@ -99,6 +146,23 @@ function AccountRow({ account, txns, currencyById, today }: {
               <span className="text-sm font-medium" style={{ color: Math.abs(diff) < 0.01 ? 'var(--income)' : 'var(--expense)' }}>
                 {Math.abs(diff) < 0.01 ? '✓ matches' : `off by ${fmt(Math.abs(diff))} (app is ${diff > 0 ? 'higher' : 'lower'})`}
               </span>
+            )}
+            {diff !== null && Math.abs(diff) >= 0.01 && (
+              <button
+                onClick={() => logReconciliationEntry(Math.abs(diff), diff > 0 ? 'expense' : 'income')}
+                disabled={reconciling}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
+                style={{ background: 'var(--brand)', color: '#fff' }}
+                title={diff > 0
+                  ? `App shows more than bank — log an expense of ${fmt(Math.abs(diff))} named "Reconciliation" to match.`
+                  : `Bank shows more than app — log an income of ${fmt(Math.abs(diff))} named "Reconciliation" to match.`}
+              >
+                {reconciling
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Scale className="w-3.5 h-3.5" />
+                }
+                Log Reconciliation ({diff > 0 ? '−' : '+'}{fmt(Math.abs(diff))})
+              </button>
             )}
           </div>
 
