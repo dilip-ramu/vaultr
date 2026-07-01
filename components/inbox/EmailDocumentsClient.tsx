@@ -102,6 +102,21 @@ export default function EmailDocumentsClient({
   hideHeader = false,
 }: Props) {
   const [documents, setDocuments] = useState<EmailDocument[]>(initialDocuments)
+
+  // The Fetch Invoices tab passes only Supplier-flagged senders in
+  // senderOptions. Every client-side refetch must honour that filter,
+  // otherwise a refresh (Check Now poll, or after clicking Process) pulls in
+  // documents from transaction-alert senders too and the list balloons.
+  // When senderOptions is missing (e.g. the /inbox/processed page), fall
+  // through to no filtering.
+  const allowedSenders = useMemo(() => {
+    if (!senderOptions || senderOptions.length === 0) return null
+    return new Set(senderOptions.map(s => s.email.toLowerCase()))
+  }, [senderOptions])
+  const applyAllowedFilter = (docs: EmailDocument[]) => {
+    if (!allowedSenders) return docs
+    return docs.filter(d => allowedSenders.has((d.sender_email ?? '').toLowerCase()))
+  }
   // pageTab separates active (not invoiced) vs invoiced docs
   const [pageTab, setPageTab] = useState<'active' | 'needs_review' | 'reviewed' | 'invoiced'>('active')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -166,11 +181,16 @@ export default function EmailDocumentsClient({
 
     const tick = async () => {
       try {
-        // Refresh document list
+        // Refresh document list. IMPORTANT: filter by allowed senders too so
+        // a Supplier tab refresh doesn't sneak in transaction-alert emails.
         const docsRes = await fetch('/api/inbox/documents?status=all')
         const docsJson = await docsRes.json()
         if (docsJson.documents) {
-          setDocuments((docsJson.documents as EmailDocument[]).filter(d => d.status !== 'ignored'))
+          setDocuments(
+            applyAllowedFilter(
+              (docsJson.documents as EmailDocument[]).filter(d => d.status !== 'ignored')
+            )
+          )
         }
 
         // Check integration last_checked_at to detect completion
@@ -263,11 +283,13 @@ export default function EmailDocumentsClient({
         return
       }
 
-      // Refresh this document's data from the server to get all updated fields
+      // Refresh this document's data from the server to get all updated fields.
+      // Filter to the allowed senders so the list doesn't expand to include
+      // transaction-alert emails on the Fetch Invoices tab.
       const docRes = await fetch(`/api/inbox/documents?status=all`)
       const docJson = await docRes.json()
       if (docJson.documents) {
-        setDocuments(docJson.documents)
+        setDocuments(applyAllowedFilter(docJson.documents as EmailDocument[]))
       } else {
         // Fallback: update status from result
         const resultStatus = json.result?.status as EmailDocument['status'] | undefined
