@@ -74,9 +74,8 @@ const navSections: NavSection[] = [
         ],
       },
       // Contrast section retired — its three pages live under
-      // /customers/reimbursables now. The /contrast/* URLs still resolve in
-      // case anything internal still links to them, so revert by simply
-      // restoring this nav entry if needed.
+      // /customers/reimbursables now. The /contrast/* URLs are redirect stubs
+      // pointing at the new locations, so old bookmarks still resolve.
     ],
   },
   {

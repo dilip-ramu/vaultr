@@ -6,9 +6,9 @@ import {
   CheckCircle2, AlertCircle, Loader2,
   Users, Truck, ReceiptText, FileText, Info, Plus, X, ArrowRight, Building2, Minus,
 } from 'lucide-react'
-import type { ContrastInvoiceData } from './ContrastInvoicePDF'
+import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
 
-const ContrastInvoicePDFDownload = dynamic(() => import('./ContrastInvoicePDFDownload'), { ssr: false })
+const ReimbursableInvoicePDFDownload = dynamic(() => import('./ReimbursableInvoicePDFDownload'), { ssr: false })
 
 const MONTHS_LONG = ['January','February','March','April','May','June',
   'July','August','September','October','November','December']
@@ -99,7 +99,7 @@ interface Props {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
-export default function ContrastInvoiceClient({
+export default function ReimbursableInvoiceClient({
   employees, courierInvoices, allExpenses, companyName, uncategorizedCount,
   customerId = null, customerName = 'Contrast',
   billingCurrency = 'INR', marketRate = null, marketRateAsOf = null,
@@ -108,7 +108,7 @@ export default function ContrastInvoiceClient({
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const [finalizing, setFinalizing] = useState(false)
-  const [invoiceData, setInvoiceData] = useState<ContrastInvoiceData | null>(null)
+  const [invoiceData, setInvoiceData] = useState<ReimbursableInvoiceData | null>(null)
   const [isFinalized, setIsFinalized] = useState(false)
   const [error, setError] = useState('')
 
@@ -217,7 +217,7 @@ export default function ContrastInvoiceClient({
       const inv = await createRes.json()
 
       let sortOrder = 0
-      const items: ContrastInvoiceData['items'] = []
+      const items: ReimbursableInvoiceData['items'] = []
 
       for (const emp of selectedEmployees) {
         items.push({ item_type: 'salary', description: `Salary for ${emp.name}`, salary_amount: emp.salary_amount, amount_inr: round2(emp.salary_amount || 0), sort_order: sortOrder++ })
@@ -294,7 +294,7 @@ export default function ContrastInvoiceClient({
           <p className="flex-1 text-sm text-amber-800">
             <strong>{uncategorizedCount} expense{uncategorizedCount !== 1 ? 's' : ''}</strong> have no billing category and won&apos;t be included.
           </p>
-          <a href="/contrast" className="shrink-0 flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
+          <a href="/customers/reimbursables" className="shrink-0 flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
             Go to Expenses <ArrowRight className="w-3 h-3" />
           </a>
         </div>
@@ -444,7 +444,7 @@ export default function ContrastInvoiceClient({
           {allExpenses.length === 0 ? (
             <div className="px-5 py-4 text-sm text-gray-400">
               No expenses queued.{' '}
-              <a href="/contrast" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue them.
+              <a href="/customers/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue them.
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
@@ -622,10 +622,10 @@ export default function ContrastInvoiceClient({
           <p className="text-sm text-red-700">{error}</p>
           <p className="text-xs text-red-500">
             If items disappeared but no PDF was shown, check{' '}
-            <a href="/contrast/history" className="underline font-medium">Invoice History</a>
+            <a href="/customers/reimbursables/invoices" className="underline font-medium">Invoice History</a>
             {' '}— the invoice may have saved despite the error.
             If not there, go to{' '}
-            <a href="/contrast" className="underline font-medium">Contrast Expenses</a>
+            <a href="/customers/reimbursables" className="underline font-medium">Contrast Expenses</a>
             {' '}and use &quot;Mark unbilled&quot; to restore transactions.
           </p>
         </div>
@@ -635,7 +635,7 @@ export default function ContrastInvoiceClient({
       {!hasAnything ? (
         <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center text-sm text-gray-400">
           Nothing to invoice.{' '}
-          <a href="/contrast" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue expenses.
+          <a href="/customers/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue expenses.
         </div>
       ) : isFinalized ? (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-5 space-y-3">
@@ -644,12 +644,12 @@ export default function ContrastInvoiceClient({
             Invoice finalized — payroll month created, all items marked as billed. Finalize payroll after receiving payment.
           </div>
           <div className="flex items-center gap-3">
-            <ContrastInvoicePDFDownload
+            <ReimbursableInvoicePDFDownload
               data={invoiceData!}
               label="Download PDF"
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all"
             />
-            <a href="/contrast/history" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">View Invoice History →</a>
+            <a href="/customers/reimbursables/invoices" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">View Invoice History →</a>
             <a href="/payroll/monthly" className="text-sm text-gray-500 hover:text-gray-700 hover:underline">Monthly Processing →</a>
           </div>
         </div>

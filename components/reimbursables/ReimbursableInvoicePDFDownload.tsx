@@ -1,30 +1,30 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import type { ContrastInvoiceData } from './ContrastInvoicePDF'
+import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
 
 interface Props {
-  data: ContrastInvoiceData
+  data: ReimbursableInvoiceData
   label?: string
   className?: string
 }
 
 // Load the entire PDF stack in ONE dynamic import.
-// Previously PDFDownloadLink and ContrastInvoicePDF were separate dynamic
-// imports — PDFDownloadLink could load first and receive ContrastInvoicePDF
+// Previously PDFDownloadLink and ReimbursableInvoicePDF were separate dynamic
+// imports — PDFDownloadLink could load first and receive ReimbursableInvoicePDF
 // as null (still loading), causing @react-pdf/renderer to throw and crash
 // the page. Combining them eliminates that race condition.
 const PDFBundle = dynamic(
   async () => {
-    const [{ PDFDownloadLink }, { default: ContrastInvoicePDF }] = await Promise.all([
+    const [{ PDFDownloadLink }, { default: ReimbursableInvoicePDF }] = await Promise.all([
       import('@react-pdf/renderer'),
-      import('./ContrastInvoicePDF'),
+      import('./ReimbursableInvoicePDF'),
     ])
 
     function PDFDownloadWrapper({ data, label = 'Download PDF', className }: Props) {
       return (
         <PDFDownloadLink
-          document={<ContrastInvoicePDF data={data} />}
+          document={<ReimbursableInvoicePDF data={data} />}
           fileName={`${data.invoice_number}.pdf`}
           className={className}
         >
@@ -41,6 +41,6 @@ const PDFBundle = dynamic(
   }
 )
 
-export default function ContrastInvoicePDFDownload(props: Props) {
+export default function ReimbursableInvoicePDFDownload(props: Props) {
   return <PDFBundle {...props} />
 }

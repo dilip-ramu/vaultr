@@ -171,7 +171,7 @@ function BillingCategoryCell({
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
-export default function ContrastExpensesClient({
+export default function ReimbursableExpensesClient({
   transactions: initialTx, billingCategories: initialCats,
   payeeFound, payeeName, migrationsRun = true,
 }: Props) {

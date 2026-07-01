@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import ReviewModal from './ReviewModal'
+import BulkActionsBar from './BulkActionsBar'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
@@ -621,26 +622,12 @@ export default function EmailDocumentsClient({
       </div>
 
       {/* Bulk action bar */}
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <span className="text-sm font-medium mr-2" style={{ color: 'var(--text)' }}>{selectedIds.size} selected</span>
-          <button onClick={() => bulkUpdateStatus('new')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">
-            <RotateCcw className="w-3 h-3" /> Mark New
-          </button>
-          <button onClick={() => bulkUpdateStatus('reviewed')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors">
-            <CheckCircle2 className="w-3 h-3" /> Mark Reviewed
-          </button>
-          <button onClick={() => bulkUpdateStatus('ignored')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
-            <EyeOff className="w-3 h-3" /> Ignore
-          </button>
-          <button onClick={bulkDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors ml-auto">
-            <Trash2 className="w-3 h-3" /> Delete {selectedIds.size}
-          </button>
-          <button onClick={() => setSelectedIds(new Set())} className="text-xs px-2 py-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors" style={{ color: 'var(--text-faint)' }}>
-            Clear
-          </button>
-        </div>
-      )}
+      <BulkActionsBar
+        count={selectedIds.size}
+        onBulkStatus={bulkUpdateStatus}
+        onBulkDelete={bulkDelete}
+        onClearSelection={() => setSelectedIds(new Set())}
+      />
 
       {/* Table */}
       <div

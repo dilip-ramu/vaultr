@@ -15,6 +15,7 @@ import SupplierInvoiceForm from './SupplierInvoiceForm'
 import BulkPayModal from './BulkPayModal'
 import SupplierLinksModal from './SupplierLinksModal'
 import RowActions from './RowActions'
+import InvoicesFilterPanel from './InvoicesFilterPanel'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import {
@@ -559,77 +560,21 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       </div>
 
       {showFilters && (
-        <div
-          className="rounded-xl border p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3"
-          style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-        >
-          {/* Type filter */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Type</label>
-            <select value={filterType} onChange={e => setFilterType(e.target.value as 'all' | 'supplier' | 'personal')}
-              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
-              <option value="all">All bills &amp; invoices</option>
-              <option value="supplier">Supplier invoices only</option>
-              <option value="personal">Personal bills only</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Supplier</label>
-            <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
-              <option value="">All suppliers</option>
-              {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Recoverable</label>
-            <select value={filterRecoverable} onChange={e => setFilterRecoverable(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
-              <option value="">All</option>
-              <option value="yes">Recoverable only</option>
-              <option value="no">Non-recoverable only</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Recovery Status</label>
-            <select value={filterRecStatus} onChange={e => setFilterRecStatus(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border text-sm outline-none"
-              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
-              <option value="">All statuses</option>
-              {Object.entries(REC_STATUS).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Recurrence</label>
-            <button
-              type="button"
-              onClick={() => setFilterRecurring(r => !r)}
-              className="w-full px-3 py-2 rounded-lg border text-sm text-left flex items-center gap-2"
-              style={{
-                background: filterRecurring ? 'rgba(42,122,80,0.08)' : 'var(--surface-2)',
-                borderColor: filterRecurring ? 'var(--brand)' : 'var(--border)',
-                color: filterRecurring ? 'var(--brand)' : 'var(--text-muted)',
-              }}
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              {filterRecurring ? 'Recurring only' : 'All types'}
-            </button>
-          </div>
-          {hasFilters && (
-            <div className="sm:col-span-4 flex justify-end">
-              <button
-                onClick={() => { setFilterType('all'); setFilterSupplier(''); setFilterRecoverable(''); setFilterRecStatus(''); setFilterRecurring(false) }}
-                className="text-xs flex items-center gap-1"
-                style={{ color: 'var(--text-muted)' }}
-              >
-                <X className="w-3 h-3" /> Clear filters
-              </button>
-            </div>
-          )}
-        </div>
+        <InvoicesFilterPanel
+          suppliers={suppliers}
+          filterType={filterType}
+          setFilterType={setFilterType}
+          filterSupplier={filterSupplier}
+          setFilterSupplier={setFilterSupplier}
+          filterRecoverable={filterRecoverable}
+          setFilterRecoverable={setFilterRecoverable}
+          filterRecStatus={filterRecStatus}
+          setFilterRecStatus={setFilterRecStatus}
+          filterRecurring={filterRecurring}
+          setFilterRecurring={setFilterRecurring}
+          hasFilters={!!hasFilters}
+          onClearAll={() => { setFilterType('all'); setFilterSupplier(''); setFilterRecoverable(''); setFilterRecStatus(''); setFilterRecurring(false) }}
+        />
       )}
 
       {/* ── Select-all row ─────────────────────────────────────────────────── */}

@@ -9,7 +9,9 @@ import { Plus } from 'lucide-react'
 export default function ReimbursablesNewInvoiceLink() {
   const params = useSearchParams()
   const customerId = params.get('customer')
-  const href = customerId ? `/contrast/invoice?customer=${customerId}` : '/contrast/invoice'
+  const href = customerId
+    ? `/customers/reimbursables/invoices/new?customer=${customerId}`
+    : '/customers/reimbursables/invoices/new'
 
   return (
     <Link

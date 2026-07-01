@@ -7,10 +7,10 @@ import {
   History, CheckCircle2, Clock, Download, Trash2,
   FileEdit, X, Check, ChevronDown, ChevronUp, AlertTriangle,
 } from 'lucide-react'
-import type { ContrastInvoiceData } from './ContrastInvoicePDF'
+import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
 import { notify } from '@/components/shared/Toast'
 
-const ContrastInvoicePDFDownload = dynamic(() => import('./ContrastInvoicePDFDownload'), { ssr: false })
+const ReimbursableInvoicePDFDownload = dynamic(() => import('./ReimbursableInvoicePDFDownload'), { ssr: false })
 
 const MONTHS_LONG = ['January','February','March','April','May','June',
   'July','August','September','October','November','December']
@@ -125,7 +125,7 @@ function InvoiceRow({
   const [deleting, setDeleting]   = useState(false)
   const router = useRouter()
 
-  const buildPdfData = (): ContrastInvoiceData => ({
+  const buildPdfData = (): ReimbursableInvoiceData => ({
     invoice_number: inv.invoice_number,
     invoice_month:  inv.invoice_month,
     invoice_date:   inv.invoice_date,
@@ -210,7 +210,7 @@ function InvoiceRow({
 
             {/* Download */}
             {inv.items.length > 0 && (
-              <ContrastInvoicePDFDownload
+              <ReimbursableInvoicePDFDownload
                 data={buildPdfData()}
                 label="PDF"
                 className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-medium transition-all"
@@ -325,7 +325,7 @@ function InvoiceRow({
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
-export default function ContrastHistoryClient({ invoices: initial }: { invoices: Invoice[] }) {
+export default function ReimbursableHistoryClient({ invoices: initial }: { invoices: Invoice[] }) {
   const [invoices, setInvoices] = useState<Invoice[]>(initial)
 
   const handleDelete = (id: string) =>

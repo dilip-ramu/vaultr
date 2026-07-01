@@ -23,7 +23,7 @@ export interface InvoiceItem {
   sort_order: number
 }
 
-export interface ContrastInvoiceData {
+export interface ReimbursableInvoiceData {
   invoice_number: string
   invoice_month: string   // "YYYY-MM"
   invoice_date: string
@@ -109,7 +109,7 @@ const s = StyleSheet.create({
   footNote:   { fontSize: 7, color: '#aaa', fontStyle: 'italic', alignSelf: 'flex-end' },
 })
 
-export default function ContrastInvoicePDF({ data }: { data: ContrastInvoiceData }) {
+export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInvoiceData }) {
   const salaryItems       = data.items.filter(i => i.item_type === 'salary')
   const courierItems      = data.items.filter(i => i.item_type === 'courier')
   const expenseItems      = data.items.filter(i => i.item_type === 'expense')
