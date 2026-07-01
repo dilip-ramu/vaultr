@@ -28,11 +28,38 @@ export interface ReimbursableInvoiceData {
   invoice_month: string   // "YYYY-MM"
   invoice_date: string
   items: InvoiceItem[]
-  subtotal: number        // EUR
-  gst_amount: number      // EUR
-  total: number           // EUR
+  subtotal: number
+  gst_amount: number
+  total: number
+  /** Currency the invoice is billed in — replaces the old EUR hardcode.
+   *  Defaults to 'EUR' when not provided so old callers still work. */
+  currency?: string
+  /** Optional Bill From block. When missing we fall back to a generic
+   *  "Your Company" placeholder so nothing crashes for old callers. */
+  bill_from?: {
+    name: string
+    contact?: string
+    email?: string
+    phone?: string
+    address?: string
+    bank_account_name?: string
+    bank_account_number?: string
+    bank_ifsc?: string
+    bank_name?: string
+    swift_code?: string
+  }
+  /** Optional Bill To block. Same rules as bill_from. */
+  bill_to?: {
+    name: string
+    contact?: string
+    email?: string
+    address?: string
+    country?: string
+  }
+  /** Legacy — was used for the top-left brand title. Now optional; the PDF
+   *  falls back to bill_from.name if this isn't set. */
   company_name?: string
-  forex_rate?: number     // INR per EUR used for this invoice
+  forex_rate?: number     // INR per <currency> used for this invoice
 }
 
 const MONTHS_LONG = ['January','February','March','April','May','June',
@@ -43,10 +70,13 @@ function monthLabel(ym: string) {
   return `${MONTHS_LONG[parseInt(m) - 1]} ${y}`
 }
 
-function fmtEur(n: number): string {
+/** Currency-aware number formatter. Was hardcoded to EUR; now takes the
+ *  currency code from the invoice data so the PDF matches the customer's
+ *  billing currency. Falls back gracefully if Intl doesn't know the code. */
+function fmtCur(n: number, cur: string): string {
   const abs = Math.abs(n)
   const str = abs.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return n < 0 ? `(EUR ${str})` : `EUR ${str}`
+  return n < 0 ? `(${cur} ${str})` : `${cur} ${str}`
 }
 
 function fmtInr(n: number): string {
@@ -116,9 +146,14 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
   const fixedExpenseItems = data.items.filter(i => i.item_type === 'fixed_expense')
   const deductionItems    = data.items.filter(i => i.item_type === 'deduction')
 
-  // Table has 3 columns: Description | INR Amount | Amount (EUR)
-  // Salary / fixed_expense / deduction rows: INR shown as "—"
-  // Courier + Expense rows: show INR source for reference, then EUR result
+  // Currency for every amount label. Falls back to EUR only for legacy
+  // callers that don't set data.currency yet.
+  const cur = data.currency ?? 'EUR'
+  // Bill From / Bill To with safe fallbacks so an incomplete payload still
+  // renders a legible invoice — better than a blank block.
+  const from = data.bill_from ?? { name: data.company_name ?? 'Your Company' }
+  const to   = data.bill_to   ?? { name: '—' }
+
   const renderRow = (item: InvoiceItem, idx: number) => {
     const RowStyle = idx % 2 === 0 ? s.trow : s.trowAlt
     const noInr = item.item_type === 'salary' || item.item_type === 'fixed_expense' || item.item_type === 'deduction'
@@ -130,8 +165,7 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
           {noInr ? '—' : (item.inr_source != null ? fmtInr(item.inr_source) : '—')}
         </Text>
         <Text style={[s.tdRight, { flex: 1.5 }, isDeduction ? { color: '#c0392b' } : {}]}>
-          {/* amount_inr stores EUR billing amount (legacy field name); deductions are negative */}
-          {fmtEur(item.amount_inr)}
+          {fmtCur(item.amount_inr, cur)}
         </Text>
       </View>
     )
@@ -144,8 +178,10 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
         {/* ── Header ── */}
         <View style={s.topRow}>
           <View>
-            <Text style={{ fontSize: 14, fontWeight: 'bold' }}>CONTRAST COMPANY</Text>
-            <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Tiruppur, Tamil Nadu, India</Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{from.name.toUpperCase()}</Text>
+            {from.address && (
+              <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>{from.address}</Text>
+            )}
           </View>
           <View style={s.titleBlock}>
             <Text style={s.proforma}>PROFORMA INVOICE</Text>
@@ -157,17 +193,17 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
         <View style={s.addressRow}>
           <View style={s.addressBox}>
             <Text style={s.addrLabel}>Bill From</Text>
-            <Text style={s.addrName}>Contrast Company</Text>
-            <Text style={s.addrLine}>Contact: DILIP TIRUPPUR RAMU</Text>
-            <Text style={s.addrLine}>E-mail: dilip@contrast.dk</Text>
-            <Text style={s.addrLine}>Phone: +91 99433 11021</Text>
+            <Text style={s.addrName}>{from.name}</Text>
+            {from.contact && <Text style={s.addrLine}>Contact: {from.contact}</Text>}
+            {from.email   && <Text style={s.addrLine}>E-mail: {from.email}</Text>}
+            {from.phone   && <Text style={s.addrLine}>Phone: {from.phone}</Text>}
           </View>
           <View style={s.addressBox}>
             <Text style={s.addrLabel}>Bill To</Text>
-            <Text style={s.addrName}>Contrast Company A/S</Text>
-            <Text style={s.addrLine}>Rudolfsgaardvej 6A</Text>
-            <Text style={s.addrLine}>Denmark</Text>
-            <Text style={s.addrLine}>Contact: Jan Andersen</Text>
+            <Text style={s.addrName}>{to.name}</Text>
+            {to.address && <Text style={s.addrLine}>{to.address}</Text>}
+            {to.country && <Text style={s.addrLine}>{to.country}</Text>}
+            {to.contact && <Text style={s.addrLine}>Contact: {to.contact}</Text>}
           </View>
           <View style={s.addressBox}>
             <Text style={s.addrLabel}>Payment Terms</Text>
@@ -189,12 +225,12 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
           </View>
           <View style={s.metaBox}>
             <Text style={s.metaLabel}>Currency</Text>
-            <Text style={s.metaVal}>EUR (Euros)</Text>
+            <Text style={s.metaVal}>{cur}</Text>
           </View>
           {data.forex_rate && (
             <View style={s.metaBox}>
               <Text style={s.metaLabel}>Forex Rate Used</Text>
-              <Text style={s.metaVal}>1 EUR = Rs. {data.forex_rate.toFixed(2)}</Text>
+              <Text style={s.metaVal}>1 {cur} = Rs. {data.forex_rate.toFixed(2)}</Text>
             </View>
           )}
         </View>
@@ -204,7 +240,7 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
           <View style={s.thead}>
             <Text style={[s.th, { flex: 3 }]}>Description</Text>
             <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>INR Amount</Text>
-            <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Amount (EUR)</Text>
+            <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Amount ({cur})</Text>
           </View>
 
           {salaryItems.length > 0 && (
@@ -258,53 +294,67 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
           <View style={s.totalBox}>
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>Sub Total</Text>
-              <Text style={s.totalVal}>{fmtEur(data.subtotal)}</Text>
+              <Text style={s.totalVal}>{fmtCur(data.subtotal, cur)}</Text>
             </View>
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>GST @ 18%</Text>
-              <Text style={s.totalVal}>{fmtEur(data.gst_amount)}</Text>
+              <Text style={s.totalVal}>{fmtCur(data.gst_amount, cur)}</Text>
             </View>
             <View style={s.grandRow}>
               <Text style={s.grandLabel}>GRAND TOTAL</Text>
-              <Text style={s.grandVal}>{fmtEur(data.total)}</Text>
+              <Text style={s.grandVal}>{fmtCur(data.total, cur)}</Text>
             </View>
           </View>
         </View>
 
-        {/* ── Bank Details ── */}
-        <View style={s.bankSection}>
-          <Text style={s.bankTitle}>Bank Details for Payment</Text>
-          <View style={s.bankGrid}>
-            <View style={s.bankCol}>
-              <View style={s.bankRow}>
-                <Text style={s.bankKey}>Beneficiary Name</Text>
-                <Text style={s.bankVal}>CONTRAST COMPANY</Text>
+        {/* ── Bank Details ── driven by the bill-from company (companies
+             table). Hidden entirely when the company has no bank rows set,
+             rather than falling back to hardcoded Contrast IOB details. */}
+        {(from.bank_account_number || from.bank_ifsc || from.swift_code || from.bank_account_name) && (
+          <View style={s.bankSection}>
+            <Text style={s.bankTitle}>Bank Details for Payment</Text>
+            <View style={s.bankGrid}>
+              <View style={s.bankCol}>
+                {from.bank_account_name && (
+                  <View style={s.bankRow}>
+                    <Text style={s.bankKey}>Beneficiary Name</Text>
+                    <Text style={s.bankVal}>{from.bank_account_name}</Text>
+                  </View>
+                )}
+                {from.bank_account_number && (
+                  <View style={s.bankRow}>
+                    <Text style={s.bankKey}>Account Number</Text>
+                    <Text style={s.bankVal}>{from.bank_account_number}</Text>
+                  </View>
+                )}
+                {from.bank_name && (
+                  <View style={s.bankRow}>
+                    <Text style={s.bankKey}>Bank / Branch</Text>
+                    <Text style={s.bankVal}>{from.bank_name}</Text>
+                  </View>
+                )}
               </View>
-              <View style={s.bankRow}>
-                <Text style={s.bankKey}>Account Number</Text>
-                <Text style={s.bankVal}>0009502000100563</Text>
-              </View>
-              <View style={s.bankRow}>
-                <Text style={s.bankKey}>Bank / Branch</Text>
-                <Text style={s.bankVal}>INDIAN OVERSEAS BANK, TIRUPPUR BRANCH</Text>
-              </View>
-            </View>
-            <View style={s.bankCol}>
-              <View style={s.bankRow}>
-                <Text style={s.bankKey}>IFSC Code</Text>
-                <Text style={s.bankVal}>IOBA0000095</Text>
-              </View>
-              <View style={s.bankRow}>
-                <Text style={s.bankKey}>SWIFT Code</Text>
-                <Text style={s.bankVal}>IOBAINBB095</Text>
-              </View>
-              <View style={s.bankRow}>
-                <Text style={s.bankKey}>Payment Terms</Text>
-                <Text style={s.bankVal}>TT (Telegraphic Transfer)</Text>
+              <View style={s.bankCol}>
+                {from.bank_ifsc && (
+                  <View style={s.bankRow}>
+                    <Text style={s.bankKey}>IFSC Code</Text>
+                    <Text style={s.bankVal}>{from.bank_ifsc}</Text>
+                  </View>
+                )}
+                {from.swift_code && (
+                  <View style={s.bankRow}>
+                    <Text style={s.bankKey}>SWIFT Code</Text>
+                    <Text style={s.bankVal}>{from.swift_code}</Text>
+                  </View>
+                )}
+                <View style={s.bankRow}>
+                  <Text style={s.bankKey}>Payment Terms</Text>
+                  <Text style={s.bankVal}>TT (Telegraphic Transfer)</Text>
+                </View>
               </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* ── Signature ── */}
         <View style={s.footer}>

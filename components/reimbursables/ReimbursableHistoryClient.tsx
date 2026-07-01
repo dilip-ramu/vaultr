@@ -339,7 +339,7 @@ export default function ReimbursableHistoryClient({ invoices: initial }: { invoi
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Invoice History</h1>
-          <p className="text-sm text-gray-500">All Contrast Company A/S proforma invoices</p>
+          <p className="text-sm text-gray-500">All reimbursement invoices you&apos;ve raised</p>
         </div>
       </div>
 

@@ -103,7 +103,30 @@ interface Props {
   marketRateAsOf?: string | null
   /** Customer's own fixed monthly expenses (v63) — pre-populates the "Fixed"
    *  section. Empty array means no template; the user can add rows inline. */
-  initialFixedExpenses?: { description: string; amount: number }[]
+  initialFixedExpenses?: { description: string; amount: number; currency?: string }[]
+  /** Bill-from (default company) details — flows into the PDF's From block
+   *  and Bank Details section. Provided by the server-side page from the
+   *  companies table so the PDF isn't hardcoded to Contrast anymore. */
+  billFrom?: {
+    name: string
+    contact?: string
+    email?: string
+    phone?: string
+    address?: string
+    bank_account_name?: string
+    bank_account_number?: string
+    bank_ifsc?: string
+    bank_name?: string
+    swift_code?: string
+  }
+  /** Bill-to (customer) details — flows into the PDF's To block. */
+  billTo?: {
+    name: string
+    contact?: string
+    email?: string
+    address?: string
+    country?: string
+  }
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
@@ -112,6 +135,7 @@ export default function ReimbursableInvoiceClient({
   customerId = null, customerName = '',
   billingCurrency = 'INR', marketRate = null, marketRateAsOf = null,
   initialFixedExpenses = [],
+  billFrom, billTo,
 }: Props) {
   // When the customer is billed in INR, courier/expense INR amounts don't
   // need conversion — hide the forex-rate block entirely and short-circuit
@@ -279,7 +303,20 @@ export default function ReimbursableInvoiceClient({
       })
       if (!finalRes.ok) throw new Error((await finalRes.json()).error ?? 'Finalize failed')
 
-      setInvoiceData({ invoice_number: inv.invoice_number, invoice_month: currentMonth, invoice_date: inv.invoice_date, items, subtotal: subtotalEur, gst_amount: gstEur, total: grandTotalEur, company_name: companyName, forex_rate: hasValidRate ? forexRateNum : undefined })
+      setInvoiceData({
+        invoice_number: inv.invoice_number,
+        invoice_month:  currentMonth,
+        invoice_date:   inv.invoice_date,
+        items,
+        subtotal:       subtotalEur,
+        gst_amount:     gstEur,
+        total:          grandTotalEur,
+        currency:       billingCurrency,
+        company_name:   companyName,
+        bill_from:      billFrom,
+        bill_to:        billTo,
+        forex_rate:     hasValidRate && !isInrBilled ? forexRateNum : undefined,
+      })
       setIsFinalized(true)
     } catch (e) {
       setError((e as Error).message)
@@ -412,7 +449,7 @@ export default function ReimbursableInvoiceClient({
                       <p className="text-sm text-gray-800">{emp.name}</p>
                       {emp.designation && <p className="text-xs text-gray-400">{emp.designation}</p>}
                     </div>
-                    <span className="text-xs text-gray-400">EUR salary</span>
+                    <span className="text-xs text-gray-400">{billingCurrency} salary</span>
                     <span className="text-sm font-medium text-gray-900 w-32 text-right">{fmtCur(emp.salary_amount || 0, billingCurrency)}</span>
                   </div>
                 )
@@ -492,7 +529,7 @@ export default function ReimbursableInvoiceClient({
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-teal-50">
             <Building2 className="w-4 h-4 text-teal-600" />
             <span className="text-sm font-semibold text-teal-700">Fixed Expenses</span>
-            <span className="text-xs text-teal-400 ml-1">(enter in EUR)</span>
+            <span className="text-xs text-teal-400 ml-1">(enter in {billingCurrency})</span>
             <span className="ml-auto text-sm font-bold text-teal-700">{fmtCur(fixedExpTotal, billingCurrency)}</span>
           </div>
           <div className="divide-y divide-gray-50">
@@ -519,7 +556,7 @@ export default function ReimbursableInvoiceClient({
           <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-orange-50">
             <Plus className="w-4 h-4 text-orange-600" />
             <span className="text-sm font-semibold text-orange-700">Additional Items</span>
-            <span className="text-xs text-orange-400 ml-1">(enter in EUR)</span>
+            <span className="text-xs text-orange-400 ml-1">(enter in {billingCurrency})</span>
             <span className="ml-auto text-sm font-bold text-orange-700">{fmtCur(manualEurTotal, billingCurrency)}</span>
           </div>
           <div className="px-5 py-4 space-y-3">
@@ -529,7 +566,7 @@ export default function ReimbursableInvoiceClient({
                 <input type="text" value={newDesc} onChange={e => setNewDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="e.g. Office supplies paid by staff" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50" />
               </div>
               <div className="w-36">
-                <label className="block text-xs text-gray-500 mb-1">Amount (EUR)</label>
+                <label className="block text-xs text-gray-500 mb-1">Amount ({billingCurrency})</label>
                 <input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50" />
               </div>
               <button onClick={addManualLine} disabled={!newDesc.trim() || !newAmount || parseFloat(newAmount) <= 0 || isFinalized} className="flex items-center gap-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40">
@@ -547,7 +584,7 @@ export default function ReimbursableInvoiceClient({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-400">Add EUR amounts for items not tracked in the system.</p>
+              <p className="text-xs text-gray-400">Add {billingCurrency} amounts for items not tracked in the system.</p>
             )}
           </div>
         </div>
@@ -569,7 +606,7 @@ export default function ReimbursableInvoiceClient({
                 <input type="text" value={newDedDesc} onChange={e => setNewDedDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="e.g. Advance adjustment" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 disabled:opacity-50" />
               </div>
               <div className="w-36">
-                <label className="block text-xs text-gray-500 mb-1">Amount (EUR)</label>
+                <label className="block text-xs text-gray-500 mb-1">Amount ({billingCurrency})</label>
                 <input type="number" value={newDedAmount} onChange={e => setNewDedAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 disabled:opacity-50" />
               </div>
               <button onClick={addDeduction} disabled={!newDedDesc.trim() || !newDedAmount || parseFloat(newDedAmount) <= 0 || isFinalized} className="flex items-center gap-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40">

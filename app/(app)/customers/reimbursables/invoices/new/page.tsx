@@ -32,19 +32,22 @@ export default async function ReimbursableNewInvoicePage({
   const reimbursables = await getReimbursableCustomers(supabase, uid)
   const active = resolveActiveCustomer(reimbursables, customerParam ?? null)
 
-  // v63: also pull fixed_expenses so the invoice builder can seed the
-  // customer's own template instead of the retired Contrast hardcode.
+  // v63: also pull fixed_expenses + customer address so we can build the
+  // PDF's Bill-To block dynamically instead of hardcoding Contrast A/S.
   type ActiveCustomer = {
     id: string
     name: string
     billing_currency: string
-    fixed_expenses: { description: string; amount: number }[] | null
+    fixed_expenses: { description: string; amount: number; currency?: string }[] | null
+    address: string | null
+    country: string | null
+    email: string | null
   }
   let activeCustomer: ActiveCustomer | null = null
   if (active) {
     const { data: full } = await supabase
       .from('customers')
-      .select('id, name, billing_currency, fixed_expenses')
+      .select('id, name, billing_currency, fixed_expenses, address, country, email')
       .eq('id', active.id)
       .eq('user_id', uid)
       .maybeSingle()
@@ -54,12 +57,22 @@ export default async function ReimbursableNewInvoicePage({
   if (!activeCustomer) {
     const { data: legacy } = await supabase
       .from('customers')
-      .select('id, name, billing_currency, fixed_expenses')
+      .select('id, name, billing_currency, fixed_expenses, address, country, email')
       .eq('user_id', uid)
       .ilike('name', '%contrast%')
       .order('name')
     activeCustomer = ((legacy?.[0] ?? null) as ActiveCustomer | null)
   }
+
+  // Bill-From = the user's default company (companies.is_default=true).
+  // Full bank details flow into the PDF's Bank block. Company picker (choose
+  // a different Bill-From per invoice) will land in a follow-up deploy.
+  const { data: defaultCompany } = await supabase
+    .from('companies')
+    .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name')
+    .eq('user_id', uid)
+    .eq('is_default', true)
+    .maybeSingle()
 
   // No-customer fallback is INR (matches the app-wide default). In practice a
   // customer is always chosen before the invoice can be finalised, so this
@@ -165,7 +178,7 @@ export default async function ReimbursableNewInvoicePage({
       employees={(employees ?? []) as never[]}
       courierInvoices={(courierInvoices ?? []) as never[]}
       allExpenses={(queuedExpenses ?? []) as never[]}
-      companyName={profile?.full_name ?? ''}
+      companyName={defaultCompany?.name ?? profile?.full_name ?? ''}
       uncategorizedCount={uncategorizedCount ?? 0}
       customerId={activeCustomer?.id ?? null}
       customerName={activeCustomer?.name ?? ''}
@@ -173,6 +186,23 @@ export default async function ReimbursableNewInvoicePage({
       marketRate={marketRate}
       marketRateAsOf={marketRateAsOf}
       initialFixedExpenses={activeCustomer?.fixed_expenses ?? []}
+      billFrom={defaultCompany ? {
+        name:                defaultCompany.name,
+        contact:             profile?.full_name ?? undefined,
+        email:               defaultCompany.email ?? undefined,
+        phone:               defaultCompany.phone ?? undefined,
+        address:             defaultCompany.address ?? undefined,
+        bank_account_name:   defaultCompany.bank_account_name   ?? undefined,
+        bank_account_number: defaultCompany.bank_account_number ?? undefined,
+        bank_ifsc:           defaultCompany.bank_ifsc           ?? undefined,
+        bank_name:           defaultCompany.bank_name           ?? undefined,
+      } : undefined}
+      billTo={activeCustomer ? {
+        name:    activeCustomer.name,
+        address: activeCustomer.address ?? undefined,
+        country: activeCustomer.country ?? undefined,
+        email:   activeCustomer.email ?? undefined,
+      } : undefined}
     />
   )
 }

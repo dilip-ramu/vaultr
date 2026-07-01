@@ -25,7 +25,11 @@ export default function ReimbursableCustomerPicker({ customers }: Props) {
     const sp = new URLSearchParams(params.toString())
     if (id) sp.set('customer', id)
     else sp.delete('customer')
-    router.replace(`?${sp.toString()}`)
+    // push (not replace) so the server component re-runs its data-fetches
+    // for the new ?customer param — replace alone wasn't refetching, which
+    // is why picking Lullabee kept showing the previous customer's invoices.
+    router.push(`?${sp.toString()}`)
+    router.refresh()
   }
 
   if (customers.length === 0) {

@@ -180,11 +180,14 @@ export interface Customer {
   created_at: string
 }
 
-/** A row in customers.fixed_expenses. Description + amount in the customer's
- *  billing currency. Amounts are editable per-invoice — this is just the seed. */
+/** A row in customers.fixed_expenses. Description + amount, plus optional
+ *  currency override. When `currency` is missing it falls back to the
+ *  customer's billing_currency (the common case). When set explicitly, the
+ *  invoice builder converts using the forex rate — same as courier/expense. */
 export interface FixedExpenseTemplate {
   description: string
   amount: number
+  currency?: string
 }
 
 export type CommissionType = 'percentage' | 'per_piece' | 'fixed'

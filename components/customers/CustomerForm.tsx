@@ -53,9 +53,14 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
     const { data: { user } } = await supabase.auth.getUser()
 
     // Drop empty fixed-expense rows (either field missing) so we never
-    // persist a half-typed placeholder.
+    // persist a half-typed placeholder. Currency is preserved if set; empty
+    // currency omitted so it falls back to the customer's billing_currency.
     const cleanedFixed: FixedExpenseTemplate[] = fixedExpenses
-      .map(f => ({ description: f.description.trim(), amount: Number(f.amount) || 0 }))
+      .map(f => ({
+        description: f.description.trim(),
+        amount:      Number(f.amount) || 0,
+        currency:    f.currency?.trim().toUpperCase() || undefined,
+      }))
       .filter(f => f.description.length > 0 && f.amount !== 0)
 
     const payload = {
@@ -266,7 +271,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
               <div>
                 <p className="text-sm font-medium text-gray-700">Fixed monthly expenses</p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Templates seeded into every reimbursement invoice for this customer. Amounts in {billingCurrency}. Editable per-invoice.
+                  Templates seeded into every reimbursement invoice for this customer. Each row can override the customer&apos;s billing currency (default: {billingCurrency}). Editable per-invoice.
                 </p>
               </div>
               <div className="space-y-2">
@@ -284,8 +289,19 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
                       value={f.amount === 0 ? '' : f.amount}
                       onChange={e => setFixedExpenses(prev => prev.map((row, i) => i === idx ? { ...row, amount: parseFloat(e.target.value) || 0 } : row))}
                       placeholder="0.00"
-                      className="w-28 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-right tabular-nums"
+                      className="w-24 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-right tabular-nums"
                     />
+                    <select
+                      value={f.currency ?? ''}
+                      onChange={e => setFixedExpenses(prev => prev.map((row, i) => i === idx ? { ...row, currency: e.target.value || undefined } : row))}
+                      className="w-24 px-2 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                      title="Per-row currency. Blank = customer's billing currency."
+                    >
+                      <option value="">{billingCurrency}</option>
+                      {['INR','EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF'].filter(c => c !== billingCurrency).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       onClick={() => setFixedExpenses(prev => prev.filter((_, i) => i !== idx))}
