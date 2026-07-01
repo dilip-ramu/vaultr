@@ -23,13 +23,16 @@
  */
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, ChevronDown, ChevronRight, UploadCloud, X, Layers, List } from 'lucide-react'
+import { Plus, ChevronDown, ChevronRight, UploadCloud, X, Layers, List, Pencil, Trash2, Loader2 } from 'lucide-react'
 import type { RecoverableInvoice, ImportBatch, RecoverableAllocation } from '@/lib/recoverables/types'
 import InvoiceListClient from './InvoiceListClient'
 import ImportPageClient from '../import/ImportPageClient'
 import MarkPaidModal from './MarkPaidModal'
 import StatusBadge from '@/components/recoverables/shared/StatusBadge'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 
 interface Props {
   invoices: RecoverableInvoice[]
@@ -58,6 +61,30 @@ export default function InvoicesPageClient({
   const [mode, setMode] = useState<'batches' | 'flat'>('batches')
   const [showImport, setShowImport] = useState(false)
   const [markPaidInv, setMarkPaidInv] = useState<RecoverableInvoice | null>(null)
+  const [deletingId, setDeletingId]   = useState<string | null>(null)
+
+  /** Delete a courier tax invoice — /api/recoverables/invoices/[id] handles
+   *  unlinking shipments, allocations and cascading. Refreshes the page on
+   *  success so the batch card updates. */
+  async function handleDelete(inv: RecoverableInvoice) {
+    if (!await confirmDialog({
+      title:   'Delete this courier invoice?',
+      message: `${inv.invoice_number} · ${inv.customer_name}. This cannot be undone. Allocations linked to it will be released so they can be re-billed.`,
+      confirmLabel: 'Delete',
+    })) return
+    setDeletingId(inv.id)
+    try {
+      const res = await fetch(`/api/recoverables/invoices/${inv.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'Delete failed' }))
+        notify(error ?? 'Delete failed')
+        return
+      }
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const reimbursableSet = useMemo(() => new Set(reimbursableCustomerIds), [reimbursableCustomerIds])
 
@@ -165,6 +192,8 @@ export default function InvoicesPageClient({
               pendingAllocations={pending}
               reimbursableSet={reimbursableSet}
               onMarkPaid={setMarkPaidInv}
+              onDelete={handleDelete}
+              deletingId={deletingId}
             />
           ))}
           {orphanInvoices.length > 0 && (
@@ -182,6 +211,8 @@ export default function InvoicesPageClient({
                     invoice={inv}
                     reimbursableSet={reimbursableSet}
                     onMarkPaid={setMarkPaidInv}
+                    onDelete={handleDelete}
+                    deleting={deletingId === inv.id}
                   />
                 ))}
               </div>
@@ -235,13 +266,15 @@ export default function InvoicesPageClient({
  *  reveals the invoices raised from it + any pending allocations still
  *  waiting to be invoiced. */
 function BatchCard({
-  batch, invoices, pendingAllocations, reimbursableSet, onMarkPaid,
+  batch, invoices, pendingAllocations, reimbursableSet, onMarkPaid, onDelete, deletingId,
 }: {
   batch: ImportBatch
   invoices: RecoverableInvoice[]
   pendingAllocations: RecoverableAllocation[]
   reimbursableSet: Set<string>
   onMarkPaid: (inv: RecoverableInvoice) => void
+  onDelete:   (inv: RecoverableInvoice) => void
+  deletingId: string | null
 }) {
   const [open, setOpen] = useState(false)
   const invoicedTotal   = invoices.reduce((s, i) => s + Number(i.total ?? 0), 0)
@@ -301,6 +334,8 @@ function BatchCard({
               invoice={inv}
               reimbursableSet={reimbursableSet}
               onMarkPaid={onMarkPaid}
+              onDelete={onDelete}
+              deleting={deletingId === inv.id}
             />
           ))}
           {pendingAllocations.length > 0 && (
@@ -317,11 +352,13 @@ function BatchCard({
 
 /** One invoice row inside a batch card or under "Other invoices". */
 function InvoiceRow({
-  invoice, reimbursableSet, onMarkPaid,
+  invoice, reimbursableSet, onMarkPaid, onDelete, deleting,
 }: {
   invoice:  RecoverableInvoice
   reimbursableSet: Set<string>
   onMarkPaid: (inv: RecoverableInvoice) => void
+  onDelete:   (inv: RecoverableInvoice) => void
+  deleting:   boolean
 }) {
   const isReimbursable = !!invoice.customer_id && reimbursableSet.has(invoice.customer_id)
   const isSettleable   = invoice.status !== 'paid' && invoice.status !== 'cancelled' && invoice.status !== 'draft'
@@ -365,6 +402,25 @@ function InvoiceRow({
           Mark paid
         </button>
       )}
+      {/* Edit — courier invoices have a full detail/edit page. */}
+      <Link
+        href={`/recoverables/invoices/${invoice.id}`}
+        title="Edit invoice"
+        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white shrink-0 transition-colors"
+      >
+        <Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+      </Link>
+      {/* Delete — /api/recoverables/invoices/[id] handles unlinking. */}
+      <button
+        onClick={() => onDelete(invoice)}
+        disabled={deleting}
+        title="Delete invoice"
+        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 disabled:opacity-50 shrink-0 transition-colors"
+      >
+        {deleting
+          ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#dc2626' }} />
+          : <Trash2 className="w-3.5 h-3.5 text-red-400" />}
+      </button>
     </div>
   )
 }

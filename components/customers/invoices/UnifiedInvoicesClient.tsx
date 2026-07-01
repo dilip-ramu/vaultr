@@ -16,10 +16,12 @@
  */
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, DollarSign, Clock, Loader2, Truck, FileText, Filter } from 'lucide-react'
+import { CheckCircle2, DollarSign, Clock, Loader2, Truck, FileText, Filter, Pencil, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface Invoice {
   id:             string
@@ -64,7 +66,8 @@ function fmtCur(n: number, cur: string): string {
 export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerIds }: Props) {
   const router = useRouter()
   const reimbursableSet = useMemo(() => new Set(reimbursableCustomerIds), [reimbursableCustomerIds])
-  const [markingId, setMarkingId] = useState<string | null>(null)
+  const [markingId,  setMarkingId]  = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType,   setFilterType]   = useState<'all' | 'tax_invoice' | 'reimbursement'>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid'>('all')
 
@@ -74,6 +77,48 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
     if (filterStatus === 'paid' && inv.status !== 'paid') return false
     return true
   }), [invoices, filterType, filterStatus])
+
+  /** Type-aware delete. Both API paths cascade-unlink related rows
+   *  (transactions, payroll_months, courier links) before dropping the
+   *  invoice — that logic already lives on the server so we just call it. */
+  async function handleDelete(inv: Invoice) {
+    const isReimbursement = inv.invoice_type === 'reimbursement'
+    const label = isReimbursement ? 'reimbursement invoice' : 'courier tax invoice'
+    if (!await confirmDialog({
+      title: `Delete ${label}?`,
+      message: `${inv.invoice_number} · ${inv.customer_name} · ${fmtCur(Number(inv.total), inv.currency)}. This cannot be undone. Linked expenses, courier links, and payroll entries will be unlinked so they can be re-billed.`,
+      confirmLabel: 'Delete',
+    })) return
+    setDeletingId(inv.id)
+    try {
+      const url = isReimbursement
+        ? `/api/contrast/invoices/${inv.id}`
+        : `/api/recoverables/invoices/${inv.id}`
+      const res = await fetch(url, { method: 'DELETE' })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'Delete failed' }))
+        notify(error ?? 'Delete failed')
+        return
+      }
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  /** Edit target — depends on invoice type. Courier tax invoices have a
+   *  proper detail page; reimbursement invoices open in the builder with a
+   *  pre-filled invoice id (the builder handles the "already finalized"
+   *  path — see Deploy 3). */
+  function editHref(inv: Invoice): string {
+    if (inv.invoice_type === 'reimbursement') {
+      const qs = new URLSearchParams()
+      if (inv.customer_id) qs.set('customer', inv.customer_id)
+      qs.set('invoice', inv.id)
+      return `/customers/invoices/reimbursables/new?${qs.toString()}`
+    }
+    return `/recoverables/invoices/${inv.id}`
+  }
 
   async function handleMarkPaid(inv: Invoice) {
     setMarkingId(inv.id)
@@ -144,7 +189,10 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
               invoice={inv}
               isReimbursableCustomer={!!inv.customer_id && reimbursableSet.has(inv.customer_id)}
               onMarkPaid={handleMarkPaid}
-              marking={markingId === inv.id}
+              onDelete={handleDelete}
+              editHref={editHref(inv)}
+              marking={markingId  === inv.id}
+              deleting={deletingId === inv.id}
             />
           ))}
         </div>
@@ -174,12 +222,15 @@ function FilterPill({
 }
 
 function InvoiceRow({
-  invoice, isReimbursableCustomer, onMarkPaid, marking,
+  invoice, isReimbursableCustomer, onMarkPaid, onDelete, editHref, marking, deleting,
 }: {
   invoice: Invoice
   isReimbursableCustomer: boolean
   onMarkPaid: (inv: Invoice) => void
-  marking: boolean
+  onDelete:   (inv: Invoice) => void
+  editHref:   string
+  marking:    boolean
+  deleting:   boolean
 }) {
   const isReimbursement = invoice.invoice_type === 'reimbursement'
   const isPaid          = invoice.status === 'paid'
@@ -236,24 +287,46 @@ function InvoiceRow({
         )}
       </div>
 
-      {/* Action */}
-      {canMarkPaid && (
-        <button
-          onClick={() => onMarkPaid(invoice)}
-          disabled={marking}
-          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold shrink-0 disabled:opacity-50"
-          style={{
-            background: cascadedByReimbursement ? 'var(--surface)' : 'var(--brand)',
-            color:      cascadedByReimbursement ? 'var(--text-muted)' : '#fff',
-            border:     cascadedByReimbursement ? '1px solid var(--border)' : 'none',
-          }}
-          title={cascadedByReimbursement
-            ? 'Usually not needed — auto-settles when the reimbursement invoice is paid.'
-            : 'Mark this invoice as paid'}
+      {/* Actions — Mark paid + Edit + Delete */}
+      <div className="flex items-center gap-1 shrink-0">
+        {canMarkPaid && (
+          <button
+            onClick={() => onMarkPaid(invoice)}
+            disabled={marking}
+            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+            style={{
+              background: cascadedByReimbursement ? 'var(--surface)' : 'var(--brand)',
+              color:      cascadedByReimbursement ? 'var(--text-muted)' : '#fff',
+              border:     cascadedByReimbursement ? '1px solid var(--border)' : 'none',
+            }}
+            title={cascadedByReimbursement
+              ? 'Usually not needed — auto-settles when the reimbursement invoice is paid.'
+              : 'Mark this invoice as paid'}
+          >
+            {marking ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : 'Mark paid'}
+          </button>
+        )}
+        {/* Edit — opens the detail page (courier) or the builder with the
+            existing invoice loaded (reimbursement). */}
+        <Link
+          href={editHref}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-[var(--surface-2)] transition-colors"
+          title="Edit invoice"
         >
-          {marking ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : 'Mark paid'}
+          <Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+        </Link>
+        {/* Delete — confirm dialog before firing. */}
+        <button
+          onClick={() => onDelete(invoice)}
+          disabled={deleting}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+          title="Delete invoice"
+        >
+          {deleting
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#dc2626' }} />
+            : <Trash2 className="w-3.5 h-3.5 text-red-400" />}
         </button>
-      )}
+      </div>
     </div>
   )
 }
