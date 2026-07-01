@@ -6,8 +6,11 @@ import type { PayrollMonth } from '@/lib/payroll/types'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 
+// Server passes months enriched with total_payable (sum of entries' final_payable).
+export type MonthWithTotal = PayrollMonth & { total_payable: number }
+
 interface Props {
-  months: PayrollMonth[]
+  months: MonthWithTotal[]
 }
 
 const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -50,7 +53,7 @@ const STATUS_BADGE: Record<Exclude<StatusFilter, 'all'>, { label: string; cls: s
 
 export default function ProcessingListClient({ months: initialMonths }: Props) {
   const router = useRouter()
-  const [months, setMonths] = useState(initialMonths)
+  const [months, setMonths] = useState<MonthWithTotal[]>(initialMonths)
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [showCreate, setShowCreate] = useState(false)
   const [newMonth, setNewMonth] = useState('')
@@ -149,31 +152,47 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
             <div
               key={m.id}
               onClick={() => router.push(`/payroll/processing/${m.id}`)}
-              className="bg-white border border-gray-200 rounded-xl px-5 py-4 flex items-center justify-between cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
+              className="bg-white border border-gray-200 rounded-xl px-5 py-4 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
             >
-              <div className="flex items-center gap-4">
-                <div>
-                  <div className="font-semibold text-gray-900">{fmtMonth(m.payroll_month)}</div>
-                  {m.description && (
-                    <div className="text-sm text-gray-500 mt-0.5">{m.description}</div>
-                  )}
-                  {m.payment_date && (
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      Payment: {fmtDate(m.payment_date)}
-                    </div>
-                  )}
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900">{fmtMonth(m.payroll_month)}</div>
+                    {m.description && (
+                      <div className="text-sm text-gray-500 mt-0.5">{m.description}</div>
+                    )}
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[monthStatus(m)].cls}`}>
+                    {STATUS_BADGE[monthStatus(m)].label}
+                  </span>
                 </div>
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[monthStatus(m)].cls}`}>
-                  {STATUS_BADGE[monthStatus(m)].label}
-                </span>
+                <div className="text-right shrink-0">
+                  <div className="text-lg font-semibold text-gray-900 tabular-nums">{fmtInr(Number(m.total_payable ?? 0))}</div>
+                  <button
+                    onClick={(e) => handleDelete(m.id, e)}
+                    className="text-xs text-red-400 hover:text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-6 text-right">
-                <button
-                  onClick={(e) => handleDelete(m.id, e)}
-                  className="text-xs text-red-400 hover:text-red-600 ml-2"
-                >
-                  Delete
-                </button>
+              {/* Rate + dates strip */}
+              <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
+                {Number(m.expended_rate) > 0 && (
+                  <span>
+                    Exchange rate <span className="font-medium text-gray-700 tabular-nums">₹{Number(m.expended_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </span>
+                )}
+                {m.finalized_at && (
+                  <span>
+                    Processed <span className="font-medium text-gray-700">{fmtDate(m.finalized_at)}</span>
+                  </span>
+                )}
+                {m.payment_date && (
+                  <span>
+                    Paid <span className="font-medium text-gray-700">{fmtDate(m.payment_date)}</span>
+                  </span>
+                )}
               </div>
             </div>
           ))}

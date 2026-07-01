@@ -18,6 +18,7 @@ export default async function MonthDetailPage({ params }: PageProps) {
     { data: entries },
     { data: accounts },
     { data: settings },
+    { data: customers },
   ] = await Promise.all([
     supabase.from('payroll_months').select('*').eq('id', id).eq('user_id', user.id).single(),
     supabase.from('payroll_entries')
@@ -34,6 +35,8 @@ export default async function MonthDetailPage({ params }: PageProps) {
       .select('company_name, company_address')
       .eq('user_id', user.id)
       .maybeSingle(),
+    // Needed for the Works-for filter chips at the top of the entries table.
+    supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
   ])
 
   if (!month) notFound()
@@ -46,6 +49,7 @@ export default async function MonthDetailPage({ params }: PageProps) {
         accounts={accounts ?? []}
         companyName={settings?.company_name ?? null}
         companyAddress={settings?.company_address ?? null}
+        customers={customers ?? []}
       />
     </div>
   )

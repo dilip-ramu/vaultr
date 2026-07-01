@@ -83,11 +83,11 @@ const navSections: NavSection[] = [
     id: 'payroll',
     label: 'Payroll',
     items: [
-      // Processing now hosts Active and History as inner tabs; the
-      // standalone /payroll/history URL still works for any deep link.
-      { href: '/payroll/processing', label: 'Processing',    icon: CalendarClock },
-      { href: '/payroll/staff',      label: 'Staff',         icon: UserSquare },
-      { href: '/payroll/slips',      label: 'Salary Slips',  icon: FileText },
+      // Processing lists every month (in-progress + finalised) in one place.
+      // Salary Slips are reachable from each month's detail page — no longer
+      // a top-level sidebar entry. /payroll/slips still resolves for deep links.
+      { href: '/payroll/processing', label: 'Processing', icon: CalendarClock },
+      { href: '/payroll/staff',      label: 'Staff',      icon: UserSquare },
     ],
   },
   {

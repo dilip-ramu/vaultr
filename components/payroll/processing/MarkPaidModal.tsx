@@ -64,11 +64,17 @@ export default function MarkPaidModal({
     setStep('uploading')
     setProgress(entries.map(e => ({ name: e.employee?.name ?? 'Employee', done: false })))
 
-    // Step 1 — create transactions via API
+    // Step 1 — create transactions via API. Explicitly pass the entry_ids
+    // we care about — only these get paid + a transaction created. Anything
+    // unchecked in the caller stays as an unpaid entry.
     const res = await fetch(`/api/payroll/months/${month.id}/pay`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account_id: accountId, payment_date: payDate }),
+      body: JSON.stringify({
+        account_id: accountId,
+        payment_date: payDate,
+        entry_ids: entries.map(e => e.id),
+      }),
     })
     const data = await res.json()
     if (!res.ok) {

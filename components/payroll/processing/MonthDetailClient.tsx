@@ -11,12 +11,15 @@ import { notify } from '@/components/shared/Toast'
 
 interface Account { id: string; name: string; type: string; color?: string | null; avatar_url?: string | null; custom_type_id?: string | null; custom_type_name?: string | null; custom_type_color?: string | null; custom_type_icon?: string | null }
 
+interface Customer { id: string; name: string }
+
 interface Props {
   month: PayrollMonth
   entries: PayrollEntry[]
   accounts: Account[]
   companyName?: string | null
   companyAddress?: string | null
+  customers?: Customer[]
 }
 
 const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -31,6 +34,18 @@ function fmtMonth(m: string): string {
 
 function fmtInr(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+}
+
+/** Currency symbol for the employee's salary_currency. Falls back to the 3-letter
+ *  code when we don't have a canonical symbol. */
+function currencySymbol(cur?: string | null): string {
+  const c = (cur ?? 'EUR').toUpperCase()
+  if (c === 'INR') return '₹'
+  if (c === 'EUR') return '€'
+  if (c === 'USD') return '$'
+  if (c === 'GBP') return '£'
+  if (c === 'JPY' || c === 'CNY') return '¥'
+  return c + ' '
 }
 
 // ── Bank CSV helpers ──────────────────────────────────────────────────────────
@@ -98,11 +113,19 @@ type RowValues = {
   advance: number
 }
 
-export default function MonthDetailClient({ month: initialMonth, entries: initialEntries, accounts, companyName, companyAddress }: Props) {
+export default function MonthDetailClient({ month: initialMonth, entries: initialEntries, accounts, companyName, companyAddress, customers = [] }: Props) {
   const router = useRouter()
   const [month, setMonth] = useState(initialMonth)
   const [entries, setEntries] = useState(initialEntries)
   const [showPayModal, setShowPayModal] = useState(false)
+  // Works-for filter — 'all' | 'me' | <customer_id>. Filters the visible rows
+  // AND the "check all" behavior.
+  const [worksForFilter, setWorksForFilter] = useState<string>('all')
+  // Which entries to actually pay when Mark Paid runs. Everyone checked by
+  // default; user unchecks people they want to skip this batch.
+  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(
+    () => new Set(initialEntries.map(e => e.id))
+  )
 
   // Summary bar state
   const [billedEuros, setBilledEuros] = useState(String(initialMonth.billed_euros || ''))
@@ -140,6 +163,65 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
     return map
   })
   const [savingRow, setSavingRow] = useState<string | null>(null)
+
+  // Which of the user's customers actually have staff in this month? Used to
+  // decide which Works-for chips to render.
+  const worksForOptions = useMemo(() => {
+    const opts: Array<{ key: string; label: string; count: number }> = [
+      { key: 'me', label: 'Me', count: 0 },
+    ]
+    const cusMap = new Map<string, number>()
+    for (const e of entries) {
+      const cid = (e.employee as Employee | undefined)?.works_for_customer_id ?? null
+      if (!cid) opts[0].count++
+      else cusMap.set(cid, (cusMap.get(cid) ?? 0) + 1)
+    }
+    for (const c of customers) {
+      const count = cusMap.get(c.id) ?? 0
+      if (count > 0) opts.push({ key: c.id, label: c.name, count })
+    }
+    return opts.filter(o => o.count > 0)
+  }, [entries, customers])
+
+  // Filter visible entries by the Works-for chip.
+  const visibleEntries = useMemo(() => {
+    if (worksForFilter === 'all') return entries
+    return entries.filter(e => {
+      const cid = (e.employee as Employee | undefined)?.works_for_customer_id ?? null
+      if (worksForFilter === 'me') return !cid
+      return cid === worksForFilter
+    })
+  }, [entries, worksForFilter])
+
+  // Total that will actually be paid this batch (only checked, visible rows).
+  const selectedTotal = useMemo(() =>
+    visibleEntries.reduce((s, e) => {
+      if (!selectedEntries.has(e.id)) return s
+      const v = rowValues[e.id]
+      if (!v) return s + Number(e.final_payable)
+      return s + calcFinalPayable(Number(e.salary_inr), v.allowances, v.overtime, v.incentives, v.deductions, v.advance)
+    }, 0),
+  [visibleEntries, rowValues, selectedEntries])
+
+  function toggleEntry(id: string) {
+    setSelectedEntries(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAllVisible() {
+    const visibleIds = visibleEntries.map(e => e.id)
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedEntries.has(id))
+    setSelectedEntries(prev => {
+      const next = new Set(prev)
+      if (allSelected) visibleIds.forEach(id => next.delete(id))
+      else visibleIds.forEach(id => next.add(id))
+      return next
+    })
+  }
 
   const totalPayable = useMemo(() =>
     entries.reduce((s, e) => {
@@ -439,20 +521,63 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
       {/* Entries table — always editable */}
       {entries.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-gray-700">
               Payroll Entries — {entries.length} employee{entries.length !== 1 ? 's' : ''}
             </h2>
             <div className="text-sm text-gray-500">
               Total: <span className="font-semibold text-gray-900">{fmtInr(totalPayable)}</span>
+              {selectedEntries.size !== entries.length && (
+                <span className="ml-3">
+                  Selected: <span className="font-semibold text-blue-700">{fmtInr(selectedTotal)}</span>
+                </span>
+              )}
             </div>
           </div>
+          {/* Works-for filter chips — only show when we have > 1 group */}
+          {worksForOptions.length > 1 && (
+            <div className="px-5 py-2 border-b border-gray-100 flex flex-wrap gap-2 bg-gray-50">
+              <button
+                onClick={() => setWorksForFilter('all')}
+                className="px-2.5 py-1 rounded-full text-xs font-medium"
+                style={
+                  worksForFilter === 'all'
+                    ? { background: 'var(--brand)', color: '#fff' }
+                    : { background: '#fff', color: '#4b5563', border: '1px solid #e5e7eb' }
+                }
+              >
+                All ({entries.length})
+              </button>
+              {worksForOptions.map(o => (
+                <button
+                  key={o.key}
+                  onClick={() => setWorksForFilter(o.key)}
+                  className="px-2.5 py-1 rounded-full text-xs font-medium"
+                  style={
+                    worksForFilter === o.key
+                      ? { background: 'var(--brand)', color: '#fff' }
+                      : { background: '#fff', color: '#4b5563', border: '1px solid #e5e7eb' }
+                  }
+                >
+                  {o.label} ({o.count})
+                </button>
+              ))}
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-10">
+                    <input
+                      type="checkbox"
+                      checked={visibleEntries.length > 0 && visibleEntries.every(e => selectedEntries.has(e.id))}
+                      onChange={toggleAllVisible}
+                      title="Select all shown"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary €</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary ₹</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Allowances</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Overtime</th>
@@ -463,21 +588,31 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {entries.map(entry => {
+                {visibleEntries.map(entry => {
                   const v = rowValues[entry.id] ?? { allowances: 0, overtime: 0, incentives: 0, deductions: 0, advance: 0 }
                   const livePayable = calcFinalPayable(
                     Number(entry.salary_inr), v.allowances, v.overtime, v.incentives, v.deductions, v.advance
                   )
                   const isSaving = savingRow === entry.id
+                  const isChecked = selectedEntries.has(entry.id)
 
                   return (
-                    <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${isSaving ? 'opacity-60' : ''}`}>
+                    <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${isSaving ? 'opacity-60' : ''} ${!isChecked ? 'opacity-40' : ''}`}>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleEntry(entry.id)}
+                          disabled={month.is_paid}
+                          title={month.is_paid ? 'Month already paid — cannot change selection' : 'Include in this batch'}
+                        />
+                      </td>
                       <td className="px-4 py-2">
                         <div className="font-medium text-gray-900">{entry.employee?.name ?? '—'}</div>
                         <div className="text-xs text-gray-400">{entry.employee?.employee_id ?? ''}</div>
                       </td>
                       <td className="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
-                        €{Number(entry.salary_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        {currencySymbol(entry.employee?.salary_currency)}{Number(entry.salary_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
                         {fmtInr(Number(entry.salary_inr))}
@@ -584,7 +719,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
       {showPayModal && (
         <MarkPaidModal
           month={month}
-          entries={entries.filter(e => e.employee) as (PayrollEntry & { employee: Employee })[]}
+          entries={entries.filter(e => e.employee && selectedEntries.has(e.id)) as (PayrollEntry & { employee: Employee })[]}
           accounts={accounts}
           companyName={companyName}
           companyAddress={companyAddress}
