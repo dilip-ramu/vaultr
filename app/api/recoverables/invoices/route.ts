@@ -27,6 +27,7 @@ export async function GET(_req: NextRequest) {
     .from('recoverable_invoices')
     .select('*')
     .eq('user_id', user.id)
+    .eq('invoice_type', 'tax_invoice')  // Batch E: this API serves tax invoices only
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

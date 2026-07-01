@@ -84,12 +84,18 @@ export default async function ReimbursableNewInvoicePage({
     : { data: [] }
 
   // ── Unlinked courier (recoverable) invoices for THIS customer ─────────────
+  // Batch E fix: recoverable_invoices now holds BOTH tax invoices and
+  // reimbursement invoices, distinguished by invoice_type. Without this
+  // filter, the courier-charges picker was accidentally offering the user's
+  // own reimbursement invoices as bundleable courier items — showing them
+  // with EUR-denominated totals rendered as ₹ and causing visible glitches.
   const { data: courierInvoices } = activeCustomer
     ? await supabase
         .from('recoverable_invoices')
         .select('id, invoice_number, total, invoice_date, status, customer_name')
         .eq('user_id', uid)
         .eq('customer_id', activeCustomer.id)
+        .eq('invoice_type', 'tax_invoice')          // ← only real tax invoices
         .is('contrast_invoice_id', null)
         .not('status', 'eq', 'cancelled')
         .order('invoice_date', { ascending: false })

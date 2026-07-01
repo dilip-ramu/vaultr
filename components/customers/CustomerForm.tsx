@@ -7,11 +7,14 @@ import { createClient } from '@/lib/supabase/client'
 
 interface Props {
   customer: Customer | null
-  onSaved: (customer: Customer) => void
+  /** Whether this customer is already marked reimbursable (i.e. a payee links
+   *  to them). The toggle in the form preselects to this value. */
+  initialReimbursable?: boolean
+  onSaved: (customer: Customer, isReimbursable: boolean) => void
   onClose: () => void
 }
 
-export default function CustomerForm({ customer, onSaved, onClose }: Props) {
+export default function CustomerForm({ customer, initialReimbursable = false, onSaved, onClose }: Props) {
   const isEdit = !!customer
   const [name, setName] = useState(customer?.name ?? '')
   const [email, setEmail] = useState(customer?.email ?? '')
@@ -26,6 +29,7 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
   const [csvAlias, setCsvAlias] = useState(customer?.csv_alias ?? '')
   const [notes, setNotes] = useState(customer?.notes ?? '')
   const [paysCommission, setPaysCommission] = useState(customer?.pays_commission ?? false)
+  const [isReimbursable, setIsReimbursable] = useState(initialReimbursable)
   // Default to INR — most customers are Indian. Pre-Batch-E this defaulted to
   // EUR because Contrast was the archetypal customer, but that's no longer
   // representative and users had to remember to switch it every time.
@@ -69,7 +73,32 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
     }
 
     if (err) { setError(err.message); setSaving(false); return }
-    onSaved(data)
+
+    // Reconcile the reimbursable flag AFTER the customer row exists — a POST
+    // to /api/reimbursables/customers ensures a payee is linked; a DELETE
+    // clears the payee.customer_id (row itself stays so history resolves).
+    // Failures here don't block the save — the customer is already stored;
+    // we just notify and let the user retry from the Reimbursables page.
+    if (isReimbursable !== initialReimbursable) {
+      try {
+        if (isReimbursable) {
+          await fetch('/api/reimbursables/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_id: data.id }),
+          })
+        } else {
+          await fetch(`/api/reimbursables/customers?customer_id=${data.id}`, {
+            method: 'DELETE',
+          })
+        }
+      } catch {
+        // Non-fatal: surface but don't block.
+        setError('Customer saved, but couldn’t update reimbursable status. Try the Reimbursables page.')
+      }
+    }
+
+    onSaved(data, isReimbursable)
   }
 
   return (
@@ -192,6 +221,26 @@ export default function CustomerForm({ customer, onSaved, onClose }: Props) {
               className={`w-11 h-6 rounded-full transition-colors relative ${paysCommission ? 'bg-brand-500' : 'bg-gray-300'}`}
             >
               <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${paysCommission ? 'right-0.5' : 'left-0.5'}`} />
+            </button>
+          </div>
+
+          {/* Reimbursable flag — links a payee so a tab auto-opens under
+              Reimbursables and any payee-tagged expense counts toward them. */}
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-200">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Reimbursable</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {isReimbursable
+                  ? 'A tab for this customer shows under Reimbursables.'
+                  : 'Turn on to bill this customer for pass-through expenses.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsReimbursable(v => !v)}
+              className={`w-11 h-6 rounded-full transition-colors relative ${isReimbursable ? 'bg-brand-500' : 'bg-gray-300'}`}
+            >
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isReimbursable ? 'right-0.5' : 'left-0.5'}`} />
             </button>
           </div>
 

@@ -20,6 +20,9 @@ async function PageContent() {
       .from('recoverable_invoices')
       .select('*')
       .eq('user_id', user.id)
+      // Batch E: filter out reimbursement rows — they live in the same
+      // table now but are their own domain (see /customers/reimbursables).
+      .eq('invoice_type', 'tax_invoice')
       .order('created_at', { ascending: false }),
     supabase
       .from('recoverable_import_batches')

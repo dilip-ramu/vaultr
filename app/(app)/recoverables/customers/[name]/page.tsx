@@ -50,6 +50,7 @@ export default async function CustomerLedgerPage({
       .from('recoverable_invoices')
       .select('*')
       .eq('user_id', user.id)
+      .eq('invoice_type', 'tax_invoice')  // Batch E: skip reimbursements
       .eq('customer_name', customerName)
       .order('invoice_date', { ascending: false }),
   ])

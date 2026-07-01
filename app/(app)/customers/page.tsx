@@ -32,6 +32,7 @@ export default async function CustomerOverviewPage() {
       .from('recoverable_invoices')
       .select('balance_due, customer_id, customer_name')
       .eq('user_id', user.id)
+      .eq('invoice_type', 'tax_invoice')  // Batch E: skip reimbursements
       .in('status', ['sent', 'overdue'])
       .gt('balance_due', 0),
   ])

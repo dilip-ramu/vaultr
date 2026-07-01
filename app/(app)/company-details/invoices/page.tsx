@@ -13,6 +13,7 @@ export default async function CompanyDetailsInvoicesTabPage() {
     .from('recoverable_invoices')
     .select('*')
     .eq('user_id', user.id)
+    .eq('invoice_type', 'tax_invoice')  // Batch E: skip reimbursements
     .order('invoice_date', { ascending: false })
     .order('created_at', { ascending: false })
 

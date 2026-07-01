@@ -20,6 +20,7 @@ export async function GET(
       .select('*')
       .eq('id', id)
       .eq('user_id', user.id)
+      .eq('invoice_type', 'tax_invoice')  // Batch E: this API serves tax invoices only
       .single(),
     supabase
       .from('recoverable_invoice_lines')
@@ -74,6 +75,7 @@ export async function PATCH(
     .select('id, total, balance_due, status, invoice_number, customer_name, transaction_id')
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('invoice_type', 'tax_invoice')  // Batch E: this API serves tax invoices only
     .single()
 
   if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 })

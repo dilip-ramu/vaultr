@@ -9,7 +9,7 @@ export default async function CustomerDirectoryPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: customers }, { data: openInvoices }] = await Promise.all([
+  const [{ data: customers }, { data: openInvoices }, { data: linkedPayees }] = await Promise.all([
     supabase
       .from('customers')
       .select('*')
@@ -21,8 +21,22 @@ export default async function CustomerDirectoryPage() {
       .from('recoverable_invoices')
       .select('customer_id, balance_due, due_date, status')
       .eq('user_id', user.id)
+      .eq('invoice_type', 'tax_invoice')  // Batch E: skip reimbursements
       .not('status', 'in', '(paid,cancelled,draft)'),
+    // A customer is "reimbursable" iff at least one payee row links to them.
+    // We hand the ids down so the form's toggle can show the correct default
+    // and toggling it doesn't need a client-side read.
+    supabase
+      .from('payees')
+      .select('customer_id')
+      .eq('user_id', user.id)
+      .not('customer_id', 'is', null),
   ])
+  const reimbursableCustomerIds = new Set(
+    (linkedPayees ?? [])
+      .map(r => (r as { customer_id: string | null }).customer_id)
+      .filter((v): v is string => !!v)
+  )
 
   // Aggregate outstanding (balance_due) and overdue per customer_id.
   const today = new Date()
@@ -42,6 +56,7 @@ export default async function CustomerDirectoryPage() {
       <CustomersClient
         initialCustomers={customers ?? []}
         outstandingByCustomer={totals}
+        reimbursableCustomerIds={Array.from(reimbursableCustomerIds)}
       />
     </div>
   )

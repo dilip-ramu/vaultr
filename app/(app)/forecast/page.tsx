@@ -28,7 +28,8 @@ export default async function ForecastPage() {
       .eq('user_id', uid).eq('is_active', true),
     supabase.from('recoverable_invoices')
       .select('invoice_number, customer_name, balance_due, due_date, invoice_date')
-      .eq('user_id', uid).in('status', ['sent', 'overdue']).gt('balance_due', 0),
+      .eq('user_id', uid).eq('invoice_type', 'tax_invoice')  // Batch E: skip reimbursements
+      .in('status', ['sent', 'overdue']).gt('balance_due', 0),
     supabase.from('commission_styles')
       .select('style_ref, commission_inr, expected_payment_date')
       .eq('user_id', uid).eq('order_status', 'shipped')

@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
 
   // Verify both invoices belong to this user
   const [{ data: ri }, { data: si }] = await Promise.all([
-    supabase.from('recoverable_invoices').select('id').eq('id', recoverable_invoice_id).eq('user_id', user.id).single(),
+    // Batch E: this API links suppliers to TAX invoices only, never reimbursements.
+    supabase.from('recoverable_invoices').select('id').eq('id', recoverable_invoice_id).eq('user_id', user.id).eq('invoice_type', 'tax_invoice').single(),
     supabase.from('supplier_invoices').select('id').eq('id', supplier_invoice_id).eq('user_id', user.id).single(),
   ])
 

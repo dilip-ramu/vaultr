@@ -29,6 +29,7 @@ export default async function InvoicePrintPage({ params }: Props) {
       .select('*')
       .eq('id', id)
       .eq('user_id', user.id)
+      .eq('invoice_type', 'tax_invoice')  // Batch E: print view is tax-invoice only
       .single(),
     supabase
       .from('recoverable_invoice_lines')

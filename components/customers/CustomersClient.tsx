@@ -2,6 +2,7 @@
 
 import { useState, useMemo, Fragment } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Plus, Search, Users, Phone, Mail, Edit2, Trash2, ChevronDown, ChevronUp, Building2, Receipt } from 'lucide-react'
 import type { Customer } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
@@ -14,14 +15,20 @@ interface PartyTotals { outstanding: number; overdue: number }
 interface Props {
   initialCustomers: Customer[]
   outstandingByCustomer?: Record<string, PartyTotals>
+  /** Ids of customers already flagged reimbursable (a payee row links to
+   *  them). Used to preselect the toggle in the form and to render a badge
+   *  on the customer row. */
+  reimbursableCustomerIds?: string[]
 }
 
 function fmtAmt(n: number) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
 }
 
-export default function CustomersClient({ initialCustomers, outstandingByCustomer = {} }: Props) {
+export default function CustomersClient({ initialCustomers, outstandingByCustomer = {}, reimbursableCustomerIds = [] }: Props) {
+  const router = useRouter()
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
+  const [reimbursableIds, setReimbursableIds] = useState<Set<string>>(new Set(reimbursableCustomerIds))
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
@@ -43,15 +50,23 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
     })
   }, [customers, search])
 
-  function handleSaved(saved: Customer) {
+  function handleSaved(saved: Customer, isReimbursable: boolean) {
     setCustomers(prev => {
       const exists = prev.find(c => c.id === saved.id)
       return exists
         ? prev.map(c => c.id === saved.id ? saved : c)
         : [...prev, saved].sort((a, b) => a.name.localeCompare(b.name))
     })
+    setReimbursableIds(prev => {
+      const next = new Set(prev)
+      if (isReimbursable) next.add(saved.id)
+      else                next.delete(saved.id)
+      return next
+    })
     setShowForm(false)
     setEditingCustomer(null)
+    // Refresh so the Reimbursables tab bar picks up any new/removed customer.
+    router.refresh()
   }
 
   async function handleDelete(id: string) {
@@ -183,7 +198,16 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
                             {c.name[0].toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-medium" style={{ color: 'var(--text)' }}>{c.name}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-medium" style={{ color: 'var(--text)' }}>{c.name}</p>
+                              {reimbursableIds.has(c.id) && (
+                                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                      style={{ background: 'rgba(42,122,80,0.10)', color: 'var(--brand)' }}
+                                      title="Reimbursable — this customer has a Reimbursables tab and any payee-tagged expense counts toward them.">
+                                  Reimbursable
+                                </span>
+                              )}
+                            </div>
                             {c.city && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.city}{c.state ? `, ${c.state}` : ''}</p>}
                           </div>
                         </div>
@@ -330,6 +354,7 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
       {showForm && (
         <CustomerForm
           customer={editingCustomer}
+          initialReimbursable={editingCustomer ? reimbursableIds.has(editingCustomer.id) : false}
           onSaved={handleSaved}
           onClose={() => { setShowForm(false); setEditingCustomer(null) }}
         />

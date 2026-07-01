@@ -6,6 +6,11 @@ import ReimbursableCustomerPicker from '@/components/customers/reimbursables/Rei
 import ReimbursablesNewInvoiceLink from '@/components/customers/reimbursables/ReimbursablesNewInvoiceLink'
 import AddReimbursableButton from '@/components/customers/reimbursables/AddReimbursableButton'
 
+// Force-dynamic so newly-flagged reimbursable customers appear in the picker
+// on the very next visit without waiting for a rebuild. The queries below
+// are cheap.
+export const dynamic = 'force-dynamic'
+
 export default async function ReimbursablesLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

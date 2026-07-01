@@ -174,6 +174,7 @@ async function fetchDashboardFallback(
       .from('recoverable_invoices')
       .select('balance_due')
       .eq('user_id', uid)
+      .eq('invoice_type', 'tax_invoice')  // Batch E: skip reimbursements
       .in('status', ['sent', 'overdue'])
       .gt('balance_due', 0),
     supabase
