@@ -97,8 +97,9 @@ const navSections: NavSection[] = [
       { href: '/profitability', label: 'Profitability', icon: Scale },
       { href: '/forecast',      label: 'Forecast',      icon: CalendarRange },
       { href: '/cards',         label: 'Cards',         icon: CreditCard },
-      // Six previously-standalone items live inside /setup as tabs now:
-      // Company · Categories · Account types · Currencies · Reconcile · Export & Backup.
+      // Previously-standalone items live inside /setup as tabs now:
+      // Company · Email · Categories · Account types · Currencies · Export & Backup.
+      // Reconcile moved onto the Accounts page (per-account inline panel).
       { href: '/setup',         label: 'Setup',         icon: Wrench },
     ],
   },

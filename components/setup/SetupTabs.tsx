@@ -2,15 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, Tag, Layers, DollarSign, Scale, Archive, Mail } from 'lucide-react'
+import { Building2, Tag, Layers, DollarSign, Archive, Mail } from 'lucide-react'
 
+// Reconcile used to be a Setup tab; it now lives inline on each account card
+// (Accounts page → Scale icon), so it's no longer surfaced here.
 const TABS = [
   { href: '/setup',               label: 'Company',         icon: Building2 },
   { href: '/setup/email',         label: 'Email',           icon: Mail },
   { href: '/setup/categories',    label: 'Categories',      icon: Tag },
   { href: '/setup/account-types', label: 'Account types',   icon: Layers },
   { href: '/setup/currencies',    label: 'Currencies',      icon: DollarSign },
-  { href: '/setup/reconcile',     label: 'Reconcile',       icon: Scale },
   { href: '/setup/export',        label: 'Export & Backup', icon: Archive },
 ]
 

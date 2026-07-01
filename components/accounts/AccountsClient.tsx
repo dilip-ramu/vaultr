@@ -8,15 +8,19 @@ import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay } from '@/lib/types'
 import { formatCurrency, accountGroupRank } from '@/lib/utils'
 import { creditSummary, isLiability } from '@/lib/account-metrics'
 import AccountCard from './AccountCard'
+import type { ReconTxn } from '@/lib/reconcile'
 
 const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
 
 interface Props {
   initialAccounts: Account[]
   builtinOverrides?: BuiltinTypeOverride[]
+  /** All txns — passed to each AccountCard so it can render the inline
+   *  reconcile panel without a network round-trip. */
+  reconcileTxns?: ReconTxn[]
 }
 
-export default function AccountsClient({ initialAccounts, builtinOverrides = [] }: Props) {
+export default function AccountsClient({ initialAccounts, builtinOverrides = [], reconcileTxns }: Props) {
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts)
   const [showForm, setShowForm] = useState(false)
   const [editAccount, setEditAccount] = useState<Account | null>(null)
@@ -31,6 +35,14 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [] 
 
   const netWorth = totalAssets - totalLiabilities
   const credit = creditSummary(accounts)
+
+  // Reconcile pre-work: today (stable per render) + accountId → currency map.
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const currencyById = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const a of accounts) m[a.id] = a.currency
+    return m
+  }, [accounts])
 
   const handleSaved = useCallback((account: Account) => {
     setAccounts(prev => {
@@ -167,6 +179,9 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [] 
                     account={account}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
+                    txns={reconcileTxns}
+                    currencyById={currencyById}
+                    today={today}
                   />
                 ))}
               </div>

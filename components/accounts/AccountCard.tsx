@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MoreHorizontal, Pencil, Trash2, ExternalLink, Info } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, ExternalLink, Info, Scale, ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import type { Account } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, EMOJI_MAP } from '@/lib/types'
@@ -11,17 +11,29 @@ import { Avatar } from '../AppShell'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 import { isCredit, isLoan, creditMetrics, loanMetrics } from '@/lib/account-metrics'
+import AccountReconcilePanel from './AccountReconcilePanel'
+import type { ReconTxn } from '@/lib/reconcile'
 
 interface AccountCardProps {
   account: Account
   onEdit: (account: Account) => void
   onDelete: (id: string) => void
+  /** All txns across every account — used by the inline reconcile panel to
+   *  compute a running-balance ledger. Omit and the reconcile toggle hides. */
+  txns?: ReconTxn[]
+  /** account_id → currency map, needed for cross-currency transfer flagging. */
+  currencyById?: Record<string, string>
+  /** Today's date (YYYY-MM-DD) — passed as a prop so the whole page uses a
+   *  single consistent "today" and future-dated flagging stays deterministic. */
+  today?: string
 }
 
-export default function AccountCard({ account, onEdit, onDelete }: AccountCardProps) {
+export default function AccountCard({ account, onEdit, onDelete, txns, currencyById, today }: AccountCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [reconcileOpen, setReconcileOpen] = useState(false)
   const [txCount, setTxCount] = useState<number | null>(account.transaction_count ?? null)
+  const canReconcile = !!(txns && currencyById && today)
 
   const builtinConfig = ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other
   const typeLabel = account.custom_type_name ?? builtinConfig.label
@@ -73,11 +85,14 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
   }
 
   return (
-    <Link
-      href={`/accounts/${account.id}`}
-      className={`bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3 transition-all hover:shadow-md active:scale-[0.99] ${deleting ? 'opacity-50' : ''}`}
+    <div
+      className={`bg-white rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md ${deleting ? 'opacity-50' : ''}`}
       style={{ borderLeftWidth: '3px', borderLeftColor: account.color || typeColor }}
     >
+     <Link
+       href={`/accounts/${account.id}`}
+       className="flex flex-col gap-3 p-4 active:scale-[0.99] transition-transform"
+     >
      <div className="flex items-center gap-3">
       {/* Avatar or icon */}
       {account.avatar_url ? (
@@ -129,6 +144,23 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
           </>
         )}
       </div>
+
+      {/* Reconcile toggle — expands an in-place ledger + "Log Reconciliation"
+          panel below the card so users don't need a separate Reconcile page. */}
+      {canReconcile && (
+        <button
+          type="button"
+          onClick={e => { e.preventDefault(); e.stopPropagation(); setReconcileOpen(o => !o) }}
+          title={reconcileOpen ? 'Hide reconciliation' : 'Check against actual bank balance'}
+          className="w-8 h-8 flex items-center justify-center rounded-lg transition-all shrink-0"
+          style={{
+            color: reconcileOpen ? 'var(--brand)' : 'var(--text-muted)',
+            background: reconcileOpen ? 'var(--brand-light)' : 'transparent',
+          }}
+        >
+          <Scale className="w-4 h-4" />
+        </button>
+      )}
 
       {/* Menu */}
       <div className="relative shrink-0" onClick={e => e.preventDefault()}>
@@ -220,7 +252,24 @@ export default function AccountCard({ account, onEdit, onDelete }: AccountCardPr
           )}
         </div>
       )}
-    </Link>
+     </Link>
+
+     {/* In-place reconcile panel — was the /reconcile page, now inline. */}
+     {canReconcile && reconcileOpen && (
+       <AccountReconcilePanel
+         account={{
+           id: account.id,
+           name: account.name,
+           currency: account.currency,
+           initial_balance: account.initial_balance,
+           balance: account.balance ?? null,
+         }}
+         txns={txns!}
+         currencyById={currencyById!}
+         today={today!}
+       />
+     )}
+    </div>
   )
 }
 
