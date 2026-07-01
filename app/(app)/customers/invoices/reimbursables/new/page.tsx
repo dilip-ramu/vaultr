@@ -13,13 +13,105 @@ export const dynamic = 'force-dynamic'
 export default async function ReimbursableNewInvoicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string }>
+  searchParams: Promise<{ customer?: string; invoice?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const uid = user!.id
 
-  const { customer: customerParam } = await searchParams
+  const { customer: customerParam, invoice: editInvoiceId } = await searchParams
+
+  // ── Edit mode: load the existing invoice + its linked state ──────────────
+  // When ?invoice=<id> is set (from Edit on the unified list), we fetch the
+  // invoice, its lines, the payroll month it opened, and any courier tax
+  // invoices bundled into it. The client seeds every relevant piece of state
+  // from this so hitting "Update invoice" writes back to the same DB row
+  // (existingInvoiceId path in the builder, added in Deploy 3).
+  type ExistingLine = {
+    item_type:      string | null
+    description:    string | null
+    salary_amount:  number | null
+    expended_rate:  number | null
+    salary_currency: string | null
+    amount:         number
+    inr_source:     number | null
+    forex_rate:     number | null
+    line_number:    number
+  }
+  type ExistingInvoice = {
+    id: string
+    customer_id: string | null
+    invoice_number: string
+    invoice_date: string
+    invoice_month: string | null
+    notes: string | null
+    company_id: string | null
+    items: ExistingLine[]
+    selectedEmployeeIds: string[]
+    selectedCourierIds:  string[]
+  }
+  let existingInvoice: ExistingInvoice | null = null
+
+  if (editInvoiceId) {
+    const { data: inv } = await supabase
+      .from('recoverable_invoices')
+      .select(`
+        id, customer_id, company_id, invoice_number, invoice_date, invoice_month, notes,
+        items:recoverable_invoice_lines(
+          item_type, description, salary_amount, expended_rate, salary_currency,
+          amount, inr_source, forex_rate, line_number
+        )
+      `)
+      .eq('id', editInvoiceId)
+      .eq('user_id', uid)
+      .eq('invoice_type', 'reimbursement')
+      .maybeSingle()
+
+    if (inv) {
+      // Employees on the linked payroll month → selectedEmployeeIds.
+      const { data: pm } = await supabase
+        .from('payroll_months')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('contrast_invoice_id', inv.id)
+        .maybeSingle()
+      let selectedEmployeeIds: string[] = []
+      if (pm) {
+        const { data: entries } = await supabase
+          .from('payroll_entries')
+          .select('employee_id')
+          .eq('user_id', uid)
+          .eq('payroll_month_id', pm.id)
+        selectedEmployeeIds = ((entries ?? []) as { employee_id: string }[]).map(e => e.employee_id)
+      }
+
+      // Courier invoices bundled into this reimbursement → selectedCourierIds.
+      const { data: courierLinks } = await supabase
+        .from('recoverable_invoices')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('contrast_invoice_id', inv.id)
+        .eq('invoice_type', 'tax_invoice')
+      const selectedCourierIds = ((courierLinks ?? []) as { id: string }[]).map(c => c.id)
+
+      existingInvoice = {
+        id:             inv.id,
+        customer_id:    inv.customer_id,
+        invoice_number: inv.invoice_number,
+        invoice_date:   inv.invoice_date,
+        invoice_month:  inv.invoice_month,
+        notes:          inv.notes,
+        company_id:     (inv as { company_id?: string | null }).company_id ?? null,
+        items:          (inv.items ?? []) as ExistingLine[],
+        selectedEmployeeIds,
+        selectedCourierIds,
+      }
+    }
+  }
+
+  // If we loaded an existing invoice, its customer_id overrides the URL
+  // customer param so the picker + prefill match the invoice's owner.
+  const effectiveCustomerParam = existingInvoice?.customer_id ?? customerParam ?? null
 
   // Get profile (company name)
   const { data: profile } = await supabase
@@ -30,7 +122,7 @@ export default async function ReimbursableNewInvoicePage({
 
   // ── Active reimbursable customer (+ billing currency) ─────────────────────
   const reimbursables = await getReimbursableCustomers(supabase, uid)
-  const active = resolveActiveCustomer(reimbursables, customerParam ?? null)
+  const active = resolveActiveCustomer(reimbursables, effectiveCustomerParam)
 
   // v63: also pull fixed_expenses + customer address so we can build the
   // PDF's Bill-To block dynamically instead of hardcoding Contrast A/S.
@@ -206,11 +298,10 @@ export default async function ReimbursableNewInvoicePage({
 
   return (
     <ReimbursableInvoiceClient
-      // key forces a full remount when the active customer changes so the
-      // client's useState seeds (billing_currency, fixed_expenses, employees,
-      // courier invoices, etc.) actually pick up the new customer's data
-      // instead of keeping the previous customer's state.
-      key={activeCustomer?.id ?? 'none'}
+      // key forces a full remount when the active customer OR the invoice
+      // being edited changes so useState seeds actually pick up the new
+      // data instead of keeping stale state.
+      key={`${activeCustomer?.id ?? 'none'}:${existingInvoice?.id ?? 'new'}`}
       employees={(employees ?? []) as never[]}
       courierInvoices={(courierInvoices ?? []) as never[]}
       allExpenses={(queuedExpenses ?? []) as never[]}
@@ -223,7 +314,7 @@ export default async function ReimbursableNewInvoicePage({
       marketRateAsOf={marketRateAsOf}
       initialFixedExpenses={activeCustomer?.fixed_expenses ?? []}
       companies={companies}
-      defaultCompanyId={defaultCompany?.id ?? null}
+      defaultCompanyId={existingInvoice?.company_id ?? defaultCompany?.id ?? null}
       profileFullName={profile?.full_name ?? null}
       billTo={activeCustomer ? {
         name:    activeCustomer.name,
@@ -231,6 +322,7 @@ export default async function ReimbursableNewInvoicePage({
         country: activeCustomer.country ?? undefined,
         email:   activeCustomer.email ?? undefined,
       } : undefined}
+      existingInvoice={existingInvoice}
     />
   )
 }

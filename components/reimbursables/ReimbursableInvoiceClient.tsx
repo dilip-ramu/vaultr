@@ -139,6 +139,31 @@ interface Props {
     address?: string
     country?: string
   }
+  /** Edit mode — when set, the builder loads this invoice's items instead
+   *  of starting from a blank draft. Finalize becomes "Update invoice" and
+   *  writes back to the same DB row (Deploy 3 existingInvoiceId path). */
+  existingInvoice?: {
+    id: string
+    customer_id: string | null
+    invoice_number: string
+    invoice_date: string
+    invoice_month: string | null
+    notes: string | null
+    company_id: string | null
+    items: {
+      item_type: string | null
+      description: string | null
+      salary_amount: number | null
+      expended_rate: number | null
+      salary_currency: string | null
+      amount: number
+      inr_source: number | null
+      forex_rate: number | null
+      line_number: number
+    }[]
+    selectedEmployeeIds: string[]
+    selectedCourierIds:  string[]
+  } | null
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
