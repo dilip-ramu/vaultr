@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { invoicePreset, type PresetId, type DocType } from '@/lib/templates/schema'
+import { presetSchema, type PresetId, type DocType } from '@/lib/templates/schema'
 
 // ── GET /api/templates?doc_type=gst_invoice ── list the user's templates
 export async function GET(req: NextRequest) {
@@ -28,8 +28,7 @@ export async function POST(req: NextRequest) {
 
   const docType = body.doc_type ?? 'gst_invoice'
   const name = (body.name ?? '').trim() || 'Untitled template'
-  // Only invoice presets exist for now; other doc types must pass a schema.
-  const schema = body.schema ?? (docType === 'gst_invoice' ? invoicePreset(body.preset ?? 'classic', body.accent) : null)
+  const schema = body.schema ?? presetSchema(docType, body.preset ?? 'classic', body.accent)
   if (!schema) return NextResponse.json({ error: 'A schema or preset is required' }, { status: 400 })
 
   const { data, error } = await supabase.from('document_templates')

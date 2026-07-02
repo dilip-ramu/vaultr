@@ -7,17 +7,20 @@ import { notify } from '@/components/shared/Toast'
 import { ACCENT_PRESETS } from '@/lib/companies/templates'
 import {
   INVOICE_PRESETS, BLOCK_LABELS, ADDABLE_BLOCKS, blockId,
-  type DocumentSchema, type Block, type ColumnDef, type FieldDef, type PresetId, type BlockType,
+  type DocumentSchema, type Block, type ColumnDef, type FieldDef, type PresetId, type BlockType, type DocType,
 } from '@/lib/templates/schema'
 import DocumentRenderer from './DocumentRenderer'
 import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
 import type { InvoiceDocSettings } from '@/components/recoverables/invoices/InvoiceDocument'
+import type { ReimbursableInvoiceData } from '@/components/reimbursables/ReimbursableInvoicePDF'
 
 export interface TemplateListItem { id: string; doc_type: string; name: string; updated_at: string }
 export interface AssignmentRow { company_id: string | null; doc_type: string; template_id: string }
 interface CompanyItem { id: string; name: string; accent: string }
 
 interface Props {
+  docType: DocType
+  docLabel: string
   initialTemplates: TemplateListItem[]
   companies: CompanyItem[]
   initialAssignments: AssignmentRow[]
@@ -47,8 +50,24 @@ function sampleLines(): RecoverableInvoiceLine[] {
   return [mk(1, '77120045', '2026-06-15', 5, 1200, 6000, 540), mk(2, '77130092', '2026-06-18', 3, 1500, 4500, 405),
     mk(3, '77190210', '2026-06-21', 2, 900, 1800, 162)] as unknown as RecoverableInvoiceLine[]
 }
+function sampleReimb(): ReimbursableInvoiceData {
+  return {
+    invoice_number: 'RB-2026-06', invoice_month: '2026-06', invoice_date: '2026-07-02', currency: 'EUR', forex_rate: 92.5,
+    bill_from: { name: 'Acme Services', address: '12 Harbour Rd, Chennai', email: 'ops@acme.in', phone: '+91 44 5555 0100',
+      bank_account_name: 'Acme Services', bank_account_number: '50100XXXXXX', bank_ifsc: 'HDFC0000123', bank_name: 'HDFC Bank, Chennai', swift_code: 'HDFCINBB' },
+    bill_to: { name: 'Globex GmbH', address: 'Berlin, Germany', country: 'Germany' },
+    items: [
+      { item_type: 'salary', description: 'Asha Rao — Designer', amount_inr: 1200, inr_source: null, sort_order: 1 },
+      { item_type: 'salary', description: 'Vik Menon — Developer', amount_inr: 1500, inr_source: null, sort_order: 2 },
+      { item_type: 'courier', description: 'DHL — AWB 7712', amount_inr: 60, inr_source: 5550, forex_rate: 92.5, sort_order: 3 },
+      { item_type: 'expense', description: 'Cloud hosting', amount_inr: 40, inr_source: 3700, forex_rate: 92.5, sort_order: 4 },
+      { item_type: 'deduction', description: 'Advance adjustment', amount_inr: -50, inr_source: null, sort_order: 5 },
+    ],
+    subtotal: 2750, gst_amount: 495, total: 3245,
+  } as ReimbursableInvoiceData
+}
 
-export default function TemplateStudioClient({ initialTemplates, companies, initialAssignments }: Props) {
+export default function TemplateStudioClient({ docType, docLabel, initialTemplates, companies, initialAssignments }: Props) {
   const router = useRouter()
   const [templates, setTemplates] = useState<TemplateListItem[]>(initialTemplates)
   const [assignments, setAssignments] = useState<AssignmentRow[]>(initialAssignments)
@@ -64,7 +83,7 @@ export default function TemplateStudioClient({ initialTemplates, companies, init
     try {
       const res = await fetch('/api/templates', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doc_type: 'gst_invoice', preset, accent: defaultAccent, name: `${preset[0].toUpperCase()}${preset.slice(1)} invoice` }),
+        body: JSON.stringify({ doc_type: docType, preset, accent: defaultAccent, name: `${preset[0].toUpperCase()}${preset.slice(1)} template` }),
       })
       const data = await res.json()
       if (!res.ok) { notify(data.error || 'Create failed', 'error'); return }
@@ -79,7 +98,7 @@ export default function TemplateStudioClient({ initialTemplates, companies, init
       const full = await (await fetch(`/api/templates/${t.id}`)).json()
       const res = await fetch('/api/templates', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doc_type: 'gst_invoice', name: `${t.name} copy`, schema: full.template.schema }),
+        body: JSON.stringify({ doc_type: docType, name: `${t.name} copy`, schema: full.template.schema }),
       })
       const data = await res.json()
       if (!res.ok) { notify(data.error || 'Duplicate failed', 'error'); return }
@@ -122,12 +141,12 @@ export default function TemplateStudioClient({ initialTemplates, companies, init
   async function setAssignment(companyId: string | null, templateId: string | null) {
     const res = await fetch('/api/templates/assignments', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company_id: companyId, doc_type: 'gst_invoice', template_id: templateId }),
+      body: JSON.stringify({ company_id: companyId, doc_type: docType, template_id: templateId }),
     })
     if (!res.ok) { notify('Could not update assignment', 'error'); return }
     setAssignments(a => {
       const rest = a.filter(x => x.company_id !== companyId)
-      return templateId ? [...rest, { company_id: companyId, doc_type: 'gst_invoice', template_id: templateId }] : rest
+      return templateId ? [...rest, { company_id: companyId, doc_type: docType, template_id: templateId }] : rest
     })
   }
 
@@ -171,7 +190,7 @@ export default function TemplateStudioClient({ initialTemplates, companies, init
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Your invoice templates</p>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Your {docLabel} templates</p>
           {templates.length === 0 ? (
             <div className="rounded-xl border text-center py-8 text-sm" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
               No custom templates yet — create one above. Until you assign one, invoices use the built-in layout.
@@ -194,7 +213,7 @@ export default function TemplateStudioClient({ initialTemplates, companies, init
 
         {/* Assignment */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Which template each company uses (GST invoice)</p>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Which template each company uses ({docLabel})</p>
           <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
             {[{ id: null as string | null, name: 'Personal / no company' }, ...companies].map(c => {
               const current = assignments.find(a => a.company_id === c.id)?.template_id ?? ''
@@ -243,7 +262,7 @@ export default function TemplateStudioClient({ initialTemplates, companies, init
                   onProps={patchProps} onRemove={removeBlock} />
               ))}
               <div className="flex flex-wrap gap-2 pt-1">
-                {ADDABLE_BLOCKS.gst_invoice.map(t => (
+                {ADDABLE_BLOCKS[docType].map(t => (
                   <button key={t} onClick={() => addBlock(t)} className="text-xs inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border" style={{ borderColor: 'var(--border)', color: 'var(--text)' }}>
                     <Plus className="w-3 h-3" /> {BLOCK_LABELS[t]}
                   </button>
@@ -256,7 +275,9 @@ export default function TemplateStudioClient({ initialTemplates, companies, init
           <div className="lg:sticky lg:top-4 self-start">
             <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Live preview</p>
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: '#e5e7eb', padding: 10 }}>
-              <DocumentRenderer schema={schema} invoice={sampleInvoice()} lines={sampleLines()} settings={SAMPLE_SETTINGS} preview />
+              {docType === 'reimbursable_invoice'
+                ? <DocumentRenderer schema={schema} rdata={sampleReimb()} preview />
+                : <DocumentRenderer schema={schema} invoice={sampleInvoice()} lines={sampleLines()} settings={SAMPLE_SETTINGS} preview />}
             </div>
           </div>
         </div>
@@ -366,6 +387,49 @@ function BlockEditor({ block, index, total, onMove, onToggle, onProps, onRemove 
               <Check label="Show signature image" v={p.showImage !== false} on={v => onProps(block.id, { showImage: v })} />
             </>
           )}
+          {block.type === 'rHeader' && (
+            <>
+              <Row label="Style">
+                <select value={String(p.variant ?? 'plain')} onChange={e => onProps(block.id, { variant: e.target.value })} className={inputCls} style={inputStyle}>
+                  <option value="plain">Classic</option><option value="band">Band (accent)</option><option value="minimal">Minimal</option>
+                </select>
+              </Row>
+              <Row label="Title"><input className={inputCls} style={inputStyle} value={String(p.title ?? '')} onChange={e => onProps(block.id, { title: e.target.value })} /></Row>
+              <Check label="Show logo" v={p.showLogo !== false} on={v => onProps(block.id, { showLogo: v })} />
+              <Check label="Show invoice number" v={p.showNumber !== false} on={v => onProps(block.id, { showNumber: v })} />
+            </>
+          )}
+          {block.type === 'rParties' && (
+            <>
+              <Check label="Show Bill From" v={p.showFrom !== false} on={v => onProps(block.id, { showFrom: v })} />
+              <Check label="Show Bill To" v={p.showTo !== false} on={v => onProps(block.id, { showTo: v })} />
+              <Check label="Show Payment box" v={p.showPayment !== false} on={v => onProps(block.id, { showPayment: v })} />
+              <Row label="From label"><input className={inputCls} style={inputStyle} value={String(p.fromLabel ?? 'Bill From')} onChange={e => onProps(block.id, { fromLabel: e.target.value })} /></Row>
+              <Row label="To label"><input className={inputCls} style={inputStyle} value={String(p.toLabel ?? 'Bill To')} onChange={e => onProps(block.id, { toLabel: e.target.value })} /></Row>
+            </>
+          )}
+          {block.type === 'rMeta' && <FieldToggles fields={(p.fields as FieldDef[]) ?? []} onChange={f => onProps(block.id, { fields: f })} />}
+          {block.type === 'rLineItems' && (
+            <>
+              <Row label="Header style">
+                <select value={String(p.headerStyle ?? 'filled')} onChange={e => onProps(block.id, { headerStyle: e.target.value })} className={inputCls} style={inputStyle}>
+                  <option value="grey">Grey</option><option value="filled">Filled (accent)</option><option value="plain">Plain (accent rule)</option>
+                </select>
+              </Row>
+              <Check label="Show INR Amount column" v={p.showInr !== false} on={v => onProps(block.id, { showInr: v })} />
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Sections</p>
+              <FieldToggles fields={(p.sections as FieldDef[]) ?? []} onChange={f => onProps(block.id, { sections: f })} />
+            </>
+          )}
+          {block.type === 'rTotals' && (
+            <>
+              <Row label="GST label"><input className={inputCls} style={inputStyle} value={String(p.gstLabel ?? 'GST @ 18%')} onChange={e => onProps(block.id, { gstLabel: e.target.value })} /></Row>
+              <Check label="Show sub total" v={p.showSubtotal !== false} on={v => onProps(block.id, { showSubtotal: v })} />
+              <Check label="Show grand total" v={p.showGrand !== false} on={v => onProps(block.id, { showGrand: v })} />
+            </>
+          )}
+          {block.type === 'rBank' && <Row label="Title"><input className={inputCls} style={inputStyle} value={String(p.title ?? 'Bank Details for Payment')} onChange={e => onProps(block.id, { title: e.target.value })} /></Row>}
+          {block.type === 'rSignature' && <Row label="Label"><input className={inputCls} style={inputStyle} value={String(p.label ?? 'Authorised Signature & Date')} onChange={e => onProps(block.id, { label: e.target.value })} /></Row>}
           {block.type === 'text' && (
             <>
               <Row label="Content"><textarea rows={3} className={inputCls} style={inputStyle} value={String(p.content ?? '')} onChange={e => onProps(block.id, { content: e.target.value })} /></Row>

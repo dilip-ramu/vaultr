@@ -19,6 +19,8 @@ export interface DocTheme {
 export type BlockType =
   | 'header' | 'companyInfo' | 'billTo' | 'meta' | 'supply'
   | 'lineItems' | 'totals' | 'amountWords' | 'bank' | 'terms' | 'signature'
+  // reimbursable-invoice blocks
+  | 'rHeader' | 'rParties' | 'rMeta' | 'rLineItems' | 'rTotals' | 'rBank' | 'rSignature'
   | 'text' | 'divider' | 'spacer'
 
 export interface Block {
@@ -57,7 +59,10 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   header: 'Header', companyInfo: 'Company info', billTo: 'Bill to', meta: 'Invoice meta',
   supply: 'Place of supply', lineItems: 'Line items', totals: 'Totals',
   amountWords: 'Amount in words', bank: 'Bank details', terms: 'Terms & conditions',
-  signature: 'Signature', text: 'Text', divider: 'Divider', spacer: 'Spacer',
+  signature: 'Signature',
+  rHeader: 'Header', rParties: 'Bill from / to', rMeta: 'Invoice meta',
+  rLineItems: 'Line items', rTotals: 'Totals', rBank: 'Bank details', rSignature: 'Signature',
+  text: 'Text', divider: 'Divider', spacer: 'Spacer',
 }
 
 const INVOICE_COLUMNS: ColumnDef[] = [
@@ -124,3 +129,45 @@ export const INVOICE_PRESETS: { id: PresetId; label: string; blurb: string }[] =
   { id: 'modern',  label: 'Modern',  blurb: 'Accent header band, filled table' },
   { id: 'minimal', label: 'Minimal', blurb: 'Airy, hairline table' },
 ]
+
+// ── Reimbursable (proforma) invoice ─────────────────────────────────────────
+
+const REIMB_META: FieldDef[] = [
+  { key: 'invoice_number', label: 'Invoice Number', visible: true },
+  { key: 'invoice_date',   label: 'Invoice Date',   visible: true },
+  { key: 'currency',       label: 'Currency',       visible: true },
+  { key: 'forex_rate',     label: 'Forex Rate Used', visible: true },
+]
+const REIMB_SECTIONS: FieldDef[] = [
+  { key: 'salary',        label: 'Salaries',              visible: true },
+  { key: 'courier',       label: 'Courier Charges',       visible: true },
+  { key: 'expense',       label: 'Operational Expenses',  visible: true },
+  { key: 'fixed_expense', label: 'Fixed Expenses',        visible: true },
+  { key: 'deduction',     label: 'Deductions',            visible: true },
+]
+
+function reimbBlocks(variant: 'plain' | 'band' | 'minimal', headerStyle: 'grey' | 'filled' | 'plain'): Block[] {
+  return [
+    { id: blockId(), type: 'rHeader',    visible: true, props: { variant, showLogo: true, title: 'Proforma Invoice', showNumber: true } },
+    { id: blockId(), type: 'rParties',   visible: true, props: { showFrom: true, showTo: true, showPayment: true, fromLabel: 'Bill From', toLabel: 'Bill To' } },
+    { id: blockId(), type: 'rMeta',      visible: true, props: { fields: REIMB_META } },
+    { id: blockId(), type: 'rLineItems', visible: true, props: { sections: REIMB_SECTIONS, showInr: true, headerStyle } },
+    { id: blockId(), type: 'rTotals',    visible: true, props: { showSubtotal: true, gstLabel: 'GST @ 18%', showGrand: true } },
+    { id: blockId(), type: 'rBank',      visible: true, props: { title: 'Bank Details for Payment' } },
+    { id: blockId(), type: 'rSignature', visible: true, props: { label: 'Authorised Signature & Date' } },
+  ]
+}
+
+export function reimbursablePreset(preset: PresetId, accent: string = DEFAULT_ACCENT): DocumentSchema {
+  const theme: DocTheme = { accent, font: 'sans', fontScalePct: 100, pageMarginMm: 14 }
+  if (preset === 'modern')  return { version: 1, docType: 'reimbursable_invoice', theme, blocks: reimbBlocks('band', 'filled') }
+  if (preset === 'minimal') return { version: 1, docType: 'reimbursable_invoice', theme, blocks: reimbBlocks('minimal', 'plain') }
+  return { version: 1, docType: 'reimbursable_invoice', theme, blocks: reimbBlocks('plain', 'filled') }
+}
+
+/** Preset builder dispatch by doc type (invoice presets only for now). */
+export function presetSchema(docType: DocType, preset: PresetId, accent: string = DEFAULT_ACCENT): DocumentSchema | null {
+  if (docType === 'gst_invoice') return invoicePreset(preset, accent)
+  if (docType === 'reimbursable_invoice') return reimbursablePreset(preset, accent)
+  return null
+}

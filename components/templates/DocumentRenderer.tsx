@@ -5,15 +5,19 @@ import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverab
 import type { InvoiceDocSettings } from '@/components/recoverables/invoices/InvoiceDocument'
 import { accentSoft } from '@/lib/companies/templates'
 import type { DocumentSchema, Block, ColumnDef, FieldDef } from '@/lib/templates/schema'
+import ReimbursableRenderer from './ReimbursableRenderer'
+import type { ReimbursableInvoiceData } from '@/components/reimbursables/ReimbursableInvoicePDF'
 
 interface Props {
   schema: DocumentSchema
-  invoice: RecoverableInvoice
-  lines: RecoverableInvoiceLine[]
-  settings: InvoiceDocSettings | null
+  invoice?: RecoverableInvoice
+  lines?: RecoverableInvoiceLine[]
+  settings?: InvoiceDocSettings | null
   logoUrl?: string | null
   signatureUrl?: string | null
   preview?: boolean
+  /** Data for reimbursable_invoice schemas. */
+  rdata?: ReimbursableInvoiceData | null
 }
 
 function fmtInr(n: number, dp = 2) {
@@ -34,8 +38,13 @@ const B = (v: unknown, d = false) => (typeof v === 'boolean' ? v : d)
 /** Renders any invoice DocumentSchema to the scoped .vinv document. Shared by
  *  the live editor preview and the print route, so they never drift. */
 export default function DocumentRenderer({
-  schema, invoice, lines, settings, logoUrl = null, signatureUrl = null, preview = false,
+  schema, invoice, lines, settings = null, logoUrl = null, signatureUrl = null, preview = false, rdata = null,
 }: Props) {
+  if (schema.docType === 'reimbursable_invoice') {
+    return <ReimbursableRenderer schema={schema} data={rdata} logoUrl={logoUrl} preview={preview} />
+  }
+  if (!invoice || !lines) return null
+
   const accent = schema.theme.accent || '#2A7A50'
   const companyName = settings?.company_name ?? 'Your Company'
   const balanceDue = invoice.balance_due
