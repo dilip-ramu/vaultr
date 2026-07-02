@@ -7,6 +7,7 @@ import { accentSoft } from '@/lib/companies/templates'
 import type { DocumentSchema, Block, ColumnDef, FieldDef } from '@/lib/templates/schema'
 import ReimbursableRenderer from './ReimbursableRenderer'
 import type { ReimbursableInvoiceData } from '@/components/reimbursables/ReimbursableInvoicePDF'
+import SalarySlipRenderer, { type SalarySlipDocData } from './SalarySlipRenderer'
 
 interface Props {
   schema: DocumentSchema
@@ -18,6 +19,8 @@ interface Props {
   preview?: boolean
   /** Data for reimbursable_invoice schemas. */
   rdata?: ReimbursableInvoiceData | null
+  /** Data for salary_slip schemas. */
+  sdata?: SalarySlipDocData | null
 }
 
 function fmtInr(n: number, dp = 2) {
@@ -38,10 +41,13 @@ const B = (v: unknown, d = false) => (typeof v === 'boolean' ? v : d)
 /** Renders any invoice DocumentSchema to the scoped .vinv document. Shared by
  *  the live editor preview and the print route, so they never drift. */
 export default function DocumentRenderer({
-  schema, invoice, lines, settings = null, logoUrl = null, signatureUrl = null, preview = false, rdata = null,
+  schema, invoice, lines, settings = null, logoUrl = null, signatureUrl = null, preview = false, rdata = null, sdata = null,
 }: Props) {
   if (schema.docType === 'reimbursable_invoice') {
     return <ReimbursableRenderer schema={schema} data={rdata} logoUrl={logoUrl} preview={preview} />
+  }
+  if (schema.docType === 'salary_slip') {
+    return <SalarySlipRenderer schema={schema} data={sdata} preview={preview} />
   }
   if (!invoice || !lines) return null
 

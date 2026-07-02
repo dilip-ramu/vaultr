@@ -13,6 +13,8 @@ import DocumentRenderer from './DocumentRenderer'
 import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
 import type { InvoiceDocSettings } from '@/components/recoverables/invoices/InvoiceDocument'
 import type { ReimbursableInvoiceData } from '@/components/reimbursables/ReimbursableInvoicePDF'
+import type { SalarySlipDocData } from './SalarySlipRenderer'
+import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 
 export interface TemplateListItem { id: string; doc_type: string; name: string; updated_at: string }
 export interface AssignmentRow { company_id: string | null; doc_type: string; template_id: string }
@@ -65,6 +67,14 @@ function sampleReimb(): ReimbursableInvoiceData {
     ],
     subtotal: 2750, gst_amount: 495, total: 3245,
   } as ReimbursableInvoiceData
+}
+function sampleSlip(): SalarySlipDocData {
+  return {
+    entry: { salary_inr: 80000, allowances: 5000, overtime: 2000, incentives: 3000, deductions: 1500, advance: 5000, final_payable: 83500, salary_amount: 1000, expended_rate: 80 } as unknown as PayrollEntry,
+    month: { payroll_month: '2026-06', payment_date: '2026-07-01', expended_rate: 80 } as unknown as PayrollMonth,
+    employee: { name: 'Asha Rao', employee_id: 'EMP-014', designation: 'Designer', joining_date: '2024-04-01', pan_number: 'ABCDE1234F', bank_name: 'HDFC Bank', account_number: '50100XXXXXX', ifsc: 'HDFC0000123', branch: 'Chennai', salary_currency: 'EUR' } as unknown as Employee,
+    companyName: 'Acme Exports', companyAddress: '12 Harbour Rd, Chennai 600001',
+  }
 }
 
 export default function TemplateStudioClient({ docType, docLabel, initialTemplates, companies, initialAssignments }: Props) {
@@ -277,6 +287,8 @@ export default function TemplateStudioClient({ docType, docLabel, initialTemplat
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: '#e5e7eb', padding: 10 }}>
               {docType === 'reimbursable_invoice'
                 ? <DocumentRenderer schema={schema} rdata={sampleReimb()} preview />
+                : docType === 'salary_slip'
+                ? <DocumentRenderer schema={schema} sdata={sampleSlip()} preview />
                 : <DocumentRenderer schema={schema} invoice={sampleInvoice()} lines={sampleLines()} settings={SAMPLE_SETTINGS} preview />}
             </div>
           </div>
@@ -430,6 +442,39 @@ function BlockEditor({ block, index, total, onMove, onToggle, onProps, onRemove 
           )}
           {block.type === 'rBank' && <Row label="Title"><input className={inputCls} style={inputStyle} value={String(p.title ?? 'Bank Details for Payment')} onChange={e => onProps(block.id, { title: e.target.value })} /></Row>}
           {block.type === 'rSignature' && <Row label="Label"><input className={inputCls} style={inputStyle} value={String(p.label ?? 'Authorised Signature & Date')} onChange={e => onProps(block.id, { label: e.target.value })} /></Row>}
+          {block.type === 'sHeader' && (
+            <>
+              <Row label="Style">
+                <select value={String(p.variant ?? 'plain')} onChange={e => onProps(block.id, { variant: e.target.value })} className={inputCls} style={inputStyle}>
+                  <option value="plain">Classic (centered)</option><option value="band">Band (accent)</option><option value="minimal">Minimal</option>
+                </select>
+              </Row>
+              <Row label="Title"><input className={inputCls} style={inputStyle} value={String(p.title ?? 'Salary Slip')} onChange={e => onProps(block.id, { title: e.target.value })} /></Row>
+              <Check label="Show company address" v={p.showAddress !== false} on={v => onProps(block.id, { showAddress: v })} />
+            </>
+          )}
+          {block.type === 'sEmployee' && <FieldToggles fields={(p.fields as FieldDef[]) ?? []} onChange={f => onProps(block.id, { fields: f })} />}
+          {block.type === 'sEarnings' && (
+            <>
+              <Row label="Header style">
+                <select value={String(p.headerStyle ?? 'grey')} onChange={e => onProps(block.id, { headerStyle: e.target.value })} className={inputCls} style={inputStyle}>
+                  <option value="grey">Grey</option><option value="filled">Filled (accent)</option><option value="plain">Plain (accent rule)</option>
+                </select>
+              </Row>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Earnings rows</p>
+              <FieldToggles fields={(p.earnings as FieldDef[]) ?? []} onChange={f => onProps(block.id, { earnings: f })} />
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Deduction rows</p>
+              <FieldToggles fields={(p.deductions as FieldDef[]) ?? []} onChange={f => onProps(block.id, { deductions: f })} />
+            </>
+          )}
+          {block.type === 'sNet' && (
+            <>
+              <Check label="Show amount in words" v={p.showWords !== false} on={v => onProps(block.id, { showWords: v })} />
+              <Check label="Show forex (foreign salary)" v={p.showForex !== false} on={v => onProps(block.id, { showForex: v })} />
+            </>
+          )}
+          {block.type === 'sBank' && <Row label="Title"><input className={inputCls} style={inputStyle} value={String(p.title ?? 'Bank Transfer Details')} onChange={e => onProps(block.id, { title: e.target.value })} /></Row>}
+          {block.type === 'sFooter' && <Row label="Note"><input className={inputCls} style={inputStyle} value={String(p.note ?? '')} onChange={e => onProps(block.id, { note: e.target.value })} /></Row>}
           {block.type === 'text' && (
             <>
               <Row label="Content"><textarea rows={3} className={inputCls} style={inputStyle} value={String(p.content ?? '')} onChange={e => onProps(block.id, { content: e.target.value })} /></Row>

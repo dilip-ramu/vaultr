@@ -21,6 +21,8 @@ export type BlockType =
   | 'lineItems' | 'totals' | 'amountWords' | 'bank' | 'terms' | 'signature'
   // reimbursable-invoice blocks
   | 'rHeader' | 'rParties' | 'rMeta' | 'rLineItems' | 'rTotals' | 'rBank' | 'rSignature'
+  // salary-slip blocks
+  | 'sHeader' | 'sEmployee' | 'sEarnings' | 'sNet' | 'sBank' | 'sFooter'
   | 'text' | 'divider' | 'spacer'
 
 export interface Block {
@@ -62,6 +64,8 @@ export const BLOCK_LABELS: Record<BlockType, string> = {
   signature: 'Signature',
   rHeader: 'Header', rParties: 'Bill from / to', rMeta: 'Invoice meta',
   rLineItems: 'Line items', rTotals: 'Totals', rBank: 'Bank details', rSignature: 'Signature',
+  sHeader: 'Header', sEmployee: 'Employee details', sEarnings: 'Earnings & deductions',
+  sNet: 'Net payable', sBank: 'Bank details', sFooter: 'Footer',
   text: 'Text', divider: 'Divider', spacer: 'Spacer',
 }
 
@@ -165,9 +169,49 @@ export function reimbursablePreset(preset: PresetId, accent: string = DEFAULT_AC
   return { version: 1, docType: 'reimbursable_invoice', theme, blocks: reimbBlocks('plain', 'filled') }
 }
 
-/** Preset builder dispatch by doc type (invoice presets only for now). */
+// ── Salary slip ─────────────────────────────────────────────────────────────
+
+const SLIP_EMP_FIELDS: FieldDef[] = [
+  { key: 'name',         label: 'Employee Name',   visible: true },
+  { key: 'employee_id',  label: 'Employee ID',     visible: true },
+  { key: 'designation',  label: 'Designation',     visible: true },
+  { key: 'joining_date', label: 'Date of Joining', visible: true },
+  { key: 'pan_number',   label: 'PAN',             visible: true },
+  { key: 'payment_date', label: 'Payment Date',    visible: true },
+]
+const SLIP_EARNINGS: FieldDef[] = [
+  { key: 'basic',      label: 'Basic Salary', visible: true },
+  { key: 'allowances', label: 'Allowances',   visible: true },
+  { key: 'overtime',   label: 'Overtime',     visible: true },
+  { key: 'incentives', label: 'Incentives',   visible: true },
+]
+const SLIP_DEDUCTIONS: FieldDef[] = [
+  { key: 'deductions', label: 'Deductions',       visible: true },
+  { key: 'advance',    label: 'Advance Recovery', visible: true },
+]
+
+function slipBlocks(variant: 'plain' | 'band' | 'minimal', headerStyle: 'grey' | 'filled' | 'plain'): Block[] {
+  return [
+    { id: blockId(), type: 'sHeader',   visible: true, props: { variant, showAddress: true, title: 'Salary Slip' } },
+    { id: blockId(), type: 'sEmployee', visible: true, props: { fields: SLIP_EMP_FIELDS } },
+    { id: blockId(), type: 'sEarnings', visible: true, props: { headerStyle, earnings: SLIP_EARNINGS, deductions: SLIP_DEDUCTIONS } },
+    { id: blockId(), type: 'sNet',      visible: true, props: { showWords: true, showForex: true } },
+    { id: blockId(), type: 'sBank',     visible: true, props: { title: 'Bank Transfer Details' } },
+    { id: blockId(), type: 'sFooter',   visible: true, props: { note: 'This is a computer-generated salary slip.' } },
+  ]
+}
+
+export function salarySlipPreset(preset: PresetId, accent: string = DEFAULT_ACCENT): DocumentSchema {
+  const theme: DocTheme = { accent, font: 'sans', fontScalePct: 100, pageMarginMm: 14 }
+  if (preset === 'modern')  return { version: 1, docType: 'salary_slip', theme, blocks: slipBlocks('band', 'filled') }
+  if (preset === 'minimal') return { version: 1, docType: 'salary_slip', theme, blocks: slipBlocks('minimal', 'plain') }
+  return { version: 1, docType: 'salary_slip', theme, blocks: slipBlocks('plain', 'grey') }
+}
+
+/** Preset builder dispatch by doc type. */
 export function presetSchema(docType: DocType, preset: PresetId, accent: string = DEFAULT_ACCENT): DocumentSchema | null {
   if (docType === 'gst_invoice') return invoicePreset(preset, accent)
   if (docType === 'reimbursable_invoice') return reimbursablePreset(preset, accent)
+  if (docType === 'salary_slip') return salarySlipPreset(preset, accent)
   return null
 }

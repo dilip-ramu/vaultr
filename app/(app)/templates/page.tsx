@@ -12,11 +12,11 @@ export default async function TemplatesPage() {
 
   const [{ data: templates }, { data: companies }, { data: assignments }] = await Promise.all([
     supabase.from('document_templates').select('id, doc_type, name, updated_at')
-      .eq('user_id', user.id).in('doc_type', ['gst_invoice', 'reimbursable_invoice']).order('updated_at', { ascending: false }),
+      .eq('user_id', user.id).in('doc_type', ['gst_invoice', 'reimbursable_invoice', 'salary_slip']).order('updated_at', { ascending: false }),
     supabase.from('companies').select('id, name, is_default, invoice_accent')
       .eq('user_id', user.id).order('is_default', { ascending: false }).order('name'),
     supabase.from('document_template_assignments').select('company_id, doc_type, template_id')
-      .eq('user_id', user.id).in('doc_type', ['gst_invoice', 'reimbursable_invoice']),
+      .eq('user_id', user.id).in('doc_type', ['gst_invoice', 'reimbursable_invoice', 'salary_slip']),
   ])
 
   const tpl = (templates ?? []) as TemplateListItem[]
@@ -31,13 +31,14 @@ export default async function TemplatesPage() {
       <div className="mb-4">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Templates</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          Design your documents block by block. Salary slip comes next.
+          Design your documents block by block — GST invoice, reimbursable invoice, and salary slip.
         </p>
       </div>
       <TemplatesHubClient
         companies={(companies ?? []).map(c => ({ id: c.id as string, name: c.name as string, accent: (c.invoice_accent as string | null) ?? '#2A7A50' }))}
         gst={forType('gst_invoice')}
         reimbursable={forType('reimbursable_invoice')}
+        salarySlip={forType('salary_slip')}
       />
     </div>
   )

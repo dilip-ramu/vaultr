@@ -11,17 +11,19 @@ interface Props {
   companies: CompanyItem[]
   gst: DocData
   reimbursable: DocData
+  salarySlip: DocData
 }
 
 const TABS: { id: DocType; label: string }[] = [
   { id: 'gst_invoice', label: 'GST tax invoice' },
   { id: 'reimbursable_invoice', label: 'Reimbursable invoice' },
+  { id: 'salary_slip', label: 'Salary slip' },
 ]
 
-export default function TemplatesHubClient({ companies, gst, reimbursable }: Props) {
+export default function TemplatesHubClient({ companies, gst, reimbursable, salarySlip }: Props) {
   const [tab, setTab] = useState<DocType>('gst_invoice')
-  const data = tab === 'gst_invoice' ? gst : reimbursable
-  const label = tab === 'gst_invoice' ? 'GST invoice' : 'reimbursable invoice'
+  const data = tab === 'gst_invoice' ? gst : tab === 'reimbursable_invoice' ? reimbursable : salarySlip
+  const label = tab === 'gst_invoice' ? 'GST invoice' : tab === 'reimbursable_invoice' ? 'reimbursable invoice' : 'salary slip'
 
   return (
     <div className="space-y-5">
