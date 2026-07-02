@@ -1,8 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Upload, Loader2, Trash2, Building2 } from 'lucide-react'
+import { X, Upload, Loader2, Trash2, Building2, Check } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import {
+  INVOICE_TEMPLATES, ACCENT_PRESETS,
+  DEFAULT_INVOICE_TEMPLATE, DEFAULT_INVOICE_ACCENT,
+  type InvoiceTemplate,
+} from '@/lib/companies/templates'
 
 export interface Company {
   id: string
@@ -32,6 +37,9 @@ export interface Company {
   payment_terms: string
   terms_conditions: string | null
   logo_path: string | null
+  // v69 — per-company document look (Feature 1)
+  invoice_template: InvoiceTemplate
+  invoice_accent: string
 }
 
 const PAYMENT_TERMS = [
@@ -52,6 +60,46 @@ interface Props {
 
 const inputCls = 'w-full px-3 py-2 rounded-lg text-sm border outline-none'
 const inputStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' } as const
+
+/** Tiny visual preview of a template, tinted with the chosen accent. */
+function TemplateThumb({ id, accent }: { id: InvoiceTemplate; accent: string }) {
+  const muted = 'var(--border-strong)'
+  return (
+    <svg viewBox="0 0 80 56" className="w-full h-auto rounded-md" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+      {id === 'classic' && (
+        <>
+          <rect x="8" y="8" width="16" height="7" rx="1.5" fill="var(--surface-1)" stroke="var(--border)" />
+          <rect x="52" y="9" width="20" height="4" rx="1" fill={accent} />
+          <line x1="8" y1="20" x2="72" y2="20" stroke={muted} />
+          <rect x="8" y="26" width="64" height="6" fill="var(--border)" opacity="0.5" />
+          <line x1="8" y1="37" x2="72" y2="37" stroke={muted} />
+          <line x1="8" y1="43" x2="72" y2="43" stroke={muted} />
+          <rect x="48" y="47" width="24" height="4" rx="1" fill={accent} opacity="0.8" />
+        </>
+      )}
+      {id === 'modern' && (
+        <>
+          <rect x="0" y="0" width="80" height="16" fill={accent} />
+          <rect x="8" y="6" width="26" height="4" rx="1" fill="#fff" opacity="0.95" />
+          <rect x="8" y="24" width="64" height="6" rx="1" fill={accent} opacity="0.9" />
+          <line x1="8" y1="37" x2="72" y2="37" stroke={muted} />
+          <line x1="8" y1="43" x2="72" y2="43" stroke={muted} />
+          <rect x="48" y="47" width="24" height="4" rx="1" fill={accent} />
+        </>
+      )}
+      {id === 'minimal' && (
+        <>
+          <rect x="8" y="9" width="22" height="4" rx="1" fill={accent} />
+          <rect x="8" y="15" width="10" height="2" rx="1" fill={accent} />
+          <line x1="8" y1="28" x2="72" y2="28" stroke={accent} strokeWidth="1.2" />
+          <line x1="8" y1="38" x2="72" y2="38" stroke={muted} />
+          <line x1="8" y1="45" x2="72" y2="45" stroke={muted} />
+          <rect x="52" y="49" width="20" height="3" rx="1" fill={accent} />
+        </>
+      )}
+    </svg>
+  )
+}
 
 export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose }: Props) {
   const isEdit = !!company
@@ -81,6 +129,9 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   const [terms,        setTerms]        = useState(company?.terms_conditions ?? '')
   const [logoUrl, setLogoUrl] = useState<string | undefined>(existingLogoUrl)
   const [logoBusy, setLogoBusy] = useState(false)
+  // v69 — document look
+  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>(company?.invoice_template ?? DEFAULT_INVOICE_TEMPLATE)
+  const [invoiceAccent,   setInvoiceAccent]   = useState<string>(company?.invoice_accent ?? DEFAULT_INVOICE_ACCENT)
 
   async function handleSave() {
     if (!name.trim()) { setError('Company name is required'); return }
@@ -106,6 +157,8 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
         hsn_sac: hsnSac.trim() || '996812',
         payment_terms: paymentTerms,
         terms_conditions: terms.trim() || null,
+        invoice_template: invoiceTemplate,
+        invoice_accent: invoiceAccent,
       }
       const url = isEdit ? `/api/companies/${company!.id}` : '/api/companies'
       const method = isEdit ? 'PATCH' : 'POST'
@@ -272,6 +325,67 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Terms &amp; conditions</span>
               <textarea className={inputCls} style={inputStyle} rows={3} value={terms} onChange={e => setTerms(e.target.value)} />
             </label>
+          </div>
+
+          {/* Invoice appearance (v69) — layout + accent, per company */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Invoice appearance</p>
+
+            <div className="grid grid-cols-3 gap-2">
+              {INVOICE_TEMPLATES.map(t => {
+                const active = invoiceTemplate === t.id
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setInvoiceTemplate(t.id)}
+                    className="text-left rounded-xl border p-2.5 relative"
+                    style={{
+                      borderColor: active ? invoiceAccent : 'var(--border)',
+                      background: active ? 'var(--surface-2)' : 'var(--surface)',
+                      boxShadow: active ? `inset 0 0 0 1px ${invoiceAccent}` : 'none',
+                    }}
+                  >
+                    <TemplateThumb id={t.id} accent={invoiceAccent} />
+                    <div className="mt-2 flex items-center gap-1">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>{t.label}</span>
+                      {active && <Check className="w-3 h-3" style={{ color: invoiceAccent }} />}
+                    </div>
+                    <p className="text-[10px] leading-tight mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.blurb}</p>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Accent colour</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                {ACCENT_PRESETS.map(a => {
+                  const active = invoiceAccent.toLowerCase() === a.value.toLowerCase()
+                  return (
+                    <button
+                      key={a.value}
+                      type="button"
+                      title={a.name}
+                      onClick={() => setInvoiceAccent(a.value)}
+                      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: a.value, outline: active ? `2px solid var(--text)` : 'none', outlineOffset: '2px' }}
+                    >
+                      {active && <Check className="w-3.5 h-3.5 text-white" />}
+                    </button>
+                  )
+                })}
+                <label className="inline-flex items-center gap-1.5 ml-1 cursor-pointer" title="Custom colour">
+                  <input
+                    type="color"
+                    value={invoiceAccent}
+                    onChange={e => setInvoiceAccent(e.target.value)}
+                    className="w-7 h-7 rounded-full border-0 bg-transparent cursor-pointer p-0"
+                  />
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Custom</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           {error && (

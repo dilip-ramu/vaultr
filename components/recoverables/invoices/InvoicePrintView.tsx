@@ -2,6 +2,10 @@
 
 import { amountToWords } from '@/lib/recoverables/invoices/words'
 import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
+import {
+  type InvoiceTemplate,
+  DEFAULT_INVOICE_TEMPLATE, DEFAULT_INVOICE_ACCENT, accentSoft,
+} from '@/lib/companies/templates'
 
 interface InvoiceSettings {
   company_name: string | null
@@ -13,8 +17,7 @@ interface InvoiceSettings {
   bank_account_number: string | null
   bank_ifsc: string | null
   bank_name: string | null
-  /** v64 — SWIFT/BIC code for foreign transfers. Rendered under the bank
-   *  block on the tax invoice; hidden when null. */
+  /** v64 — SWIFT/BIC code for foreign transfers. */
   swift_code: string | null
   terms_conditions: string | null
   hsn_sac: string | null
@@ -24,15 +27,13 @@ interface Props {
   invoice: RecoverableInvoice
   lines: RecoverableInvoiceLine[]
   settings: InvoiceSettings | null
-  /** Short-lived signed URL to the company logo in the private
-   *  vaultr-attachments bucket. `null` if the user hasn't uploaded a logo
-   *  yet — the print view renders without it. Was `/invoice-logo.png` from
-   *  public/, which anyone could download by URL guessing. */
+  /** Logo URL — public URL for company logos, signed URL for the legacy one. */
   logoUrl?: string | null
-  /** Short-lived signed URL to the authorised signature image. Same story
-   *  as logoUrl — this is the higher-risk file, since a real signature
-   *  could be lifted for fraud. */
+  /** Signed URL to the authorised signature image (private bucket). */
   signatureUrl?: string | null
+  /** v69 — per-company layout + accent (Feature 1). */
+  template?: InvoiceTemplate
+  accent?: string
 }
 
 function fmtInr(n: number, dp = 2) {
@@ -57,14 +58,17 @@ const paymentTermsLabel: Record<string, string> = {
   net_60: 'Net 60', net_90: 'Net 90', due_on_receipt: 'Due on Receipt',
 }
 
-export default function InvoicePrintView({ invoice, lines, settings, logoUrl = null, signatureUrl = null }: Props) {
+export default function InvoicePrintView({
+  invoice, lines, settings,
+  logoUrl = null, signatureUrl = null,
+  template = DEFAULT_INVOICE_TEMPLATE,
+  accent = DEFAULT_INVOICE_ACCENT,
+}: Props) {
   const companyName  = settings?.company_name  ?? 'Your Company'
   const balanceDue   = invoice.balance_due
   const termsLabel   = paymentTermsLabel[invoice.payment_terms ?? ''] ?? (invoice.payment_terms ?? '—')
 
-  const stateDisplay = invoice.customer_state
-    ? invoice.customer_state
-    : null
+  const stateDisplay = invoice.customer_state ? invoice.customer_state : null
 
   // Show a single "(x%)" in the tax totals only when every line shares one
   // rate. A mixed-rate invoice drops the rate from the label — the per-line
@@ -72,57 +76,66 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
   const uniformCgst = lines.length > 0 && lines.every(l => l.cgst_rate === lines[0].cgst_rate)
   const uniformSgst = lines.length > 0 && lines.every(l => l.sgst_rate === lines[0].sgst_rate)
 
+  const sheetStyle = {
+    ['--accent' as string]: accent,
+    ['--accent-soft' as string]: accentSoft(accent),
+  } as React.CSSProperties
+
+  // ── Shared fragments ───────────────────────────────────────────────────────
+  const CompanyInfo = (
+    <div className="company-info">
+      <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '3px' }}>{companyName}</div>
+      {settings?.company_address && <div style={{ whiteSpace: 'pre-wrap' }}>{settings.company_address}</div>}
+      {settings?.company_gstin   && <div>GSTIN: {settings.company_gstin}</div>}
+      {settings?.company_phone   && <div>Phone: {settings.company_phone}</div>}
+      {settings?.company_email   && <div>Email: {settings.company_email}</div>}
+    </div>
+  )
+
+  const MetaTable = (
+    <table className="meta-table">
+      <tbody>
+        <tr><td>Invoice Date</td><td>{fmtDateLong(invoice.invoice_date)}</td></tr>
+        <tr><td>Terms</td><td>{termsLabel}</td></tr>
+        <tr><td>Due Date</td><td>{fmtDateLong(invoice.due_date)}</td></tr>
+      </tbody>
+    </table>
+  )
+
+  const BillTo = (
+    <div className="bill-to-block">
+      <div className="section-label">Bill To</div>
+      <div className="customer-name">{invoice.customer_name}</div>
+      {invoice.customer_address && <div className="customer-address">{invoice.customer_address}</div>}
+      {invoice.customer_gstin && <div className="customer-gstin">GSTIN: {invoice.customer_gstin}</div>}
+    </div>
+  )
+
   return (
     <>
-      {/* Print + screen styles — inline so the page is self-contained */}
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
         body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #e5e7eb; }
 
-        .print-btn {
-          position: fixed;
-          top: 16px;
-          right: 16px;
-          z-index: 100;
-          background: #1d4ed8;
-          color: #fff;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .print-btn:hover { background: #1e40af; }
+        .print-btn { position: fixed; top: 16px; right: 16px; z-index: 100; background: var(--accent); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .print-btn:hover { filter: brightness(0.92); }
 
-        .sheet {
-          background: #fff;
-          width: 210mm;
-          min-height: 297mm;
-          margin: 32px auto;
-          padding: 12mm 14mm;
-          box-shadow: 0 4px 24px rgba(0,0,0,.15);
-          color: #000;
-          font-size: 11px;
-          line-height: 1.4;
-        }
+        .sheet { background: #fff; width: 210mm; min-height: 297mm; margin: 32px auto; padding: 12mm 14mm; box-shadow: 0 4px 24px rgba(0,0,0,.15); color: #000; font-size: 11px; line-height: 1.4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-        /* ── Header ── */
         .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-        .company-name { font-size: 20px; font-weight: 700; }
         .tax-invoice-block { text-align: right; }
         .tax-invoice-block h2 { font-size: 16px; font-weight: 700; margin: 0 0 2px; }
+        .tpl-classic .tax-invoice-block h2 { color: var(--accent); }
         .invoice-number { font-size: 13px; font-weight: 600; color: #374151; }
 
-        /* ── Sub-header (company info + balance due) ── */
         .subheader { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0 8px; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-bottom: 10px; }
         .company-info { font-size: 10.5px; line-height: 1.5; }
         .balance-block { text-align: right; }
         .balance-label { font-size: 10px; color: #6b7280; margin-bottom: 2px; }
         .balance-amount { font-size: 22px; font-weight: 700; }
+        .tpl-classic .balance-amount { color: var(--accent); }
 
-        /* ── Bill To / metadata row ── */
-        .parties-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .parties-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 16px; }
         .bill-to-block { flex: 1; }
         .section-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin-bottom: 3px; }
         .customer-name { font-size: 13px; font-weight: 700; }
@@ -134,10 +147,28 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
         .meta-table td:first-child { color: #6b7280; white-space: nowrap; padding-right: 12px; }
         .meta-table td:last-child { font-weight: 600; text-align: right; }
 
-        /* ── Supply line ── */
         .supply-line { font-size: 10.5px; margin-bottom: 10px; padding: 4px 0; border-top: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db; }
 
-        /* ── Line items table ── */
+        /* ── Modern band ── */
+        .brand-band { background: var(--accent); color: #fff; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .brand-band .bn-name { font-size: 18px; font-weight: 700; }
+        .brand-band .bn-logo { height: 1.2cm; width: auto; background: #fff; border-radius: 4px; padding: 3px 5px; margin-bottom: 6px; display: block; }
+        .brand-band .bn-right { text-align: right; }
+        .brand-band .bn-title { font-size: 14px; font-weight: 700; letter-spacing: .04em; }
+        .brand-band .bn-num { font-size: 11px; opacity: .95; }
+        .brand-band .bn-bal-label { font-size: 9px; opacity: .85; margin-top: 6px; }
+        .brand-band .bn-bal { font-size: 16px; font-weight: 700; }
+        .soft-box { background: var(--accent-soft); border-radius: 6px; padding: 8px 10px; flex: 1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+        /* ── Minimal head ── */
+        .minimal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+        .minimal-name { font-size: 18px; font-weight: 700; color: var(--accent); display: inline-block; border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
+        .minimal-sub { font-size: 10px; color: #374151; margin-top: 6px; line-height: 1.5; }
+        .minimal-right { text-align: right; }
+        .minimal-right .mr-title { font-size: 13px; font-weight: 700; color: var(--accent); }
+        .minimal-right .mr-num { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+        /* ── Line items ── */
         .items-table { width: 100%; border-collapse: collapse; margin-bottom: 0; font-size: 10.5px; }
         .items-table th { background: #f3f4f6; font-weight: 700; padding: 5px 6px; text-align: left; border: 1px solid #d1d5db; }
         .items-table th.right, .items-table td.right { text-align: right; }
@@ -145,20 +176,27 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
         .items-table tr:nth-child(even) td { background: #f9fafb; }
         .awb-cell { font-family: monospace; font-size: 9.5px; color: #374151; }
 
+        .items-table.tpl-modern th { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .items-table.tpl-minimal th { background: transparent; border-left: none; border-right: none; border-top: none; border-bottom: 1.5px solid var(--accent); }
+        .items-table.tpl-minimal td { border-left: none; border-right: none; }
+        .items-table.tpl-minimal tr:nth-child(even) td { background: transparent; }
+
         /* ── Totals ── */
         .totals-section { display: flex; justify-content: flex-end; margin-top: 0; border-left: 1px solid #d1d5db; border-right: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db; }
+        .totals-section.tpl-minimal { border: none; }
         .totals-table { font-size: 10.5px; border-collapse: collapse; min-width: 200px; }
         .totals-table td { padding: 3px 8px; }
         .totals-table td:first-child { color: #374151; }
         .totals-table td:last-child { text-align: right; font-weight: 500; min-width: 80px; }
         .totals-table tr.total-row td { font-weight: 700; font-size: 12px; border-top: 1px solid #000; padding-top: 5px; }
+        .totals-table tr.total-row td:last-child { color: var(--accent); }
         .totals-table tr.balance-row td { font-weight: 700; font-size: 14px; }
+        .totals-table tr.balance-row td:last-child { color: var(--accent); }
 
-        /* ── Words row ── */
         .words-row { border: 1px solid #d1d5db; border-top: none; padding: 5px 8px; font-size: 10px; }
+        .tpl-minimal .words-row { border: none; padding: 5px 0; }
         .words-row span { font-weight: 600; }
 
-        /* ── Bank + terms ── */
         .footer-row { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 12px; gap: 16px; }
         .bank-block { flex: 1; }
         .bank-block h4, .terms-block h4 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin: 0 0 4px; }
@@ -166,11 +204,6 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
         .bank-table td { padding: 1.5px 0; }
         .bank-table td:first-child { color: #6b7280; min-width: 110px; }
         .terms-block { flex: 1; font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
-
-        /* ── Signature ── */
-        .signature-block { margin-top: 24px; text-align: right; font-size: 10.5px; }
-        .signature-block .for { font-weight: 700; }
-        .signature-block .sig-lines { margin-top: 36px; color: #6b7280; }
 
         @media print {
           .print-btn { display: none !important; }
@@ -183,67 +216,80 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
         Print / Download PDF
       </button>
 
-      <div className="sheet">
+      <div className={`sheet tpl-${template}`} style={sheetStyle}>
 
-        {/* 1 — Header. Logo comes from a signed URL (private bucket) — was
-             hardcoded to /invoice-logo.png in public/, world-readable. If the
-             user hasn't uploaded a logo yet, the header just skips the img. */}
-        <div className="header">
-          {logoUrl
-            ? <img src={logoUrl} alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
-            : <div style={{ height: '1.5cm' }} />}
-          <div className="tax-invoice-block">
-            <h2>Tax Invoice</h2>
-            <div className="invoice-number"># {invoice.invoice_number}</div>
-          </div>
-        </div>
+        {/* ── Header (per template) ── */}
+        {template === 'modern' ? (
+          <>
+            <div className="brand-band">
+              <div>
+                {logoUrl && <img className="bn-logo" src={logoUrl} alt={companyName} />}
+                <div className="bn-name">{companyName}</div>
+              </div>
+              <div className="bn-right">
+                <div className="bn-title">TAX INVOICE</div>
+                <div className="bn-num"># {invoice.invoice_number}</div>
+                <div className="bn-bal-label">Balance Due</div>
+                <div className="bn-bal">₹{fmtInr(balanceDue)}</div>
+              </div>
+            </div>
+            <div className="parties-row">
+              <div className="soft-box">
+                <div className="section-label">From</div>
+                {CompanyInfo}
+              </div>
+              <div className="soft-box">{BillTo}{MetaTable}</div>
+            </div>
+          </>
+        ) : template === 'minimal' ? (
+          <>
+            <div className="minimal-head">
+              <div>
+                <span className="minimal-name">{companyName}</span>
+                <div className="minimal-sub">
+                  {settings?.company_address && <div style={{ whiteSpace: 'pre-wrap' }}>{settings.company_address}</div>}
+                  {settings?.company_gstin   && <div>GSTIN: {settings.company_gstin}</div>}
+                  {settings?.company_email   && <div>{settings.company_email}</div>}
+                </div>
+              </div>
+              <div className="minimal-right">
+                <div className="mr-title">Tax Invoice</div>
+                <div className="mr-num"># {invoice.invoice_number}</div>
+                <div className="mr-num" style={{ marginTop: '6px' }}>Balance Due</div>
+                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--accent)' }}>₹{fmtInr(balanceDue)}</div>
+              </div>
+            </div>
+            <div className="parties-row">
+              {BillTo}
+              {MetaTable}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="header">
+              {logoUrl
+                ? <img src={logoUrl} alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
+                : <div style={{ height: '1.5cm' }} />}
+              <div className="tax-invoice-block">
+                <h2>Tax Invoice</h2>
+                <div className="invoice-number"># {invoice.invoice_number}</div>
+              </div>
+            </div>
+            <div className="subheader">
+              {CompanyInfo}
+              <div className="balance-block">
+                <div className="balance-label">Balance Due</div>
+                <div className="balance-amount">₹{fmtInr(balanceDue)}</div>
+              </div>
+            </div>
+            <div className="parties-row">
+              {BillTo}
+              {MetaTable}
+            </div>
+          </>
+        )}
 
-        {/* 2 — Company info + Balance Due */}
-        <div className="subheader">
-          <div className="company-info">
-            <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '3px' }}>{companyName}</div>
-            {settings?.company_address && <div style={{ whiteSpace: 'pre-wrap' }}>{settings.company_address}</div>}
-            {settings?.company_gstin   && <div>GSTIN: {settings.company_gstin}</div>}
-            {settings?.company_phone   && <div>Phone: {settings.company_phone}</div>}
-            {settings?.company_email   && <div>Email: {settings.company_email}</div>}
-          </div>
-          <div className="balance-block">
-            <div className="balance-label">Balance Due</div>
-            <div className="balance-amount">₹{fmtInr(balanceDue)}</div>
-          </div>
-        </div>
-
-        {/* 3 + 4 — Bill To + metadata */}
-        <div className="parties-row">
-          <div className="bill-to-block">
-            <div className="section-label">Bill To</div>
-            <div className="customer-name">{invoice.customer_name}</div>
-            {invoice.customer_address && (
-              <div className="customer-address">{invoice.customer_address}</div>
-            )}
-            {invoice.customer_gstin && (
-              <div className="customer-gstin">GSTIN: {invoice.customer_gstin}</div>
-            )}
-          </div>
-          <table className="meta-table">
-            <tbody>
-              <tr>
-                <td>Invoice Date</td>
-                <td>{fmtDateLong(invoice.invoice_date)}</td>
-              </tr>
-              <tr>
-                <td>Terms</td>
-                <td>{termsLabel}</td>
-              </tr>
-              <tr>
-                <td>Due Date</td>
-                <td>{fmtDateLong(invoice.due_date)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* 5 + 6 — GSTIN / Place of supply */}
+        {/* Place of supply */}
         {(invoice.customer_gstin || stateDisplay) && (
           <div className="supply-line">
             {invoice.customer_gstin && <span>Ship To GSTIN: {invoice.customer_gstin}&nbsp;&nbsp;</span>}
@@ -251,8 +297,8 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
           </div>
         )}
 
-        {/* 7 — Line items */}
-        <table className="items-table">
+        {/* ── Line items ── */}
+        <table className={`items-table tpl-${template}`}>
           <thead>
             <tr>
               <th style={{ width: '28px' }}>#</th>
@@ -271,9 +317,7 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
                 <td>{line.line_number}</td>
                 <td>
                   <div>{fmtDate(line.shipment_date)}</div>
-                  {line.client_name && (
-                    <div style={{ fontWeight: 600 }}>Consignee: {line.client_name}</div>
-                  )}
+                  {line.client_name && <div style={{ fontWeight: 600 }}>Consignee: {line.client_name}</div>}
                   <div className="awb-cell">AWB: {line.awb}</div>
                 </td>
                 <td>{line.hsn_sac ?? settings?.hsn_sac ?? '996812'}</td>
@@ -293,14 +337,11 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
           </tbody>
         </table>
 
-        {/* 8 — Totals */}
-        <div className="totals-section">
+        {/* ── Totals ── */}
+        <div className={`totals-section tpl-${template}`}>
           <table className="totals-table">
             <tbody>
-              <tr>
-                <td>Sub Total</td>
-                <td>{fmtInr(invoice.subtotal)}</td>
-              </tr>
+              <tr><td>Sub Total</td><td>{fmtInr(invoice.subtotal)}</td></tr>
               <tr>
                 <td>CGST{uniformCgst ? ` (${lines[0].cgst_rate}%)` : ''}</td>
                 <td>{fmtInr(invoice.cgst_amount)}</td>
@@ -309,24 +350,18 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
                 <td>SGST{uniformSgst ? ` (${lines[0].sgst_rate}%)` : ''}</td>
                 <td>{fmtInr(invoice.sgst_amount)}</td>
               </tr>
-              <tr className="total-row">
-                <td>Total</td>
-                <td>₹{fmtInr(invoice.total)}</td>
-              </tr>
-              <tr className="balance-row">
-                <td>Balance Due</td>
-                <td>₹{fmtInr(balanceDue)}</td>
-              </tr>
+              <tr className="total-row"><td>Total</td><td>₹{fmtInr(invoice.total)}</td></tr>
+              <tr className="balance-row"><td>Balance Due</td><td>₹{fmtInr(balanceDue)}</td></tr>
             </tbody>
           </table>
         </div>
 
-        {/* 9 — Amount in words */}
+        {/* ── Amount in words ── */}
         <div className="words-row">
           Total In Words: <span>{amountToWords(invoice.total, invoice.currency ?? 'INR')}</span>
         </div>
 
-        {/* 10 + 11 — Bank details + Terms */}
+        {/* ── Bank details + Terms ── */}
         {(settings?.bank_account_number || settings?.terms_conditions) && (
           <div className="footer-row">
             {settings?.bank_account_number && (
@@ -352,10 +387,7 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
           </div>
         )}
 
-        {/* 12 — Signature. Same story as the logo — was /signedcopy.png in
-             public/, now a short-lived signed URL out of the private bucket.
-             Higher-risk asset than the logo: a real signature image, so
-             putting it behind auth is meaningful, not just cosmetic. */}
+        {/* ── Signature ── */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
           <div style={{ textAlign: 'right' }}>
             {signatureUrl

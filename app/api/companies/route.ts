@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { normalizeTemplate, normalizeAccent } from '@/lib/companies/templates'
 
 // GET — list companies for the current user
 export async function GET() {
@@ -62,6 +63,8 @@ export async function POST(req: NextRequest) {
     hsn_sac:             body.hsn_sac             ?? '996812',
     payment_terms:       body.payment_terms       ?? 'due_on_receipt',
     terms_conditions:    body.terms_conditions    ?? null,
+    invoice_template:    normalizeTemplate(body.invoice_template),
+    invoice_accent:      normalizeAccent(body.invoice_accent),
   }
 
   const { data, error } = await supabase.from('companies').insert(insertRow).select('*').single()

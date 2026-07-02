@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { syncCustomerMirror } from '../route'
+import { normalizeTemplate, normalizeAccent } from '@/lib/companies/templates'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -12,6 +13,7 @@ const UPDATABLE = new Set([
   'invoice_prefix', 'cgst_rate', 'sgst_rate', 'hsn_sac',
   'payment_terms', 'terms_conditions',
   'logo_path',
+  'invoice_template', 'invoice_accent',
 ])
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
@@ -32,6 +34,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
+
+  // Normalize the presentation fields so a bad value degrades to a safe
+  // default instead of tripping the DB CHECK constraint.
+  if ('invoice_template' in updates) updates.invoice_template = normalizeTemplate(updates.invoice_template)
+  if ('invoice_accent'   in updates) updates.invoice_accent   = normalizeAccent(updates.invoice_accent)
 
   // When promoting this company to default, demote any other default first.
   if (updates.is_default === true) {
