@@ -517,14 +517,13 @@ export default function ReimbursableInvoiceClient({
             <span className="text-[10px] text-gray-400">→ payroll for <strong>{monthLabel(invoiceMonth)}</strong></span>
           </div>
         </div>
-        {/* Bill From company chips — hidden when only one company exists.
-            Same visual language as the customer chips at the top of the page:
-            colored circle + name, active chip tinted with the company's hue.
-            The logo (if any) replaces the initial inside the circle. */}
+        {/* Bill From company chips — styled to match AccountChipPicker
+            (transactions): chunky rounded-xl chip, 28px icon box with logo
+            or initial, small accent dot, soft surface-2 bg when unselected. */}
         {companies.length > 1 && (
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-end gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Bill From</label>
-            <div className="flex flex-wrap gap-1.5 justify-end">
+            <div className="flex flex-wrap gap-2 justify-end">
               {companies.map(c => {
                 const active = c.id === selectedCompanyId
                 const hue    = c.is_default ? '#3B4AC7' : '#2A7A50'
@@ -536,22 +535,31 @@ export default function ReimbursableInvoiceClient({
                     aria-selected={active}
                     onClick={() => !isFinalized && setSelectedCompanyId(c.id)}
                     disabled={isFinalized}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-full border text-xs font-medium whitespace-nowrap transition-colors disabled:opacity-50"
-                    style={{
-                      borderColor: active ? hue : 'var(--border)',
-                      background:  active ? `${hue}18` : 'var(--surface)',
-                      color:       active ? hue : 'var(--text)',
-                    }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all disabled:opacity-50"
+                    style={
+                      active
+                        ? { borderColor: hue, backgroundColor: `${hue}10`, boxShadow: '0 1px 3px rgba(0,0,0,.08)' }
+                        : { borderColor: 'transparent', backgroundColor: 'var(--surface-2)' }
+                    }
                   >
-                    <span
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden"
+                    {/* Logo or initial box */}
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 overflow-hidden font-bold text-white"
                       style={{ background: hue }}
                     >
                       {c.logo_url
                         ? <img src={c.logo_url} alt={c.name} className="w-full h-full object-cover" />
-                        : c.name[0]?.toUpperCase() ?? '?'}
-                    </span>
-                    {c.name}
+                        : (c.name[0]?.toUpperCase() ?? '?')}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hue }} />
+                      <span
+                        className="text-sm font-medium"
+                        style={{ color: active ? 'var(--text)' : 'var(--text-muted)' }}
+                      >
+                        {c.name}
+                      </span>
+                    </div>
                   </button>
                 )
               })}

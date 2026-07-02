@@ -620,23 +620,39 @@ export default function StaffClient({ employees: initialEmployees, customers = [
   )
 }
 
-/** Tiny chip button used by the company filter row above the employees list. */
+/** Company filter chip — matches AccountChipPicker (transactions) style:
+ *  chunky rounded-xl with a 28px letter box + colored dot + label. */
 function CompanyChip({
   active, onClick, label, hue,
 }: { active: boolean; onClick: () => void; label: string; hue?: string }) {
-  const color = hue ?? '#2A7A50'
+  const color   = hue ?? '#2A7A50'
+  const initial = label[0]?.toUpperCase() ?? '?'
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium whitespace-nowrap transition-colors"
-      style={{
-        borderColor: active ? color : 'var(--border)',
-        background:  active ? `${color}18` : 'var(--surface)',
-        color:       active ? color : 'var(--text)',
-      }}
+      className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all"
+      style={
+        active
+          ? { borderColor: color, backgroundColor: `${color}10`, boxShadow: '0 1px 3px rgba(0,0,0,.08)' }
+          : { borderColor: 'transparent', backgroundColor: 'var(--surface-2)' }
+      }
     >
-      {label}
+      <div
+        className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 font-bold text-white"
+        style={{ background: color }}
+      >
+        {initial}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <span
+          className="text-sm font-medium"
+          style={{ color: active ? 'var(--text)' : 'var(--text-muted)' }}
+        >
+          {label}
+        </span>
+      </div>
     </button>
   )
 }

@@ -140,6 +140,12 @@ export default function InvoicesTabsBar({ reimbursableCustomers, allCustomers }:
   )
 }
 
+/** Same visual language as AccountChipPicker (transactions):
+ *   ─ Chunky rounded-xl chip with border-2
+ *   ─ 28px icon box (rounded-lg, not circle) with the customer's initial or icon
+ *   ─ Small colored dot before the name for the accent
+ *   ─ Soft surface-2 background when unselected; tinted when active
+ */
 function Chip({
   active, onClick, label, hue, initial, icon, dim,
 }: {
@@ -157,20 +163,30 @@ function Chip({
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-full border text-sm font-medium transition-all whitespace-nowrap ${dim ? 'opacity-50' : ''}`}
-      style={{
-        borderColor: active ? hue : 'var(--border)',
-        background:  active ? `${hue}18` : 'var(--surface)',
-        color:       active ? hue : 'var(--text)',
-      }}
+      className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all whitespace-nowrap ${dim ? 'opacity-50' : ''}`}
+      style={
+        active
+          ? { borderColor: hue, backgroundColor: `${hue}10`, boxShadow: '0 1px 3px rgba(0,0,0,.08)' }
+          : { borderColor: 'transparent', backgroundColor: 'var(--surface-2)' }
+      }
     >
-      <span
-        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+      {/* Icon box — square-ish with a tinted background, like AccountChipPicker */}
+      <div
+        className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 font-bold text-white"
         style={{ background: hue }}
       >
         {icon ?? initial}
-      </span>
-      {label}
+      </div>
+      {/* Accent dot + label */}
+      <div className="flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: hue }} />
+        <span
+          className="text-sm font-medium"
+          style={{ color: active ? 'var(--text)' : 'var(--text-muted)' }}
+        >
+          {label}
+        </span>
+      </div>
     </button>
   )
 }
