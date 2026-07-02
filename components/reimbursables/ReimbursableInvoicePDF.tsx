@@ -254,7 +254,10 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
           {salaryItems.length > 0 && (
             <>
               <View style={s.sectionRow}>
-                <Text style={s.sectionCell}>SALARIES</Text>
+                {/* v67: include the month so the section reads
+                    "SALARIES · June 2026" — matches the payroll month that
+                    got auto-created for this invoice. */}
+                <Text style={s.sectionCell}>SALARIES · {monthLabel(data.invoice_month)}</Text>
               </View>
               {salaryItems.map(renderRow)}
             </>

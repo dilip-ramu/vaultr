@@ -203,7 +203,14 @@ export default function ReimbursableInvoiceClient({
   // any downstream conversions to a 1:1 pass-through.
   const isInrBilled = (billingCurrency || 'INR').toUpperCase() === 'INR'
   const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const todayISO = now.toISOString().slice(0, 10)
+
+  /** v67 — editable invoice date. When editing (existingInvoice), seed from
+   *  the persisted date; otherwise default to today. The payroll month is
+   *  derived from THIS date, not from "the day you finalized", so a June
+   *  invoice created on July 3rd goes into a June payroll month. */
+  const [invoiceDate, setInvoiceDate] = useState<string>(existingInvoice?.invoice_date ?? todayISO)
+  const invoiceMonth = invoiceDate.slice(0, 7)   // YYYY-MM
 
   const [finalizing, setFinalizing] = useState(false)
   const [invoiceData, setInvoiceData] = useState<ReimbursableInvoiceData | null>(null)
@@ -387,14 +394,19 @@ export default function ReimbursableInvoiceClient({
         inv = {
           id: existingInvoiceId,
           invoice_number: invoiceData?.invoice_number ?? '',
-          invoice_date:   invoiceData?.invoice_date   ?? new Date().toISOString().slice(0, 10),
+          invoice_date:   invoiceData?.invoice_date   ?? invoiceDate,
         }
       } else {
         const createRes = await fetch('/api/contrast/invoices', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           // Multi-customer: tag the new invoice with the customer being billed.
-          body: JSON.stringify({ invoice_month: currentMonth, customer_id: customerId, company_id: selectedCompanyId || undefined }),
+          body: JSON.stringify({
+            invoice_month:  invoiceMonth,
+            invoice_date:   invoiceDate,
+            customer_id:    customerId,
+            company_id:     selectedCompanyId || undefined,
+          }),
         })
         if (!createRes.ok) throw new Error((await createRes.json()).error ?? 'Failed to create invoice')
         inv = await createRes.json()
@@ -441,14 +453,14 @@ export default function ReimbursableInvoiceClient({
           transaction_ids: allExpenses.map(e => e.id),
           recoverable_invoice_ids: selectedCouriers.map(ci => ci.id),
           salary_employees: selectedEmployees.map(e => ({ employee_id: e.id, salary_amount: e.salary_amount })),
-          invoice_month: currentMonth,
+          invoice_month: invoiceMonth,
         }),
       })
       if (!finalRes.ok) throw new Error((await finalRes.json()).error ?? 'Finalize failed')
 
       setInvoiceData({
         invoice_number: inv.invoice_number,
-        invoice_month:  currentMonth,
+        invoice_month:  invoiceMonth,
         invoice_date:   inv.invoice_date,
         items,
         subtotal:       subtotalEur,
@@ -488,8 +500,22 @@ export default function ReimbursableInvoiceClient({
             Invoice{customerName ? ` · ${customerName}` : ''}
           </h1>
           <p className="text-sm text-gray-500">
-            Invoice for <strong>{monthLabel(currentMonth)}</strong> · {billingCurrency} · salaries direct, expenses via forex rate
+            Invoice for <strong>{monthLabel(invoiceMonth)}</strong> · {billingCurrency} · salaries direct, expenses via forex rate
           </p>
+          {/* v67 — editable invoice date. The month portion drives the
+              payroll month auto-created on Finalize, so a June invoice
+              created on July 3 rd still books June payroll. */}
+          <div className="flex items-center gap-2 mt-2">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Invoice date</label>
+            <input
+              type="date"
+              value={invoiceDate}
+              onChange={e => setInvoiceDate(e.target.value || todayISO)}
+              disabled={isFinalized}
+              className="px-2 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-50"
+            />
+            <span className="text-[10px] text-gray-400">→ payroll for <strong>{monthLabel(invoiceMonth)}</strong></span>
+          </div>
         </div>
         {/* Bill From company chips — hidden when only one company exists.
             Same visual language as the customer chips at the top of the page:

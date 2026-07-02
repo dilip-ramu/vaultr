@@ -86,8 +86,8 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-  const { invoice_month, customer_id, company_id } = await req.json() as {
-    invoice_month: string; customer_id?: string; company_id?: string
+  const { invoice_month, customer_id, company_id, invoice_date } = await req.json() as {
+    invoice_month: string; customer_id?: string; company_id?: string; invoice_date?: string
   }
   if (!invoice_month) return NextResponse.json({ error: 'invoice_month required' }, { status: 400 })
 
@@ -137,7 +137,9 @@ export async function POST(req: Request) {
       invoice_type: 'reimbursement',
       invoice_number,
       invoice_month,
-      invoice_date: new Date().toISOString().slice(0, 10),
+      // v67: use the client-provided date when set; falls back to today.
+      // Drives the finalize step's payroll month via invoice_month too.
+      invoice_date: invoice_date ?? new Date().toISOString().slice(0, 10),
       status: 'draft',
       // company_id: which of the user's companies this invoice is billed
       // FROM. Falls back to null when the client doesn't send one (older
