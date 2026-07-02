@@ -2,18 +2,19 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import ContractsClient, { type TemplateRow } from '@/components/organization/ContractsClient'
+import ContractsClient, { type TemplateRow, type JobDescRow } from '@/components/organization/ContractsClient'
 
 export default async function OrganizationContractsTab() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: templates }, { data: companies }, { data: emps }] = await Promise.all([
+  const [{ data: templates }, { data: companies }, { data: emps }, { data: jds }] = await Promise.all([
     supabase.from('contract_templates').select('*').eq('user_id', user.id).order('updated_at', { ascending: false }),
     supabase.from('companies').select('id, name, is_default').eq('user_id', user.id)
       .order('is_default', { ascending: false }).order('name'),
     supabase.from('employees').select('designation').eq('user_id', user.id),
+    supabase.from('job_descriptions').select('id, company_id, designation, description').eq('user_id', user.id).order('designation'),
   ])
 
   const companyName: Record<string, string> = {}
@@ -39,6 +40,7 @@ export default async function OrganizationContractsTab() {
         initialTemplates={rows}
         companies={(companies ?? []).map(c => ({ id: c.id as string, name: c.name as string }))}
         designations={designations}
+        initialJobDescriptions={(jds ?? []) as JobDescRow[]}
       />
     </div>
   )

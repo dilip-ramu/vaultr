@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   const name = form.get('name') ? String(form.get('name')).trim() : null
   const note = form.get('note') ? String(form.get('note')).trim() : null
 
-  if (!designation) return NextResponse.json({ error: 'Designation is required' }, { status: 400 })
+  // designation is optional now — blank means a company-wide template.
   if (!file || file.size === 0) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
   if (!file.name.toLowerCase().endsWith('.docx')) {
     return NextResponse.json({ error: 'Upload a Word .docx file' }, { status: 400 })

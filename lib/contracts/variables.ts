@@ -24,8 +24,10 @@ function fmtNumber(n: number | null | undefined): string {
   return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** Build the docxtemplater data object from an employee + their company. */
-export function buildContractData(employee: Employee, company: ContractCompany | null) {
+/** Build the docxtemplater data object from an employee + their company.
+ *  `jobDescription` is resolved per designation (with optional company
+ *  override) and injected into {{job_description}}. */
+export function buildContractData(employee: Employee, company: ContractCompany | null, jobDescription = '') {
   const salaryCurrency = employee.salary_currency || 'INR'
   const salaryAmount   = fmtNumber(employee.salary_amount)
 
@@ -84,6 +86,8 @@ export function buildContractData(employee: Employee, company: ContractCompany |
     'company.email':            co.email,
     'company.phone':            co.phone,
     today: fmtDate(new Date().toISOString()),
+    // Job description for the employee's designation (matched automatically).
+    job_description: jobDescription ?? '',
     // Bare aliases so {{joining_date}}, {{designation}}, etc. also work.
     joining_date:  emp.joining_date,
     designation:   emp.designation,
@@ -99,6 +103,7 @@ export const CONTRACT_PLACEHOLDERS: { tag: string; label: string }[] = [
   { tag: '{{employee.name}}',           label: 'Employee full name' },
   { tag: '{{employee.employee_id}}',    label: 'Employee ID' },
   { tag: '{{employee.designation}}',    label: 'Designation' },
+  { tag: '{{job_description}}',          label: 'Job description (matched to the designation)' },
   { tag: '{{employee.salary}}',         label: 'Salary with currency (e.g. EUR 1,200.00)' },
   { tag: '{{employee.salary_amount}}',  label: 'Salary amount only' },
   { tag: '{{employee.salary_currency}}',label: 'Salary currency' },

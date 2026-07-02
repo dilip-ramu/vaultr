@@ -34,15 +34,18 @@ export async function POST(req: NextRequest) {
   }
 
   // Resolve the template for this employee's company + designation.
-  let q = supabase.from('contract_templates').select('*')
-    .eq('user_id', user.id).ilike('designation', designation)
-  q = emp.company_id ? q.eq('company_id', emp.company_id) : q.is('company_id', null)
-  const { data: template } = await q.maybeSingle()
+  // One template per company now. Fetch the company's templates and prefer a
+  // designation-specific one (legacy), else the company-wide template.
+  let tq = supabase.from('contract_templates').select('*').eq('user_id', user.id)
+  tq = emp.company_id ? tq.eq('company_id', emp.company_id) : tq.is('company_id', null)
+  const { data: templateRows } = await tq
+  const usable = (templateRows ?? []).filter(t => Number(t.current_version ?? 0) >= 1)
+  const template = usable.find(t => ((t.designation as string | null) ?? '').toLowerCase() === designation.toLowerCase()) ?? usable[0]
 
-  if (!template || Number(template.current_version ?? 0) < 1) {
+  if (!template) {
     const where = emp.company_id ? 'this company' : 'Personal'
     return NextResponse.json({
-      error: `No contract template for "${designation}" at ${where}. Upload one on the Contracts page.`,
+      error: `No contract template for ${where}. Upload one on the Contracts page.`,
     }, { status: 404 })
   }
 
@@ -64,7 +67,19 @@ export async function POST(req: NextRequest) {
     company = (co as ContractCompany | null) ?? null
   }
 
-  const data = buildContractData(emp, company)
+  // Resolve the job description for this designation — company-specific wins,
+  // else the global (company_id NULL) one, else empty.
+  let jobDescription = ''
+  {
+    const { data: jds } = await supabase.from('job_descriptions')
+      .select('company_id, description').eq('user_id', user.id).ilike('designation', designation)
+    const rows = jds ?? []
+    const specific = emp.company_id ? rows.find(r => r.company_id === emp.company_id) : undefined
+    const global = rows.find(r => r.company_id === null)
+    jobDescription = (specific?.description as string | undefined) ?? (global?.description as string | undefined) ?? ''
+  }
+
+  const data = buildContractData(emp, company, jobDescription)
 
   let output: Buffer
   try {
