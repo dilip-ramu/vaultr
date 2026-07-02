@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, FileText } from 'lucide-react'
+import { Building2, FileText, Palette } from 'lucide-react'
 
 const TABS = [
-  { href: '/company-details',          label: 'Company',  icon: Building2 },
-  { href: '/company-details/invoices', label: 'Invoices', icon: FileText },
+  { href: '/company-details',           label: 'Company',   icon: Building2 },
+  { href: '/company-details/templates', label: 'Templates', icon: Palette },
+  { href: '/company-details/invoices',  label: 'Invoices',  icon: FileText },
 ]
 
 export default function CompanyDetailsTabs() {

@@ -1,6 +1,7 @@
 import {
   Document, Page, Text, View, StyleSheet, Font, Image,
 } from '@react-pdf/renderer'
+import { normalizeTemplate, normalizeAccent, accentRgba } from '@/lib/companies/templates'
 
 const origin = typeof window !== 'undefined' ? window.location.origin : ''
 Font.register({
@@ -64,6 +65,9 @@ export interface ReimbursableInvoiceData {
    *  falls back to bill_from.name if this isn't set. */
   company_name?: string
   forex_rate?: number     // INR per <currency> used for this invoice
+  /** v69 — per-company look (Feature 1b). */
+  template?: string
+  accent?: string
 }
 
 const MONTHS_LONG = ['January','February','March','April','May','June',
@@ -158,6 +162,12 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
   const from = data.bill_from ?? { name: data.company_name ?? 'Your Company' }
   const to   = data.bill_to   ?? { name: '—' }
 
+  // v69 — per-company look. Accent recolours the table header, section rows,
+  // grand-total bar and signature rule; template swaps the top header block.
+  const template = normalizeTemplate(data.template)
+  const accent   = normalizeAccent(data.accent)
+  const softBg   = accentRgba(accent, 0.08)
+
   const renderRow = (item: InvoiceItem, idx: number) => {
     const RowStyle = idx % 2 === 0 ? s.trow : s.trowAlt
     const noInr = item.item_type === 'salary' || item.item_type === 'fixed_expense' || item.item_type === 'deduction'
@@ -179,23 +189,49 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
     <Document>
       <Page size="A4" style={s.page}>
 
-        {/* ── Header ── Logo (from companies.logo_path) replaces the
-             uppercase company-name text when present. Falls back to the text
-             so the header still reads cleanly for companies without a logo. */}
-        <View style={s.topRow}>
-          <View>
-            {from.logo_url
-              ? <Image src={from.logo_url} style={{ height: 42, width: 'auto', objectFit: 'contain' }} />
-              : <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{from.name.toUpperCase()}</Text>}
-            {from.address && (
-              <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>{from.address}</Text>
-            )}
+        {/* ── Header (per template, v69) ── Logo from companies.logo_path
+             replaces the company-name text when present. */}
+        {template === 'modern' ? (
+          <View style={{ backgroundColor: accent, borderRadius: 6, padding: 14, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View>
+              {from.logo_url
+                ? <Image src={from.logo_url} style={{ height: 34, width: 'auto', objectFit: 'contain', backgroundColor: '#fff', borderRadius: 3, padding: 3, marginBottom: 4 }} />
+                : null}
+              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#fff' }}>{from.name}</Text>
+              {from.address && <Text style={{ fontSize: 8, color: '#fff', opacity: 0.9, marginTop: 2 }}>{from.address}</Text>}
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#fff' }}>PROFORMA INVOICE</Text>
+              <Text style={{ fontSize: 9, color: '#fff', opacity: 0.95, marginTop: 2 }}>{data.invoice_number}</Text>
+            </View>
           </View>
-          <View style={s.titleBlock}>
-            <Text style={s.proforma}>PROFORMA INVOICE</Text>
-            <Text style={s.invNum}>{data.invoice_number}</Text>
+        ) : template === 'minimal' ? (
+          <View style={{ ...s.topRow, marginBottom: 14 }}>
+            <View>
+              {from.logo_url
+                ? <Image src={from.logo_url} style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+                : <View style={{ borderBottomWidth: 2, borderBottomColor: accent, alignSelf: 'flex-start', paddingBottom: 2 }}><Text style={{ fontSize: 15, fontWeight: 'bold', color: accent }}>{from.name}</Text></View>}
+              {from.address && <Text style={{ fontSize: 8, color: '#666', marginTop: 4 }}>{from.address}</Text>}
+            </View>
+            <View style={s.titleBlock}>
+              <Text style={{ ...s.proforma, color: accent }}>PROFORMA INVOICE</Text>
+              <Text style={s.invNum}>{data.invoice_number}</Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={s.topRow}>
+            <View>
+              {from.logo_url
+                ? <Image src={from.logo_url} style={{ height: 42, width: 'auto', objectFit: 'contain' }} />
+                : <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{from.name.toUpperCase()}</Text>}
+              {from.address && <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>{from.address}</Text>}
+            </View>
+            <View style={s.titleBlock}>
+              <Text style={{ ...s.proforma, color: accent }}>PROFORMA INVOICE</Text>
+              <Text style={s.invNum}>{data.invoice_number}</Text>
+            </View>
+          </View>
+        )}
 
         {/* ── From / To ── */}
         <View style={s.addressRow}>
@@ -245,7 +281,7 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
 
         {/* ── Line Items Table ── */}
         <View style={s.table}>
-          <View style={s.thead}>
+          <View style={[s.thead, { backgroundColor: accent }]}>
             <Text style={[s.th, { flex: 3 }]}>Description</Text>
             <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>INR Amount</Text>
             <Text style={[s.th, { flex: 1.5, textAlign: 'right' }]}>Amount ({cur})</Text>
@@ -265,8 +301,8 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
 
           {courierItems.length > 0 && (
             <>
-              <View style={s.sectionRow}>
-                <Text style={s.sectionCell}>COURIER CHARGES</Text>
+              <View style={[s.sectionRow, { backgroundColor: softBg }]}>
+                <Text style={[s.sectionCell, { color: accent }]}>COURIER CHARGES</Text>
               </View>
               {courierItems.map(renderRow)}
             </>
@@ -274,8 +310,8 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
 
           {expenseItems.length > 0 && (
             <>
-              <View style={s.sectionRow}>
-                <Text style={s.sectionCell}>OPERATIONAL EXPENSES</Text>
+              <View style={[s.sectionRow, { backgroundColor: softBg }]}>
+                <Text style={[s.sectionCell, { color: accent }]}>OPERATIONAL EXPENSES</Text>
               </View>
               {expenseItems.map(renderRow)}
             </>
@@ -283,8 +319,8 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
 
           {fixedExpenseItems.length > 0 && (
             <>
-              <View style={s.sectionRow}>
-                <Text style={s.sectionCell}>FIXED EXPENSES</Text>
+              <View style={[s.sectionRow, { backgroundColor: softBg }]}>
+                <Text style={[s.sectionCell, { color: accent }]}>FIXED EXPENSES</Text>
               </View>
               {fixedExpenseItems.map(renderRow)}
             </>
@@ -311,7 +347,7 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
               <Text style={s.totalLabel}>GST @ 18%</Text>
               <Text style={s.totalVal}>{fmtCur(data.gst_amount, cur)}</Text>
             </View>
-            <View style={s.grandRow}>
+            <View style={[s.grandRow, { backgroundColor: accent }]}>
               <Text style={s.grandLabel}>GRAND TOTAL</Text>
               <Text style={s.grandVal}>{fmtCur(data.total, cur)}</Text>
             </View>
@@ -369,7 +405,7 @@ export default function ReimbursableInvoicePDF({ data }: { data: ReimbursableInv
 
         {/* ── Signature ── */}
         <View style={s.footer}>
-          <View style={s.signBox}>
+          <View style={[s.signBox, { borderTopColor: accent }]}>
             <Text style={s.signLabel}>Authorised Signature &amp; Date</Text>
           </View>
         </View>

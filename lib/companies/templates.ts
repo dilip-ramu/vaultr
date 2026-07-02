@@ -55,3 +55,13 @@ export function accentSoft(accent: string): string {
   const a = normalizeAccent(accent)
   return `${a}14`
 }
+
+/** rgba() string from the accent hex — used by React-PDF, which renders
+ *  alpha more reliably via rgba() than 8-digit hex. */
+export function accentRgba(accent: string, alpha: number): string {
+  const a = normalizeAccent(accent)
+  const r = parseInt(a.slice(1, 3), 16)
+  const g = parseInt(a.slice(3, 5), 16)
+  const b = parseInt(a.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}

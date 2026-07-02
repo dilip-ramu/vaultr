@@ -161,7 +161,7 @@ export default async function ReimbursableNewInvoicePage({
   // — the companies bucket is public so getPublicUrl gives us a stable link.
   const { data: allCompanies } = await supabase
     .from('companies')
-    .select('id, name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, logo_path, is_default')
+    .select('id, name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, logo_path, is_default, invoice_template, invoice_accent')
     .eq('user_id', uid)
     .order('is_default', { ascending: false })
     .order('name')
@@ -172,6 +172,7 @@ export default async function ReimbursableNewInvoicePage({
     bank_ifsc: string | null; bank_name: string | null
     swift_code: string | null
     logo_path: string | null; is_default: boolean
+    invoice_template: string | null; invoice_accent: string | null
   }
   const companies = ((allCompanies ?? []) as CompanyRow[]).map(c => {
     let logoUrl: string | null = null
@@ -193,6 +194,8 @@ export default async function ReimbursableNewInvoicePage({
       swift_code:          c.swift_code,
       logo_url:            logoUrl,
       is_default:          c.is_default,
+      invoice_template:    c.invoice_template,
+      invoice_accent:      c.invoice_accent,
     }
   })
   const defaultCompany = companies.find(c => c.is_default) ?? companies[0] ?? null

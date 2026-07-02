@@ -125,6 +125,8 @@ interface Props {
     swift_code: string | null
     logo_url: string | null
     is_default: boolean
+    invoice_template?: string | null
+    invoice_accent?: string | null
   }[]
   /** Which company is selected by default (companies.is_default=true). */
   defaultCompanyId?: string | null
@@ -471,6 +473,8 @@ export default function ReimbursableInvoiceClient({
         bill_from:      billFrom,
         bill_to:        billTo,
         forex_rate:     hasValidRate && !isInrBilled ? forexRateNum : undefined,
+        template:       selectedCompany?.invoice_template ?? undefined,
+        accent:         selectedCompany?.invoice_accent ?? undefined,
       })
       setIsFinalized(true)
     } catch (e) {
