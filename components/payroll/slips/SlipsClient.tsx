@@ -222,6 +222,17 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
             >
               🖨 Print
             </button>
+            {/* Custom block-based template (Feature: customisable templates).
+                Opens the HTML print view with the company's assigned salary-slip
+                template (or the classic layout if none). */}
+            <a
+              href={`/payroll/slips/${selectedEntry.id}/print`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+            >
+              Template PDF
+            </a>
           </div>
         </div>
         <SalarySlipPrint
