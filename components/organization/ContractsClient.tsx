@@ -61,11 +61,13 @@ export default function ContractsClient({ initialTemplates, companies, designati
       if (companyId) fd.append('company_id', companyId)
       if (name.trim()) fd.append('name', name.trim())
       const res = await fetch('/api/contracts/templates', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) { notify(data.error || 'Upload failed', 'error'); return }
+      const data = await res.json().catch(() => ({} as { error?: string; version?: number }))
+      if (!res.ok) { notify(data.error || `Upload failed (${res.status})`, 'error'); return }
       notify(`Template saved (v${data.version})`, 'success')
       setFile(null); setName('')
       router.refresh()
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Upload failed', 'error')
     } finally { setBusy(false) }
   }
   async function openVersions(t: TemplateRow) {
@@ -96,8 +98,8 @@ export default function ContractsClient({ initialTemplates, companies, designati
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company_id: jdCompany || null, designation: jdDesignation.trim(), description: jdText }),
       })
-      const data = await res.json()
-      if (!res.ok) { notify(data.error || 'Save failed', 'error'); return }
+      const data = await res.json().catch(() => ({} as { error?: string; jobDescription?: JobDescRow }))
+      if (!res.ok) { notify(data.error || `Save failed (${res.status})`, 'error'); return }
       // Replace any existing row with the same scope, then add the new one.
       setJds(prev => {
         const scope = (r: JobDescRow) => (r.company_id ?? '') === (jdCompany || '') && r.designation.toLowerCase() === jdDesignation.trim().toLowerCase()
@@ -105,6 +107,8 @@ export default function ContractsClient({ initialTemplates, companies, designati
       })
       setJdDesignation(''); setJdText(''); setJdCompany('')
       notify('Job description saved', 'success')
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Save failed', 'error')
     } finally { setJdBusy(false) }
   }
   function editJd(r: JobDescRow) { setJdCompany(r.company_id ?? ''); setJdDesignation(r.designation); setJdText(r.description) }
