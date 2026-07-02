@@ -959,6 +959,19 @@ export default function ReimbursableInvoiceClient({
               label="Download PDF"
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all"
             />
+            {/* Custom block-based template (Feature: customisable templates).
+                Opens the HTML print view, which renders the company's assigned
+                reimbursable template (or the classic layout if none). */}
+            {existingInvoiceId && (
+              <a
+                href={`/reimbursables/invoices/${existingInvoiceId}/print`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-5 py-2.5 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl font-semibold text-sm transition-all"
+              >
+                Template PDF
+              </a>
+            )}
             {/* "Edit invoice" flips the form back to draft. The next Finalize
                 call re-runs delete-then-insert on the API side so the mirror
                 stays consistent. Historical PDF is superseded by the new one. */}
