@@ -65,6 +65,26 @@ export default function StaffClient({ employees: initialEmployees, customers = [
   const [form, setForm] = useState<Partial<Employee>>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [generatingId, setGeneratingId] = useState<string | null>(null)
+
+  async function handleGenerateContract(emp: Employee) {
+    setGeneratingId(emp.id)
+    try {
+      const res = await fetch('/api/contracts/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: emp.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { notify(data.error || 'Could not generate contract', 'error'); return }
+      // Trigger the download of the signed .docx URL.
+      const a = document.createElement('a')
+      a.href = data.url; a.download = data.fileName ?? 'contract.docx'
+      document.body.appendChild(a); a.click(); a.remove()
+      notify('Contract generated', 'success')
+    } catch {
+      notify('Could not generate contract', 'error')
+    } finally { setGeneratingId(null) }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -272,6 +292,15 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleGenerateContract(emp)}
+                          disabled={generatingId === emp.id}
+                          className="text-xs font-medium disabled:opacity-50"
+                          style={{ color: 'var(--brand)' }}
+                          title="Generate this employee's contract from the matching template"
+                        >
+                          {generatingId === emp.id ? 'Generating…' : 'Contract'}
+                        </button>
                         <button
                           onClick={() => openEdit(emp)}
                           className="text-blue-600 hover:text-blue-800 text-xs font-medium"

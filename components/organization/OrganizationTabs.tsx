@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, Users } from 'lucide-react'
+import { Building2, Users, FileText } from 'lucide-react'
 
 const TABS = [
   { href: '/organization',           label: 'Companies', icon: Building2 },
   { href: '/organization/employees', label: 'Employees', icon: Users },
+  { href: '/organization/contracts', label: 'Contracts', icon: FileText },
 ]
 
 export default function OrganizationTabs() {
