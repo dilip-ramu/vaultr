@@ -89,6 +89,24 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     .update({ status: 'approved', transaction_id: txn.id })
     .eq('id', id).eq('user_id', user.id)
 
+  // v68 — if the draft has a staged attachment, link it to the new
+  // transaction. The file already lives in Storage; we just insert a
+  // pointer row into the attachments table.
+  const draftAny = draft as unknown as {
+    attachment_path?: string | null; attachment_name?: string | null;
+    attachment_size?: number | null; attachment_content_type?: string | null
+  }
+  if (draftAny.attachment_path && draftAny.attachment_name) {
+    await supabase.from('attachments').insert({
+      user_id:        user.id,
+      transaction_id: txn.id,
+      file_path:      draftAny.attachment_path,
+      file_name:      draftAny.attachment_name,
+      file_size:      draftAny.attachment_size ?? null,
+      content_type:   draftAny.attachment_content_type ?? null,
+    })
+  }
+
   // Remember the merchant → category/payee/name mapping for next time
   if (draft.merchant && (draft.category_id || draft.payee_id)) {
     await supabase.from('merchant_rules').upsert({

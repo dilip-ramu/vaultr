@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, Check, X, Inbox, AlertTriangle, Plus, Trash2, ChevronDown } from 'lucide-react'
+import { RefreshCw, Check, X, Inbox, AlertTriangle, Plus, Trash2, ChevronDown, Paperclip } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -23,6 +23,12 @@ interface Draft {
   payee_id: string | null
   status: string
   sender_email: string | null
+  // v68 — attachment staged from the bank-alert email. Rendered as a
+  // Paperclip pin on the draft row; carried onto the transaction on approve.
+  attachment_name:         string | null
+  attachment_path:         string | null
+  attachment_size:         number | null
+  attachment_content_type: string | null
 }
 interface Account { id: string; name: string; type: string; custom_type_name?: string | null }
 interface Category { id: string; name: string; type: string }
@@ -213,6 +219,18 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
                     {d.txn_date && <span>· {d.txn_date}</span>}
                     {d.partial_account && <span>· a/c ••{d.partial_account}</span>}
                     {d.sender_email && <span className="truncate">· {d.sender_email}</span>}
+                    {/* v68 — paperclip pin when the draft carries a staged
+                        attachment (PDF/image) from the source email. */}
+                    {d.attachment_path && (
+                      <span
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded"
+                        style={{ background: 'rgba(59,74,199,0.10)', color: '#3B4AC7' }}
+                        title={`Attachment: ${d.attachment_name}${d.attachment_size ? ` (${Math.round(d.attachment_size / 1024)} KB)` : ''}. Follows the transaction on approve.`}
+                      >
+                        <Paperclip className="w-3 h-3" />
+                        {d.attachment_name}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

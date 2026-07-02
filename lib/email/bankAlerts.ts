@@ -110,6 +110,41 @@ export async function checkBankAlerts(opts: {
             const accountId = match.id ?? senderDefault.get(from) ?? null
             const rule = applyMerchantRule(a.merchant, merchantRules)
 
+            // v68 — pull the first real (non-inline) PDF / image attachment
+            // and stage it in Storage. On approve, we'll create an
+            // `attachments` row linking it to the newly-created transaction.
+            let attachmentName:        string | null = null
+            let attachmentPath:        string | null = null
+            let attachmentSize:        number | null = null
+            let attachmentContentType: string | null = null
+            const usableAttachment = (parsed.attachments ?? []).find(att => {
+              const ct = (att.contentType ?? '').toLowerCase()
+              const fn = (att.filename ?? '').toLowerCase()
+              const isPdf   = ct.includes('pdf')   || fn.endsWith('.pdf')
+              const isImage = ct.startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(fn)
+              const isInline = att.contentDisposition === 'inline'
+                || (att as unknown as Record<string, unknown>).related === true
+              return (isPdf || isImage) && !isInline && att.content
+            })
+            if (usableAttachment?.content && usableAttachment.filename) {
+              const safeName = usableAttachment.filename.replace(/[^a-zA-Z0-9._-]/g, '_')
+              const path = `${userId}/txn-drafts/${Date.now()}-${safeName}`
+              const { error: upErr } = await supabase.storage
+                .from('vaultr-attachments')
+                .upload(path, usableAttachment.content, {
+                  contentType: usableAttachment.contentType ?? 'application/octet-stream',
+                  upsert: false,
+                })
+              if (!upErr) {
+                attachmentName        = usableAttachment.filename
+                attachmentPath        = path
+                attachmentSize        = usableAttachment.size ?? null
+                attachmentContentType = usableAttachment.contentType ?? null
+              } else {
+                result.errors.push(`Upload failed for ${usableAttachment.filename}: ${upErr.message}`)
+              }
+            }
+
             await supabase.from('transaction_drafts').insert({
               user_id: userId,
               source: 'email',
@@ -129,6 +164,10 @@ export async function checkBankAlerts(opts: {
               category_id: rule?.category_id ?? null,
               payee_id: rule?.payee_id ?? null,
               status: accountId ? 'pending' : 'needs_account',
+              attachment_name:         attachmentName,
+              attachment_path:         attachmentPath,
+              attachment_size:         attachmentSize,
+              attachment_content_type: attachmentContentType,
             })
             result.added++
           } catch (e) {
