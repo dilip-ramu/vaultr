@@ -47,12 +47,28 @@ export default async function SalarySlipsPage() {
     })
   }
 
-  // Company name from invoice settings (best-effort)
+  // Company name from invoice settings (best-effort legacy fallback)
   const { data: settings } = await supabase
     .from('recoverable_invoice_settings')
     .select('company_name, company_address')
     .eq('user_id', user.id)
     .maybeSingle()
+
+  // v69 — per-company look, keyed by company id, so each employee's slip uses
+  // the company that employs them (employees.company_id).
+  const { data: companyRows } = await supabase
+    .from('companies')
+    .select('id, name, address, invoice_template, invoice_accent')
+    .eq('user_id', user.id)
+  const companiesById: Record<string, { name: string | null; address: string | null; invoice_template: string | null; invoice_accent: string | null }> = {}
+  for (const c of companyRows ?? []) {
+    companiesById[c.id as string] = {
+      name: (c.name as string | null) ?? null,
+      address: (c.address as string | null) ?? null,
+      invoice_template: (c.invoice_template as string | null) ?? null,
+      invoice_accent: (c.invoice_accent as string | null) ?? null,
+    }
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -60,6 +76,7 @@ export default async function SalarySlipsPage() {
         entries={allEntries}
         companyName={settings?.company_name ?? null}
         companyAddress={settings?.company_address ?? null}
+        companiesById={companiesById}
       />
     </div>
   )

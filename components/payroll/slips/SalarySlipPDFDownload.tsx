@@ -3,6 +3,7 @@
 import { PDFDownloadLink } from '@react-pdf/renderer'
 import { SalarySlipDocument } from './SalarySlipPDF'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
+import type { InvoiceTemplate } from '@/lib/companies/templates'
 
 interface Props {
   entry: PayrollEntry
@@ -10,10 +11,12 @@ interface Props {
   employee: Employee
   companyName?: string | null
   companyAddress?: string | null
+  template?: InvoiceTemplate | string | null
+  accent?: string | null
   filename: string
 }
 
-export default function SalarySlipPDFDownload({ entry, month, employee, companyName, companyAddress, filename }: Props) {
+export default function SalarySlipPDFDownload({ entry, month, employee, companyName, companyAddress, template, accent, filename }: Props) {
   return (
     <PDFDownloadLink
       document={
@@ -23,6 +26,8 @@ export default function SalarySlipPDFDownload({ entry, month, employee, companyN
           employee={employee}
           companyName={companyName}
           companyAddress={companyAddress}
+          template={template}
+          accent={accent}
         />
       }
       fileName={filename}

@@ -19,6 +19,7 @@ interface Props {
   accounts: Account[]
   companyName?: string | null
   companyAddress?: string | null
+  companiesById?: import('@/lib/companies/templates').CompaniesById
   customers?: Customer[]
 }
 
@@ -116,7 +117,7 @@ type RowValues = {
   advance: number
 }
 
-export default function MonthDetailClient({ month: initialMonth, entries: initialEntries, accounts, companyName, companyAddress, customers = [] }: Props) {
+export default function MonthDetailClient({ month: initialMonth, entries: initialEntries, accounts, companyName, companyAddress, companiesById, customers = [] }: Props) {
   const router = useRouter()
   const [month, setMonth] = useState(initialMonth)
   const [entries, setEntries] = useState(initialEntries)
@@ -726,6 +727,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           accounts={accounts}
           companyName={companyName}
           companyAddress={companyAddress}
+          companiesById={companiesById}
           onSuccess={(updatedMonth) => {
             setMonth(updatedMonth)
             setShowPayModal(false)

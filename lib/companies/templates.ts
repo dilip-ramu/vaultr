@@ -65,3 +65,38 @@ export function accentRgba(accent: string, alpha: number): string {
   const b = parseInt(a.slice(5, 7), 16)
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
+
+// ── Per-document company resolution (salary slips, Feature 1c) ───────────────
+// Documents that span multiple employees (e.g. a batch of salary slips) need
+// to resolve each employee's own company look. Callers pass a map keyed by
+// company id and the resolver falls back to a legacy single-company name.
+
+export interface CompanyLookRow {
+  name?: string | null
+  address?: string | null
+  invoice_template?: string | null
+  invoice_accent?: string | null
+}
+export type CompaniesById = Record<string, CompanyLookRow>
+
+export interface CompanyLook {
+  name: string | null
+  address: string | null
+  template: InvoiceTemplate
+  accent: string
+}
+
+export function resolveCompanyLook(
+  companyId: string | null | undefined,
+  map: CompaniesById | undefined,
+  fallbackName?: string | null,
+  fallbackAddress?: string | null,
+): CompanyLook {
+  const c = companyId ? map?.[companyId] : undefined
+  return {
+    name:     c?.name ?? fallbackName ?? null,
+    address:  c?.address ?? fallbackAddress ?? null,
+    template: normalizeTemplate(c?.invoice_template),
+    accent:   normalizeAccent(c?.invoice_accent),
+  }
+}

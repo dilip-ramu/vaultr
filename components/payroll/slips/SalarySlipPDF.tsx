@@ -2,6 +2,9 @@ import {
   Document, Page, Text, View, StyleSheet, Font,
 } from '@react-pdf/renderer'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
+import {
+  type InvoiceTemplate, normalizeTemplate, normalizeAccent,
+} from '@/lib/companies/templates'
 
 // Register LiberationSans — supports ₹ (U+20B9), professional look.
 // Browser: fetch from the site's /fonts/ folder.
@@ -29,6 +32,9 @@ interface Props {
   employee: Employee
   companyName?: string | null
   companyAddress?: string | null
+  /** v69 — per-company look (Feature 1c). */
+  template?: InvoiceTemplate | string | null
+  accent?: string | null
 }
 
 const s = StyleSheet.create({
@@ -126,17 +132,38 @@ const gross = (e: PayrollEntry) =>
 const totalDeductions = (e: PayrollEntry) =>
   Number(e.deductions) + Number(e.advance)
 
-export function SalarySlipDocument({ entry, month, employee, companyName, companyAddress }: Props) {
+export function SalarySlipDocument({ entry, month, employee, companyName, companyAddress, template, accent }: Props) {
+  const tpl: InvoiceTemplate = normalizeTemplate(template)
+  const ac = normalizeAccent(accent)
+  const name = companyName ?? 'Company Name'
+  const monthLine = `For the month of ${fmtMonth(month.payroll_month)}`
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        {/* Header */}
-        <View style={s.header}>
-          <Text style={s.company}>{companyName ?? 'Company Name'}</Text>
-          {companyAddress ? <Text style={s.subtitle}>{companyAddress}</Text> : null}
-          <Text style={s.title}>SALARY SLIP</Text>
-          <Text style={s.subtitle}>For the month of {fmtMonth(month.payroll_month)}</Text>
-        </View>
+        {/* Header (per template, v69) */}
+        {tpl === 'modern' ? (
+          <View style={{ backgroundColor: ac, borderRadius: 5, padding: 12, marginBottom: 10, alignItems: 'center' }}>
+            <Text style={{ fontSize: 14, fontFamily: 'LiberationSans', fontWeight: 'bold', color: '#fff' }}>{name}</Text>
+            {companyAddress ? <Text style={{ fontSize: 8, color: '#fff', opacity: 0.9, marginTop: 2 }}>{companyAddress}</Text> : null}
+            <Text style={{ fontSize: 10, color: '#fff', marginTop: 4 }}>SALARY SLIP · {fmtMonth(month.payroll_month)}</Text>
+          </View>
+        ) : tpl === 'minimal' ? (
+          <View style={{ marginBottom: 10 }}>
+            <View style={{ borderBottomWidth: 2, borderBottomColor: ac, alignSelf: 'flex-start', paddingBottom: 2 }}>
+              <Text style={{ fontSize: 14, fontFamily: 'LiberationSans', fontWeight: 'bold', color: ac }}>{name}</Text>
+            </View>
+            {companyAddress ? <Text style={[s.subtitle, { marginTop: 4 }]}>{companyAddress}</Text> : null}
+            <Text style={[s.title, { marginTop: 6 }]}>SALARY SLIP</Text>
+            <Text style={s.subtitle}>{monthLine}</Text>
+          </View>
+        ) : (
+          <View style={[s.header, { borderBottomColor: ac }]}>
+            <Text style={s.company}>{name}</Text>
+            {companyAddress ? <Text style={s.subtitle}>{companyAddress}</Text> : null}
+            <Text style={s.title}>SALARY SLIP</Text>
+            <Text style={s.subtitle}>{monthLine}</Text>
+          </View>
+        )}
 
         {/* Employee details */}
         <View style={s.grid2}>
@@ -149,11 +176,11 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
 
         {/* Earnings / Deductions table */}
         <View style={s.table}>
-          <View style={s.thead}>
-            <Text style={s.th}>EARNINGS</Text>
-            <Text style={s.thRight}>AMOUNT (Rs.)</Text>
-            <Text style={s.th}>DEDUCTIONS</Text>
-            <Text style={s.thRight}>AMOUNT (Rs.)</Text>
+          <View style={[s.thead, tpl === 'modern' ? { backgroundColor: ac } : {}]}>
+            <Text style={[s.th, tpl === 'modern' ? { color: '#fff' } : {}]}>EARNINGS</Text>
+            <Text style={[s.thRight, tpl === 'modern' ? { color: '#fff' } : {}]}>AMOUNT (Rs.)</Text>
+            <Text style={[s.th, tpl === 'modern' ? { color: '#fff' } : {}]}>DEDUCTIONS</Text>
+            <Text style={[s.thRight, tpl === 'modern' ? { color: '#fff' } : {}]}>AMOUNT (Rs.)</Text>
           </View>
           <View style={s.trow}>
             <Text style={s.td}>Basic Salary</Text>
@@ -188,10 +215,10 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
         </View>
 
         {/* Net payable */}
-        <View style={s.totalBox}>
+        <View style={[s.totalBox, { borderColor: ac }]}>
           <View>
             <Text style={s.netLabel}>Net Salary Payable</Text>
-            <Text style={s.netAmount}>Rs. {fmtInr(Number(entry.final_payable))}</Text>
+            <Text style={[s.netAmount, { color: ac }]}>Rs. {fmtInr(Number(entry.final_payable))}</Text>
             <Text style={s.netWords}>{amountToWords(Number(entry.final_payable))}</Text>
           </View>
           {Number(entry.expended_rate) > 0 ? (
@@ -205,7 +232,7 @@ export function SalarySlipDocument({ entry, month, employee, companyName, compan
         {/* Bank details */}
         {(employee.bank_name || employee.account_number) ? (
           <View style={s.bankSection}>
-            <Text style={s.sectionHdr}>Bank Transfer Details</Text>
+            <Text style={[s.sectionHdr, { color: ac }]}>Bank Transfer Details</Text>
             <View style={s.grid2}>
               {employee.bank_name ? <View style={s.gridItem}><Text><Text style={s.label}>Bank: </Text>{employee.bank_name}</Text></View> : null}
               {employee.account_number ? <View style={s.gridItem}><Text><Text style={s.label}>Account: </Text>{employee.account_number}</Text></View> : null}

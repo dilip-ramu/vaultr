@@ -7,6 +7,7 @@ import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import SalarySlipPrint from './SalarySlipPrint'
 import { buildWhatsAppUrl, salarySlipMessage } from '@/lib/whatsapp'
 import { createClient } from '@/lib/supabase/client'
+import { resolveCompanyLook, type CompaniesById } from '@/lib/companies/templates'
 
 // Load PDF renderer lazily (large bundle, not needed on first paint)
 const SalarySlipPDFDownload = dynamic(() => import('./SalarySlipPDFDownload'), { ssr: false })
@@ -20,6 +21,8 @@ interface Props {
   entries: EnrichedEntry[]
   companyName?: string | null
   companyAddress?: string | null
+  /** v69 — resolve each employee's company look (name/address/template/accent). */
+  companiesById?: CompaniesById
 }
 
 function fmtMonth(m: string) {
@@ -54,8 +57,9 @@ function slugMonth(m: string) {
   return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }).toLowerCase().replace(/\s+/g, '-')
 }
 
-export default function SlipsClient({ entries, companyName, companyAddress }: Props) {
+export default function SlipsClient({ entries, companyName, companyAddress, companiesById }: Props) {
   const router = useRouter()
+  const look = (e: EnrichedEntry) => resolveCompanyLook(e.employee?.company_id, companiesById, companyName, companyAddress)
   const [selectedEntry, setSelectedEntry] = useState<EnrichedEntry | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [downloading, setDownloading] = useState(false)
@@ -115,13 +119,16 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
       const { SalarySlipDocument } = await import('./SalarySlipPDF')
 
       for (const entry of toDownload) {
+        const lk = look(entry)
         const doc = (
           <SalarySlipDocument
             entry={entry}
             month={entry.month}
             employee={entry.employee}
-            companyName={companyName}
-            companyAddress={companyAddress}
+            companyName={lk.name}
+            companyAddress={lk.address}
+            template={lk.template}
+            accent={lk.accent}
           />
         )
         const blob = await pdf(doc).toBlob()
@@ -203,8 +210,10 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
               entry={selectedEntry}
               month={selectedEntry.month}
               employee={selectedEntry.employee}
-              companyName={companyName}
-              companyAddress={companyAddress}
+              companyName={look(selectedEntry).name}
+              companyAddress={look(selectedEntry).address}
+              template={look(selectedEntry).template}
+              accent={look(selectedEntry).accent}
               filename={`${slugName(selectedEntry.employee.name)}-${slugMonth(selectedEntry.month.payroll_month)}.pdf`}
             />
             <button
@@ -219,8 +228,10 @@ export default function SlipsClient({ entries, companyName, companyAddress }: Pr
           entry={selectedEntry}
           month={selectedEntry.month}
           employee={selectedEntry.employee}
-          companyName={companyName}
-          companyAddress={companyAddress}
+          companyName={look(selectedEntry).name}
+          companyAddress={look(selectedEntry).address}
+          template={look(selectedEntry).template}
+          accent={look(selectedEntry).accent}
         />
       </div>
     )

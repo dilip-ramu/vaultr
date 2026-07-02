@@ -1,6 +1,7 @@
 'use client'
 
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
+import { type InvoiceTemplate, normalizeTemplate, normalizeAccent } from '@/lib/companies/templates'
 
 interface Props {
   entry: PayrollEntry
@@ -8,6 +9,9 @@ interface Props {
   employee: Employee
   companyName?: string | null
   companyAddress?: string | null
+  /** v69 — per-company look (Feature 1c). */
+  template?: InvoiceTemplate | string | null
+  accent?: string | null
 }
 
 function fmtInr(n: number) {
@@ -65,7 +69,10 @@ function amountToWords(amount: number): string {
   return words + ' Only'
 }
 
-export default function SalarySlipPrint({ entry, month, employee, companyName, companyAddress }: Props) {
+export default function SalarySlipPrint({ entry, month, employee, companyName, companyAddress, template, accent }: Props) {
+  const tpl = normalizeTemplate(template)
+  const ac = normalizeAccent(accent)
+  const name = companyName ?? 'Company Name'
   return (
     <>
       <style>{`
@@ -74,18 +81,34 @@ export default function SalarySlipPrint({ entry, month, employee, companyName, c
           #slip-print, #slip-print * { visibility: visible; }
           #slip-print { position: absolute; inset: 0; margin: 0; padding: 20px; }
           .no-print { display: none !important; }
+          #slip-print * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         @page { size: A4; margin: 15mm; }
       `}</style>
 
       <div id="slip-print" className="bg-white p-8 max-w-2xl mx-auto font-sans text-sm text-gray-900">
-        {/* Company header */}
-        <div className="text-center border-b-2 border-gray-800 pb-4 mb-4">
-          <h1 className="text-xl font-bold text-gray-900">{companyName ?? 'Company Name'}</h1>
-          {companyAddress && <p className="text-xs text-gray-500 mt-1">{companyAddress}</p>}
-          <p className="text-base font-semibold text-gray-700 mt-3">SALARY SLIP</p>
-          <p className="text-sm text-gray-500">For the month of {fmtMonth(month.payroll_month)}</p>
-        </div>
+        {/* Company header (per template, v69) */}
+        {tpl === 'modern' ? (
+          <div className="rounded-md p-4 mb-4 text-center" style={{ background: ac }}>
+            <h1 className="text-xl font-bold text-white">{name}</h1>
+            {companyAddress && <p className="text-xs text-white/90 mt-1">{companyAddress}</p>}
+            <p className="text-base font-semibold text-white mt-2">SALARY SLIP · {fmtMonth(month.payroll_month)}</p>
+          </div>
+        ) : tpl === 'minimal' ? (
+          <div className="mb-4">
+            <h1 className="text-xl font-bold inline-block pb-0.5" style={{ color: ac, borderBottom: `2px solid ${ac}` }}>{name}</h1>
+            {companyAddress && <p className="text-xs text-gray-500 mt-1">{companyAddress}</p>}
+            <p className="text-base font-semibold text-gray-700 mt-3">SALARY SLIP</p>
+            <p className="text-sm text-gray-500">For the month of {fmtMonth(month.payroll_month)}</p>
+          </div>
+        ) : (
+          <div className="text-center pb-4 mb-4" style={{ borderBottom: `2px solid ${ac}` }}>
+            <h1 className="text-xl font-bold text-gray-900">{name}</h1>
+            {companyAddress && <p className="text-xs text-gray-500 mt-1">{companyAddress}</p>}
+            <p className="text-base font-semibold text-gray-700 mt-3">SALARY SLIP</p>
+            <p className="text-sm text-gray-500">For the month of {fmtMonth(month.payroll_month)}</p>
+          </div>
+        )}
 
         {/* Employee details */}
         <div className="grid grid-cols-2 gap-x-8 gap-y-2 mb-5 text-xs">
@@ -122,7 +145,7 @@ export default function SalarySlipPrint({ entry, month, employee, companyName, c
         {/* Salary breakdown */}
         <table className="w-full border border-gray-300 text-xs mb-4">
           <thead>
-            <tr className="bg-gray-100">
+            <tr style={tpl === 'modern' ? { background: ac, color: '#fff' } : { background: '#f3f4f6' }}>
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold" colSpan={2}>EARNINGS</th>
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold" colSpan={2}>DEDUCTIONS</th>
             </tr>
@@ -181,10 +204,10 @@ export default function SalarySlipPrint({ entry, month, employee, companyName, c
         </table>
 
         {/* Net payable */}
-        <div className="border-2 border-gray-800 rounded p-3 flex items-center justify-between">
+        <div className="border-2 rounded p-3 flex items-center justify-between" style={{ borderColor: ac }}>
           <div>
             <p className="text-xs text-gray-500">Net Salary Payable</p>
-            <p className="text-2xl font-bold text-gray-900">₹{fmtInr(Number(entry.final_payable))}</p>
+            <p className="text-2xl font-bold" style={{ color: ac }}>₹{fmtInr(Number(entry.final_payable))}</p>
             <p className="text-xs text-gray-500 mt-0.5 italic">{amountToWords(Number(entry.final_payable))}</p>
           </div>
           {month.expended_rate > 0 && (

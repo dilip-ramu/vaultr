@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { SalarySlipDocument } from '@/components/payroll/slips/SalarySlipPDF'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
+import { resolveCompanyLook, type CompaniesById } from '@/lib/companies/templates'
 
 // Fonts: SalarySlipPDF registers environment-aware font sources itself
 // (browser URL in the browser, deployment URL on Vercel, disk in local dev).
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many slips at once (max 100)' }, { status: 400 })
   }
 
-  const [{ data: entries }, { data: settings }] = await Promise.all([
+  const [{ data: entries }, { data: settings }, { data: companyRows }] = await Promise.all([
     supabase
       .from('payroll_entries')
       .select('*, employee:employees(*), month:payroll_months(*)')
@@ -97,7 +98,22 @@ export async function POST(req: NextRequest) {
       .select('company_name, company_address')
       .eq('user_id', user.id)
       .maybeSingle(),
+    supabase
+      .from('companies')
+      .select('id, name, address, invoice_template, invoice_accent')
+      .eq('user_id', user.id),
   ])
+
+  // v69 — resolve each employee's employer look for the slip.
+  const companiesById: CompaniesById = {}
+  for (const c of companyRows ?? []) {
+    companiesById[c.id as string] = {
+      name: c.name as string | null,
+      address: c.address as string | null,
+      invoice_template: c.invoice_template as string | null,
+      invoice_accent: c.invoice_accent as string | null,
+    }
+  }
 
   const fromName = process.env.PAYROLL_FROM_NAME || settings?.company_name || 'Payroll'
   const results: SlipEmailResult[] = []
@@ -115,12 +131,15 @@ export async function POST(req: NextRequest) {
       const monthLabel = fmtMonth(entry.month.payroll_month)
       const net = fmtInr(Number(entry.final_payable))
 
+      const lk = resolveCompanyLook(entry.employee?.company_id, companiesById, settings?.company_name ?? null, settings?.company_address ?? null)
       const doc = createElement(SalarySlipDocument, {
         entry,
         month: entry.month,
         employee: entry.employee,
-        companyName: settings?.company_name ?? null,
-        companyAddress: settings?.company_address ?? null,
+        companyName: lk.name,
+        companyAddress: lk.address,
+        template: lk.template,
+        accent: lk.accent,
       }) as Parameters<typeof renderToBuffer>[0]
       const buffer = await renderToBuffer(doc)
 

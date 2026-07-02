@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { PayrollMonth, PayrollEntry, Employee } from '@/lib/payroll/types'
 import AccountChipPicker from '@/components/shared/AccountChipPicker'
+import { resolveCompanyLook, type CompaniesById } from '@/lib/companies/templates'
 
 interface Account {
   id: string
@@ -23,6 +24,7 @@ interface Props {
   accounts: Account[]
   companyName?: string | null
   companyAddress?: string | null
+  companiesById?: CompaniesById
   onSuccess: (updatedMonth: PayrollMonth) => void
   onClose: () => void
 }
@@ -45,7 +47,7 @@ function slugMonth(m: string) {
 }
 
 export default function MarkPaidModal({
-  month, entries, accounts, companyName, companyAddress, onSuccess, onClose
+  month, entries, accounts, companyName, companyAddress, companiesById, onSuccess, onClose
 }: Props) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
   // Default to today (the day you're actually paying). The month's pre-set
@@ -109,14 +111,17 @@ export default function MarkPaidModal({
       }
 
       try {
-        // Generate PDF blob
+        // Generate PDF blob — each slip uses its employee's company look.
+        const lk = resolveCompanyLook(entry.employee?.company_id, companiesById, companyName, companyAddress)
         const blob = await pdf(
           <SalarySlipDocument
             entry={entry}
             month={month}
             employee={entry.employee}
-            companyName={companyName}
-            companyAddress={companyAddress}
+            companyName={lk.name}
+            companyAddress={lk.address}
+            template={lk.template}
+            accent={lk.accent}
           />
         ).toBlob()
 
