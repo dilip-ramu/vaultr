@@ -113,6 +113,63 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
     setDrafts(prev => prev.filter(x => x.id !== d.id))
   }
 
+  /** v68 — attach a file to a draft manually. On approve, the attachment
+   *  follows the transaction (existing approve API already handles the
+   *  attachments-table insert). Uploads directly to the private
+   *  vaultr-attachments bucket via the Supabase client. */
+  async function attachFile(draftId: string, file: File) {
+    setBusy(draftId)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { notify('Session expired', 'error'); return }
+
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path     = `${user.id}/txn-drafts/${Date.now()}-${safeName}`
+      const { error: upErr } = await supabase.storage
+        .from('vaultr-attachments')
+        .upload(path, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: false,
+        })
+      if (upErr) { notify(`Upload failed: ${upErr.message}`, 'error'); return }
+
+      const patchFields: Partial<Draft> = {
+        attachment_name:         file.name,
+        attachment_path:         path,
+        attachment_size:         file.size,
+        attachment_content_type: file.type || null,
+      }
+      // Optimistic UI + persist. patch() calls the API which does the DB write.
+      patch(draftId, patchFields)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  /** Remove a manually-attached file from a draft. Deletes the storage
+   *  object and clears the draft columns. Safe pre-approve; if the user
+   *  already approved and the file was linked into `attachments`, that
+   *  row survives independently. */
+  async function removeAttachment(draftId: string, path: string) {
+    if (!await confirmDialog({
+      title: 'Remove attachment?',
+      message: 'The file will be deleted from storage. This can\'t be undone.',
+      confirmLabel: 'Remove',
+    })) return
+    setBusy(draftId)
+    try {
+      const supabase = createClient()
+      await supabase.storage.from('vaultr-attachments').remove([path])
+      patch(draftId, {
+        attachment_name: null, attachment_path: null,
+        attachment_size: null, attachment_content_type: null,
+      })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function addSender() {
     const email = newSender.trim().toLowerCase()
     if (!email.includes('@')) { notify('Enter a valid email address.', 'error'); return }
@@ -219,17 +276,46 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
                     {d.txn_date && <span>· {d.txn_date}</span>}
                     {d.partial_account && <span>· a/c ••{d.partial_account}</span>}
                     {d.sender_email && <span className="truncate">· {d.sender_email}</span>}
-                    {/* v68 — paperclip pin when the draft carries a staged
-                        attachment (PDF/image) from the source email. */}
-                    {d.attachment_path && (
+                    {/* v68 — attachment pin. Click 📎 button to attach; when
+                        one exists, shows filename + X to remove. On approve,
+                        the file follows into the transaction. */}
+                    {d.attachment_path ? (
                       <span
                         className="flex items-center gap-1 px-1.5 py-0.5 rounded"
                         style={{ background: 'rgba(59,74,199,0.10)', color: '#3B4AC7' }}
-                        title={`Attachment: ${d.attachment_name}${d.attachment_size ? ` (${Math.round(d.attachment_size / 1024)} KB)` : ''}. Follows the transaction on approve.`}
+                        title={`${d.attachment_name}${d.attachment_size ? ` (${Math.round(d.attachment_size / 1024)} KB)` : ''}. Follows the transaction on approve.`}
                       >
                         <Paperclip className="w-3 h-3" />
-                        {d.attachment_name}
+                        <span className="truncate max-w-[140px]">{d.attachment_name}</span>
+                        <button
+                          onClick={() => removeAttachment(d.id, d.attachment_path!)}
+                          disabled={busy === d.id}
+                          title="Remove attachment"
+                          className="hover:opacity-70 disabled:opacity-40"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
                       </span>
+                    ) : (
+                      <label
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                        title="Attach a receipt or invoice — will follow the transaction on approve."
+                      >
+                        <Paperclip className="w-3 h-3" />
+                        <span>Attach</span>
+                        <input
+                          type="file"
+                          className="hidden"
+                          disabled={busy === d.id}
+                          onChange={e => {
+                            const file = e.target.files?.[0]
+                            if (file) attachFile(d.id, file)
+                            // Reset so re-selecting the same file re-fires onChange
+                            e.currentTarget.value = ''
+                          }}
+                        />
+                      </label>
                     )}
                   </div>
                 </div>

@@ -13,7 +13,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const allowed = ['name', 'amount', 'direction', 'txn_date', 'matched_account_id', 'category_id', 'payee_id', 'status']
+  const allowed = [
+    'name', 'amount', 'direction', 'txn_date', 'matched_account_id',
+    'category_id', 'payee_id', 'status',
+    // v68 — manual attachment upload path
+    'attachment_name', 'attachment_path', 'attachment_size', 'attachment_content_type',
+  ]
   const updates: Record<string, unknown> = {}
   for (const k of allowed) if (k in body) updates[k] = body[k]
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
