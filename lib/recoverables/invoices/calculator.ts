@@ -6,6 +6,7 @@ export interface InvoiceLine {
   shipmentDate: string | null
   clientName: string | null
   qty: number
+  hsnSac: string
   baseRate: number
   rate: number
   amount: number
@@ -24,6 +25,15 @@ export interface InvoiceTotals {
   balanceDue: number
 }
 
+/** Per-line tax/HSN override, keyed by allocationId in the map passed to
+ *  buildInvoiceLines. Any field left undefined falls back to the company
+ *  default (defaultHsn / cgstRate / sgstRate). */
+export interface LineTaxOverride {
+  hsnSac?: string | null
+  cgstRate?: number | null
+  sgstRate?: number | null
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
@@ -39,6 +49,11 @@ export function buildInvoiceLines(
   markupValue: number,
   cgstRate: number,
   sgstRate: number,
+  /** Company default HSN/SAC, used when a line has no per-line override. */
+  defaultHsn: string = '996812',
+  /** Per-line overrides keyed by allocationId. Optional — when omitted every
+   *  line uses the company-level cgstRate / sgstRate / defaultHsn. */
+  overrides?: Map<string, LineTaxOverride>,
 ): InvoiceLine[] {
   const shipmentMap = new Map(shipments.map(s => [s.id, s]))
 
@@ -53,9 +68,14 @@ export function buildInvoiceLines(
         : markupType === 'flat'     ? round4(baseRate + markupValue)
         : baseRate
 
+      const ov = overrides?.get(a.id)
+      const lineCgstRate = ov?.cgstRate ?? cgstRate
+      const lineSgstRate = ov?.sgstRate ?? sgstRate
+      const lineHsn      = (ov?.hsnSac ?? '').trim() || defaultHsn
+
       const amount     = round2(a.pieces * rate)
-      const cgstAmount = round2(amount * cgstRate / 100)
-      const sgstAmount = round2(amount * sgstRate / 100)
+      const cgstAmount = round2(amount * lineCgstRate / 100)
+      const sgstAmount = round2(amount * lineSgstRate / 100)
 
       return {
         allocationId: a.id,
@@ -63,12 +83,13 @@ export function buildInvoiceLines(
         shipmentDate: shipment?.shipment_date ?? null,
         clientName:   shipment?.client_name ?? null,
         qty:          a.pieces,
+        hsnSac:       lineHsn,
         baseRate,
         rate,
         amount,
-        cgstRate,
+        cgstRate:     lineCgstRate,
         cgstAmount,
-        sgstRate,
+        sgstRate:     lineSgstRate,
         sgstAmount,
       }
     })
@@ -86,14 +107,13 @@ export function buildInvoiceLines(
   })
 }
 
-export function calcTotals(
-  lines: InvoiceLine[],
-  cgstRate: number,
-  sgstRate: number,
-): InvoiceTotals {
+/** Totals are summed from each line's own GST amounts, so an invoice can mix
+ *  GST rates / HSN codes across lines. (Previously this multiplied the
+ *  subtotal by a single company rate.) */
+export function calcTotals(lines: InvoiceLine[]): InvoiceTotals {
   const subtotal   = round2(lines.reduce((s, l) => s + l.amount, 0))
-  const cgstAmount = round2(subtotal * cgstRate / 100)
-  const sgstAmount = round2(subtotal * sgstRate / 100)
+  const cgstAmount = round2(lines.reduce((s, l) => s + l.cgstAmount, 0))
+  const sgstAmount = round2(lines.reduce((s, l) => s + l.sgstAmount, 0))
   const total      = round2(subtotal + cgstAmount + sgstAmount)
 
   return {

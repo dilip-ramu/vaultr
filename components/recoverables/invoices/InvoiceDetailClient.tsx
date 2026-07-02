@@ -86,6 +86,11 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
   const [error, setError] = useState<string | null>(null)
   const [showPayModal, setShowPayModal] = useState(false)
 
+  // Rate shown in the GST total labels only when every line shares one rate;
+  // mixed-rate invoices drop it (per-line rates render in the items table).
+  const uniformCgst = lines.length > 0 && lines.every(l => l.cgst_rate === lines[0].cgst_rate)
+  const uniformSgst = lines.length > 0 && lines.every(l => l.sgst_rate === lines[0].sgst_rate)
+
   // Supplier links state
   const [supplierLinks, setSupplierLinks]         = useState<SupplierLink[]>(initialSupplierLinks)
   const [showLinkSearch, setShowLinkSearch]       = useState(false)
@@ -371,8 +376,10 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                 <th className="text-left px-4 py-2.5 font-medium">#</th>
                 <th className="text-left px-4 py-2.5 font-medium">AWB</th>
                 <th className="text-left px-4 py-2.5 font-medium">Date</th>
+                <th className="text-left px-4 py-2.5 font-medium">HSN</th>
                 <th className="text-right px-4 py-2.5 font-medium">Pcs</th>
                 <th className="text-right px-4 py-2.5 font-medium">Rate</th>
+                <th className="text-right px-4 py-2.5 font-medium">GST</th>
                 <th className="text-right px-4 py-2.5 font-medium">Amount</th>
               </tr>
             </thead>
@@ -385,9 +392,13 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                   <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{line.line_number}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{line.awb}</td>
                   <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{fmtDate(line.shipment_date)}</td>
+                  <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{line.hsn_sac ?? '—'}</td>
                   <td className="px-4 py-2.5 text-right">{line.qty}</td>
                   <td className="px-4 py-2.5 text-right">
                     {new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(line.rate)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right" style={{ color: 'var(--text-muted)' }}>
+                    {Number(line.cgst_rate) + Number(line.sgst_rate)}%
                   </td>
                   <td className="px-4 py-2.5 text-right font-medium">{fmt(line.amount)}</td>
                 </tr>
@@ -402,8 +413,8 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
           style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
         >
           <Row label="Subtotal"                                          value={fmt(invoice.subtotal)} />
-          <Row label={`CGST @ ${invoice.cgst_rate}%`}                   value={fmt(invoice.cgst_amount)} />
-          <Row label={`SGST @ ${invoice.sgst_rate}%`}                   value={fmt(invoice.sgst_amount)} />
+          <Row label={uniformCgst ? `CGST @ ${lines[0].cgst_rate}%` : 'CGST'} value={fmt(invoice.cgst_amount)} />
+          <Row label={uniformSgst ? `SGST @ ${lines[0].sgst_rate}%` : 'SGST'} value={fmt(invoice.sgst_amount)} />
           <div className="flex justify-between gap-4 pt-2 mt-1">
             <span className="font-bold" style={{ color: 'var(--text)' }}>Total</span>
             <span className="font-bold text-lg" style={{ color: 'var(--text)' }}>{fmt(invoice.total)}</span>

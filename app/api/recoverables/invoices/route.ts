@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getNextInvoiceNumber } from '@/lib/recoverables/invoices/number'
-import { buildInvoiceLines, calcTotals } from '@/lib/recoverables/invoices/calculator'
+import { buildInvoiceLines, calcTotals, type LineTaxOverride } from '@/lib/recoverables/invoices/calculator'
 import type { RecoverableAllocation, RecoverableShipment } from '@/lib/recoverables/types'
 
 const DUE_DATE_DAYS: Record<string, number> = {
@@ -44,6 +44,14 @@ interface CreateInvoiceBody {
   markupType: 'percentage' | 'flat' | 'none'
   markupValue: number
   allocationIds: string[]
+  /** Per-line HSN + GST overrides from the review step, keyed by allocation.
+   *  Optional — omitted lines fall back to the company defaults. */
+  lines?: Array<{
+    allocationId: string
+    hsnSac?: string
+    cgstRate?: number
+    sgstRate?: number
+  }>
   invoiceDate: string
   paymentTerms: string
   notes?: string
@@ -63,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   const {
     customerName, customerId, companyId, markupType, markupValue,
-    allocationIds, invoiceDate, paymentTerms, notes,
+    allocationIds, lines: lineOverrides, invoiceDate, paymentTerms, notes,
   } = body
 
   if (!customerName?.trim())    return NextResponse.json({ error: 'customerName is required' }, { status: 400 })
@@ -137,14 +145,36 @@ export async function POST(req: NextRequest) {
   }
   const dueDate = calcDueDate(invoiceDate, paymentTerms)
 
-  // 4. Build lines + totals
+  // 4. Build lines + totals. Per-line HSN/GST overrides come from the review
+  // step; any line without one uses the company defaults. Totals are summed
+  // from each line's own GST, so an invoice can mix rates/HSN across lines.
+  const overrideMap = new Map<string, LineTaxOverride>()
+  for (const ln of lineOverrides ?? []) {
+    if (!ln?.allocationId) continue
+    overrideMap.set(ln.allocationId, {
+      hsnSac:   ln.hsnSac,
+      cgstRate: ln.cgstRate != null ? Number(ln.cgstRate) : undefined,
+      sgstRate: ln.sgstRate != null ? Number(ln.sgstRate) : undefined,
+    })
+  }
+
   const lines  = buildInvoiceLines(
     allocations as RecoverableAllocation[],
     (shipments ?? []) as RecoverableShipment[],
     markupType, markupValue,
     cgstRate, sgstRate,
+    hsnSac,
+    overrideMap,
   )
-  const totals = calcTotals(lines, cgstRate, sgstRate)
+  const totals = calcTotals(lines)
+
+  // Header rate is representative: when every line shares one rate we store
+  // it; a mixed-rate invoice falls back to the company default (the real
+  // per-line rates always live on recoverable_invoice_lines).
+  const headerCgstRate = lines.length && lines.every(l => l.cgstRate === lines[0].cgstRate)
+    ? lines[0].cgstRate : cgstRate
+  const headerSgstRate = lines.length && lines.every(l => l.sgstRate === lines[0].sgstRate)
+    ? lines[0].sgstRate : sgstRate
 
   // 5. Insert invoice (draft)
   const { data: invoiceRow, error: invErr } = await supabase
@@ -164,8 +194,8 @@ export async function POST(req: NextRequest) {
       markup_type:      markupType,
       markup_value:     markupValue,
       subtotal:         totals.subtotal,
-      cgst_rate:        cgstRate,
-      sgst_rate:        sgstRate,
+      cgst_rate:        headerCgstRate,
+      sgst_rate:        headerSgstRate,
       cgst_amount:      totals.cgstAmount,
       sgst_amount:      totals.sgstAmount,
       total:            totals.total,
@@ -193,7 +223,7 @@ export async function POST(req: NextRequest) {
     awb:           l.awb,
     shipment_date: l.shipmentDate ?? null,
     client_name:   l.clientName ?? null,
-    hsn_sac:       hsnSac,
+    hsn_sac:       l.hsnSac,
     qty:           l.qty,
     base_rate:     l.baseRate,
     rate:          l.rate,

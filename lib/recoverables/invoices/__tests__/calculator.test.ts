@@ -25,11 +25,14 @@ function shipment(over: Partial<RecoverableShipment> = {}): RecoverableShipment 
   } as RecoverableShipment
 }
 
-function line(amount: number): InvoiceLine {
+function r2(n: number) { return Math.round(n * 100) / 100 }
+
+function line(amount: number, cgstRate = 9, sgstRate = 9): InvoiceLine {
   return {
     allocationId: 'x', awb: '', shipmentDate: null, clientName: null,
-    qty: 1, baseRate: amount, rate: amount, amount,
-    cgstRate: 9, cgstAmount: 0, sgstRate: 9, sgstAmount: 0,
+    qty: 1, hsnSac: '996812', baseRate: amount, rate: amount, amount,
+    cgstRate, cgstAmount: r2(amount * cgstRate / 100),
+    sgstRate, sgstAmount: r2(amount * sgstRate / 100),
   }
 }
 
@@ -95,7 +98,7 @@ describe('buildInvoiceLines', () => {
 
 describe('calcTotals', () => {
   it('₹10,000 at 9% + 9% GST = ₹11,800 total', () => {
-    const t = calcTotals([line(10000)], 9, 9)
+    const t = calcTotals([line(10000)])
     expect(t.subtotal).toBe(10000)
     expect(t.cgstAmount).toBe(900)
     expect(t.sgstAmount).toBe(900)
@@ -103,29 +106,61 @@ describe('calcTotals', () => {
     expect(t.balanceDue).toBe(t.total)
   })
 
-  it('sums multiple lines before applying GST', () => {
-    const t = calcTotals([line(1000), line(2500.5)], 9, 9)
+  it('sums per-line GST amounts', () => {
+    const t = calcTotals([line(1000), line(2500.5)])
     expect(t.subtotal).toBe(3500.5)
-    expect(t.cgstAmount).toBe(315.05) // 3500.50 × 9% = 315.045 → 315.05
+    expect(t.cgstAmount).toBe(315.05) // 90 + 225.05
     expect(t.total).toBe(4130.6)
   })
 
   it('handles paise rounding without drift', () => {
     // 33.33 × 9% = 2.9997 → 3.00 each side; total = 33.33 + 3 + 3 = 39.33
-    const t = calcTotals([line(33.33)], 9, 9)
+    const t = calcTotals([line(33.33)])
     expect(t.cgstAmount).toBe(3)
     expect(t.sgstAmount).toBe(3)
     expect(t.total).toBe(39.33)
   })
 
+  it('mixes GST rates across lines', () => {
+    // line A: 1000 @ 9%/9% → 90 + 90
+    // line B: 2000 @ 6%/6% → 120 + 120
+    const t = calcTotals([line(1000, 9, 9), line(2000, 6, 6)])
+    expect(t.subtotal).toBe(3000)
+    expect(t.cgstAmount).toBe(210) // 90 + 120
+    expect(t.sgstAmount).toBe(210)
+    expect(t.total).toBe(3420)
+  })
+
   it('zero GST rates produce total = subtotal', () => {
-    const t = calcTotals([line(500)], 0, 0)
+    const t = calcTotals([line(500, 0, 0)])
     expect(t.total).toBe(500)
   })
 
   it('empty invoice totals to zero', () => {
-    const t = calcTotals([], 9, 9)
+    const t = calcTotals([])
     expect(t.subtotal).toBe(0)
     expect(t.total).toBe(0)
+  })
+})
+
+// ── per-line overrides ─────────────────────────────────────────────────────
+
+describe('buildInvoiceLines with overrides', () => {
+  it('applies per-line HSN + GST override, falling back to company default', () => {
+    const overrides = new Map([
+      ['a1', { hsnSac: '998540', cgstRate: 6, sgstRate: 6 }],
+    ])
+    const [l] = buildInvoiceLines([alloc()], [shipment()], 'none', 0, 9, 9, '996812', overrides)
+    expect(l.hsnSac).toBe('998540')
+    expect(l.cgstRate).toBe(6)
+    expect(l.cgstAmount).toBe(60) // 1000 × 6%
+    expect(l.sgstAmount).toBe(60)
+  })
+
+  it('uses company default HSN + rate when no override for that line', () => {
+    const [l] = buildInvoiceLines([alloc()], [shipment()], 'none', 0, 9, 9, '996812', new Map())
+    expect(l.hsnSac).toBe('996812')
+    expect(l.cgstRate).toBe(9)
+    expect(l.cgstAmount).toBe(90)
   })
 })

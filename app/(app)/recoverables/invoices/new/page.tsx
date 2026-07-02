@@ -58,7 +58,7 @@ export default async function NewInvoicePage({
   // (defaulting to the user's default company).
   const { data: companies } = await supabase
     .from('companies')
-    .select('id, name, is_default, cgst_rate, sgst_rate')
+    .select('id, name, is_default, cgst_rate, sgst_rate, hsn_sac')
     .eq('user_id', user.id)
     .order('is_default', { ascending: false })
     .order('created_at', { ascending: true })
@@ -66,6 +66,7 @@ export default async function NewInvoicePage({
   const defaultCompany = (companies ?? []).find(c => c.is_default) ?? (companies ?? [])[0] ?? null
   const cgstRate = Number(defaultCompany?.cgst_rate ?? 9)
   const sgstRate = Number(defaultCompany?.sgst_rate ?? 9)
+  const hsnSac   = (defaultCompany?.hsn_sac as string | null) ?? '996812'
 
   // If customer specified, load their pending allocations with shipment + batch info
   let initialAllocations: AllocationRow[] = []
@@ -108,7 +109,8 @@ export default async function NewInvoicePage({
       initialAllocations={initialAllocations}
       cgstRate={cgstRate}
       sgstRate={sgstRate}
-      companies={(companies ?? []).map(c => ({ id: c.id, name: c.name, is_default: c.is_default, cgst_rate: Number(c.cgst_rate), sgst_rate: Number(c.sgst_rate) }))}
+      hsnSac={hsnSac}
+      companies={(companies ?? []).map(c => ({ id: c.id, name: c.name, is_default: c.is_default, cgst_rate: Number(c.cgst_rate), sgst_rate: Number(c.sgst_rate), hsn_sac: (c.hsn_sac as string | null) ?? '996812' }))}
     />
   )
 }

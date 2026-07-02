@@ -28,17 +28,26 @@ describe('calcEffectiveRate', () => {
 describe('calcSalaryInr', () => {
   it('euro salary × expended rate, rounded to paise', () => {
     // €1,200 × 99.9 = ₹1,19,880
-    expect(calcSalaryInr(1200, 99.9)).toBe(119880)
+    expect(calcSalaryInr(1200, 99.9, 'EUR')).toBe(119880)
   })
 
   it('rounds to 2 decimal places', () => {
     // €1,234.56 × 91.2345 = 112,634.4576... → 112634.46
-    expect(calcSalaryInr(1234.56, 91.2345)).toBe(112634.46)
+    expect(calcSalaryInr(1234.56, 91.2345, 'EUR')).toBe(112634.46)
   })
 
-  it('zero salary or zero rate gives zero', () => {
-    expect(calcSalaryInr(0, 99.9)).toBe(0)
-    expect(calcSalaryInr(1200, 0)).toBe(0)
+  it('zero salary or zero rate gives zero (non-INR)', () => {
+    expect(calcSalaryInr(0, 99.9, 'EUR')).toBe(0)
+    expect(calcSalaryInr(1200, 0, 'EUR')).toBe(0)
+  })
+
+  it('INR salary passes through 1:1, ignoring the rate', () => {
+    expect(calcSalaryInr(1200, 99.9, 'INR')).toBe(1200)
+    expect(calcSalaryInr(1234.567, 99.9, 'INR')).toBe(1234.57) // still rounds to paise
+  })
+
+  it('defaults to INR passthrough when currency is omitted', () => {
+    expect(calcSalaryInr(1200, 99.9)).toBe(1200)
   })
 })
 

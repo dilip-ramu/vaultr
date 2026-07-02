@@ -37,6 +37,7 @@ export interface CompanyOption {
   is_default: boolean
   cgst_rate: number
   sgst_rate: number
+  hsn_sac: string
 }
 
 interface Props {
@@ -45,8 +46,14 @@ interface Props {
   initialAllocations: AllocationRow[]
   cgstRate: number
   sgstRate: number
+  /** Company default HSN/SAC — seeds each line's editable HSN. */
+  hsnSac?: string
   companies?: CompanyOption[]
 }
+
+/** Per-line tax/HSN, edited in the review step. Seeded from the chosen
+ *  company's defaults; each line can be overridden independently. */
+interface LineTax { hsn: string; cgst: number; sgst: number }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -68,6 +75,7 @@ export default function CreateInvoiceClient({
   initialAllocations,
   cgstRate,
   sgstRate,
+  hsnSac = '996812',
   companies = [],
 }: Props) {
   const router = useRouter()
@@ -88,6 +96,25 @@ export default function CreateInvoiceClient({
   const pickedCompany = companies.find(c => c.id === companyId) ?? null
   const effCgst = pickedCompany ? pickedCompany.cgst_rate : cgstRate
   const effSgst = pickedCompany ? pickedCompany.sgst_rate : sgstRate
+  const effHsn  = (pickedCompany?.hsn_sac ?? hsnSac ?? '996812') || '996812'
+
+  // Per-line HSN + GST overrides, keyed by allocation id. Unset lines follow
+  // the company default (effHsn / effCgst / effSgst). Editable in step 3.
+  const [lineTax, setLineTax] = useState<Record<string, LineTax>>({})
+  const taxFor = (id: string): LineTax =>
+    lineTax[id] ?? { hsn: effHsn, cgst: effCgst, sgst: effSgst }
+  const setLineField = (id: string, field: keyof LineTax, value: string | number) => {
+    setLineTax(prev => ({ ...prev, [id]: { ...taxFor(id), [field]: value } }))
+  }
+  const applyToAll = (field: keyof LineTax, value: string | number) => {
+    setLineTax(prev => {
+      const next = { ...prev }
+      for (const a of selectedAllocations) {
+        next[a.id] = { ...(prev[a.id] ?? { hsn: effHsn, cgst: effCgst, sgst: effSgst }), [field]: value }
+      }
+      return next
+    })
+  }
 
   // ── Derived ──────────────────────────────────────────────────────────────
 
@@ -130,9 +157,10 @@ export default function CreateInvoiceClient({
                          : markupType === 'flat'       ? r4(baseRate + markupValue)
                          : baseRate
         const amount     = r2(a.pieces * rate)
-        const cgstAmount = r2(amount * effCgst / 100)
-        const sgstAmount = r2(amount * effSgst / 100)
-        return { ...a, rate, amount, cgstAmount, sgstAmount }
+        const tax        = lineTax[a.id] ?? { hsn: effHsn, cgst: effCgst, sgst: effSgst }
+        const cgstAmount = r2(amount * tax.cgst / 100)
+        const sgstAmount = r2(amount * tax.sgst / 100)
+        return { ...a, rate, amount, hsn: tax.hsn, cgstRate: tax.cgst, sgstRate: tax.sgst, cgstAmount, sgstAmount }
       })
       .sort((a, b) => {
         if (a.shipmentDate && b.shipmentDate) {
@@ -142,12 +170,19 @@ export default function CreateInvoiceClient({
         else if (b.shipmentDate)   return 1
         return a.awb.localeCompare(b.awb)
       })
-  }, [selectedAllocations, markupType, markupValue, effCgst, effSgst])
+  }, [selectedAllocations, markupType, markupValue, lineTax, effHsn, effCgst, effSgst])
 
   const subtotal     = useMemo(() => r2(reviewLines.reduce((s, l) => s + l.amount, 0)), [reviewLines])
-  const cgstTotal    = useMemo(() => r2(subtotal * effCgst / 100), [subtotal, effCgst])
-  const sgstTotal    = useMemo(() => r2(subtotal * effSgst / 100), [subtotal, effSgst])
+  const cgstTotal    = useMemo(() => r2(reviewLines.reduce((s, l) => s + l.cgstAmount, 0)), [reviewLines])
+  const sgstTotal    = useMemo(() => r2(reviewLines.reduce((s, l) => s + l.sgstAmount, 0)), [reviewLines])
   const invoiceTotal = useMemo(() => r2(subtotal + cgstTotal + sgstTotal), [subtotal, cgstTotal, sgstTotal])
+  // True when every line shares one CGST/SGST rate — lets the summary show a
+  // single "@ x%" label; mixed invoices drop the rate from the label.
+  const uniformRates = useMemo(() => {
+    if (reviewLines.length === 0) return true
+    const first = reviewLines[0]
+    return reviewLines.every(l => l.cgstRate === first.cgstRate && l.sgstRate === first.sgstRate)
+  }, [reviewLines])
 
   const customerId = useMemo(() => {
     for (const a of selectedAllocations) if (a.customer_id) return a.customer_id
@@ -185,6 +220,12 @@ export default function CreateInvoiceClient({
           markupType,
           markupValue,
           allocationIds: [...selectedIds],
+          lines:         reviewLines.map(l => ({
+            allocationId: l.id,
+            hsnSac:       l.hsn,
+            cgstRate:     l.cgstRate,
+            sgstRate:     l.sgstRate,
+          })),
           invoiceDate,
           paymentTerms,
           notes:         notes || undefined,
@@ -605,15 +646,59 @@ export default function CreateInvoiceClient({
       {/* ── Step 3: Review ── */}
       {step === 3 && (
         <div className="space-y-4">
-          {/* Line items table */}
+          {/* Apply-to-all helper — HSN + GST default from the company; edit
+              here to push one value onto every line, or edit lines below. */}
+          <div className="card space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>HSN &amp; GST</h2>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Applies to all lines</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <label className="space-y-1">
+                <span className="text-[11px] font-medium block" style={{ color: 'var(--text-muted)' }}>HSN/SAC</span>
+                <input
+                  type="text"
+                  defaultValue={effHsn}
+                  onChange={e => applyToAll('hsn', e.target.value)}
+                  className="w-full px-2.5 py-2 rounded-lg text-sm border outline-none"
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)', color: 'var(--text)' }}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-medium block" style={{ color: 'var(--text-muted)' }}>CGST %</span>
+                <input
+                  type="number" min={0} step={0.5}
+                  defaultValue={effCgst}
+                  onChange={e => applyToAll('cgst', Math.max(0, Number(e.target.value)))}
+                  className="w-full px-2.5 py-2 rounded-lg text-sm border outline-none"
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)', color: 'var(--text)' }}
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-medium block" style={{ color: 'var(--text-muted)' }}>SGST %</span>
+                <input
+                  type="number" min={0} step={0.5}
+                  defaultValue={effSgst}
+                  onChange={e => applyToAll('sgst', Math.max(0, Number(e.target.value)))}
+                  className="w-full px-2.5 py-2 rounded-lg text-sm border outline-none"
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)', color: 'var(--text)' }}
+                />
+              </label>
+            </div>
+            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              Need different rates for some lines? Edit them directly in the table below.
+            </p>
+          </div>
+
+          {/* Line items table — HSN / CGST% / SGST% editable per line */}
           <div className="card overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['AWB', 'Date', 'Qty', 'Rate', 'Amount'].map(h => (
+                  {['AWB', 'Qty', 'Rate', 'HSN', 'CGST%', 'SGST%', 'Amount'].map(h => (
                     <th
                       key={h}
-                      className="py-2 px-3 text-left text-xs font-semibold"
+                      className="py-2 px-2 text-left text-[11px] font-semibold whitespace-nowrap"
                       style={{ color: 'var(--text-muted)' }}
                     >
                       {h}
@@ -624,19 +709,44 @@ export default function CreateInvoiceClient({
               <tbody>
                 {reviewLines.map(l => (
                   <tr key={l.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td className="py-2.5 px-3 font-mono text-xs" style={{ color: 'var(--text)' }}>
-                      {l.awb}
+                    <td className="py-2 px-2 font-mono text-xs" style={{ color: 'var(--text)' }}>
+                      <div>{l.awb}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{fmtDate(l.shipmentDate)}</div>
                     </td>
-                    <td className="py-2.5 px-3 text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                      {fmtDate(l.shipmentDate)}
-                    </td>
-                    <td className="py-2.5 px-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <td className="py-2 px-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                       {l.pieces}
                     </td>
-                    <td className="py-2.5 px-3 text-xs" style={{ color: 'var(--text)' }}>
+                    <td className="py-2 px-2 text-xs whitespace-nowrap" style={{ color: 'var(--text)' }}>
                       {fmt(l.rate)}
                     </td>
-                    <td className="py-2.5 px-3 text-xs font-semibold" style={{ color: 'var(--text)' }}>
+                    <td className="py-2 px-1">
+                      <input
+                        type="text"
+                        value={l.hsn}
+                        onChange={e => setLineField(l.id, 'hsn', e.target.value)}
+                        className="w-16 px-1.5 py-1 rounded-md text-xs border outline-none"
+                        style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)', color: 'var(--text)' }}
+                      />
+                    </td>
+                    <td className="py-2 px-1">
+                      <input
+                        type="number" min={0} step={0.5}
+                        value={l.cgstRate}
+                        onChange={e => setLineField(l.id, 'cgst', Math.max(0, Number(e.target.value)))}
+                        className="w-14 px-1.5 py-1 rounded-md text-xs border outline-none"
+                        style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)', color: 'var(--text)' }}
+                      />
+                    </td>
+                    <td className="py-2 px-1">
+                      <input
+                        type="number" min={0} step={0.5}
+                        value={l.sgstRate}
+                        onChange={e => setLineField(l.id, 'sgst', Math.max(0, Number(e.target.value)))}
+                        className="w-14 px-1.5 py-1 rounded-md text-xs border outline-none"
+                        style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)', color: 'var(--text)' }}
+                      />
+                    </td>
+                    <td className="py-2 px-2 text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--text)' }}>
                       {fmt(l.amount)}
                     </td>
                   </tr>
@@ -648,9 +758,9 @@ export default function CreateInvoiceClient({
           {/* GST totals */}
           <div className="card space-y-2.5">
             {[
-              { label: 'Sub Total',         value: subtotal },
-              { label: `CGST @ ${effCgst}%`, value: cgstTotal },
-              { label: `SGST @ ${effSgst}%`, value: sgstTotal },
+              { label: 'Sub Total', value: subtotal },
+              { label: uniformRates ? `CGST @ ${reviewLines[0]?.cgstRate ?? effCgst}%` : 'CGST', value: cgstTotal },
+              { label: uniformRates ? `SGST @ ${reviewLines[0]?.sgstRate ?? effSgst}%` : 'SGST', value: sgstTotal },
             ].map(row => (
               <div key={row.label} className="flex items-center justify-between text-sm">
                 <span style={{ color: 'var(--text-muted)' }}>{row.label}</span>

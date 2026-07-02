@@ -66,6 +66,12 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
     ? invoice.customer_state
     : null
 
+  // Show a single "(x%)" in the tax totals only when every line shares one
+  // rate. A mixed-rate invoice drops the rate from the label — the per-line
+  // rate is already printed in each row of the items table.
+  const uniformCgst = lines.length > 0 && lines.every(l => l.cgst_rate === lines[0].cgst_rate)
+  const uniformSgst = lines.length > 0 && lines.every(l => l.sgst_rate === lines[0].sgst_rate)
+
   return (
     <>
       {/* Print + screen styles — inline so the page is self-contained */}
@@ -296,11 +302,11 @@ export default function InvoicePrintView({ invoice, lines, settings, logoUrl = n
                 <td>{fmtInr(invoice.subtotal)}</td>
               </tr>
               <tr>
-                <td>CGST ({invoice.cgst_rate}%)</td>
+                <td>CGST{uniformCgst ? ` (${lines[0].cgst_rate}%)` : ''}</td>
                 <td>{fmtInr(invoice.cgst_amount)}</td>
               </tr>
               <tr>
-                <td>SGST ({invoice.sgst_rate}%)</td>
+                <td>SGST{uniformSgst ? ` (${lines[0].sgst_rate}%)` : ''}</td>
                 <td>{fmtInr(invoice.sgst_amount)}</td>
               </tr>
               <tr className="total-row">
