@@ -17,7 +17,9 @@ export default async function FetchTransactionsTabPage() {
     supabase.from('account_balances')
       .select('id, name, type, currency, color, avatar_url, custom_type_id, custom_type_name, custom_type_color, custom_type_icon, custom_type_avatar_url')
       .eq('user_id', uid).eq('is_active', true),
-    supabase.from('categories').select('id, name, type, icon, color').eq('user_id', uid),
+    // Same source as Setup → Categories: user's own rows only, sorted by
+    // name so what you see here always matches what's editable there.
+    supabase.from('categories').select('id, name, type, icon, color').eq('user_id', uid).order('name'),
     supabase.from('payees').select('id, name').eq('user_id', uid).order('name'),
     supabase.from('monitored_senders').select('id, email, name, is_active, default_account_id').eq('user_id', uid).eq('is_bank_alert', true).order('email'),
     supabase.from('email_integrations').select('email_address, last_checked_at').eq('user_id', uid).eq('is_active', true).maybeSingle(),
