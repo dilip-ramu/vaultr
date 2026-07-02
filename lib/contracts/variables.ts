@@ -43,6 +43,7 @@ export function buildContractData(employee: Employee, company: ContractCompany |
     pan_number:      employee.pan_number ?? '',
     address:         employee.address ?? '',
     reporting_manager:  employee.reporting_manager ?? '',
+    reporting_manager_designation: employee.reporting_manager_designation ?? '',
     employment_country: employee.employment_country ?? '',
     employment_city:    employee.employment_city ?? '',
     phone:           employee.phone ?? '',
@@ -90,7 +91,10 @@ export function buildContractData(employee: Employee, company: ContractCompany |
     'company.phone':            co.phone,
     today: fmtDate(new Date().toISOString()),
     // Job description for the employee's designation (matched automatically).
-    job_description: jobDescription ?? '',
+    // Normalise CRLF → LF so docxtemplater's linebreaks:true renders each line
+    // cleanly (no stray carriage returns); the paragraph the {{job_description}}
+    // tag sits in controls indentation/alignment.
+    job_description: (jobDescription ?? '').replace(/\r\n/g, '\n'),
     // Bare aliases so {{joining_date}}, {{designation}}, etc. also work.
     joining_date:  emp.joining_date,
     designation:   emp.designation,
@@ -115,6 +119,7 @@ export const CONTRACT_PLACEHOLDERS: { tag: string; label: string }[] = [
   { tag: '{{employee.pan_number}}',     label: 'PAN' },
   { tag: '{{employee.address}}',        label: 'Address' },
   { tag: '{{employee.reporting_manager}}',  label: 'Reporting manager' },
+  { tag: '{{employee.reporting_manager_designation}}', label: "Reporting manager's designation" },
   { tag: '{{employee.employment_country}}', label: 'Country of employment' },
   { tag: '{{employee.employment_city}}',    label: 'City of employment' },
   { tag: '{{employee.phone}}',          label: 'Phone' },

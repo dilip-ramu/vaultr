@@ -38,6 +38,7 @@ const EMPTY: Partial<Employee> = {
   date_of_birth: '',
   address: '',
   reporting_manager: '',
+  reporting_manager_designation: '',
   employment_country: '',
   employment_city: '',
   phone: '',
@@ -590,6 +591,15 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                       onChange={e => setField('reporting_manager', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g. Priya Nair"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Reporting manager&apos;s designation</label>
+                    <input
+                      value={form.reporting_manager_designation ?? ''}
+                      onChange={e => setField('reporting_manager_designation', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g. Operations Head"
                     />
                   </div>
                   <div>

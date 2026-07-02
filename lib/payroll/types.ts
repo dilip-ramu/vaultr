@@ -20,6 +20,8 @@ export interface Employee {
   address: string | null
   // v73 — contract fields, editable on the Employees page.
   reporting_manager: string | null
+  // v74 — reporting manager's designation (free text).
+  reporting_manager_designation: string | null
   employment_country: string | null
   employment_city: string | null
   phone: string | null
