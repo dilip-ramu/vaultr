@@ -87,6 +87,9 @@ const navSections: NavSection[] = [
       // pulled out of Setup; Employees was pulled out of Tools. Together
       // they're "the business entities you have", which sits under Business.
       { href: '/organization',       label: 'Organization',       icon: Building2 },
+      // Document template designer (block-based, per company). Existing
+      // built-in layouts stay until a custom template is assigned.
+      { href: '/templates',          label: 'Templates',          icon: FileText },
     ],
   },
   {

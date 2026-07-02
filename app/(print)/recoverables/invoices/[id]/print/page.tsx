@@ -88,6 +88,22 @@ export default async function InvoicePrintPage({ params }: Props) {
   const template = normalizeTemplate(company?.invoice_template)
   const accent   = normalizeAccent(company?.invoice_accent)
 
+  // Custom block-based template (Feature: fully-customisable templates). If the
+  // invoice's company has one assigned for GST invoices, render it instead of
+  // the built-in layout. No assignment → built-in layout, unchanged.
+  let customSchema: unknown = null
+  {
+    let aq = supabase.from('document_template_assignments')
+      .select('template_id').eq('user_id', user.id).eq('doc_type', 'gst_invoice')
+    aq = inv.company_id ? aq.eq('company_id', inv.company_id) : aq.is('company_id', null)
+    const { data: assignment } = await aq.maybeSingle()
+    if (assignment?.template_id) {
+      const { data: tpl } = await supabase.from('document_templates')
+        .select('schema').eq('id', assignment.template_id).eq('user_id', user.id).maybeSingle()
+      customSchema = tpl?.schema ?? null
+    }
+  }
+
   // ── Branding image URLs ────────────────────────────────────────────────────
   // Company logos live in the PUBLIC vaultr-avatars bucket (stable public URL);
   // the legacy settings logo + the signature live in the PRIVATE
@@ -116,6 +132,7 @@ export default async function InvoicePrintPage({ params }: Props) {
       signatureUrl={signatureUrl}
       template={template}
       accent={accent}
+      schema={customSchema as import('@/lib/templates/schema').DocumentSchema | null}
     />
   )
 }
