@@ -4,7 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Upload, Loader2, Trash2, History, FileText, ChevronDown, Save } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import { createClient } from '@/lib/supabase/client'
 import { CONTRACT_PLACEHOLDERS } from '@/lib/contracts/variables'
+
+const ATTACH_BUCKET = 'vaultr-attachments'
 
 export interface TemplateRow {
   id: string
@@ -53,17 +56,33 @@ export default function ContractsClient({ initialTemplates, companies, designati
 
   async function handleUpload() {
     if (!file) { notify('Choose a .docx file', 'error'); return }
+    if (!file.name.toLowerCase().endsWith('.docx')) { notify('Choose a Word .docx file', 'error'); return }
     setBusy(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('designation', '') // company-wide template
-      if (companyId) fd.append('company_id', companyId)
-      if (name.trim()) fd.append('name', name.trim())
-      const res = await fetch('/api/contracts/templates', { method: 'POST', body: fd })
-      const data = await res.json().catch(() => ({} as { error?: string; version?: number }))
-      if (!res.ok) { notify(data.error || `Upload failed (${res.status})`, 'error'); return }
-      notify(`Template saved (v${data.version})`, 'success')
+      // 1. Prepare — server finds/creates the template + returns a signed upload URL.
+      const prep = await fetch('/api/contracts/templates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ designation: '', company_id: companyId || null, name: name.trim() || null, file_name: file.name }),
+      })
+      const pd = await prep.json().catch(() => ({} as { error?: string; template_id?: string; version?: number; path?: string; token?: string }))
+      if (!prep.ok || !pd.token || !pd.path) { notify(pd.error || `Upload failed (${prep.status})`, 'error'); return }
+
+      // 2. Upload the file straight to Supabase Storage (no server body limit).
+      const supabase = createClient()
+      const { error: upErr } = await supabase.storage.from(ATTACH_BUCKET).uploadToSignedUrl(pd.path, pd.token, file, {
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+      if (upErr) { notify(upErr.message || 'File upload failed', 'error'); return }
+
+      // 3. Finalize — record the version.
+      const fin = await fetch('/api/contracts/templates/finalize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: pd.template_id, version: pd.version, path: pd.path, file_name: file.name, name: name.trim() || null }),
+      })
+      const fd2 = await fin.json().catch(() => ({} as { error?: string; version?: number }))
+      if (!fin.ok) { notify(fd2.error || `Save failed (${fin.status})`, 'error'); return }
+
+      notify(`Template saved (v${fd2.version ?? pd.version})`, 'success')
       setFile(null); setName('')
       router.refresh()
     } catch (err) {

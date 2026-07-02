@@ -32,30 +32,27 @@ export async function GET() {
   return NextResponse.json({ templates: rows })
 }
 
-// ── POST /api/contracts/templates ── upload a .docx (creates a new version)
+// ── POST /api/contracts/templates ── PREPARE an upload.
+// The browser uploads the .docx straight to Supabase Storage (no Vercel body
+// limit); this route just finds/creates the template row, works out the next
+// version + path, and returns a short-lived signed upload URL. The version is
+// recorded afterwards via the /finalize route (so a failed upload leaves no
+// dangling version). Expects JSON, not the file.
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let form: FormData
-  try { form = await req.formData() } catch {
-    return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
-  }
+  let body: { company_id?: string | null; designation?: string; name?: string | null; file_name?: string }
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const file = form.get('file') as File | null
-  const designation = String(form.get('designation') ?? '').trim()
-  const companyRaw = form.get('company_id')
-  const company_id = companyRaw && String(companyRaw) !== '' ? String(companyRaw) : null
-  const name = form.get('name') ? String(form.get('name')).trim() : null
-  const note = form.get('note') ? String(form.get('note')).trim() : null
-
-  // designation is optional now — blank means a company-wide template.
-  if (!file || file.size === 0) return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
-  if (!file.name.toLowerCase().endsWith('.docx')) {
+  const designation = String(body.designation ?? '').trim()
+  const company_id = body.company_id && String(body.company_id) !== '' ? String(body.company_id) : null
+  const name = body.name ? String(body.name).trim() : null
+  const fileName = String(body.file_name ?? '')
+  if (!fileName.toLowerCase().endsWith('.docx')) {
     return NextResponse.json({ error: 'Upload a Word .docx file' }, { status: 400 })
   }
-  if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: 'File too large — max 10 MB' }, { status: 400 })
 
   // Find existing template for this (company, designation), case-insensitive.
   let query = supabase.from('contract_templates').select('*')
@@ -78,22 +75,8 @@ export async function POST(req: NextRequest) {
   }
 
   const path = `${user.id}/contracts/templates/${templateId}/v${nextVersion}.docx`
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, buffer, {
-    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    upsert: false,
-  })
-  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
+  const { data: signed, error: sErr } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path)
+  if (sErr || !signed) return NextResponse.json({ error: sErr?.message ?? 'Could not prepare upload' }, { status: 500 })
 
-  const { error: vErr } = await supabase.from('contract_template_versions').insert({
-    template_id: templateId, user_id: user.id, version: nextVersion,
-    file_path: path, file_name: file.name, note,
-  })
-  if (vErr) return NextResponse.json({ error: vErr.message }, { status: 500 })
-
-  const update: Record<string, unknown> = { current_version: nextVersion, updated_at: new Date().toISOString() }
-  if (name) update.name = name
-  await supabase.from('contract_templates').update(update).eq('id', templateId).eq('user_id', user.id)
-
-  return NextResponse.json({ template_id: templateId, version: nextVersion }, { status: 201 })
+  return NextResponse.json({ template_id: templateId, version: nextVersion, path, token: signed.token })
 }
