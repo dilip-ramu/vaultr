@@ -18,6 +18,10 @@ export interface Employee {
   joining_date: string | null
   date_of_birth: string | null
   address: string | null
+  // v73 — contract fields, editable on the Employees page.
+  reporting_manager: string | null
+  employment_country: string | null
+  employment_city: string | null
   phone: string | null
   whatsapp_number: string | null
   email: string | null

@@ -18,6 +18,9 @@ Run each file's contents once, in this order. Skip any you've already run.
       → `document_templates` (block-template library) + `document_template_assignments`
 - [ ] `supabase/migration_v72_job_descriptions.sql`
       → `job_descriptions` (per designation, optional company override) for `{{job_description}}`
+- [ ] `supabase/migration_v73_employee_employment_fields.sql`
+      → `employees.reporting_manager`, `employment_country`, `employment_city`
+        (`{{employee.reporting_manager}}`, `{{employee.employment_country}}`, `{{employee.employment_city}}`)
 
 ## 2. Storage buckets — nothing new to create
 

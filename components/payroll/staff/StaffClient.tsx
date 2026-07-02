@@ -37,6 +37,9 @@ const EMPTY: Partial<Employee> = {
   joining_date: '',
   date_of_birth: '',
   address: '',
+  reporting_manager: '',
+  employment_country: '',
+  employment_city: '',
   phone: '',
   whatsapp_number: '',
   email: '',
@@ -576,6 +579,37 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     placeholder="Street, City, State, PIN"
                   />
+                </div>
+
+                {/* Contract fields (v73) — reporting manager + place of employment */}
+                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Reporting manager</label>
+                    <input
+                      value={form.reporting_manager ?? ''}
+                      onChange={e => setField('reporting_manager', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g. Priya Nair"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Country of employment</label>
+                    <input
+                      value={form.employment_country ?? ''}
+                      onChange={e => setField('employment_country', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g. India"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">City of employment</label>
+                    <input
+                      value={form.employment_city ?? ''}
+                      onChange={e => setField('employment_city', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g. Chennai"
+                    />
+                  </div>
                 </div>
 
                 {/* Company + Works for + invoicing toggle */}
