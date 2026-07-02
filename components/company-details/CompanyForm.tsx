@@ -19,6 +19,11 @@ export interface Company {
   bank_name: string | null
   // v64 — SWIFT/BIC code for foreign-currency invoices (customers outside India)
   swift_code: string | null
+  // v67 — when true, a mirror row in the customers table exists so this
+  // company can be selected as a "Bill To" in invoice flows (cross-company
+  // billing). Read from customers.mirrored_company_id back-reference by
+  // the parent page; not stored on the companies row itself.
+  is_available_as_customer?: boolean
   invoice_prefix: string
   next_invoice_number: number
   cgst_rate: number
@@ -64,6 +69,10 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   const [bankIfsc,     setBankIfsc]     = useState(company?.bank_ifsc ?? '')
   const [bankName,     setBankName]     = useState(company?.bank_name ?? '')
   const [swiftCode,    setSwiftCode]    = useState(company?.swift_code ?? '')
+  /** v67 — cross-company billing toggle. Persists a mirror customer row so
+   *  this company appears in every "Bill To" picker. Initial value comes
+   *  from the parent page (checked against customers.mirrored_company_id). */
+  const [availableAsCustomer, setAvailableAsCustomer] = useState<boolean>(company?.is_available_as_customer ?? false)
   const [invoicePrefix, setInvoicePrefix] = useState(company?.invoice_prefix ?? 'INV-')
   const [cgstRate, setCgstRate] = useState(String(company?.cgst_rate ?? 9))
   const [sgstRate, setSgstRate] = useState(String(company?.sgst_rate ?? 9))
@@ -89,6 +98,8 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
         bank_ifsc: bankIfsc.trim() || null,
         bank_name: bankName.trim() || null,
         swift_code: swiftCode.trim().toUpperCase() || null,
+        // v67 — flag flows to the API which syncs the customers mirror.
+        is_available_as_customer: availableAsCustomer,
         invoice_prefix: invoicePrefix.trim() || 'INV-',
         cgst_rate: parseFloat(cgstRate) || 9,
         sgst_rate: parseFloat(sgstRate) || 9,
@@ -181,6 +192,20 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
             <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text)' }}>
               <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} />
               Use as default when creating invoices
+            </label>
+            {/* v67 — cross-company billing toggle */}
+            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--text)' }}>
+              <input
+                type="checkbox"
+                checked={availableAsCustomer}
+                onChange={e => setAvailableAsCustomer(e.target.checked)}
+              />
+              <span>
+                Available as a customer
+                <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>
+                  — lets you bill this company from another of your own companies
+                </span>
+              </span>
             </label>
           </div>
 

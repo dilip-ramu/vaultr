@@ -66,5 +66,55 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase.from('companies').insert(insertRow).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // v67 — sync the customers mirror for cross-company billing when the
+  // "Available as a customer" toggle is on. Best-effort; a failure here
+  // doesn't block the primary insert.
+  if (body.is_available_as_customer) {
+    await syncCustomerMirror(supabase, user.id, data)
+  }
   return NextResponse.json({ company: data }, { status: 201 })
 }
+
+/**
+ * v67 — mirror a company into the customers table.
+ *   ─ enable=true  → INSERT or UPDATE the mirror row
+ *   ─ enable=false → DELETE the mirror IF no invoice references it
+ * Returns quietly; callers don't need to handle errors specially since a
+ * mirror-sync failure never breaks the primary company insert/update.
+ */
+async function syncCustomerMirror(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  company: {
+    id: string; name: string; address: string | null; gstin: string | null;
+    phone: string | null; email: string | null; country?: string | null
+  },
+) {
+  // Does a mirror already exist for this company?
+  const { data: existing } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('mirrored_company_id', company.id)
+    .maybeSingle()
+
+  const payload = {
+    user_id:            userId,
+    name:               company.name,
+    address:            company.address,
+    gst_number:         company.gstin,
+    email:              company.email,
+    phone:              company.phone,
+    country:            company.country ?? 'India',
+    mirrored_company_id: company.id,
+  }
+  if (existing) {
+    await supabase.from('customers').update(payload).eq('id', existing.id).eq('user_id', userId)
+  } else {
+    await supabase.from('customers').insert(payload)
+  }
+}
+
+export { syncCustomerMirror }

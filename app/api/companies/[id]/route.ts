@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { syncCustomerMirror } from '../route'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -48,6 +49,41 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data)  return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // v67 — reconcile the customers mirror based on the toggle.
+  // "is_available_as_customer" isn't a column on companies; the client sends
+  // it in the body and we act on it directly (create/refresh/remove mirror).
+  const wantMirror = body.is_available_as_customer === true
+  const dropMirror = body.is_available_as_customer === false
+  if (wantMirror) {
+    await syncCustomerMirror(supabase, user.id, data as {
+      id: string; name: string; address: string | null; gstin: string | null;
+      phone: string | null; email: string | null
+    })
+  } else if (dropMirror) {
+    // Only remove the mirror if nothing references it as a customer_id
+    // (invoices etc.). Otherwise leave it in place — historical rows should
+    // keep resolving to a customer name.
+    const { data: mirror } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('mirrored_company_id', id)
+      .maybeSingle()
+    if (mirror) {
+      const { count: invCount } = await supabase
+        .from('recoverable_invoices')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('customer_id', mirror.id)
+      if ((invCount ?? 0) === 0) {
+        await supabase.from('customers').delete().eq('id', mirror.id).eq('user_id', user.id)
+      }
+      // Silently keep the mirror if invoices exist. UI should reflect this
+      // by re-checking the toggle if the server didn't drop it.
+    }
+  }
+
   return NextResponse.json({ company: data })
 }
 
