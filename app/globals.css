@@ -3,26 +3,32 @@
 @tailwind utilities;
 
 :root {
-  --bg: #F6F8F6;
+  --bg: #F4F7F4;
   --surface: #FFFFFF;
-  --surface-2: #F0F4F1;
-  --border: #DDE6DF;
-  --border-2: #EBF0EC;
-  --text: #0F1A12;
-  --text-muted: #5A6B5E;
-  --text-faint: #9AAD9E;
+  --surface-2: #EFF3EF;
+  --surface-3: #E9EFEA;
+  --border: #E2E9E3;
+  --border-2: #EDF1ED;
+  --text: #0E1A12;
+  --text-muted: #55655A;
+  --text-faint: #93A499;
 
-  /* Brand — forest green from the INEX logo */
+  /* Brand — forest green; warm gold accent added in the redesign */
   --brand: #2A7A50;
-  --brand-light: #E6F3EC;
-  --brand-dark: #1F5C3A;   /* logo's exact dark green, for logo/headers */
+  --brand-light: #E4F1E9;
+  --brand-deep: #123A26;
+  --brand-dark: #1F5C3A;   /* kept for existing usages */
+  --accent: #B7822F;       /* NEW warm gold */
+  --accent-light: #F6EEDD;
 
-  /* Income = green family; Expense = logo's red accent */
-  --income: #22A156;
+  /* Income = green family; Expense = red accent */
+  --income: #1F9E54;
   --expense: #C8372A;
   --transfer: #3B82F6;
+  --amber: #C08A3E;
 
   --shadow: rgba(15,26,18,0.07);
+  --shadow-lg: 0 20px 50px rgba(15,26,18,.14);
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
@@ -38,23 +44,29 @@
 }
 
 [data-theme="dark"] {
-  --bg: #111814;
-  --surface: #192018;
-  --surface-2: #202A1F;
-  --border: #2C3B2A;
-  --border-2: #243022;
-  --text: #E8F0E9;
-  --text-muted: #8AAA8E;
-  --text-faint: #537557;
+  --bg: #0E140F;
+  --surface: #161E17;
+  --surface-2: #1E271F;
+  --surface-3: #232E24;
+  --border: #2A362B;
+  --border-2: #222D23;
+  --text: #E9F1EA;
+  --text-muted: #93A897;
+  --text-faint: #5E7A63;
 
   --brand: #3DA86A;
-  --brand-light: #1A3024;
+  --brand-light: #17301F;
+  --brand-deep: #0C2A1B;
   --brand-dark: #4DC47C;
+  --accent: #D9A24E;
+  --accent-light: #2A2416;
 
   --income: #3EC876;
   --expense: #E8584A;
   --transfer: #60A5FA;
+  --amber: #D9A24E;
   --shadow: rgba(0,0,0,0.4);
+  --shadow-lg: 0 20px 50px rgba(0,0,0,.5);
 
   --status-pending-bg: #3D2E00;   --status-pending-text: #FCD34D;
   --status-partial-bg: #0D2E18;   --status-partial-text: #6EE7B7;

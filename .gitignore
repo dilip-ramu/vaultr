@@ -29,3 +29,7 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Design handoff (reference only — not part of the app)
+redesign.zip
+design_handoff_vaultr_redesign/
