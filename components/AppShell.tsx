@@ -55,8 +55,7 @@ const navSections: NavSection[] = [
       {
         href: '/accounts', label: 'Accounts', icon: Wallet,
         subItems: [
-          { href: '/cards',         label: 'Cards',         icon: CreditCard },
-          { href: '/subscriptions', label: 'Subscriptions', icon: CalendarRange },
+          { href: '/cards', label: 'Cards', icon: CreditCard },
         ],
       },
       {
@@ -96,7 +95,6 @@ const navSections: NavSection[] = [
       {
         href: '/payroll/processing', label: 'Payroll', icon: CalendarClock,
         subItems: [
-          { href: '/payroll/staff', label: 'Staff', icon: UserSquare },
           { href: '/payroll/slips', label: 'Slips', icon: FileText },
         ],
       },

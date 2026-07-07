@@ -18,7 +18,6 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
   { name: 'Accounts', tabs: [
     { href: '/accounts', label: 'Balances' },
     { href: '/cards', label: 'Cards' },
-    { href: '/subscriptions', label: 'Subscriptions' },
   ] },
   { name: 'Insights', tabs: [
     { href: '/budget-insights', label: 'Budgets' },
@@ -38,7 +37,6 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
   ] },
   { name: 'Payroll', tabs: [
     { href: '/payroll/processing', label: 'Processing' },
-    { href: '/payroll/staff', label: 'Staff' },
     { href: '/payroll/slips', label: 'Slips' },
   ] },
   { name: 'Organization', tabs: [
