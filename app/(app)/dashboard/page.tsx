@@ -228,7 +228,7 @@ async function fetchDashboardFallback(
   }
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ period?: string; from?: string; to?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -239,6 +239,23 @@ export default async function DashboardPage() {
   const startOfMonth = `${cy}-${String(cm + 1).padStart(2, '0')}-01`
   const endOfMonth = new Date(cy, cm + 1, 0).toISOString().split('T')[0]
   const historyStart = new Date(cy, cm - 4, 1).toISOString().split('T')[0]
+
+  // ── Pulse-band period (Month / Quarter / Year / Custom) ──────────────────
+  const sp = await searchParams
+  const period = ['month', 'quarter', 'year', 'custom'].includes(sp.period ?? '') ? sp.period! : 'month'
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const iso = (y: number, m0: number, d: number) => `${y}-${String(m0 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  let periodStart = startOfMonth, periodEnd = endOfMonth, periodLabel = `${MON[cm]} ${cy}`
+  if (period === 'quarter') {
+    const q = Math.floor(cm / 3)
+    periodStart = iso(cy, q * 3, 1); periodEnd = new Date(cy, q * 3 + 3, 0).toISOString().split('T')[0]
+    periodLabel = `Q${q + 1} ${cy}`
+  } else if (period === 'year') {
+    periodStart = `${cy}-01-01`; periodEnd = `${cy}-12-31`; periodLabel = `${cy}`
+  } else if (period === 'custom' && sp.from && sp.to) {
+    periodStart = sp.from; periodEnd = sp.to
+    periodLabel = `${new Date(sp.from).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} – ${new Date(sp.to).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+  }
 
   // Fast path: ONE round trip for all dashboard data (migration_v34) + profit lines + card dues
   // Also: every payee linked to a customer = reimbursable, exclude them from
@@ -275,6 +292,17 @@ export default async function DashboardPage() {
         dueBills: dash.due_bills ?? [],
       }
     : await fetchDashboardFallback(supabase, user!.id, startOfMonth, endOfMonth, historyStart, todayStr)
+
+  // For non-month periods, re-scope the pulse-band income/expense to the range.
+  if (period !== 'month') {
+    const { data: ptx } = await supabase
+      .from('transactions')
+      .select('type, amount, date')
+      .eq('user_id', user!.id)
+      .gte('date', periodStart)
+      .lte('date', periodEnd)
+    d.monthlyTx = ptx ?? []
+  }
 
   // Month-to-date profitability (1st → today)
   const profitMTD = summarize(profitLines, startOfMonth, todayStr)
@@ -373,6 +401,10 @@ export default async function DashboardPage() {
       recentTransactions={d.recentTx}
       monthlyTransactions={d.monthlyTx}
       chartTransactions={d.historyTx as { type: string; amount: number; date: string }[]}
+      period={period}
+      periodLabel={periodLabel}
+      periodFrom={sp.from ?? ''}
+      periodTo={sp.to ?? ''}
       profile={d.profile}
       builtinOverrides={d.overrides}
       budgets={budgets}

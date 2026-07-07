@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ChevronRight, Plus,
   ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale, CreditCard,
@@ -61,6 +62,10 @@ interface Props {
   recentTransactions: Transaction[]
   monthlyTransactions: { type: string; amount: number; date: string }[]
   chartTransactions?: { type: string; amount: number; date: string }[]
+  period?: string
+  periodLabel?: string
+  periodFrom?: string
+  periodTo?: string
   profile: Profile | null
   builtinOverrides?: BuiltinTypeOverride[]
   budgets?: Budget[]
@@ -128,6 +133,10 @@ export default function DashboardClient({
   recentTransactions,
   monthlyTransactions,
   chartTransactions,
+  period = 'month',
+  periodLabel,
+  periodFrom = '',
+  periodTo = '',
   profile,
   builtinOverrides = [],
   budgets = [],
@@ -147,6 +156,11 @@ export default function DashboardClient({
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
   const [payCard, setPayCard] = useState<CardDue | null>(null)
+  const router = useRouter()
+  const [showCustom, setShowCustom] = useState(period === 'custom')
+  const [customFrom, setCustomFrom] = useState(periodFrom)
+  const [customTo, setCustomTo] = useState(periodTo)
+  const goPeriod = (p: string) => router.push(p === 'month' ? '/dashboard' : `/dashboard?period=${p}`)
 
   // ── Money math ──────────────────────────────────────────────────────────────
 
@@ -226,21 +240,43 @@ export default function DashboardClient({
       <div className="w-full px-4 sm:px-6 py-6 space-y-6">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-[23px] font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>
               {greeting}{firstName ? `, ${firstName}` : ''}
             </h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{monthLabel} overview</p>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{periodLabel ?? monthLabel} overview</p>
           </div>
-          <button
-            onClick={() => setShowAddTx(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shrink-0 transition-opacity hover:opacity-90"
-            style={{ background: 'var(--brand)', boxShadow: 'var(--shadow-lg)' }}
-          >
-            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Add transaction</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Period toggle */}
+            <div className="flex rounded-xl p-1" style={{ background: 'var(--surface-2)' }}>
+              {([['month', 'Month'], ['quarter', 'Quarter'], ['year', 'Year']] as const).map(([p, label]) => (
+                <button key={p} onClick={() => { setShowCustom(false); goPeriod(p) }} className="text-[12.5px] font-bold px-3 py-1.5 rounded-lg transition-colors" style={period === p ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: 'var(--shadow)' } : { color: 'var(--text-muted)' }}>{label}</button>
+              ))}
+              <button onClick={() => setShowCustom(s => !s)} className="text-[12.5px] font-bold px-3 py-1.5 rounded-lg transition-colors" style={period === 'custom' ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: 'var(--shadow)' } : { color: 'var(--text-muted)' }}>Custom</button>
+            </div>
+            <button
+              onClick={() => setShowAddTx(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shrink-0 transition-opacity hover:opacity-90"
+              style={{ background: 'var(--brand)', boxShadow: 'var(--shadow-lg)' }}
+            >
+              <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Add transaction</span>
+            </button>
+          </div>
         </div>
+        {showCustom && (
+          <div className="flex flex-wrap items-end gap-2 -mt-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>From</p>
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>To</p>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)} className="rounded-lg px-3 py-2 text-sm outline-none" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+            </div>
+            <button onClick={() => customFrom && customTo && router.push(`/dashboard?period=custom&from=${customFrom}&to=${customTo}`)} className="text-white text-sm font-bold px-4 py-2 rounded-lg" style={{ background: 'var(--brand)' }}>Apply</button>
+          </div>
+        )}
 
         {/* ── Pulse band: Net Worth · Income/Expenses · Leftover/Profit ────── */}
         <div
