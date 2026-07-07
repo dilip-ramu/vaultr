@@ -221,10 +221,10 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
 
-  // ⌘K / Ctrl+K opens global search
+  // ⌘B / Ctrl+B opens global search
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
         e.preventDefault()
         setSearchOpen(o => !o)
       }
@@ -427,11 +427,11 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             onClick={() => setSearchOpen(true)}
             className={`mx-2 mt-2 flex items-center gap-2 rounded-xl text-sm transition-colors ${collapsed ? 'justify-center p-2.5' : 'px-3 py-2'}`}
             style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
-            title="Search (⌘K)"
+            title="Search (⌘B)"
           >
             <Search className="w-4 h-4 shrink-0" />
             {!collapsed && <span className="flex-1 text-left">Search…</span>}
-            {!collapsed && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--border)', color: 'var(--text-faint)' }}>⌘K</span>}
+            {!collapsed && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--border)', color: 'var(--text-faint)' }}>⌘B</span>}
           </button>
 
           {collapsed && (
