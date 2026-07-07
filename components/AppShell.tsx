@@ -37,75 +37,88 @@ type SubItem = { href: string; label: string; icon: React.ComponentType<{ classN
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; subItems?: SubItem[] }
 type NavSection = { id: string; label?: string; items: NavItem[] }
 
+// Redesign IA: 9 destinations in 4 groups. Sub-items point at the EXISTING
+// routes (nav regrouping only — no pages merged, no routes changed, so every
+// URL keeps working). A parent highlights when any of its children is active.
 const navSections: NavSection[] = [
   {
     id: 'main',
     items: [
-      { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
-      { href: '/accounts',     label: 'Accounts',     icon: Wallet },
-      { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-      { href: '/budget-insights', label: 'Budget & Insights', icon: Target },
+      { href: '/dashboard',    label: 'Home',         icon: LayoutDashboard },
+      {
+        href: '/transactions', label: 'Transactions', icon: ArrowLeftRight,
+        subItems: [
+          { href: '/transactions/fetch', label: 'Fetch', icon: ArrowDownUp },
+        ],
+      },
+      {
+        href: '/accounts', label: 'Accounts', icon: Wallet,
+        subItems: [
+          { href: '/cards',         label: 'Cards',         icon: CreditCard },
+          { href: '/subscriptions', label: 'Subscriptions', icon: CalendarRange },
+        ],
+      },
+      {
+        href: '/budget-insights', label: 'Insights', icon: Target,
+        subItems: [
+          { href: '/profitability', label: 'Profitability', icon: Scale },
+          { href: '/forecast',      label: 'Forecast',      icon: CalendarRange },
+        ],
+      },
     ],
   },
   {
-    id: 'business',
-    label: 'Business',
+    id: 'sales',
+    label: 'Sales & Purchases',
     items: [
       {
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
-          // Directory now lives as a tab on the main /customers page.
-          // Invoices is a single page with three tabs (Couriers / Reimbursables /
-          // Invoices) — see /customers/invoices/layout.tsx. Reimbursables
-          // used to be its own sidebar item; it's now a tab inside Invoices
-          // (Deploy 4 restructure).
           { href: '/customers/invoices',   label: 'Invoices', icon: FileText },
           { href: '/customers/commission', label: 'Incoming', icon: DollarSign },
+          { href: '/recoverables/tds',     label: 'TDS',      icon: Receipt },
         ],
       },
       {
         href: '/suppliers', label: 'Suppliers', icon: Building2,
         subItems: [
-          // Directory lives as a tab on the main /suppliers page.
-          // "Categories" sub-item dropped — set the default category per
-          // supplier in their Edit form. The bulk /suppliers/categories URL
-          // still works for power-edit if needed.
-          { href: '/suppliers/invoices', label: 'Invoices', icon: FileText },
+          { href: '/suppliers/invoices',       label: 'Invoices', icon: FileText },
+          { href: '/suppliers/invoices/fetch', label: 'Fetch',    icon: ArrowDownUp },
         ],
       },
-      // Contrast section retired — its three pages live under
-      // /customers/reimbursables now. The /contrast/* URLs are redirect stubs
-      // pointing at the new locations, so old bookmarks still resolve.
-      //
-      // Payroll Processing moved into Business (from its own section) — the
-      // trigger for actually running payroll now comes from a business event
-      // (a reimbursement invoice being marked paid → cascade unlocks the
-      // month). Staff & Salary Slip URLs still live under /payroll/* but
-      // no longer own a sidebar section.
-      { href: '/payroll/processing', label: 'Payroll Processing', icon: CalendarClock },
-      // Organization (v66) — Companies + Employees as tabs. Companies was
-      // pulled out of Setup; Employees was pulled out of Tools. Together
-      // they're "the business entities you have", which sits under Business.
-      { href: '/organization',       label: 'Organization',       icon: Building2 },
-      // Document template designer (block-based, per company). Existing
-      // built-in layouts stay until a custom template is assigned.
-      { href: '/templates',          label: 'Templates',          icon: FileText },
     ],
   },
   {
-    id: 'tools',
-    label: 'Tools',
+    id: 'team',
+    label: 'Team',
     items: [
-      { href: '/profitability',     label: 'Profitability', icon: Scale },
-      { href: '/forecast',          label: 'Forecast',      icon: CalendarRange },
-      { href: '/cards',             label: 'Cards',         icon: CreditCard },
-      // Employees moved out of Tools into Business → Organization (v66).
-      // TDS was Customers → Recoverables → TDS. Annual, not day-to-day.
-      { href: '/recoverables/tds',  label: 'TDS',           icon: Receipt },
-      // Previously-standalone items live inside /setup as tabs now:
-      // Company · Email · Categories · Account types · Currencies · Export & Backup.
-      // Reconcile moved onto the Accounts page (per-account inline panel).
-      { href: '/setup',             label: 'Setup',         icon: Wrench },
+      {
+        href: '/payroll/processing', label: 'Payroll', icon: CalendarClock,
+        subItems: [
+          { href: '/payroll/staff', label: 'Staff', icon: UserSquare },
+          { href: '/payroll/slips', label: 'Slips', icon: FileText },
+        ],
+      },
+      {
+        href: '/organization', label: 'Organization', icon: Building2,
+        subItems: [
+          { href: '/organization/employees', label: 'Employees', icon: Users },
+          { href: '/organization/contracts', label: 'Contracts', icon: FileText },
+          { href: '/templates',              label: 'Templates', icon: Layers },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'System',
+    items: [
+      {
+        href: '/setup', label: 'Setup', icon: Wrench,
+        subItems: [
+          { href: '/downloads', label: 'Downloads', icon: Archive },
+        ],
+      },
     ],
   },
 ]
