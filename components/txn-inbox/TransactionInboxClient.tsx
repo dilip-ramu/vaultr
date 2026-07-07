@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, Check, X, Inbox, AlertTriangle, Plus, Trash2, ChevronDown, Paperclip } from 'lucide-react'
+import { RefreshCw, Check, X, Inbox, Plus, Trash2, ChevronDown, Paperclip, Mail, ArrowLeftRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -198,31 +199,49 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
   const expenseCats = categories.filter(c => c.type === 'expense')
 
   return (
-    <div className={hideHeader ? 'space-y-4' : 'max-w-3xl mx-auto px-4 py-6 space-y-4'}>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          {!hideHeader && <Inbox className="w-5 h-5" style={{ color: 'var(--brand)' }} />}
-          <div>
-            {!hideHeader && <h1 className="text-heading" style={{ color: 'var(--text)' }}>Transaction Inbox</h1>}
-            <p className="text-caption">
-              {drafts.length} draft{drafts.length !== 1 ? 's' : ''} to review
-              {integration?.last_checked_at && ` · last fetched ${new Date(integration.last_checked_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`}
-            </p>
-          </div>
+    <div className={hideHeader ? 'w-full space-y-4' : 'w-full px-4 md:px-6 py-6 space-y-4'}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          {!hideHeader && <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Fetch Transactions</h1>}
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {drafts.length} draft{drafts.length !== 1 ? 's' : ''} waiting · from bank-alert emails
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowSenders(s => !s)} className="px-3 py-2 rounded-xl text-sm" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-            Senders ({senders.length})
-          </button>
+        <div className="flex items-center gap-2 shrink-0">
           <button onClick={rescan} disabled={fetching} title="Clear un-approved drafts and re-fetch (for tuning)"
-            className="px-3 py-2 rounded-xl text-sm disabled:opacity-50" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            className="text-sm font-bold px-3.5 py-2 rounded-xl disabled:opacity-50" style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
             Re-scan
           </button>
-          <button onClick={fetchNow} disabled={fetching} className="btn-brand px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50">
-            <RefreshCw className={`w-4 h-4 ${fetching ? 'animate-spin' : ''}`} /> {fetching ? 'Fetching…' : 'Fetch now'}
+          <button onClick={fetchNow} disabled={fetching} className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-50" style={{ background: 'var(--brand)' }}>
+            <RefreshCw className={`w-4 h-4 ${fetching ? 'animate-spin' : ''}`} /> {fetching ? 'Checking…' : 'Check now'}
           </button>
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="inline-flex gap-0.5 p-1 rounded-xl" style={{ background: 'var(--surface-2)' }}>
+        <Link href="/transactions" className="flex items-center gap-1.5 text-[12.5px] font-semibold px-3.5 py-1.5 rounded-lg" style={{ color: 'var(--text-muted)' }}>
+          <ArrowLeftRight className="w-3.5 h-3.5" /> All transactions
+        </Link>
+        <span className="flex items-center gap-1.5 text-[12.5px] font-bold px-3.5 py-1.5 rounded-lg" style={{ color: 'var(--text)', background: 'var(--surface)', boxShadow: 'var(--shadow)' }}>
+          <Inbox className="w-3.5 h-3.5" /> Fetch
+        </span>
+      </div>
+
+      {/* Forwarding banner */}
+      <button onClick={() => setShowSenders(s => !s)} className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left" style={{ background: 'var(--brand-light)', border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
+        <Mail className="w-[18px] h-[18px] shrink-0" style={{ color: 'var(--brand)' }} />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12.5px] font-bold truncate" style={{ color: 'var(--text)' }}>
+            {integration ? `Forwarding to ${integration.email_address}` : 'Connect your email under Setup → Email'}
+          </p>
+          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            {integration?.last_checked_at ? `Last checked ${new Date(integration.last_checked_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Not checked yet'} · {senders.length} monitored sender{senders.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <span className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg shrink-0" style={{ color: 'var(--brand)', background: 'var(--surface)', border: '1px solid var(--border)' }}>Manage senders</span>
+      </button>
 
       {/* Sender management */}
       {showSenders && (
@@ -251,99 +270,65 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
 
       {/* Drafts */}
       {drafts.length === 0 ? (
-        <div className="card p-10 text-center space-y-2">
-          <Inbox className="w-8 h-8 mx-auto" style={{ color: 'var(--text-faint)' }} />
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No drafts to review. Hit &quot;Fetch now&quot; to pull in new bank alerts.</p>
+        <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <Inbox className="w-8 h-8 mx-auto mb-2" style={{ color: 'var(--text-faint)' }} />
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No drafts to review. Hit &quot;Check now&quot; to pull in new bank alerts.</p>
         </div>
       ) : (
-        drafts.map(d => {
-          const needsAccount = !d.matched_account_id
-          return (
-            <div key={d.id} className="card p-4 space-y-3" style={needsAccount ? { borderColor: 'rgba(245,158,11,0.4)' } : undefined}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0 space-y-2">
-                  <input
-                    value={d.name ?? ''}
-                    onChange={e => patch(d.id, { name: e.target.value })}
-                    placeholder="Description"
-                    className="w-full bg-transparent text-base font-medium outline-none"
-                    style={{ color: 'var(--text)' }}
-                  />
-                  <div className="flex items-center gap-2 text-xs flex-wrap" style={{ color: 'var(--text-muted)' }}>
-                    <span className="font-semibold" style={{ color: d.direction === 'credit' ? 'var(--income)' : 'var(--expense)' }}>
-                      {d.direction === 'credit' ? '+' : '−'}{d.currency && d.currency !== 'INR' ? `${d.currency} ` : ''}{d.amount != null ? (d.currency === 'INR' ? fmt(d.amount) : d.amount.toLocaleString('en-IN')) : '?'}
-                    </span>
-                    {d.txn_date && <span>· {d.txn_date}</span>}
-                    {d.partial_account && <span>· a/c ••{d.partial_account}</span>}
-                    {d.sender_email && <span className="truncate">· {d.sender_email}</span>}
-                    {/* v68 — attachment pin. Click 📎 button to attach; when
-                        one exists, shows filename + X to remove. On approve,
-                        the file follows into the transaction. */}
-                    {d.attachment_path ? (
-                      <span
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded"
-                        style={{ background: 'rgba(59,74,199,0.10)', color: '#3B4AC7' }}
-                        title={`${d.attachment_name}${d.attachment_size ? ` (${Math.round(d.attachment_size / 1024)} KB)` : ''}. Follows the transaction on approve.`}
-                      >
-                        <Paperclip className="w-3 h-3" />
-                        <span className="truncate max-w-[140px]">{d.attachment_name}</span>
-                        <button
-                          onClick={() => removeAttachment(d.id, d.attachment_path!)}
-                          disabled={busy === d.id}
-                          title="Remove attachment"
-                          className="hover:opacity-70 disabled:opacity-40"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ) : (
-                      <label
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer"
-                        style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
-                        title="Attach a receipt or invoice — will follow the transaction on approve."
-                      >
-                        <Paperclip className="w-3 h-3" />
-                        <span>Attach</span>
-                        <input
-                          type="file"
-                          className="hidden"
-                          disabled={busy === d.id}
-                          onChange={e => {
-                            const file = e.target.files?.[0]
-                            if (file) attachFile(d.id, file)
-                            // Reset so re-selecting the same file re-fires onChange
-                            e.currentTarget.value = ''
-                          }}
-                        />
-                      </label>
-                    )}
+        <div className="flex flex-col gap-3">
+          {drafts.map(d => {
+            const needsAccount = !d.matched_account_id
+            const credit = d.direction === 'credit'
+            const color = credit ? 'var(--income)' : 'var(--expense)'
+            const acctName = accounts.find(a => a.id === d.matched_account_id)?.name
+            const amountStr = d.amount != null ? (d.currency === 'INR' ? fmt(d.amount) : `${d.currency} ${d.amount.toLocaleString('en-IN')}`) : '?'
+            return (
+              <div key={d.id} className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: `1px solid ${needsAccount ? 'color-mix(in srgb, var(--amber) 30%, transparent)' : 'var(--border)'}` }}>
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0" style={{ background: `color-mix(in srgb, ${color} 13%, transparent)` }}>{credit ? '💰' : '🧾'}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <input value={d.name ?? ''} onChange={e => patch(d.id, { name: e.target.value })} placeholder="Description" className="bg-transparent text-[13.5px] font-bold outline-none min-w-0 flex-1" style={{ color: 'var(--text)' }} />
+                      <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded-full shrink-0" style={{ color: needsAccount ? 'var(--amber)' : 'var(--income)', background: needsAccount ? 'var(--accent-light)' : 'color-mix(in srgb, var(--income) 12%, transparent)' }}>{needsAccount ? 'Needs account' : (d.confidence != null ? `${Math.round(d.confidence * 100)}% match` : 'Draft')}</span>
+                      {d.attachment_path && <Paperclip className="w-3 h-3 shrink-0" style={{ color: 'var(--text-faint)' }} />}
+                    </div>
+                    <p className="text-[11px] mt-0.5 truncate" style={{ color: 'var(--text-faint)' }}>
+                      {[acctName || (d.partial_account ? `a/c ••${d.partial_account}` : ''), d.txn_date, d.sender_email ? `from ${d.sender_email}` : ''].filter(Boolean).join(' · ')}
+                    </p>
                   </div>
+                  <span className="text-[15px] font-extrabold shrink-0 text-right" style={{ color, width: '96px' }}>{credit ? '+' : '−'}{amountStr}</span>
+                  <button onClick={() => approve(d)} disabled={busy === d.id || needsAccount} className="w-[34px] h-[34px] rounded-lg flex items-center justify-center shrink-0 disabled:cursor-not-allowed" style={{ background: needsAccount ? 'var(--surface-2)' : 'var(--brand)', color: needsAccount ? 'var(--text-faint)' : '#fff', border: needsAccount ? '1px solid var(--border)' : 'none' }} title="Approve"><Check className="w-4 h-4" /></button>
+                  <button onClick={() => dismiss(d)} disabled={busy === d.id} className="w-[34px] h-[34px] rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }} title="Dismiss"><X className="w-4 h-4" /></button>
+                </div>
+
+                {/* pickers */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                  <Select label="Account" value={d.matched_account_id ?? ''} onChange={v => patch(d.id, { matched_account_id: v || null })}
+                    options={[{ value: '', label: needsAccount ? '⚠ Pick account' : 'Account' }, ...accounts.map(a => ({ value: a.id, label: a.name }))]} warn={needsAccount} />
+                  <Select label="Category" value={d.category_id ?? ''} onChange={v => patch(d.id, { category_id: v || null })}
+                    options={[{ value: '', label: 'Category' }, ...expenseCats.map(c => ({ value: c.id, label: c.name }))]} />
+                  <Select label="Payee" value={d.payee_id ?? ''} onChange={v => patch(d.id, { payee_id: v || null })}
+                    options={[{ value: '', label: 'Payee' }, ...payees.map(p => ({ value: p.id, label: p.name }))]} />
+                </div>
+
+                {/* attachment control */}
+                <div className="mt-2 text-xs">
+                  {d.attachment_path ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title={d.attachment_name ?? ''}>
+                      <Paperclip className="w-3 h-3" /><span className="truncate max-w-[160px]">{d.attachment_name}</span>
+                      <button onClick={() => removeAttachment(d.id, d.attachment_path!)} disabled={busy === d.id} className="hover:opacity-70 disabled:opacity-40"><X className="w-3 h-3" /></button>
+                    </span>
+                  ) : (
+                    <label className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                      <Paperclip className="w-3 h-3" /><span>Attach receipt</span>
+                      <input type="file" className="hidden" disabled={busy === d.id} onChange={e => { const file = e.target.files?.[0]; if (file) attachFile(d.id, file); e.currentTarget.value = '' }} />
+                    </label>
+                  )}
                 </div>
               </div>
-
-              {/* pickers */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Select label="Account" value={d.matched_account_id ?? ''} onChange={v => patch(d.id, { matched_account_id: v || null })}
-                  options={[{ value: '', label: needsAccount ? '⚠ Pick account' : 'Account' }, ...accounts.map(a => ({ value: a.id, label: a.custom_type_name ? `${a.name}` : a.name }))]} warn={needsAccount} />
-                <Select label="Category" value={d.category_id ?? ''} onChange={v => patch(d.id, { category_id: v || null })}
-                  options={[{ value: '', label: 'Category' }, ...expenseCats.map(c => ({ value: c.id, label: c.name }))]} />
-                <Select label="Payee" value={d.payee_id ?? ''} onChange={v => patch(d.id, { payee_id: v || null })}
-                  options={[{ value: '', label: 'Payee' }, ...payees.map(p => ({ value: p.id, label: p.name }))]} />
-              </div>
-
-              <div className="flex items-center justify-end gap-2">
-                <button onClick={() => dismiss(d)} disabled={busy === d.id}
-                  className="px-3 py-1.5 rounded-lg text-sm flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                  <X className="w-3.5 h-3.5" /> Dismiss
-                </button>
-                <button onClick={() => approve(d)} disabled={busy === d.id || needsAccount}
-                  className="btn-brand px-4 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-1 disabled:opacity-40">
-                  <Check className="w-3.5 h-3.5" /> {busy === d.id ? 'Adding…' : 'Approve'}
-                </button>
-              </div>
-            </div>
-          )
-        })
+            )
+          })}
+        </div>
       )}
     </div>
   )
