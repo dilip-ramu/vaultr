@@ -108,40 +108,43 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
   }, [accounts, builtinOverrides])
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6">
+    <div className="w-full px-4 md:px-8 py-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Accounts</h1>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Accounts</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''} across {accountGroups.length} type{accountGroups.length !== 1 ? 's' : ''}</p>
         </div>
         <button
           onClick={() => { setEditAccount(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+          className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all shrink-0"
           style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
         >
           <Plus className="w-4 h-4" />
-          Add
+          Add account
         </button>
       </div>
 
       {/* Net Worth band */}
-      <div className="rounded-2xl p-5 md:p-6 mb-6" style={{ background: 'linear-gradient(135deg, var(--brand-deep) 0%, var(--brand-dark) 100%)', boxShadow: 'var(--shadow-lg)' }}>
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: 'rgba(255,255,255,0.55)' }}>Net Worth</p>
-        <p className="text-3xl font-extrabold tracking-tight mb-4" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(netWorth)}</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="md:pr-5 md:border-r" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Assets</p>
-            <p className="text-lg font-extrabold tracking-tight" style={{ color: '#86EFAC', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalAssets)}</p>
+      <div className="rounded-2xl px-6 py-5 md:py-6 mb-6 flex flex-col md:flex-row md:items-center gap-5 md:gap-0" style={{ background: 'linear-gradient(135deg, var(--brand-deep) 0%, var(--brand-dark) 100%)', boxShadow: 'var(--shadow-lg)' }}>
+        <div className="md:flex-[1.1]">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: 'rgba(255,255,255,0.6)' }}>Net Worth</p>
+          <p className="text-4xl font-extrabold tracking-tight leading-none mt-1.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(netWorth)}</p>
+        </div>
+        <div className="hidden md:block w-px h-14 mx-6" style={{ background: 'rgba(255,255,255,0.15)' }} />
+        <div className="grid grid-cols-3 gap-4 md:flex-[2] md:gap-6">
+          <div>
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Assets</p>
+            <p className="text-xl md:text-[22px] font-extrabold tracking-tight mt-0.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalAssets)}</p>
           </div>
-          <div className="md:px-5 md:border-r" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Liabilities</p>
-            <p className="text-lg font-extrabold tracking-tight" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalLiabilities)}</p>
+          <div>
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Liabilities</p>
+            <p className="text-xl md:text-[22px] font-extrabold tracking-tight mt-0.5" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalLiabilities)}</p>
           </div>
           {credit.totalLimit > 0 && (
-            <div className="md:px-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Available credit</p>
-              <p className="text-lg font-extrabold tracking-tight" style={{ color: '#F6D08A', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(credit.totalAvailable)}</p>
+            <div>
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Available credit</p>
+              <p className="text-xl md:text-[22px] font-extrabold tracking-tight mt-0.5" style={{ color: '#9DE8B8', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(credit.totalAvailable)}</p>
             </div>
           )}
         </div>
@@ -164,13 +167,13 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-6">
           {accountGroups.map(group => (
             <div key={group.key}>
-              <p className="text-xs font-semibold uppercase tracking-wide px-1 mb-2" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.1em] px-1 mb-2.5" style={{ color: 'var(--text-muted)' }}>
                 {group.label}
               </p>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {group.accounts.map(account => (
                   <AccountCard
                     key={account.id}
