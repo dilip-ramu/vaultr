@@ -45,8 +45,17 @@ function monthStatus(m: PayrollMonth): Exclude<StatusFilter, 'all'> {
   return 'in_progress'
 }
 
+function PayTile({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+      <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-[20px] font-extrabold tracking-tight mt-1 truncate" style={{ color, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+    </div>
+  )
+}
+
 const STATUS_BADGE: Record<Exclude<StatusFilter, 'all'>, { label: string; cls: string }> = {
-  settled:     { label: '✓ Settled',     cls: 'bg-emerald-100 text-emerald-700' },
+  settled:     { label: '✓ Settled',     cls: 'bg-[var(--brand-light)] text-[var(--income)]' },
   finalized:   { label: '✓ Finalized',   cls: 'bg-[var(--brand-light)] text-[var(--income)]' },
   in_progress: { label: 'In progress',   cls: 'bg-[var(--accent-light)] text-[var(--amber)]' },
 }
@@ -101,20 +110,30 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Monthly Processing</h1>
-          <p className="text-sm text-[var(--text-muted)] mt-1">Create and manage payroll for each month</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Payroll Processing</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">Run and track payroll each month</p>
         </div>
         <button
           onClick={() => { setShowCreate(true); setCreateError(null); setNewMonth(''); setNewPayDate(''); setNewDescription('') }}
-          className="px-4 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 btn-brand text-white rounded-xl text-sm font-bold shrink-0 transition-colors"
         >
-          + New Month
+          + New month
         </button>
       </div>
+
+      {/* Status band — latest month */}
+      {months[0] && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <PayTile label={`${fmtMonth(months[0].payroll_month).toUpperCase()} PAYABLE`} value={fmtInr(Number(months[0].total_payable ?? 0))} color="var(--text)" />
+          <PayTile label="MONTHS TRACKED" value={`${months.length}`} color="var(--brand)" />
+          <PayTile label="PAY DATE" value={fmtDate(months[0].payment_date)} color="var(--text)" />
+          <PayTile label="STATUS" value={STATUS_BADGE[monthStatus(months[0])].label.replace('✓ ', '')} color="var(--amber)" />
+        </div>
+      )}
 
       {/* Status filter */}
       {months.length > 0 && (
@@ -141,61 +160,38 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
         </div>
       )}
 
-      {/* Month list */}
+      {/* Month ledger */}
       {months.length === 0 ? (
         <div className="text-center py-16 text-[var(--text-faint)]">
-          No payroll months yet. Click "+ New Month" to start.
+          No payroll months yet. Click "+ New month" to start.
         </div>
       ) : (
-        <div className="space-y-3">
-          {months.filter(m => filter === 'all' || monthStatus(m) === filter).map(m => (
-            <div
-              key={m.id}
-              onClick={() => router.push(`/payroll/processing/${m.id}`)}
-              className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-4 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
-            >
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-[var(--text)]">{fmtMonth(m.payroll_month)}</div>
-                    {m.description && (
-                      <div className="text-sm text-[var(--text-muted)] mt-0.5">{m.description}</div>
-                    )}
-                  </div>
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[monthStatus(m)].cls}`}>
-                    {STATUS_BADGE[monthStatus(m)].label}
-                  </span>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <div className="grid grid-cols-[1.6fr_1fr_1fr_auto] gap-x-4 px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-2)' }}>
+            <span>Month</span><span>Pay date</span><span className="text-right">Payable</span><span className="text-right">Status</span>
+          </div>
+          {months.filter(m => filter === 'all' || monthStatus(m) === filter).map(m => {
+            const st = STATUS_BADGE[monthStatus(m)]
+            return (
+              <div
+                key={m.id}
+                onClick={() => router.push(`/payroll/processing/${m.id}`)}
+                className="group grid grid-cols-[1.6fr_1fr_1fr_auto] gap-x-4 items-center px-5 py-3.5 cursor-pointer transition-colors hover:bg-[var(--surface-2)]"
+                style={{ borderTop: '1px solid var(--border-2)' }}
+              >
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-bold truncate" style={{ color: 'var(--text)' }}>{fmtMonth(m.payroll_month)}</p>
+                  <p className="text-[11px] truncate" style={{ color: 'var(--text-faint)' }}>{m.description || '—'}</p>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="text-lg font-semibold text-[var(--text)] tabular-nums">{fmtInr(Number(m.total_payable ?? 0))}</div>
-                  <button
-                    onClick={(e) => handleDelete(m.id, e)}
-                    className="text-xs text-[var(--expense)] hover:text-[var(--expense)]"
-                  >
-                    Delete
-                  </button>
+                <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>{fmtDate(m.payment_date)}</span>
+                <span className="text-[13.5px] font-bold text-right tabular-nums" style={{ color: 'var(--text)' }}>{fmtInr(Number(m.total_payable ?? 0))}</span>
+                <div className="flex items-center gap-2 justify-end">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold ${st.cls}`}>{st.label}</span>
+                  <button onClick={(e) => handleDelete(m.id, e)} className="text-[11px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--expense)' }}>Delete</button>
                 </div>
               </div>
-              {/* Rate + dates strip */}
-              <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--text-muted)]">
-                {Number(m.expended_rate) > 0 && (
-                  <span>
-                    Exchange rate <span className="font-medium text-[var(--text)] tabular-nums">₹{Number(m.expended_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                  </span>
-                )}
-                {m.finalized_at && (
-                  <span>
-                    Processed <span className="font-medium text-[var(--text)]">{fmtDate(m.finalized_at)}</span>
-                  </span>
-                )}
-                {m.payment_date && (
-                  <span>
-                    Paid <span className="font-medium text-[var(--text)]">{fmtDate(m.payment_date)}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
