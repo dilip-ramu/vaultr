@@ -165,7 +165,7 @@ export default function MarkPaidModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] shrink-0">
           <h2 className="text-lg font-semibold ">Mark Payroll as Paid</h2>
           {step !== 'uploading' && (
-            <button onClick={onClose} className=" hover: text-xl font-light">×</button>
+            <button onClick={onClose} className="  text-xl font-light">×</button>
           )}
         </div>
 
@@ -240,7 +240,7 @@ export default function MarkPaidModal({
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)]  rounded-b-2xl shrink-0">
           {step === 'select' && (
             <>
-              <button onClick={onClose} className="px-4 py-2 text-sm  hover:">Cancel</button>
+              <button onClick={onClose} className="px-4 py-2 text-sm  ">Cancel</button>
               <button
                 onClick={handleConfirm}
                 className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"

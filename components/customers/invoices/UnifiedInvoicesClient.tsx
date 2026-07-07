@@ -343,7 +343,7 @@ function InvoiceRow({
         <button
           onClick={() => onDelete(invoice)}
           disabled={deleting}
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover: disabled:opacity-50 transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-lg  disabled:opacity-50 transition-colors"
           title="Delete invoice"
         >
           {deleting

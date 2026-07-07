@@ -579,7 +579,7 @@ export default function ReimbursableInvoiceClient({
           <p className="flex-1 text-sm text-[var(--amber)]">
             <strong>{uncategorizedCount} expense{uncategorizedCount !== 1 ? 's' : ''}</strong> have no billing category and won&apos;t be included.
           </p>
-          <a href="/customers/invoices/reimbursables" className="shrink-0 flex items-center gap-1 text-xs font-medium text-[var(--amber)] bg-[var(--accent-light)] hover: px-3 py-1.5 rounded-lg transition-colors">
+          <a href="/customers/invoices/reimbursables" className="shrink-0 flex items-center gap-1 text-xs font-medium text-[var(--amber)] bg-[var(--accent-light)]  px-3 py-1.5 rounded-lg transition-colors">
             Go to Expenses <ArrowRight className="w-3 h-3" />
           </a>
         </div>

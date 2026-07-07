@@ -586,7 +586,7 @@ export default function ReimbursableExpensesClient({
                             const isQueued = !tx.is_contrast_billed && !!tx.contrast_billing_category_id
                             const btnBase = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all'
                             const btnColor = tx.is_contrast_billed
-                              ? 'bg-[var(--brand-light)] text-[var(--income)] hover:'
+                              ? 'bg-[var(--brand-light)] text-[var(--income)] '
                               : isQueued
                                 ? 'bg-[var(--brand-light)] text-[var(--brand)] hover:bg-[var(--brand)]'
                                 : 'bg-[var(--accent-light)] text-[var(--amber)] hover:bg-[var(--accent-light)]'

@@ -109,7 +109,7 @@ export default function BillNotificationBanner() {
         >
           View
         </Link>
-        <button onClick={() => setDismissed(true)} className=" hover:">
+        <button onClick={() => setDismissed(true)} className=" ">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>

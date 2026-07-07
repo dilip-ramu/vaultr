@@ -319,14 +319,14 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl  border border-[var(--border)]">
               <CheckCircle2 className="w-4 h-4  shrink-0" />
               <p className="text-sm ">{intSuccess}</p>
-              <button onClick={() => setIntSuccess(null)} className="ml-auto  hover: text-lg leading-none">&times;</button>
+              <button onClick={() => setIntSuccess(null)} className="ml-auto   text-lg leading-none">&times;</button>
             </div>
           )}
           {intError && (
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl  border border-[var(--border)]">
               <AlertTriangle className="w-4 h-4  shrink-0" />
               <p className="text-sm ">{intError}</p>
-              <button onClick={() => setIntError(null)} className="ml-auto  hover: text-lg leading-none">&times;</button>
+              <button onClick={() => setIntError(null)} className="ml-auto   text-lg leading-none">&times;</button>
             </div>
           )}
 
@@ -360,7 +360,7 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                   <button
                     onClick={handleDisconnect}
                     disabled={intPending}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all disabled:opacity-60 hover: hover:border-[var(--border)] hover:"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all disabled:opacity-60  hover:border-[var(--border)] "
                     style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
                   >
                     <Link2Off className="w-3.5 h-3.5" />
@@ -386,14 +386,14 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                       </ul>
                     )}
                   </div>
-                  <button onClick={() => setCheckResult(null)} className=" hover: text-lg leading-none">&times;</button>
+                  <button onClick={() => setCheckResult(null)} className="  text-lg leading-none">&times;</button>
                 </div>
               )}
               {checkError && (
                 <div className="flex items-start gap-3 p-4 rounded-xl  border border-[var(--border)]">
                   <AlertTriangle className="w-4 h-4  shrink-0 mt-0.5" />
                   <p className="text-sm ">{checkError}</p>
-                  <button onClick={() => setCheckError(null)} className="ml-auto  hover: text-lg leading-none">&times;</button>
+                  <button onClick={() => setCheckError(null)} className="ml-auto   text-lg leading-none">&times;</button>
                 </div>
               )}
 
@@ -629,7 +629,7 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                         {/* Delete */}
                         <button
                           onClick={() => handleDeleteSender(sender.id)}
-                          className="p-1.5 rounded-lg border transition-colors hover: hover:border-[var(--border)] hover:"
+                          className="p-1.5 rounded-lg border transition-colors  hover:border-[var(--border)] "
                           style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
                           title="Delete sender"
                         >

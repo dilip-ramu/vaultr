@@ -85,7 +85,7 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
           <h2 className="text-lg font-bold ">
             {isEdit ? 'Edit Category' : 'New Category'}
           </h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center  hover: rounded-lg">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center   rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -133,7 +133,7 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
                   type="button"
                   onClick={() => setIcon(value)}
                   className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-all ${
-                    icon === value ? 'ring-2 ring-offset-1 ring-brand-500 bg-brand-50' : ' hover:'
+                    icon === value ? 'ring-2 ring-offset-1 ring-brand-500 bg-brand-50' : ' '
                   }`}
                 >
                   {ICON_EMOJI_MAP[value] ?? '•'}

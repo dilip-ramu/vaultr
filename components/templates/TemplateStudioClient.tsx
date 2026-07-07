@@ -213,7 +213,7 @@ export default function TemplateStudioClient({ docType, docLabel, initialTemplat
                   <div className="flex items-center gap-3">
                     <button onClick={() => openEditor(t.id)} className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Edit</button>
                     <button onClick={() => duplicate(t)} className="text-xs inline-flex items-center gap-1" style={{ color: 'var(--text-muted)' }}><Copy className="w-3.5 h-3.5" />Duplicate</button>
-                    <button onClick={() => remove(t)} className="text-xs inline-flex items-center gap-1  hover:"><Trash2 className="w-3.5 h-3.5" />Delete</button>
+                    <button onClick={() => remove(t)} className="text-xs inline-flex items-center gap-1  "><Trash2 className="w-3.5 h-3.5" />Delete</button>
                   </div>
                 </div>
               ))}

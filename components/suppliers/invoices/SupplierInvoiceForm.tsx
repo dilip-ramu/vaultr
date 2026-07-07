@@ -327,7 +327,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
                     {form.attachment_size && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmtFileSize(form.attachment_size)}</p>}
                   </div>
                 </div>
-                <button type="button" onClick={handleRemoveAttachment} className="p-1.5 rounded-lg hover:">
+                <button type="button" onClick={handleRemoveAttachment} className="p-1.5 rounded-lg ">
                   <Trash2 className="w-4 h-4 " />
                 </button>
               </div>

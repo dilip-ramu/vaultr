@@ -266,7 +266,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
             <div className="flex gap-2">
               {/* Currency picker button */}
               <button type="button" onClick={() => setShowCurrencyPicker(true)}
-                className="flex items-center gap-1.5 px-3 py-3  border border-[var(--border)] rounded-xl text-sm font-semibold  shrink-0 hover: min-w-[80px]">
+                className="flex items-center gap-1.5 px-3 py-3  border border-[var(--border)] rounded-xl text-sm font-semibold  shrink-0  min-w-[80px]">
                 <span>{currencyMeta.flag}</span>
                 <span>{currency}</span>
                 <ChevronDown className="w-3 h-3 " />
@@ -336,7 +336,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                       <span className="text-xs   px-1.5 py-0.5 rounded-md capitalize">{selectedPayee.type}</span>
                       <span className="flex-1 ">{selectedPayee.name}</span>
                       <button type="button" onClick={e => { e.stopPropagation(); setPayeeId(''); setPayeeSearch('') }}
-                        className=" hover:">
+                        className=" ">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </>
@@ -362,7 +362,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                         {filteredPayees.map(p => (
                           <button key={p.id} type="button"
                             onClick={() => { setPayeeId(p.id); setPayeeSearch(p.name); setShowPayeeDropdown(false) }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 hover: text-left">
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5  text-left">
                             <span className={`text-xs px-1.5 py-0.5 rounded-md capitalize font-medium ${
                               p.type === 'business' ? 'bg-[var(--surface-2)] text-[var(--transfer)]' :
                               p.type === 'personal' ? 'bg-[var(--brand-light)] ' :

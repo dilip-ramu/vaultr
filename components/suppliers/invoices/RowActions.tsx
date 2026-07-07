@@ -127,7 +127,7 @@ export default function RowActions({
         </button>
         <button
           onClick={() => onDelete(inv.id)}
-          className="p-1.5 rounded-lg transition-colors hover:"
+          className="p-1.5 rounded-lg transition-colors "
           title="Delete"
         >
           <X className="w-3.5 h-3.5 " />

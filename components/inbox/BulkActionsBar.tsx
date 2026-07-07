@@ -30,7 +30,7 @@ export default function BulkActionsBar({
       <button onClick={() => onBulkStatus('reviewed')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent-light)] text-[var(--amber)] border border-[var(--border)] hover:bg-[var(--accent-light)] transition-colors">
         <CheckCircle2 className="w-3 h-3" /> Mark Reviewed
       </button>
-      <button onClick={() => onBulkStatus('ignored')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium   border border-[var(--border)] hover: transition-colors">
+      <button onClick={() => onBulkStatus('ignored')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium   border border-[var(--border)]  transition-colors">
         <EyeOff className="w-3 h-3" /> Ignore
       </button>
       <button onClick={onBulkDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium   border border-[var(--border)] hover:bg-[var(--surface-2)] transition-colors ml-auto">

@@ -125,7 +125,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
       <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold ">{isEdit ? 'Edit Customer' : 'New Customer'}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center  hover: rounded-lg">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center   rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -305,7 +305,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
                     <button
                       type="button"
                       onClick={() => setFixedExpenses(prev => prev.filter((_, i) => i !== idx))}
-                      className="w-9 h-9 flex items-center justify-center  hover: rounded-lg"
+                      className="w-9 h-9 flex items-center justify-center   rounded-lg"
                       title="Remove row"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -315,7 +315,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
                 <button
                   type="button"
                   onClick={() => setFixedExpenses(prev => [...prev, { description: '', amount: 0 }])}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium bg-[var(--surface)] border border-dashed border-[var(--border)]  hover:"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium bg-[var(--surface)] border border-dashed border-[var(--border)]  "
                 >
                   <Plus className="w-3.5 h-3.5" /> Add expense row
                 </button>
