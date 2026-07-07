@@ -201,7 +201,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
   if (selectedEntry) {
     return (
       <div>
-        <div className="no-print flex items-center justify-between mb-6 max-w-2xl mx-auto">
+        <div className="no-print flex items-center justify-between mb-6 w-full">
           <button onClick={() => setSelectedEntry(null)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-sm">
             ← Back to list
           </button>

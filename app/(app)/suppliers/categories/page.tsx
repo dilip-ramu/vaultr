@@ -25,7 +25,7 @@ export default async function SupplierCategoriesPage() {
   ])
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <SupplierCategoriesClient
         initialSuppliers={(suppliers ?? []) as unknown as import('@/lib/suppliers/types').Supplier[]}
         categories={categories ?? []}

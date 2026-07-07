@@ -10,7 +10,7 @@ export default async function SetupExportTabPage() {
   if (!user) redirect('/login')
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <DownloadsClient />
     </div>
   )

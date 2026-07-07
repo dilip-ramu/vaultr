@@ -2,7 +2,7 @@ import { SkeletonCard, SkeletonList, SkeletonStat } from '@/components/shared/Sk
 
 export default function DashboardLoading() {
   return (
-    <div className="page-enter max-w-2xl mx-auto px-4 py-6 space-y-5">
+    <div className="page-enter w-full px-4 py-6 space-y-5">
       <div className="space-y-1.5">
         <div className="skeleton h-2.5 w-24" />
         <div className="skeleton h-6 w-40" />

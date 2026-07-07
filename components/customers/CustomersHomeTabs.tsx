@@ -18,7 +18,7 @@ export default function CustomersHomeTabs() {
   if (!RELEVANT.includes(pathname)) return null
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+    <div className="w-full px-4 sm:px-6 lg:px-8 pt-6">
       <div
         className="flex gap-1 p-1 rounded-xl overflow-x-auto"
         style={{ background: 'var(--surface-2)' }}

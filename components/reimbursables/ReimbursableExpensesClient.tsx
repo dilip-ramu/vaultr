@@ -311,7 +311,7 @@ export default function ReimbursableExpensesClient({
   // ── No payee found ─────────────────────────────────────────────────────────
   if (!payeeFound) {
     return (
-      <div className="p-6 max-w-2xl mx-auto">
+      <div className="p-6 w-full">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
             <FileText className="w-5 h-5 text-purple-600" />
@@ -333,7 +333,7 @@ export default function ReimbursableExpensesClient({
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-5">
+    <div className="p-4 md:p-6 w-full space-y-5">
 
       {/* Migration warning */}
       {!migrationsRun && (

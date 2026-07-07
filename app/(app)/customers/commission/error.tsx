@@ -8,7 +8,7 @@ export default function CommissionError({ error, reset }: {
   reset: () => void
 }) {
   return (
-    <div className="max-w-xl mx-auto px-4 py-16 text-center">
+    <div className="w-full px-4 py-16 text-center">
       <p className="text-red-500 font-semibold mb-2">Commission page error</p>
       <p className="text-sm font-mono bg-red-50 text-red-700 rounded-xl px-4 py-3 break-all mb-4">
         {error.message || 'Unknown error'}{error.digest ? ` (digest: ${error.digest})` : ''}

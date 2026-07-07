@@ -121,7 +121,7 @@ export default function EmailSetupClient({ initialIntegration, initialSenders, a
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 space-y-6">
+    <div className="w-full px-4 sm:px-6 lg:px-8 pb-8 space-y-6">
 
       {/* ── Integration ─────────────────────────────────────────────────────── */}
       <div className="rounded-2xl border overflow-hidden" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>

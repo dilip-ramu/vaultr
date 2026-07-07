@@ -384,7 +384,7 @@ export default function CommissionClient() {
   }
 
   if (loading) return <div className="flex justify-center py-24 text-sm" style={{color:'var(--text-muted)'}}>Loading…</div>
-  if (loadErr)  return <div className="max-w-xl mx-auto px-4 py-16 text-center"><p className="text-[var(--expense)] font-semibold mb-2">Error</p><p className="text-sm font-mono bg-[var(--surface-2)] text-[var(--expense)] rounded-xl px-4 py-3 break-all">{loadErr}</p></div>
+  if (loadErr)  return <div className="w-full px-4 py-16 text-center"><p className="text-[var(--expense)] font-semibold mb-2">Error</p><p className="text-sm font-mono bg-[var(--surface-2)] text-[var(--expense)] rounded-xl px-4 py-3 break-all">{loadErr}</p></div>
 
   return (
     <div className="w-full px-4 md:px-8 py-6">

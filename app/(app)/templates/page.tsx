@@ -27,7 +27,7 @@ export default async function TemplatesPage() {
   })
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
       <div className="mb-4">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Templates</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>

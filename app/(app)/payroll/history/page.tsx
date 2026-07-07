@@ -50,7 +50,7 @@ export default async function PayrollHistoryPage() {
   const finalizedMonths = (months ?? []) as PayrollMonth[]
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Payroll History</h1>

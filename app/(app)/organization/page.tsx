@@ -46,7 +46,7 @@ export default async function OrganizationCompaniesTab() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
+    <div className="w-full px-4 sm:px-6 lg:px-8 pb-6">
       <CompaniesClient initialCompanies={augmented} logoUrls={logoUrls} />
     </div>
   )

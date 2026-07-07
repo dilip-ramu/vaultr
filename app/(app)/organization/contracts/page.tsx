@@ -35,7 +35,7 @@ export default async function OrganizationContractsTab() {
   )).sort()
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
       <ContractsClient
         initialTemplates={rows}
         companies={(companies ?? []).map(c => ({ id: c.id as string, name: c.name as string }))}

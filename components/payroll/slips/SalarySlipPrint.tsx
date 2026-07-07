@@ -86,7 +86,7 @@ export default function SalarySlipPrint({ entry, month, employee, companyName, c
         @page { size: A4; margin: 15mm; }
       `}</style>
 
-      <div id="slip-print" className="bg-[var(--surface)] p-8 max-w-2xl mx-auto font-sans text-sm ">
+      <div id="slip-print" className="bg-[var(--surface)] p-8 w-full font-sans text-sm ">
         {/* Company header (per template, v69) */}
         {tpl === 'modern' ? (
           <div className="rounded-md p-4 mb-4 text-center" style={{ background: ac }}>

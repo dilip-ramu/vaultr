@@ -409,7 +409,7 @@ export default function ReimbursableHistoryClient({ invoices: initial }: { invoi
     setInvoices(prev => prev.filter(inv => inv.id !== id))
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
+    <div className="p-4 md:p-6 w-full space-y-5">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-[var(--surface-2)] flex items-center justify-center">
           <History className="w-5 h-5 text-[var(--text-muted)]" />
