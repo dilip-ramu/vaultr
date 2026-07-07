@@ -71,6 +71,11 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
+  // Most-recent month by payroll_month date (list order isn't guaranteed)
+  const latest = months.length
+    ? months.reduce((a, b) => (String(a.payroll_month) >= String(b.payroll_month) ? a : b))
+    : null
+
   async function handleCreate() {
     if (!newMonth) { setCreateError('Please select a month'); return }
     setCreating(true)
@@ -125,13 +130,13 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
         </button>
       </div>
 
-      {/* Status band — latest month */}
-      {months[0] && (
+      {/* Status band — most-recent month by date */}
+      {latest && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <PayTile label={`${fmtMonth(months[0].payroll_month).toUpperCase()} PAYABLE`} value={fmtInr(Number(months[0].total_payable ?? 0))} color="var(--text)" />
+          <PayTile label={`${fmtMonth(latest.payroll_month).toUpperCase()} PAYABLE`} value={fmtInr(Number(latest.total_payable ?? 0))} color="var(--text)" />
           <PayTile label="MONTHS TRACKED" value={`${months.length}`} color="var(--brand)" />
-          <PayTile label="PAY DATE" value={fmtDate(months[0].payment_date)} color="var(--text)" />
-          <PayTile label="STATUS" value={STATUS_BADGE[monthStatus(months[0])].label.replace('✓ ', '')} color="var(--amber)" />
+          <PayTile label="PAY DATE" value={fmtDate(latest.payment_date)} color="var(--text)" />
+          <PayTile label="STATUS" value={STATUS_BADGE[monthStatus(latest)].label.replace('✓ ', '')} color="var(--amber)" />
         </div>
       )}
 
@@ -170,7 +175,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
           <div className="grid grid-cols-[1.6fr_1fr_1fr_auto] gap-x-4 px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-2)' }}>
             <span>Month</span><span>Pay date</span><span className="text-right">Payable</span><span className="text-right">Status</span>
           </div>
-          {months.filter(m => filter === 'all' || monthStatus(m) === filter).map(m => {
+          {months.filter(m => filter === 'all' || monthStatus(m) === filter).sort((a, b) => String(b.payroll_month).localeCompare(String(a.payroll_month))).map(m => {
             const st = STATUS_BADGE[monthStatus(m)]
             return (
               <div
