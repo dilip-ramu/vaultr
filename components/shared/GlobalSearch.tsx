@@ -58,20 +58,20 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 h-12" style={{ borderBottom: '1px solid var(--border)' }}>
-          <Search className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
+          <button onClick={onClose} className="shrink-0 p-1 rounded-md" style={{ color: 'var(--text-muted)' }} aria-label="Close search">
+            <X className="w-4 h-4" />
+          </button>
           <input
             ref={inputRef}
             value={q}
             onChange={e => setQ(e.target.value)}
             onKeyDown={e => { if (e.key === 'Escape') onClose() }}
             placeholder="Search transactions, invoices, suppliers, staff…"
-            className="flex-1 min-w-0 bg-transparent outline-none text-sm"
-            style={{ color: 'var(--text)' }}
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm border-0 focus:shadow-none focus:border-0"
+            style={{ color: 'var(--text)', boxShadow: 'none' }}
           />
           {loading && <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: 'var(--text-faint)' }} />}
-          <button onClick={onClose} className="shrink-0 p-1 rounded-md" style={{ color: 'var(--text-muted)' }} aria-label="Close search">
-            <X className="w-4 h-4" />
-          </button>
+          <Search className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
         </div>
 
         {/* Results */}
