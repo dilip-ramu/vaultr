@@ -65,7 +65,7 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Organization</h1>
+          <h2 className="text-lg font-bold tracking-tight" style={{ color: 'var(--text)' }}>Companies</h2>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} · legal entities & GST
           </p>

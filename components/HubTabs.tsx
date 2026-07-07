@@ -10,6 +10,11 @@ import { usePathname } from 'next/navigation'
  * aren't part of a hub (Dashboard, Settings, detail pages) it renders nothing.
  */
 type Tab = { href: string; label: string }
+// Single canonical sub-nav per hub. This is the ONE tab strip a hub gets —
+// the old per-layout tab bars (OrganizationTabs, Suppliers/CustomersHomeTabs,
+// SupplierInvoicesTabs, TransactionsPageTabs) were removed so nothing doubles
+// up. Genuinely deeper second-level tabs (e.g. the Couriers/Reimbursables/
+// Invoices bar under Customers → Invoices) stay in their own layouts.
 const HUBS: { name: string; tabs: Tab[] }[] = [
   { name: 'Transactions', tabs: [
     { href: '/transactions', label: 'All transactions' },
@@ -25,13 +30,15 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/forecast', label: 'Forecast' },
   ] },
   { name: 'Customers', tabs: [
-    { href: '/customers', label: 'Directory' },
+    { href: '/customers', label: 'Overview' },
+    { href: '/customers/directory', label: 'Directory' },
     { href: '/customers/invoices', label: 'Invoices' },
     { href: '/customers/commission', label: 'Incoming' },
     { href: '/recoverables/tds', label: 'TDS' },
   ] },
   { name: 'Suppliers', tabs: [
     { href: '/suppliers', label: 'Overview' },
+    { href: '/suppliers/directory', label: 'Directory' },
     { href: '/suppliers/invoices', label: 'Invoices' },
     { href: '/suppliers/invoices/fetch', label: 'Fetch' },
   ] },

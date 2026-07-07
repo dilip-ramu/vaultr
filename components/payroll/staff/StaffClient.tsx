@@ -106,7 +106,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
         (e.designation ?? '').toLowerCase().includes(q)
       )
     })
-  }, [employees, search, showInactive])
+  }, [employees, search, showInactive, companyFilter])
 
   function openCreate() {
     setEditing(null)
