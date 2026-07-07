@@ -163,11 +163,11 @@ export default function ProfitabilityClient({ lines }: Props) {
   }, [lines])
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+    <div className="w-full px-4 md:px-8 py-6 space-y-5">
 
       {/* Header */}
       <div>
-        <h1 className="text-heading" style={{ color: 'var(--text)' }}>Profitability</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Profitability</h1>
         <p className="text-caption">Expected vs actual earnings — inwards, outwards and what&apos;s outstanding</p>
       </div>
 

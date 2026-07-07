@@ -54,12 +54,12 @@ export default function InsightsClient({ transactions, accounts, budgets, bills,
   const maxCatTotal = topCats[0]?.total ?? 1
 
   return (
-    <div className={hideHeader ? 'space-y-5' : 'max-w-2xl mx-auto px-4 py-6 space-y-5'}>
+    <div className={hideHeader ? 'space-y-5' : 'w-full px-4 md:px-8 py-6 space-y-5'}>
 
       {/* Header */}
       {!hideHeader ? (
         <div>
-          <h1 className="text-heading" style={{ color: 'var(--text)' }}>Your Financial Pulse</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Your Financial Pulse</h1>
           <p className="text-caption">{periodLabel ?? getMonthYear(now)}</p>
         </div>
       ) : (

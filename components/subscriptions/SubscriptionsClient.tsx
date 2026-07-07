@@ -156,12 +156,12 @@ export default function SubscriptionsClient({
     : null
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+    <div className="w-full px-4 md:px-8 py-6 space-y-5">
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-heading" style={{ color: 'var(--text)' }}>Subscriptions</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Subscriptions</h1>
           <p className="text-caption">{subs.length} active recurring</p>
         </div>
         <button

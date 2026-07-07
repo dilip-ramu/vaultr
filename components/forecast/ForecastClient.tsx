@@ -19,9 +19,9 @@ export default function ForecastClient({ forecast }: { forecast: Forecast }) {
   const anyTight = forecast.weeks.some(w => w.tight)
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+    <div className="w-full px-4 md:px-8 py-6 space-y-5">
       <div>
-        <h1 className="text-heading" style={{ color: 'var(--text)' }}>30-Day Forecast</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>30-Day Forecast</h1>
         <p className="text-caption">Where your bank balance is heading, from everything due in and out</p>
       </div>
 

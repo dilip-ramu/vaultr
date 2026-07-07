@@ -160,13 +160,13 @@ export default function BudgetsClient({
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
   return (
-    <div className={hideHeader ? 'space-y-5' : 'max-w-2xl mx-auto px-4 py-6 space-y-5'}>
+    <div className={hideHeader ? 'space-y-5' : 'w-full px-4 md:px-8 py-6 space-y-5'}>
 
       {/* Header */}
       <div className="flex items-center justify-between">
         {!hideHeader ? (
           <div>
-            <h1 className="text-heading" style={{ color: 'var(--text)' }}>Budgets</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Budgets</h1>
             <p className="text-caption">{periodLabel ?? `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`}</p>
           </div>
         ) : (
