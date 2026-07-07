@@ -46,14 +46,18 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[10001]" onClick={onClose}>
-      {/* Top bar — sits exactly where the header is, expands full width */}
+    <div
+      className="fixed inset-0 z-[10001] flex items-start justify-center px-4"
+      style={{ background: 'rgba(0,0,0,0.45)', paddingTop: 'max(12vh, 64px)' }}
+      onClick={onClose}
+    >
+      {/* Centered command palette */}
       <div
-        className="absolute inset-x-0 top-0 shadow-md"
-        style={{ background: 'var(--surface)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        className="w-full max-w-xl rounded-2xl overflow-hidden"
+        style={{ background: 'var(--surface)', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 px-3 h-12 search-grow" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-2 px-4 h-12" style={{ borderBottom: '1px solid var(--border)' }}>
           <Search className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
           <input
             ref={inputRef}
@@ -65,16 +69,16 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
             style={{ color: 'var(--text)' }}
           />
           {loading && <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: 'var(--text-faint)' }} />}
-          <button onClick={onClose} className="shrink-0 p-1" style={{ color: 'var(--text-muted)' }} aria-label="Close search">
+          <button onClick={onClose} className="shrink-0 p-1 rounded-md" style={{ color: 'var(--text-muted)' }} aria-label="Close search">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Results drop straight down from the bar */}
+        {/* Results */}
         {(q.trim().length >= 2 || hits.length > 0) && (
-          <div className="max-h-[70vh] overflow-y-auto" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="max-h-[60vh] overflow-y-auto py-1">
             {!loading && hits.length === 0 && q.trim().length >= 2 && (
-              <p className="px-4 py-6 text-center text-sm" style={{ color: 'var(--text-faint)' }}>
+              <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>
                 No matches for “{q}”
               </p>
             )}
