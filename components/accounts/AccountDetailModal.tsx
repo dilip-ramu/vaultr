@@ -1,0 +1,119 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { X, Pencil, ArrowLeftRight, Scale, CreditCard, ExternalLink } from 'lucide-react'
+import type { Account } from '@/lib/types'
+import { formatCurrency, getRelativeDate } from '@/lib/utils'
+import type { ReconTxn } from '@/lib/reconcile'
+import AccountReconcilePanel from './AccountReconcilePanel'
+
+type Tab = 'transactions' | 'reconcile' | 'charges'
+
+function signedForAccount(t: ReconTxn, accountId: string): number {
+  if (t.type === 'income') return t.amount
+  if (t.type === 'expense') return -t.amount
+  return t.to_account_id === accountId ? t.amount : -t.amount // transfer
+}
+
+export default function AccountDetailModal({
+  account, txns, currencyById, today, onReconciled, onEdit, onClose,
+}: {
+  account: Account
+  txns: ReconTxn[]
+  currencyById: Record<string, string>
+  today: string
+  onReconciled?: (accountId: string, atIso: string, balance: number) => void
+  onEdit: (a: Account) => void
+  onClose: () => void
+}) {
+  const router = useRouter()
+  const isCredit = account.type === 'credit'
+  const [tab, setTab] = useState<Tab>('transactions')
+
+  const accountTxns = txns
+    .filter(t => t.account_id === account.id || t.to_account_id === account.id)
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  const tabs: { key: Tab; label: string; icon: typeof ArrowLeftRight }[] = [
+    { key: 'transactions', label: 'Transactions', icon: ArrowLeftRight },
+    { key: 'reconcile', label: 'Reconcile', icon: Scale },
+    ...(isCredit ? [{ key: 'charges' as Tab, label: 'Charges', icon: CreditCard }] : []),
+  ]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl flex flex-col" style={{ background: 'var(--surface)', maxHeight: '90dvh', boxShadow: 'var(--shadow-lg)' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold truncate" style={{ color: 'var(--text)' }}>{account.name}</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{account.account_holder || account.name}</p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button onClick={() => onEdit(account)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Edit"><Pencil className="w-4 h-4" /></button>
+            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-0.5 p-1 m-4 mb-0 rounded-xl shrink-0" style={{ background: 'var(--surface-2)' }}>
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} className="flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-bold py-2 rounded-lg transition-colors" style={tab === t.key ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: 'var(--shadow)' } : { color: 'var(--text-muted)' }}>
+              <t.icon className="w-3.5 h-3.5" /> {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-4">
+          {tab === 'transactions' && (
+            accountTxns.length === 0 ? (
+              <p className="text-sm text-center py-10" style={{ color: 'var(--text-muted)' }}>No transactions in this account yet.</p>
+            ) : (
+              <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                {accountTxns.slice(0, 100).map((t, i) => {
+                  const amt = signedForAccount(t, account.id)
+                  return (
+                    <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ borderTop: i > 0 ? '1px solid var(--border-2)' : 'none' }}>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text)' }}>{t.name || (t.type === 'transfer' ? 'Transfer' : t.type)}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{getRelativeDate(t.date)}</p>
+                      </div>
+                      <span className="text-[13px] font-bold shrink-0" style={{ color: amt >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{amt >= 0 ? '+' : '−'}{formatCurrency(Math.abs(amt))}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+
+          {tab === 'reconcile' && (
+            <AccountReconcilePanel
+              account={{ id: account.id, name: account.name, currency: account.currency, initial_balance: account.initial_balance, balance: account.balance ?? null }}
+              txns={txns}
+              currencyById={currencyById}
+              today={today}
+              onReconciled={onReconciled}
+            />
+          )}
+
+          {tab === 'charges' && (
+            <div className="text-center py-8 px-4">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--accent-light)' }}>
+                <CreditCard className="w-6 h-6" style={{ color: 'var(--accent)' }} />
+              </div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Statement cycle &amp; hidden charges</p>
+              <p className="text-xs mt-1 mb-4 max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
+                Track statement amounts, compare the bank&apos;s figure to your transactions to catch hidden interest &amp; fees, and record payments.
+              </p>
+              <button onClick={() => router.push('/cards')} className="inline-flex items-center gap-1.5 text-white text-sm font-bold rounded-xl px-4 py-2.5" style={{ background: 'var(--brand)' }}>
+                Open statement &amp; charges <ExternalLink className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -8,6 +8,8 @@ import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, accountFaceColor, getCa
 import { formatCurrency, accountGroupRank } from '@/lib/utils'
 import { creditSummary, isLiability } from '@/lib/account-metrics'
 import type { ReconTxn } from '@/lib/reconcile'
+import { Avatar } from '../AppShell'
+import AccountDetailModal from './AccountDetailModal'
 
 const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
 
@@ -39,6 +41,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
   const [showForm, setShowForm] = useState(false)
   const [editAccount, setEditAccount] = useState<Account | null>(null)
   const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [detailAccount, setDetailAccount] = useState<Account | null>(null)
   const [revealed, setRevealed] = useState<Set<string>>(new Set())
   const toggleReveal = useCallback((key: string) => {
     setRevealed(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
@@ -211,17 +214,19 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
             const util = isCredit && account.credit_limit ? Math.min(Math.abs(bal) / Number(account.credit_limit), 1) : null
             const exp = expiryStr(account.card_expiry_month, account.card_expiry_year)
             return (
-              <div key={account.id} className="rounded-2xl overflow-hidden flex flex-col sm:flex-row" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+              <div key={account.id} onClick={() => setDetailAccount(account)} className="rounded-2xl overflow-hidden flex flex-col sm:flex-row cursor-pointer transition-shadow hover:brightness-[0.99]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
                 {/* LEFT — colored identity face */}
                 <div className="sm:w-[280px] shrink-0 p-5 flex flex-col justify-between gap-6" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${face} 52%, #000), ${face})`, minHeight: '178px' }}>
                   <div className="flex items-center justify-between">
-                    {isCredit ? <CreditCard className="w-6 h-6" style={{ color: 'rgba(255,255,255,0.9)' }} /> : <Wallet className="w-6 h-6" style={{ color: 'rgba(255,255,255,0.9)' }} />}
+                    {account.avatar_url
+                      ? <div className="rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.35)' }}><Avatar url={account.avatar_url} initials={(account.account_holder || account.name).slice(0, 2).toUpperCase()} size="sm" /></div>
+                      : (isCredit ? <CreditCard className="w-6 h-6" style={{ color: 'rgba(255,255,255,0.9)' }} /> : <Wallet className="w-6 h-6" style={{ color: 'rgba(255,255,255,0.9)' }} />)}
                     <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase" style={{ color: 'rgba(255,255,255,0.8)' }}>{account.card_network || disp.label}</span>
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-[15px] font-semibold tracking-[0.16em]" style={{ color: 'rgba(255,255,255,0.9)', fontVariantNumeric: 'tabular-nums' }}>{num ? (shown ? groupNumber(num) : maskNumber(num)) : '•••• •••• •••• ••••'}</p>
-                      {num && <button onClick={() => toggleReveal(numKey)} aria-label="Reveal number">{shown ? <EyeOff className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.75)' }} /> : <Eye className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.75)' }} />}</button>}
+                      {num && <button onClick={e => { e.stopPropagation(); toggleReveal(numKey) }} aria-label="Reveal number">{shown ? <EyeOff className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.75)' }} /> : <Eye className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.75)' }} />}</button>}
                     </div>
                     <div className="flex items-end justify-between gap-3 mt-3">
                       <div className="min-w-0">
@@ -244,7 +249,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                       <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text)' }}>{account.name}</p>
                       <span className="inline-block text-[10px] font-bold uppercase tracking-wide mt-1 px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${face} 12%, transparent)`, color: face }}>{disp.label}</span>
                     </div>
-                    <button onClick={() => handleEdit(account)} className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button onClick={e => { e.stopPropagation(); handleEdit(account) }} className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
                   </div>
                   <div className="mt-4">
                     <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{liability ? 'Outstanding' : 'Balance'}</p>
@@ -268,7 +273,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                             <span className="font-semibold truncate" style={{ color: 'var(--text)' }}>{dc.label || dc.card_network || 'Debit'}</span>
                             <span className="tabular-nums" style={{ color: 'var(--text-muted)' }}>{dc.card_number ? (dcShown ? groupNumber(dc.card_number) : `•• ${dc.card_number.replace(/\s+/g, '').slice(-4)}`) : ''}</span>
                             {dc.expiry_month && dc.expiry_year && <span className="text-[10.5px]" style={{ color: 'var(--text-faint)' }}>{expiryStr(dc.expiry_month, dc.expiry_year)}</span>}
-                            {dc.card_number && <button onClick={() => toggleReveal(dcKey)} className="ml-auto shrink-0" aria-label="Reveal">{dcShown ? <EyeOff className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} /> : <Eye className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />}</button>}
+                            {dc.card_number && <button onClick={e => { e.stopPropagation(); toggleReveal(dcKey) }} className="ml-auto shrink-0" aria-label="Reveal">{dcShown ? <EyeOff className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} /> : <Eye className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />}</button>}
                           </div>
                         )
                       })}
@@ -279,6 +284,18 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
             )
           })}
         </div>
+      )}
+
+      {detailAccount && (
+        <AccountDetailModal
+          account={detailAccount}
+          txns={reconcileTxns ?? []}
+          currencyById={currencyById}
+          today={today}
+          onReconciled={handleReconciled}
+          onEdit={a => { setDetailAccount(null); handleEdit(a) }}
+          onClose={() => setDetailAccount(null)}
+        />
       )}
 
       {showForm && (
