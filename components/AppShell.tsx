@@ -276,6 +276,20 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
     }
   }, [])
 
+  // iPad parity: icon-rail on tablet-portrait (768–1023px), full sidebar on
+  // landscape/desktop (≥1024px, restoring the user's saved preference).
+  useEffect(() => {
+    const portrait = window.matchMedia('(min-width: 768px) and (max-width: 1023px)')
+    const apply = () => {
+      if (portrait.matches) setCollapsed(true)
+      else if (window.innerWidth >= 1024) setCollapsed(localStorage.getItem('sidebar-collapsed') === 'true')
+    }
+    apply()
+    portrait.addEventListener('change', apply)
+    window.addEventListener('resize', apply)
+    return () => { portrait.removeEventListener('change', apply); window.removeEventListener('resize', apply) }
+  }, [])
+
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
     if (saved === 'true') setCollapsed(true)
