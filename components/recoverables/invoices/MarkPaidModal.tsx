@@ -161,7 +161,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
                 className="flex-1 py-2 rounded-lg text-sm font-semibold transition-colors"
                 style={
                   mode === m
-                    ? { background: 'var(--background)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }
+                    ? { background: 'var(--background)', color: 'var(--text)', boxShadow: 'var(--shadow)' }
                     : { color: 'var(--text-muted)' }
                 }
               >

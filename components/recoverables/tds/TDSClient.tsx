@@ -193,7 +193,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                   className="flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors"
                   style={
                     tab === t
-                      ? { background: 'var(--background)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }
+                      ? { background: 'var(--background)', color: 'var(--text)', boxShadow: 'var(--shadow)' }
                       : { color: 'var(--text-muted)' }
                   }
                 >

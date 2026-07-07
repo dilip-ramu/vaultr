@@ -90,7 +90,7 @@ export default function InvoicesTabsBar({ reimbursableCustomers, allCustomers }:
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors"
               style={
                 active
-                  ? { background: 'var(--background)', color: 'var(--text)', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }
+                  ? { background: 'var(--background)', color: 'var(--text)', boxShadow: 'var(--shadow)' }
                   : { color: 'var(--text-muted)' }
               }
             >
