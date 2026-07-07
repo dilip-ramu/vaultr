@@ -477,7 +477,9 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             <div className="text-xs text-[var(--text-muted)]">
               {month.income_transaction_id
                 ? '✓ Income & forex transactions logged'
-                : 'Log received amount as income and bank charges as expense'}
+                : month.contrast_invoice_id
+                  ? 'Log received amount as income — this also marks the linked customer invoice as paid'
+                  : 'Log received amount as income and bank charges as expense'}
             </div>
             {month.income_transaction_id ? (
               <button

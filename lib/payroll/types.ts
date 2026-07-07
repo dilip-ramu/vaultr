@@ -59,6 +59,9 @@ export interface PayrollMonth {
   payment_account_id: string | null
   income_transaction_id: string | null
   forex_transaction_id: string | null
+  /** Reimbursement invoice this month was opened from (legacy column name).
+   *  Logging income settles this invoice; see the income API route. */
+  contrast_invoice_id?: string | null
   created_at: string
 }
 
