@@ -31,10 +31,11 @@ const ICONS = {
   info:    Info,
 }
 
-const COLORS: Record<ToastType, { bg: string; color: string; icon: string }> = {
-  success: { bg: 'var(--status-paid-bg)',       color: 'var(--status-paid-text)',       icon: 'var(--income)' },
-  error:   { bg: 'var(--status-cancelled-bg)',   color: 'var(--status-cancelled-text)',  icon: 'var(--expense)' },
-  info:    { bg: 'var(--status-partial-bg)',      color: 'var(--status-partial-text)',    icon: 'var(--transfer)' },
+// Frame 18d — each toast is a surface card tinted with its status hue.
+const ACCENT: Record<ToastType, string> = {
+  success: 'var(--income)',
+  error:   'var(--expense)',
+  info:    'var(--transfer)',
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -69,21 +70,26 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         >
           {toasts.map(toast => {
             const Icon = ICONS[toast.type]
-            const colors = COLORS[toast.type]
+            const accent = ACCENT[toast.type]
             return (
               <div
                 key={toast.id}
-                className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg pointer-events-auto ${toast.exiting ? 'toast-exit' : 'toast-enter'}`}
-                style={{ backgroundColor: colors.bg, color: colors.color }}
+                className={`flex items-center gap-3 px-[15px] py-[13px] rounded-[14px] pointer-events-auto ${toast.exiting ? 'toast-exit' : 'toast-enter'}`}
+                style={{
+                  background: `color-mix(in srgb, ${accent} 12%, var(--surface))`,
+                  border: `1px solid color-mix(in srgb, ${accent} 26%, transparent)`,
+                  boxShadow: 'var(--shadow)',
+                  color: 'var(--text)',
+                }}
               >
-                <Icon className="w-4 h-4 shrink-0" style={{ color: colors.icon }} />
-                <p className="flex-1 text-sm font-medium leading-snug">{toast.message}</p>
+                <Icon className="w-[17px] h-[17px] shrink-0" style={{ color: accent }} />
+                <p className="flex-1 text-[13px] font-semibold leading-snug">{toast.message}</p>
                 <button
                   onClick={() => dismiss(toast.id)}
-                  className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full opacity-60 hover:opacity-100"
-                  style={{ color: colors.color }}
+                  className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full opacity-70 hover:opacity-100"
+                  style={{ color: 'var(--text-faint)' }}
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             )

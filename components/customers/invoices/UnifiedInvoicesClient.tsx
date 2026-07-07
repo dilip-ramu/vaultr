@@ -22,6 +22,7 @@ import { CheckCircle2, DollarSign, Clock, Loader2, Truck, FileText, Filter, Penc
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import EmptyState from '@/components/shared/EmptyState'
 
 interface Invoice {
   id:             string
@@ -234,9 +235,16 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="card flex flex-col items-center justify-center py-16 gap-3">
-          <FileText className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No invoices match this filter.</p>
+        <div className="py-10">
+          <EmptyState
+            icon={FileText}
+            title={invoices.length === 0 ? 'No invoices yet' : 'No invoices match'}
+            message={invoices.length === 0
+              ? "Create your first invoice and it'll show up here with its payment status."
+              : 'Try clearing the type or status filter.'}
+            actionLabel={invoices.length === 0 ? 'New invoice' : undefined}
+            onAction={invoices.length === 0 ? handleNewInvoice : undefined}
+          />
         </div>
       ) : (
         <div className="space-y-1.5">

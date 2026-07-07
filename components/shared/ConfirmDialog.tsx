@@ -53,42 +53,42 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           onClick={() => close(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl shadow-xl overflow-hidden"
-            style={{ background: 'var(--surface)' }}
+            className="w-full max-w-[400px] rounded-[20px] overflow-hidden"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="p-5">
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-[13px]">
                 {opts.danger && (
                   <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                    className="w-[38px] h-[38px] rounded-full flex items-center justify-center shrink-0"
                     style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)' }}
                   >
-                    <AlertTriangle className="w-4 h-4" style={{ color: 'var(--expense)' }} />
+                    <AlertTriangle className="w-[18px] h-[18px]" style={{ color: 'var(--expense)' }} />
                   </div>
                 )}
                 <div className="min-w-0">
                   {opts.title && (
-                    <h3 className="text-heading mb-1" style={{ color: 'var(--text)' }}>{opts.title}</h3>
+                    <h3 className="text-[15px] font-extrabold mb-[3px]" style={{ color: 'var(--text)' }}>{opts.title}</h3>
                   )}
-                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{opts.message}</p>
+                  <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>{opts.message}</p>
                 </div>
               </div>
             </div>
             <div
-              className="flex items-center justify-end gap-2 px-5 py-3"
+              className="flex items-center justify-end gap-2 px-5 py-[14px]"
               style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}
             >
               <button
                 onClick={() => close(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium"
+                className="px-[15px] py-[9px] rounded-[10px] text-[12.5px] font-bold"
                 style={{ color: 'var(--text-muted)' }}
               >
                 {opts.cancelLabel ?? 'Cancel'}
               </button>
               <button
                 onClick={() => close(true)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                className="px-4 py-[9px] rounded-[10px] text-[12.5px] font-bold text-white"
                 style={{ background: opts.danger ? 'var(--expense)' : 'var(--brand)' }}
               >
                 {opts.confirmLabel ?? (opts.danger ? 'Delete' : 'Confirm')}
