@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import Link from 'next/link'
 import {
-  AlertTriangle, Clock, TrendingUp, ArrowRight,
+  ArrowRight, Plus,
   DollarSign, FileText, Receipt, BookOpen,
 } from 'lucide-react'
 
@@ -111,107 +111,82 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [styles, receivables, orderById, customerById])
 
+  const totalIncoming = topCustomers.reduce((s, c) => s + c.incoming, 0)
+  const totalReceivable = topCustomers.reduce((s, c) => s + c.receivable, 0)
+  const totalOverdue = topCustomers.reduce((s, c) => s + c.overdue, 0)
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Customer Overview</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Incoming pipeline, overdue payments and receivables at a glance.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Customers</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{customers.length} customer{customers.length !== 1 ? 's' : ''}</p>
+        </div>
+        <Link href="/customers/directory" className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl shrink-0" style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}>
+          <Plus className="w-4 h-4" /> Add customer
+        </Link>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={<Clock className="w-5 h-5" />}
-          label="Pending Incoming"
-          value={`₹${fmtAmt(stats.pendingAmt)}`}
-          sub={`${stats.pendingCount} style${stats.pendingCount !== 1 ? 's' : ''}`}
-          color="blue"
-        />
-        <StatCard
-          icon={<AlertTriangle className="w-5 h-5" />}
-          label="Payment Overdue"
-          value={`₹${fmtAmt(stats.overdueAmt)}`}
-          sub={`${stats.overdueCount} style${stats.overdueCount !== 1 ? 's' : ''} past due`}
-          color="red"
-          highlight={stats.overdueCount > 0}
-        />
-        <StatCard
-          icon={<TrendingUp className="w-5 h-5" />}
-          label="Received This Month"
-          value={`₹${fmtAmt(stats.thisMonthAmt)}`}
-          sub={`₹${fmtAmt(stats.receivedAmt)} all time`}
-          color="green"
-        />
-        <StatCard
-          icon={<DollarSign className="w-5 h-5" />}
-          label="Receivables"
-          value={`₹${fmtAmt(stats.receivablesAmt)}`}
-          sub={`${stats.receivablesCount} open invoice${stats.receivablesCount !== 1 ? 's' : ''}`}
-          color="amber"
-          highlight={stats.receivablesCount > 0}
-        />
+      {/* Band tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Tile label="TO COLLECT" value={`₹${fmtAmt(stats.receivablesAmt)}`} sub={`${stats.receivablesCount} open invoice${stats.receivablesCount !== 1 ? 's' : ''}`} color="var(--income)" />
+        <Tile label="OVERDUE" value={`₹${fmtAmt(stats.overdueAmt)}`} sub={`${stats.overdueCount} past due`} color="var(--expense)" />
+        <Tile label="PIPELINE / UNBILLED" value={`₹${fmtAmt(stats.pendingAmt)}`} sub={`${stats.pendingCount} style${stats.pendingCount !== 1 ? 's' : ''}`} color="var(--amber)" />
+        <Tile label="ACTIVE" value={`${customers.length}`} sub="customers" color="var(--text)" />
       </div>
 
-      {/* Main Grid */}
-      <div className="grid md:grid-cols-3 gap-6">
-        {/* Top customers by pending commission */}
-        <div className="md:col-span-2 rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Top Pending Customers</h2>
-            <Link href="/customers/commission" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
+      {/* Directory table + ageing/breakdown rail */}
+      <div className="grid lg:grid-cols-3 gap-4 items-start">
+        <div className="lg:col-span-2 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Customers</p>
+            <Link href="/customers/directory" className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--brand)' }}>Directory <ArrowRight className="w-3 h-3" /></Link>
+          </div>
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 px-5 py-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-2)' }}>
+            <span>Customer</span><span className="text-right">Outstanding</span><span className="text-right">Overdue</span><span className="text-right">Status</span>
           </div>
           {topCustomers.length === 0 ? (
             <div className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Nothing pending</div>
-          ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {topCustomers.map(c => (
-                <div key={c.name} className="flex items-center justify-between px-5 py-3.5">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{c.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      {c.incoming > 0 && <span>₹{fmtAmt(c.incoming)} incoming</span>}
-                      {c.incoming > 0 && c.receivable > 0 && ' · '}
-                      {c.receivable > 0 && <span>₹{fmtAmt(c.receivable)} receivable</span>}
-                      {c.overdue > 0 && <span style={{ color: '#ef4444' }}> · ₹{fmtAmt(c.overdue)} overdue</span>}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold" style={{ color: c.overdue > 0 ? '#ef4444' : 'var(--text)' }}>
-                    ₹{fmtAmt(c.total)}
-                  </span>
+          ) : topCustomers.map(c => {
+            const status = c.overdue > 0 ? { label: 'Overdue', color: 'var(--expense)' } : c.total > 0 ? { label: 'Current', color: 'var(--text-muted)' } : { label: 'Settled', color: 'var(--income)' }
+            return (
+              <div key={c.name} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 items-center px-5 py-3" style={{ borderTop: '1px solid var(--border-2)' }}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{c.name.slice(0, 2).toUpperCase()}</span>
+                  <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{c.name}</p>
+                </div>
+                <span className="text-[13px] font-bold text-right tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(c.total)}</span>
+                <span className="text-[13px] font-semibold text-right tabular-nums" style={{ color: c.overdue > 0 ? 'var(--expense)' : 'var(--text-faint)' }}>{c.overdue > 0 ? `₹${fmtAmt(c.overdue)}` : '—'}</span>
+                <span className="text-[10.5px] font-bold text-right px-2 py-0.5 rounded-full justify-self-end" style={{ color: status.color, background: `color-mix(in srgb, ${status.color} 12%, transparent)` }}>{status.label}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Rail: breakdown + top debtor */}
+        <div className="space-y-4">
+          <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+            <p className="text-sm font-bold mb-3" style={{ color: 'var(--text)' }}>Breakdown</p>
+            <div className="space-y-2.5">
+              {[['Incoming pipeline', totalIncoming, 'var(--amber)'], ['Receivables', totalReceivable, 'var(--income)'], ['Overdue', totalOverdue, 'var(--expense)']].map(([label, val, col]) => (
+                <div key={label as string} className="flex items-center justify-between text-[13px]">
+                  <span className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}><span className="w-2 h-2 rounded-full" style={{ background: col as string }} />{label}</span>
+                  <span className="font-bold tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(val as number)}</span>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-
-        {/* Recently received */}
-        <div className="rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Recently Received</h2>
-            <Link href="/customers/commission" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>
-              View <ArrowRight className="w-3 h-3" />
-            </Link>
           </div>
-          {stats.recentReceived.length === 0 ? (
-            <div className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Nothing received yet</div>
-          ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {stats.recentReceived.map(s => (
-                <div key={s.id} className="flex items-center justify-between px-5 py-3.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{customerNameForStyle(s)}</p>
-                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
-                      {s.style_ref ?? '—'} · {s.received_date ? fmtDate(s.received_date) : '—'}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold shrink-0 ml-2" style={{ color: '#22c55e' }}>
-                    ₹{fmtAmt(Number(s.commission_inr || 0))}
-                  </span>
+          {topCustomers[0] && (
+            <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Top debtor</p>
+              <div className="flex items-center gap-2.5">
+                <span className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{topCustomers[0].name.slice(0, 2).toUpperCase()}</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{topCustomers[0].name}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>₹{fmtAmt(topCustomers[0].total)} outstanding</p>
                 </div>
-              ))}
+              </div>
             </div>
           )}
         </div>
@@ -241,6 +216,16 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
           </Link>
         ))}
       </div>
+    </div>
+  )
+}
+
+function Tile({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+      <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-[22px] font-extrabold tracking-tight mt-1" style={{ color, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+      <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{sub}</p>
     </div>
   )
 }
