@@ -248,7 +248,11 @@ export default async function ReimbursableNewInvoicePage({
             .eq('customer_id', activeCustomer.id)
             .eq('invoice_type', 'tax_invoice')
             .not('status', 'eq', 'cancelled')
-            .or(`contrast_invoice_id.is.null,contrast_invoice_id.eq.${existingInvoice.id}`)
+            // Show courier invoices already bundled into THIS reimbursement
+            // (any status — they may have cascaded to paid), plus any unbundled
+            // ones that are still OPEN. A paid, unbundled courier invoice was
+            // settled on its own and must not be offered for re-billing.
+            .or(`contrast_invoice_id.eq.${existingInvoice.id},and(contrast_invoice_id.is.null,status.neq.paid)`)
             .order('invoice_date', { ascending: false })
         : await supabase
             .from('recoverable_invoices')
@@ -257,6 +261,9 @@ export default async function ReimbursableNewInvoicePage({
             .eq('customer_id', activeCustomer.id)
             .eq('invoice_type', 'tax_invoice')
             .not('status', 'eq', 'cancelled')
+            // Only OPEN courier invoices are bundleable. A paid one was already
+            // settled directly and must not reappear in the next invoice.
+            .not('status', 'eq', 'paid')
             .is('contrast_invoice_id', null)
             .order('invoice_date', { ascending: false })
       )
