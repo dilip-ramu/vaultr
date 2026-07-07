@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
-  TrendingUp, TrendingDown, ChevronRight,
+  ChevronRight, Plus,
   ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale, CreditCard,
 } from 'lucide-react'
 import type { ProfitSummary } from '@/lib/profitability'
@@ -79,32 +79,14 @@ interface Props {
   payeeRings?: PayeeRing[]
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
+// ── Pulse-band segment (Command layout) ───────────────────────────────────────
 
-function StatCard({
-  label, value, sub, accent, icon, onClick,
-}: {
-  label: string
-  value: string
-  sub?: string
-  accent?: string
-  icon?: React.ReactNode
-  onClick?: () => void
-}) {
-  const Tag = onClick ? 'button' : 'div'
+function PulseSeg({ label, value, tint }: { label: string; value: string; tint?: string }) {
   return (
-    <Tag
-      onClick={onClick}
-      className="rounded-2xl p-4 md:p-5 flex flex-col gap-1 text-left w-full"
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-    >
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</p>
-        {icon && <span style={{ color: accent ?? 'var(--text-faint)' }}>{icon}</span>}
-      </div>
-      <p className="text-2xl font-bold tracking-tight" style={{ color: accent ?? 'var(--text)' }}>{value}</p>
-      {sub && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{sub}</p>}
-    </Tag>
+    <div className="pt-4 md:pt-0 md:px-5 md:border-l first:md:border-l-0" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>{label}</p>
+      <p className="text-xl font-extrabold tracking-tight" style={{ color: tint ?? '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+    </div>
   )
 }
 
@@ -232,92 +214,42 @@ export default function DashboardClient({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>
+            <h1 className="text-[23px] font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>
               {greeting}{firstName ? `, ${firstName}` : ''}
             </h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{monthLabel} overview</p>
           </div>
+          <button
+            onClick={() => setShowAddTx(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shrink-0 transition-opacity hover:opacity-90"
+            style={{ background: 'var(--brand)', boxShadow: 'var(--shadow-lg)' }}
+          >
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Add transaction</span>
+          </button>
         </div>
 
-        {/* ── Row 1: Net worth + monthly summary ─────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-
-          {/* Net Worth — spans 2 on mobile to be prominent */}
-          <div
-            className="col-span-2 md:col-span-1 rounded-2xl p-5 flex flex-col"
-            style={{
-              background: 'var(--brand-dark, #1F5C3A)',
-              border: '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              Net Worth
-            </p>
-            <p className="text-3xl font-bold text-white tracking-tight">
-              {netWorth >= 0 ? '₹' : '−₹'}{fmt(netWorth)}
-            </p>
-            <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}>
-              <div>
-                <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>Assets</p>
-                <p className="text-sm font-semibold text-white">₹{fmt(totalAssets)}</p>
-              </div>
-              {totalLiabilities > 0 && (
-                <div>
-                  <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.5)' }}>Debt</p>
-                  <p className="text-sm font-semibold" style={{ color: '#FCA5A5' }}>₹{fmt(totalLiabilities)}</p>
-                </div>
-              )}
+        {/* ── Pulse band: Net Worth · Income · Expenses · Leftover · Profit ── */}
+        <div
+          className="rounded-3xl p-5 md:p-6"
+          style={{ background: 'linear-gradient(135deg, var(--brand-deep) 0%, var(--brand-dark) 100%)', boxShadow: 'var(--shadow-lg)' }}
+        >
+          <div className="grid grid-cols-2 md:grid-cols-5">
+            {/* Net Worth — prominent */}
+            <div className="col-span-2 md:col-span-1 pb-4 md:pb-0 md:pr-5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Net Worth</p>
+              <p className="text-3xl font-extrabold text-white tracking-tight" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {netWorth >= 0 ? '₹' : '−₹'}{fmt(netWorth)}
+              </p>
+              <p className="text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                assets ₹{fmt(totalAssets)}{totalLiabilities > 0 ? ` · debt ₹${fmt(totalLiabilities)}` : ''}
+              </p>
             </div>
-          </div>
-
-          {/* This month — Income */}
-          <StatCard
-            label="Income"
-            value={`₹${fmt(monthlyIncome)}`}
-            sub={monthLabel}
-            accent="var(--income)"
-            icon={<TrendingUp className="w-4 h-4" />}
-          />
-
-          {/* This month — Expenses */}
-          <StatCard
-            label="Expenses"
-            value={`₹${fmt(monthlyExpense)}`}
-            sub={monthLabel}
-            accent="var(--expense)"
-            icon={<TrendingDown className="w-4 h-4" />}
-          />
-
-          {/* Leftover — full width on mobile so no empty column */}
-          <div
-            className="col-span-2 md:col-span-1 rounded-2xl p-4 md:p-5 flex flex-col gap-1"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-          >
-            <p className="text-xs font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>Leftover</p>
-            <p
-              className="text-2xl font-bold tracking-tight"
-              style={{ color: leftover >= 0 ? 'var(--income)' : 'var(--expense)' }}
-            >
-              {leftover >= 0 ? '₹' : '−₹'}{fmt(leftover)}
-            </p>
-            {monthlyIncome > 0 && (
-              <>
-                <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${Math.min((monthlyExpense / monthlyIncome) * 100, 100)}%`,
-                      background: monthlyExpense / monthlyIncome > 0.85 ? 'var(--expense)' : 'var(--brand)',
-                    }}
-                  />
-                </div>
-                <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                  {Math.round((monthlyExpense / monthlyIncome) * 100)}% of income spent
-                </p>
-              </>
-            )}
+            <PulseSeg label="Income" value={`₹${fmt(monthlyIncome)}`} tint="#86EFAC" />
+            <PulseSeg label="Expenses" value={`₹${fmt(monthlyExpense)}`} tint="#FCA5A5" />
+            <PulseSeg label="Leftover" value={`${leftover >= 0 ? '₹' : '−₹'}${fmt(leftover)}`} tint={leftover >= 0 ? '#86EFAC' : '#FCA5A5'} />
+            <PulseSeg label="Profit · MTD" value={profitMTD ? `${profitMTD.actualNet < 0 ? '−₹' : '₹'}${fmt(profitMTD.actualNet)}` : '—'} tint={profitMTD && profitMTD.actualNet < 0 ? '#FCA5A5' : '#F6D08A'} />
           </div>
         </div>
 
