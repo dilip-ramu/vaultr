@@ -22,7 +22,7 @@ const config: Config = {
         transfer: "#3B82F6",
       },
       fontFamily: {
-        sans: ["var(--font-manrope)", "-apple-system", "BlinkMacSystemFont", "SF Pro Display", "Segoe UI", "sans-serif"],
+        sans: ["'Manrope'", "-apple-system", "BlinkMacSystemFont", "SF Pro Display", "Segoe UI", "sans-serif"],
       },
     },
   },

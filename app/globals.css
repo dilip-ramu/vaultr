@@ -112,7 +112,7 @@ body {
   overscroll-behavior: none;
   background-color: var(--bg);
   color: var(--text);
-  font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
