@@ -176,6 +176,15 @@ function BulkReceiveModal({ rows, accounts, onDone, onClose }: {
 }
 
 // ── Sort header ───────────────────────────────────────────────────────────────
+function IncTile({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+      <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-[20px] font-extrabold tracking-tight mt-1 truncate" style={{ color, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+    </div>
+  )
+}
+
 function SortTh({ label, col, current, dir, onSort }: {
   label: string; col: SortKey; current: SortKey; dir: 'asc'|'desc'; onSort:(k:SortKey)=>void
 }) {
@@ -407,18 +416,12 @@ export default function CommissionClient() {
         </div>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        {[
-          {label:'Pending',   value:totalPending,  color:'text-[var(--amber)]',bg:'bg-[var(--accent-light)]', icon:<Clock className="w-4 h-4 text-[var(--amber)]"/>},
-          {label:'Received',  value:totalReceived, color:'text-[var(--income)]',bg:'bg-[var(--brand-light)]', icon:<CheckCircle2 className="w-4 h-4 text-[var(--income)]"/>},
-          {label:'This month',value:thisMonth,     color:'text-[var(--transfer)]', bg:'bg-[var(--surface-2)]',  icon:<TrendingUp className="w-4 h-4 text-[var(--transfer)]"/>},
-        ].map(c=>(
-          <div key={c.label} className={`${c.bg} rounded-2xl p-3 sm:p-3.5 min-w-0`}>
-            <div className={`flex items-center gap-1.5 mb-1 ${c.color}`}>{c.icon}<p className="text-[10px] font-semibold uppercase tracking-wide truncate">{c.label}</p></div>
-            <p className={`text-sm sm:text-base font-bold ${c.color} break-words`}>{formatCurrency(c.value)}</p>
-          </div>
-        ))}
+      {/* Summary band (spec 9D) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <IncTile label="PENDING COMMISSION" value={formatCurrency(totalPending)} color="var(--amber)" />
+        <IncTile label="CURRENT" value={`${allRows.filter(r => r.order_status === 'current').length} orders`} color="var(--transfer)" />
+        <IncTile label="SHIPPED" value={`${allRows.filter(r => r.order_status === 'shipped').length} orders`} color="var(--amber)" />
+        <IncTile label="RECEIVED · MTD" value={formatCurrency(thisMonth)} color="var(--income)" />
       </div>
 
       {/* Filters */}

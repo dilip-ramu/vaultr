@@ -137,27 +137,22 @@ export default function TDSClient({ entries: initialEntries }: Props) {
           </div>
         ) : (
           <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 gap-3 mb-5">
-              <div
-                className="rounded-xl p-4"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid var(--amber)' }}
-              >
-                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Pending TDS</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--amber)' }}>{fmt(pendingTDS)}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} · claimable
-                </p>
+            {/* Summary band (spec 9C) */}
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+                <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>PENDING TDS</p>
+                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--amber)', fontVariantNumeric: 'tabular-nums' }}>{fmt(pendingTDS)}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{pending.length} entr{pending.length === 1 ? 'y' : 'ies'} · claimable</p>
               </div>
-              <div
-                className="rounded-xl p-4"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid var(--income)' }}
-              >
-                <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Settled TDS</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--income)' }}>{fmt(settledTDS)}</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  {settled.length} entr{settled.length === 1 ? 'y' : 'ies'} · filed
-                </p>
+              <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+                <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>ADJUSTMENTS</p>
+                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(pendingAdj)}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>debit notes</p>
+              </div>
+              <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+                <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>SETTLED · FY</p>
+                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{fmt(settledTDS)}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{settled.length} entr{settled.length === 1 ? 'y' : 'ies'} · filed</p>
               </div>
             </div>
 
