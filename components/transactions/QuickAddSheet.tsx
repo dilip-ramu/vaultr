@@ -12,7 +12,36 @@ interface Props {
   onClose: () => void
 }
 
-const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', 'DEL']
+// Calculator keypad — digits, decimal, backspace, and the four operators.
+const KEYS = ['7', '8', '9', '÷', '4', '5', '6', '×', '1', '2', '3', '−', '.', '0', 'DEL', '+']
+const OPS: Record<string, string> = { '÷': '/', '×': '*', '−': '-', '+': '+' }
+const OP_CHARS = '+-*/'
+
+/** Safely evaluate an amount expression (digits + + − × ÷) with normal
+ *  precedence — no eval(). A trailing operator is ignored; ÷0 yields 0.
+ *  Result is rounded to paise. */
+function evalExpr(expr: string): number {
+  const tokens = expr.match(/(\d+\.?\d*|\.\d+|[+\-*/])/g) ?? []
+  while (tokens.length && OP_CHARS.includes(tokens[tokens.length - 1])) tokens.pop()
+  if (tokens.length === 0) return 0
+  const prec: Record<string, number> = { '+': 1, '-': 1, '*': 2, '/': 2 }
+  const out: string[] = []; const ops: string[] = []
+  for (const t of tokens) {
+    if (t in prec) {
+      while (ops.length && prec[ops[ops.length - 1]] >= prec[t]) out.push(ops.pop() as string)
+      ops.push(t)
+    } else out.push(t)
+  }
+  while (ops.length) out.push(ops.pop() as string)
+  const st: number[] = []
+  for (const t of out) {
+    if (t in prec) {
+      const b = st.pop() ?? 0, a = st.pop() ?? 0
+      st.push(t === '+' ? a + b : t === '-' ? a - b : t === '*' ? a * b : (b === 0 ? 0 : a / b))
+    } else st.push(parseFloat(t))
+  }
+  return Math.round((st.pop() ?? 0) * 100) / 100
+}
 
 export default function QuickAddSheet({ onSaved, onClose }: Props) {
   const [accounts, setAccounts] = useState<Account[]>([])
@@ -50,18 +79,36 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
       setAmount(prev => (prev.length <= 1 ? '0' : prev.slice(0, -1)))
       return
     }
-    if (key === '.') {
-      if (amount.includes('.')) return
-      setAmount(prev => prev + '.')
+    if (key in OPS) {
+      const op = OPS[key]
+      setAmount(prev => {
+        const lc = prev[prev.length - 1]
+        // Replace a trailing operator so you can change your mind.
+        return OP_CHARS.includes(lc) ? prev.slice(0, -1) + op : prev + op
+      })
       return
     }
+    if (key === '.') {
+      setAmount(prev => {
+        const curNum = prev.split(/[+\-*/]/).pop() ?? ''
+        if (curNum.includes('.')) return prev
+        if (prev === '0') return '0.'
+        const lc = prev[prev.length - 1]
+        return OP_CHARS.includes(lc) ? prev + '0.' : prev + '.'
+      })
+      return
+    }
+    // digit
     setAmount(prev => {
       if (prev === '0') return key
-      const parts = prev.split('.')
-      if (parts[1]?.length >= 2) return prev
+      const curNum = prev.split(/[+\-*/]/).pop() ?? ''
+      const dec = curNum.split('.')[1]
+      if (dec && dec.length >= 2) return prev  // max 2 decimals per number
       return prev + key
     })
   }
+
+  const clearAll = () => { navigator.vibrate?.(10); setAmount('0') }
 
   const getDate = (): string => {
     if (dateOffset === 'custom') return customDate
@@ -71,8 +118,8 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
   }
 
   const handleSave = async () => {
-    const numAmount = parseFloat(amount)
-    if (!accountId || !numAmount) return
+    const numAmount = evalExpr(amount)
+    if (!accountId || numAmount <= 0) return
     setSaving(true)
     navigator.vibrate?.(50)
     try {
@@ -100,8 +147,12 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
     }
   }
 
-  const amountNum = parseFloat(amount) || 0
+  const amountNum = evalExpr(amount)
   const typeColor = type === 'expense' ? 'var(--expense)' : 'var(--income)'
+  // Show the running expression + a live total once an operator is used.
+  const hasOp = /[+\-*/]/.test(amount.slice(1))
+  const prettyExpr = amount.replace(/\*/g, ' × ').replace(/\//g, ' ÷ ').replace(/-/g, ' − ').replace(/\+/g, ' + ').trim()
+  const bigValue = hasOp ? amountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : amount
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
@@ -158,13 +209,23 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
               </button>
             </div>
 
-            {/* Amount display */}
-            <div className="px-5 pb-3 text-center">
+            {/* Amount display + running expression */}
+            <div className="px-5 pb-3">
+              <div className="flex items-center justify-between h-5 mb-1">
+                <span className="text-sm tabular-nums truncate" style={{ color: 'var(--text-muted)' }}>
+                  {hasOp ? prettyExpr : ''}
+                </span>
+                {amount !== '0' && (
+                  <button onClick={clearAll} className="text-xs font-semibold shrink-0 pl-2" style={{ color: 'var(--text-muted)' }}>
+                    Clear
+                  </button>
+                )}
+              </div>
               <p
-                className="text-[52px] font-bold tabular-nums leading-none tracking-tight"
+                className="text-[52px] font-bold tabular-nums leading-none tracking-tight text-center"
                 style={{ color: typeColor }}
               >
-                ₹{amount}
+                ₹{bigValue}
               </p>
             </div>
 
@@ -190,21 +251,24 @@ export default function QuickAddSheet({ onSaved, onClose }: Props) {
               ))}
             </div>
 
-            {/* Numpad */}
-            <div className="grid grid-cols-3 gap-1.5 px-5 pb-3">
-              {NUMPAD.map(key => (
-                <button
-                  key={key}
-                  onClick={() => handleNumpad(key)}
-                  className="h-14 rounded-2xl text-xl font-semibold flex items-center justify-center transition-all active:scale-95"
-                  style={{
-                    backgroundColor: 'var(--surface-2)',
-                    color: key === 'DEL' ? 'var(--expense)' : 'var(--text)',
-                  }}
-                >
-                  {key === 'DEL' ? '⌫' : key}
-                </button>
-              ))}
+            {/* Calculator keypad */}
+            <div className="grid grid-cols-4 gap-1.5 px-5 pb-3">
+              {KEYS.map(key => {
+                const isOp = key in OPS
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handleNumpad(key)}
+                    className="h-14 rounded-2xl text-xl font-semibold flex items-center justify-center transition-all active:scale-95"
+                    style={{
+                      backgroundColor: isOp ? 'var(--brand-light)' : 'var(--surface-2)',
+                      color: key === 'DEL' ? 'var(--expense)' : isOp ? 'var(--brand)' : 'var(--text)',
+                    }}
+                  >
+                    {key === 'DEL' ? '⌫' : key}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Next button */}
