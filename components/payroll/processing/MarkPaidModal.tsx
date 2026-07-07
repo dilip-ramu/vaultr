@@ -198,7 +198,7 @@ export default function MarkPaidModal({
                   type="date"
                   value={payDate}
                   onChange={e => setPayDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                 />
               </div>
 
@@ -223,7 +223,7 @@ export default function MarkPaidModal({
                       : ''
                   }`}>
                     {p.done ? (p.error ? '✕' : '✓') : (
-                      <span className="w-3 h-3 border-2 border-[var(--border)] border-t-blue-500 rounded-full animate-spin block" />
+                      <span className="w-3 h-3 border-2 border-[var(--border)] border-t-[var(--brand)] rounded-full animate-spin block" />
                     )}
                   </div>
                   <span className={`flex-1 ${p.error ? '' : ''}`}>

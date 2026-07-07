@@ -44,7 +44,7 @@ function blankStyle(): StyleDraft {
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
   backlog:   ' ',
-  current:   'bg-blue-100 text-blue-700',
+  current:   'bg-[var(--surface-2)] text-[var(--transfer)]',
   shipped:   'bg-[var(--accent-light)] text-[var(--amber)]',
   received:  'bg-[var(--brand-light)] ',
   cancelled: 'bg-[var(--surface-2)] ',

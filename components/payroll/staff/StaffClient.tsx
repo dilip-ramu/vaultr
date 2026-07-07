@@ -216,7 +216,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
           placeholder="Search by name, ID or designation…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 max-w-sm px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 max-w-sm px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
         />
         <label className="flex items-center gap-2 text-sm text-[var(--text-muted)] cursor-pointer select-none">
           <input
@@ -269,7 +269,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[var(--border-2)]">
                 {filtered.map(emp => (
                   <tr key={emp.id} className={`hover:bg-[var(--surface-2)] transition-colors ${!emp.is_active ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
@@ -307,7 +307,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                         </button>
                         <button
                           onClick={() => openEdit(emp)}
-                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                          className="text-[var(--transfer)] hover:text-[var(--transfer)] text-xs font-medium"
                         >
                           Edit
                         </button>
@@ -355,7 +355,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.name ?? ''}
                     onChange={e => setField('name', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="Full name"
                   />
                 </div>
@@ -367,7 +367,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.employee_id ?? ''}
                     onChange={e => setField('employee_id', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="e.g. EMP001"
                   />
                 </div>
@@ -379,7 +379,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.designation ?? ''}
                     onChange={e => setField('designation', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="e.g. Software Engineer"
                   />
                 </div>
@@ -394,13 +394,13 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                       step="0.01"
                       value={form.salary_amount ?? ''}
                       onChange={e => setField('salary_amount', parseFloat(e.target.value) || 0)}
-                      className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                       placeholder="0.00"
                     />
                     <select
                       value={form.salary_currency ?? 'INR'}
                       onChange={e => setField('salary_currency', e.target.value)}
-                      className="px-2 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-2 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     >
                       {['INR','EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF'].map(c => (
                         <option key={c} value={c}>{c}</option>
@@ -416,7 +416,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="date"
                     value={form.joining_date ?? ''}
                     onChange={e => setField('joining_date', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                   />
                 </div>
 
@@ -432,7 +432,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.account_number ?? ''}
                     onChange={e => setField('account_number', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="Account number"
                   />
                 </div>
@@ -443,7 +443,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                   <select
                     value={form.account_type ?? 'SB'}
                     onChange={e => setField('account_type', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                   >
                     <option value="10">10 — Savings</option>
                     <option value="11">11 — Current</option>
@@ -460,7 +460,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.ifsc ?? ''}
                     onChange={e => setField('ifsc', e.target.value.toUpperCase())}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)] font-mono"
                     placeholder="SBIN0001234"
                   />
                 </div>
@@ -472,7 +472,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.bank_name ?? ''}
                     onChange={e => setField('bank_name', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="e.g. State Bank of India"
                   />
                 </div>
@@ -484,7 +484,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.branch ?? ''}
                     onChange={e => setField('branch', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="Branch name"
                   />
                 </div>
@@ -501,7 +501,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.pan_number ?? ''}
                     onChange={e => setField('pan_number', e.target.value.toUpperCase())}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)] font-mono"
                     placeholder="ABCDE1234F"
                   />
                 </div>
@@ -513,7 +513,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="text"
                     value={form.upi_id ?? ''}
                     onChange={e => setField('upi_id', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="name@upi"
                   />
                 </div>
@@ -530,7 +530,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="date"
                     value={form.date_of_birth ?? ''}
                     onChange={e => setField('date_of_birth', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                   />
                 </div>
 
@@ -541,7 +541,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="tel"
                     value={form.phone ?? ''}
                     onChange={e => setField('phone', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="+91 99999 99999"
                   />
                 </div>
@@ -553,7 +553,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="tel"
                     value={form.whatsapp_number ?? ''}
                     onChange={e => setField('whatsapp_number', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="+91 99999 99999 (for salary slips)"
                   />
                 </div>
@@ -565,7 +565,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     type="email"
                     value={form.email ?? ''}
                     onChange={e => setField('email', e.target.value)}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="employee@example.com"
                   />
                 </div>
@@ -577,7 +577,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     value={form.address ?? ''}
                     onChange={e => setField('address', e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)] resize-none"
                     placeholder="Street, City, State, PIN"
                   />
                 </div>
@@ -589,7 +589,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     <input
                       value={form.reporting_manager ?? ''}
                       onChange={e => setField('reporting_manager', e.target.value)}
-                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                       placeholder="e.g. Priya Nair"
                     />
                   </div>
@@ -598,7 +598,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     <input
                       value={form.reporting_manager_designation ?? ''}
                       onChange={e => setField('reporting_manager_designation', e.target.value)}
-                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                       placeholder="e.g. Operations Head"
                     />
                   </div>
@@ -607,7 +607,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     <input
                       value={form.employment_country ?? ''}
                       onChange={e => setField('employment_country', e.target.value)}
-                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                       placeholder="e.g. India"
                     />
                   </div>
@@ -616,7 +616,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     <input
                       value={form.employment_city ?? ''}
                       onChange={e => setField('employment_city', e.target.value)}
-                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                       placeholder="e.g. Chennai"
                     />
                   </div>
@@ -631,7 +631,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     <select
                       value={(form.company_id as string | null) ?? ''}
                       onChange={e => setField('company_id', (e.target.value || null) as never)}
-                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     >
                       <option value="">Personal (no company)</option>
                       {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -643,7 +643,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     <select
                       value={form.works_for_customer_id ?? ''}
                       onChange={e => setField('works_for_customer_id', e.target.value || (null as never))}
-                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     >
                       <option value="">Me (own work)</option>
                       {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

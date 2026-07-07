@@ -206,7 +206,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
           <p className="text-sm font-semibold text-[var(--text)]">Built-in Types</p>
           <p className="text-xs text-[var(--text-faint)] mt-0.5">Tap edit to rename or recolour</p>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-[var(--border-2)]">
           {(Object.keys(ACCOUNT_TYPE_CONFIG) as AccountType[]).map(key => {
             const d = getBuiltinDisplay(key)
             const iconEmoji = ICON_OPTIONS.find(i => i.value === d.icon)?.emoji ?? EMOJI_MAP[d.icon] ?? '💰'
@@ -252,7 +252,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
           <div className="px-5 py-4 border-b border-[var(--border)]">
             <p className="text-sm font-semibold text-[var(--text)]">Custom Types</p>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-[var(--border-2)]">
             {types.map(t => {
               const iconEmoji = ICON_OPTIONS.find(i => i.value === t.icon)?.emoji ?? EMOJI_MAP[t.icon] ?? '👛'
               return (

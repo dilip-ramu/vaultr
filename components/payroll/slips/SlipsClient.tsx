@@ -341,7 +341,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                       checked={allGroupSelected}
                       ref={el => { if (el) el.indeterminate = someGroupSelected && !allGroupSelected }}
                       onChange={() => toggleGroup(group)}
-                      className="w-4 h-4 rounded border-[var(--border)] text-blue-600 cursor-pointer"
+                      className="w-4 h-4 rounded border-[var(--border)] text-[var(--transfer)] cursor-pointer"
                     />
                     <h2 className="font-semibold text-[var(--text)]">{fmtMonth(month.payroll_month)}</h2>
                   </div>
@@ -363,26 +363,26 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                         <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-[var(--border-2)]">
                       {group.map(entry => {
                         const adjustments =
                           Number(entry.allowances) + Number(entry.overtime) + Number(entry.incentives)
                           - Number(entry.deductions) - Number(entry.advance)
                         return (
-                          <tr key={entry.id} className={`hover:bg-[var(--surface-2)] transition-colors ${selected.has(entry.id) ? 'bg-blue-50' : ''}`}>
+                          <tr key={entry.id} className={`hover:bg-[var(--surface-2)] transition-colors ${selected.has(entry.id) ? 'bg-[var(--surface-2)]' : ''}`}>
                             <td className="px-4 py-3">
                               <input
                                 type="checkbox"
                                 checked={selected.has(entry.id)}
                                 onChange={() => toggleEntry(entry.id)}
-                                className="w-4 h-4 rounded border-[var(--border)] text-blue-600 cursor-pointer"
+                                className="w-4 h-4 rounded border-[var(--border)] text-[var(--transfer)] cursor-pointer"
                               />
                             </td>
                             <td className="px-4 py-3">
                               <div className="font-medium text-[var(--text)]">{entry.employee?.name ?? '—'}</div>
                               <div className="text-xs text-[var(--text-faint)]">{entry.employee?.employee_id ?? ''}</div>
                               {entry.slip_emailed_at ? (
-                                <div className="text-[11px] text-emerald-600 mt-0.5">
+                                <div className="text-[11px] text-[var(--income)] mt-0.5">
                                   ✓ emailed {new Date(entry.slip_emailed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                   <button
                                     onClick={() => toggleEmailedMark(entry)}
@@ -425,7 +425,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                                     onClick={() => emailSlips([entry.id])}
                                     disabled={emailing}
                                     title={`Email slip to ${entry.employee.email}`}
-                                    className="text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50"
+                                    className="text-xs text-[var(--income)] hover:text-[var(--income)] font-medium disabled:opacity-50"
                                   >
                                     ✉ Email
                                   </button>
@@ -441,7 +441,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                                 )}
                                 <button
                                   onClick={() => setSelectedEntry(entry)}
-                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                  className="text-xs text-[var(--transfer)] hover:text-[var(--transfer)] font-medium"
                                 >
                                   View & Print
                                 </button>

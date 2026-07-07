@@ -173,8 +173,8 @@ export default function SubscriptionsClient({
         </button>
       </div>
 
-      {/* Summary cards — horizontal scroll on mobile */}
-      <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+      {/* Summary band */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           label="Monthly Cost"
           value={formatCurrency(monthlyTotal)}

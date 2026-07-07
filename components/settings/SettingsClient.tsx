@@ -77,7 +77,7 @@ export default function SettingsClient({ user, profile }: Props) {
       <h1 className="text-xl font-bold text-[var(--text)]">Settings</h1>
 
       {message && (
-        <div className="bg-[var(--brand-light)] text-[var(--income)] text-sm rounded-xl px-4 py-3 border border-green-100 fade-in">
+        <div className="bg-[var(--brand-light)] text-[var(--income)] text-sm rounded-xl px-4 py-3 border border-[var(--brand-light)] fade-in">
           {message}
         </div>
       )}
@@ -140,7 +140,7 @@ export default function SettingsClient({ user, profile }: Props) {
           <Palette className="w-4 h-4 text-[var(--text-faint)]" />
           <p className="text-sm font-semibold text-[var(--text)]">Preferences</p>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-[var(--border-2)]">
           {[
             { label: 'Currency', value: profile?.currency ?? 'INR', icon: '₹' },
           ].map(item => (

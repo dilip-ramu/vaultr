@@ -218,12 +218,12 @@ function InvoiceRow({
           {/* Left: icon + number + month */}
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-              inv.status === 'paid'      ? 'bg-emerald-100'
+              inv.status === 'paid'      ? 'bg-[var(--brand-light)]'
               : inv.status === 'finalized' ? 'bg-[var(--brand-light)]'
               : 'bg-[var(--accent-light)]'
             }`}>
               {inv.status === 'paid'
-                ? <DollarSign className="w-4 h-4 text-emerald-600" />
+                ? <DollarSign className="w-4 h-4 text-[var(--income)]" />
                 : inv.status === 'finalized'
                 ? <CheckCircle2 className="w-4 h-4 text-[var(--income)]" />
                 : <Clock className="w-4 h-4 text-[var(--amber)]" />
@@ -243,7 +243,7 @@ function InvoiceRow({
             </div>
 
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-              inv.status === 'paid'      ? 'bg-emerald-100 text-emerald-700'
+              inv.status === 'paid'      ? 'bg-[var(--brand-light)] text-[var(--income)]'
               : inv.status === 'finalized' ? 'bg-[var(--brand-light)] text-[var(--income)]'
               : 'bg-[var(--accent-light)] text-[var(--amber)]'
             }`}>
@@ -258,7 +258,7 @@ function InvoiceRow({
                 onClick={handleMarkPaid}
                 disabled={markingPaid}
                 title="Mark this reimbursement invoice as paid. Bundled courier invoices settle automatically and payroll unlocks."
-                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--income)] hover:bg-[var(--income)] text-white rounded-xl text-xs font-semibold disabled:opacity-50 transition-colors"
               >
                 <Check className="w-3.5 h-3.5" />
                 {markingPaid ? 'Marking…' : 'Mark paid'}
@@ -270,7 +270,7 @@ function InvoiceRow({
               <ReimbursableInvoicePDFDownload
                 data={buildPdfData()}
                 label="PDF"
-                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-medium transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--brand-light)] hover:bg-[var(--brand-light)] text-[var(--brand)] rounded-xl text-xs font-medium transition-all"
               />
             )}
 
@@ -278,7 +278,7 @@ function InvoiceRow({
             <button
               onClick={() => setEditingNotes(v => !v)}
               title="Edit notes"
-              className="p-2 text-[var(--text-faint)] hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+              className="p-2 text-[var(--text-faint)] hover:text-[var(--brand)] hover:bg-[var(--brand-light)] rounded-xl transition-colors"
             >
               <FileEdit className="w-4 h-4" />
             </button>
@@ -310,7 +310,7 @@ function InvoiceRow({
         {inv.payroll?.status === 'ready_to_process' && (
           <a
             href={`/payroll/processing/${inv.payroll.id}`}
-            className="mt-3 ml-11 flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors max-w-fit"
+            className="mt-3 ml-11 flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-[var(--brand-light)] text-[var(--brand)] hover:bg-[var(--brand-light)] border border-[var(--border)] transition-colors max-w-fit"
           >
             <CalendarClock className="w-4 h-4" />
             Process payroll for {monthLabel(inv.payroll.payroll_month)}
@@ -332,13 +332,13 @@ function InvoiceRow({
               onChange={e => setNotes(e.target.value)}
               rows={2}
               placeholder="Add a note to this invoice…"
-              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 resize-none"
+              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] focus:border-[var(--brand)] resize-none"
             />
             <div className="flex gap-2">
               <button
                 onClick={saveNotes}
                 disabled={savingNotes}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--brand)] hover:bg-[var(--brand)] text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
               >
                 <Check className="w-3.5 h-3.5" />
                 {savingNotes ? 'Saving…' : 'Save'}
@@ -371,7 +371,7 @@ function InvoiceRow({
             {!expanded && sortedItems.length > 4 && (
               <button
                 onClick={() => setExpanded(true)}
-                className="text-xs text-indigo-500 hover:underline"
+                className="text-xs text-[var(--brand)] hover:underline"
               >
                 +{sortedItems.length - 4} more lines
               </button>
@@ -427,7 +427,7 @@ export default function ReimbursableHistoryClient({ invoices: initial }: { invoi
         </div>
       ) : (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-[var(--border-2)]">
             {invoices.map(inv => (
               <InvoiceRow key={inv.id} inv={inv} onDelete={handleDelete} />
             ))}

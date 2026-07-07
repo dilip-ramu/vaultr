@@ -263,7 +263,7 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
                   style={{ backgroundColor: att.content_type?.startsWith('image/') ? '#DBEAFE' : '#FEE2E2' }}
                 >
                   {att.content_type?.startsWith('image/') ? (
-                    <ZoomIn className="w-4 h-4 text-blue-500" />
+                    <ZoomIn className="w-4 h-4 text-[var(--transfer)]" />
                   ) : (
                     <FileText className="w-4 h-4 " />
                   )}

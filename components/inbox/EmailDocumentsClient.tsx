@@ -70,14 +70,14 @@ interface Props {
 // ── Status badge ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<EmailDocument['status'], { label: string; className: string }> = {
-  new:                  { label: 'New',               className: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  new:                  { label: 'New',               className: 'bg-[var(--surface-2)] text-[var(--transfer)] border border-[var(--border)]' },
   reviewed:             { label: 'Reviewed',          className: 'bg-[var(--accent-light)] text-[var(--amber)] border border-[var(--border)]' },
   processed:            { label: 'Processed',         className: 'bg-[var(--brand-light)] text-[var(--income)] border border-[var(--border)]' },
   ignored:              { label: 'Ignored',           className: 'bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]' },
   processing:           { label: 'Processing',        className: 'bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]' },
   invoice_created:      { label: 'Invoice Created',   className: 'bg-[var(--brand-light)] text-[var(--income)] border border-[var(--border)]' },
   needs_review:         { label: 'Needs Review',      className: 'bg-[var(--surface-2)] text-[var(--expense)] border border-[var(--border)]' },
-  duplicate_suspected:  { label: 'Duplicate',         className: 'bg-orange-50 text-orange-700 border border-orange-200' },
+  duplicate_suspected:  { label: 'Duplicate',         className: 'bg-[var(--accent-light)] text-[var(--amber)] border border-[var(--accent-light)]' },
 }
 
 function StatusBadge({ status, isProcessingRow }: { status: EmailDocument['status']; isProcessingRow?: boolean }) {
@@ -445,7 +445,7 @@ export default function EmailDocumentsClient({
         ) : <div />}
         <div className="flex items-center gap-3">
           {newCount > 0 && (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-[var(--surface-2)] text-[var(--transfer)] border border-[var(--border)]">
               {newCount} new
             </span>
           )}
@@ -504,13 +504,13 @@ export default function EmailDocumentsClient({
 
       {/* Background-check banner */}
       {isCheckingBackground && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-center gap-3">
-          <RefreshCw className="w-4 h-4 text-blue-500 shrink-0 animate-spin" />
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 flex items-center gap-3">
+          <RefreshCw className="w-4 h-4 text-[var(--transfer)] shrink-0 animate-spin" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-blue-800">Checking email in background</p>
-            <p className="text-sm text-blue-600 mt-0.5">New documents will appear here automatically. You can navigate freely.</p>
+            <p className="text-sm font-semibold text-[var(--transfer)]">Checking email in background</p>
+            <p className="text-sm text-[var(--transfer)] mt-0.5">New documents will appear here automatically. You can navigate freely.</p>
           </div>
-          <button onClick={() => setIsCheckingBackground(false)} className="text-blue-400 hover:text-blue-600 text-lg leading-none">&times;</button>
+          <button onClick={() => setIsCheckingBackground(false)} className="text-[var(--transfer)] hover:text-[var(--transfer)] text-lg leading-none">&times;</button>
         </div>
       )}
 
@@ -722,7 +722,7 @@ export default function EmailDocumentsClient({
                               {doc.email_subject || '(no subject)'}
                             </p>
                             {doc.is_duplicate && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200 mt-0.5">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--accent-light)] text-[var(--amber)] border border-[var(--accent-light)] mt-0.5">
                                 <AlertTriangle className="w-2.5 h-2.5" />
                                 Duplicate
                               </span>
@@ -849,7 +849,7 @@ export default function EmailDocumentsClient({
                             <button
                               onClick={() => handleProcess(doc.id)}
                               title="Auto-process: extract and create invoice"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 transition-colors hover:bg-indigo-100"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[var(--brand-light)] text-[var(--brand)] border border-[var(--border)] transition-colors hover:bg-[var(--brand-light)]"
                             >
                               <Zap className="w-3 h-3" />
                               {doc.status === 'needs_review' ? 'Retry' : 'Process'}
@@ -861,7 +861,7 @@ export default function EmailDocumentsClient({
                             <button
                               onClick={() => setReviewDoc(doc)}
                               title="Review extracted data side-by-side with the email"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200 transition-colors hover:bg-violet-100"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[var(--surface-2)] text-[#7C3AED] border border-[var(--border)] transition-colors hover:bg-[var(--surface-2)]"
                             >
                               <ClipboardCheck className="w-3 h-3" />
                               Review
@@ -892,7 +892,7 @@ export default function EmailDocumentsClient({
                             <button
                               onClick={() => setConfirmRedoDoc(doc)}
                               title="Redo — reset to new (will delete linked invoice)"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 transition-colors hover:bg-blue-100"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[var(--surface-2)] text-[var(--transfer)] border border-[var(--border)] transition-colors hover:bg-[var(--surface-2)]"
                             >
                               <RotateCcw className="w-3 h-3" />
                             </button>

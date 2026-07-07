@@ -377,8 +377,8 @@ export default function DownloadsClient() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-          <Archive className="w-5 h-5 text-indigo-600" />
+        <div className="w-10 h-10 rounded-xl bg-[var(--brand-light)] flex items-center justify-center">
+          <Archive className="w-5 h-5 text-[var(--brand)]" />
         </div>
         <div>
           <h1 className="text-xl font-bold text-[var(--text)]">Data Export & Backup</h1>
@@ -415,7 +415,7 @@ export default function DownloadsClient() {
             <input
               type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
               disabled={isRunning}
-              className="px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
+              className="px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] disabled:opacity-50"
             />
           </div>
           <div className="text-[var(--text-faint)] mt-5">→</div>
@@ -424,7 +424,7 @@ export default function DownloadsClient() {
             <input
               type="date" value={toDate} onChange={e => setToDate(e.target.value)}
               disabled={isRunning}
-              className="px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
+              className="px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] disabled:opacity-50"
             />
           </div>
         </div>
@@ -437,7 +437,7 @@ export default function DownloadsClient() {
           <button
             onClick={toggleAll}
             disabled={isRunning}
-            className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+            className="flex items-center gap-1.5 text-xs text-[var(--brand)] hover:text-[var(--brand)] disabled:opacity-50"
           >
             {selected.size === ALL_MODULES.length
               ? <><CheckSquare className="w-3.5 h-3.5" /> Deselect all</>
@@ -445,7 +445,7 @@ export default function DownloadsClient() {
             }
           </button>
         </div>
-        <div className="divide-y divide-gray-50">
+        <div className="divide-y divide-[var(--border-2)]">
           {ALL_MODULES.map(m => {
             const checked = selected.has(m)
             const info = MODULE_LABELS[m]
@@ -459,7 +459,7 @@ export default function DownloadsClient() {
                   type="checkbox" checked={checked} onChange={() => toggle(m)}
                   disabled={isRunning}
                   onClick={e => e.stopPropagation()}
-                  className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                  className="w-4 h-4 accent-[var(--brand)] cursor-pointer"
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-[var(--text)]">{info.label}</p>
@@ -473,16 +473,16 @@ export default function DownloadsClient() {
       </div>
 
       {/* What you get */}
-      <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-4 text-sm text-indigo-700 space-y-1">
+      <div className="bg-[var(--brand-light)] border border-[var(--border)] rounded-2xl px-5 py-4 text-sm text-[var(--brand)] space-y-1">
         <p className="font-semibold">What&apos;s included in the ZIP:</p>
-        <p className="text-xs text-indigo-600">📄 <strong>INEX_Full_Report.pdf</strong> — human-readable report with all sections, tables, and summaries</p>
-        <p className="text-xs text-indigo-600">📊 <strong>CSV files</strong> per module in named folders — clean, labelled, importable into Excel or any system</p>
-        <p className="text-xs text-indigo-600">📁 All inside <strong>INEX_Export_{fromDate}_to_{toDate}/</strong></p>
+        <p className="text-xs text-[var(--brand)]">📄 <strong>INEX_Full_Report.pdf</strong> — human-readable report with all sections, tables, and summaries</p>
+        <p className="text-xs text-[var(--brand)]">📊 <strong>CSV files</strong> per module in named folders — clean, labelled, importable into Excel or any system</p>
+        <p className="text-xs text-[var(--brand)]">📁 All inside <strong>INEX_Export_{fromDate}_to_{toDate}/</strong></p>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="bg-[var(--surface-2)] border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
+        <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-4 py-3 flex items-start gap-2">
           <AlertCircle className="w-4 h-4 text-[var(--expense)] mt-0.5 shrink-0" />
           <p className="text-sm text-[var(--expense)]">{error}</p>
         </div>
@@ -490,7 +490,7 @@ export default function DownloadsClient() {
 
       {/* Status / progress */}
       {(isRunning || status === 'done') && (
-        <div className={`rounded-xl px-5 py-4 flex items-center gap-3 text-sm ${status === 'done' ? 'bg-[var(--brand-light)] border border-green-200 text-[var(--income)]' : 'bg-indigo-50 border border-indigo-100 text-indigo-700'}`}>
+        <div className={`rounded-xl px-5 py-4 flex items-center gap-3 text-sm ${status === 'done' ? 'bg-[var(--brand-light)] border border-[var(--brand-light)] text-[var(--income)]' : 'bg-[var(--brand-light)] border border-[var(--border)] text-[var(--brand)]'}`}>
           {isRunning
             ? <Loader2 className="w-4 h-4 animate-spin shrink-0" />
             : <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -503,7 +503,7 @@ export default function DownloadsClient() {
       <button
         onClick={handleExport}
         disabled={isRunning || selected.size === 0}
-        className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-2 px-8 py-3 bg-[var(--brand)] hover:bg-[var(--brand)] text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isRunning
           ? <Loader2 className="w-4 h-4 animate-spin" />

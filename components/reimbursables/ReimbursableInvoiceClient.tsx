@@ -494,10 +494,10 @@ export default function ReimbursableInvoiceClient({
 
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center overflow-hidden">
+        <div className="w-10 h-10 rounded-xl bg-[var(--brand-light)] flex items-center justify-center overflow-hidden">
           {selectedCompany?.logo_url
             ? <img src={selectedCompany.logo_url} alt={selectedCompany.name} className="w-full h-full object-contain" />
-            : <ReceiptText className="w-5 h-5 text-indigo-600" />}
+            : <ReceiptText className="w-5 h-5 text-[var(--brand)]" />}
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-[var(--text)]">
@@ -602,7 +602,7 @@ export default function ReimbursableInvoiceClient({
               <input
                 type="number" value={forexRate} onChange={e => setForexRate(e.target.value)}
                 placeholder={marketRate ? marketRate.toFixed(2) : 'e.g. 92.50'} min="0" step="0.01" disabled={isFinalized}
-                className="w-36 px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 disabled:opacity-50"
+                className="w-36 px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] focus:border-[var(--brand)] disabled:opacity-50"
               />
               <span className="text-sm text-[var(--text-muted)]">INR</span>
               {hasValidRate && (
@@ -615,12 +615,12 @@ export default function ReimbursableInvoiceClient({
                   type="button"
                   onClick={() => !isFinalized && setForexRate(String(marketRate))}
                   disabled={isFinalized}
-                  className="text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                  className="text-xs text-[var(--transfer)] bg-[var(--surface-2)] hover:bg-[var(--surface-2)] px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
                   title="Tap to use the current market rate"
                 >
                   Market: 1 {billingCurrency} = ₹{marketRate.toFixed(2)}
                   {marketRateAsOf && (
-                    <span className="ml-1 text-blue-500">
+                    <span className="ml-1 text-[var(--transfer)]">
                       ({new Date(marketRateAsOf).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
                     </span>
                   )}
@@ -629,7 +629,7 @@ export default function ReimbursableInvoiceClient({
             </div>
             {marketRate == null && (
               <p className="text-xs text-[var(--text-faint)] mt-1.5">
-                No market rate stored for {billingCurrency}. Set one in <a href="/setup/currencies" className="text-blue-600 hover:underline">Setup → Currencies</a> if you want a reference.
+                No market rate stored for {billingCurrency}. Set one in <a href="/setup/currencies" className="text-[var(--transfer)] hover:underline">Setup → Currencies</a> if you want a reference.
               </p>
             )}
           </div>
@@ -649,26 +649,26 @@ export default function ReimbursableInvoiceClient({
 
         {/* Salaries */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-indigo-50">
-            <Users className="w-4 h-4 text-indigo-600" />
-            <span className="text-sm font-semibold text-indigo-700">Salaries</span>
-            <span className="text-xs text-indigo-400 ml-1">({employees.length} active staff)</span>
-            <span className="text-xs text-indigo-300 ml-1">· payroll month auto-created on finalize</span>
-            <span className="ml-auto text-sm font-bold text-indigo-700">{fmtCur(salaryEurTotal, billingCurrency)}</span>
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-[var(--brand-light)]">
+            <Users className="w-4 h-4 text-[var(--brand)]" />
+            <span className="text-sm font-semibold text-[var(--brand)]">Salaries</span>
+            <span className="text-xs text-[var(--brand)] ml-1">({employees.length} active staff)</span>
+            <span className="text-xs text-[var(--brand)] ml-1">· payroll month auto-created on finalize</span>
+            <span className="ml-auto text-sm font-bold text-[var(--brand)]">{fmtCur(salaryEurTotal, billingCurrency)}</span>
           </div>
           {employees.length === 0 ? (
             <div className="flex items-center gap-2 px-5 py-4 text-sm text-[var(--text-faint)]">
               <Info className="w-4 h-4 text-[var(--text-faint)]" />
               No active staff found.{' '}
-              <a href="/payroll/staff" className="text-indigo-600 hover:underline ml-1">Add staff in Staff Particulars →</a>
+              <a href="/payroll/staff" className="text-[var(--brand)] hover:underline ml-1">Add staff in Staff Particulars →</a>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-[var(--border-2)]">
               {employees.map(emp => {
                 const checked = selectedEmployeeIds.has(emp.id)
                 return (
                   <div key={emp.id} className={`flex items-center px-5 py-3 gap-4 cursor-pointer hover:bg-[var(--surface-2)] transition-colors ${!checked ? 'opacity-40' : ''}`} onClick={() => !isFinalized && toggleEmployee(emp.id)}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleEmployee(emp.id)} disabled={isFinalized} onClick={e => e.stopPropagation()} className="w-4 h-4 accent-indigo-600 cursor-pointer" />
+                    <input type="checkbox" checked={checked} onChange={() => toggleEmployee(emp.id)} disabled={isFinalized} onClick={e => e.stopPropagation()} className="w-4 h-4 accent-[var(--brand)] cursor-pointer" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-[var(--text)]">{emp.name}</p>
                       {emp.designation && <p className="text-xs text-[var(--text-faint)]">{emp.designation}</p>}
@@ -684,27 +684,27 @@ export default function ReimbursableInvoiceClient({
 
         {/* Courier charges */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-blue-50">
-            <Truck className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-semibold text-blue-700">Courier Charges</span>
-            <span className="text-xs text-blue-400 ml-1">(from Recoverables — Contrast invoices)</span>
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+            <Truck className="w-4 h-4 text-[var(--transfer)]" />
+            <span className="text-sm font-semibold text-[var(--transfer)]">Courier Charges</span>
+            <span className="text-xs text-[var(--transfer)] ml-1">(from Recoverables — Contrast invoices)</span>
             {hasValidRate && selectedCouriers.length > 0 && (
-              <span className="text-xs text-blue-400 ml-1">· {fmtInr(courierInrTotal)} → <strong>{fmtCur(courierEurTotal, billingCurrency)}</strong></span>
+              <span className="text-xs text-[var(--transfer)] ml-1">· {fmtInr(courierInrTotal)} → <strong>{fmtCur(courierEurTotal, billingCurrency)}</strong></span>
             )}
-            <span className="ml-auto text-sm font-bold text-blue-700">{hasValidRate ? fmtCur(courierEurTotal, billingCurrency) : fmtInr(courierInrTotal)}</span>
+            <span className="ml-auto text-sm font-bold text-[var(--transfer)]">{hasValidRate ? fmtCur(courierEurTotal, billingCurrency) : fmtInr(courierInrTotal)}</span>
           </div>
           {courierInvoices.length === 0 ? (
             <div className="px-5 py-4 text-sm text-[var(--text-faint)]">
               No pending courier invoices for Contrast.{' '}
-              <a href="/recoverables" className="text-indigo-600 hover:underline">Create in Recoverables →</a>
+              <a href="/recoverables" className="text-[var(--brand)] hover:underline">Create in Recoverables →</a>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-[var(--border-2)]">
               {courierInvoices.map(ci => {
                 const checked = selectedCourierIds.has(ci.id)
                 return (
                   <div key={ci.id} className={`flex items-center px-5 py-3 gap-3 cursor-pointer hover:bg-[var(--surface-2)] transition-colors ${!checked ? 'opacity-40' : ''}`} onClick={() => !isFinalized && toggleCourier(ci.id)}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleCourier(ci.id)} disabled={isFinalized} onClick={e => e.stopPropagation()} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                    <input type="checkbox" checked={checked} onChange={() => toggleCourier(ci.id)} disabled={isFinalized} onClick={e => e.stopPropagation()} className="w-4 h-4 accent-[var(--brand)] cursor-pointer" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-[var(--text)]">{ci.invoice_number}</p>
                       <p className="text-xs text-[var(--text-faint)]">{ci.invoice_date} · {ci.status}</p>
@@ -720,22 +720,22 @@ export default function ReimbursableInvoiceClient({
 
         {/* Operational expenses */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-purple-50">
-            <FileText className="w-4 h-4 text-purple-600" />
-            <span className="text-sm font-semibold text-purple-700">Operational Expenses</span>
-            <span className="text-xs text-purple-400 ml-1">({allExpenses.length} queued)</span>
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-[var(--surface-2)]">
+            <FileText className="w-4 h-4 text-[#7C3AED]" />
+            <span className="text-sm font-semibold text-[#7C3AED]">Operational Expenses</span>
+            <span className="text-xs text-[#7C3AED] ml-1">({allExpenses.length} queued)</span>
             {hasValidRate && allExpenses.length > 0 && (
-              <span className="text-xs text-purple-400 ml-1">· {fmtInr(expenseInrTotal)} → <strong>{fmtCur(expenseEurTotal, billingCurrency)}</strong></span>
+              <span className="text-xs text-[#7C3AED] ml-1">· {fmtInr(expenseInrTotal)} → <strong>{fmtCur(expenseEurTotal, billingCurrency)}</strong></span>
             )}
-            <span className="ml-auto text-sm font-bold text-purple-700">{hasValidRate ? fmtCur(expenseEurTotal, billingCurrency) : fmtInr(expenseInrTotal)}</span>
+            <span className="ml-auto text-sm font-bold text-[#7C3AED]">{hasValidRate ? fmtCur(expenseEurTotal, billingCurrency) : fmtInr(expenseInrTotal)}</span>
           </div>
           {allExpenses.length === 0 ? (
             <div className="px-5 py-4 text-sm text-[var(--text-faint)]">
               No expenses queued.{' '}
-              <a href="/customers/invoices/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue them.
+              <a href="/customers/invoices/reimbursables" className="text-[var(--brand)] hover:underline">Assign billing categories</a> to queue them.
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-[var(--border-2)]">
               {expenseByCategory.map((cat, i) => (
                 <div key={i} className="flex items-center px-5 py-3">
                   <span className="flex-1 text-sm text-[var(--text)]">{cat.name}</span>
@@ -752,13 +752,13 @@ export default function ReimbursableInvoiceClient({
              currency. Rows in a different currency get converted to the
              billing currency in the total (via the forex rate). */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-teal-50">
-            <Building2 className="w-4 h-4 text-teal-600" />
-            <span className="text-sm font-semibold text-teal-700">Fixed Expenses</span>
-            <span className="text-xs text-teal-400 ml-1">(default: {billingCurrency})</span>
-            <span className="ml-auto text-sm font-bold text-teal-700">{fmtCur(fixedExpTotal, billingCurrency)}</span>
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-[var(--border)]">
+            <Building2 className="w-4 h-4 text-[var(--transfer)]" />
+            <span className="text-sm font-semibold text-[var(--transfer)]">Fixed Expenses</span>
+            <span className="text-xs text-[var(--transfer)] ml-1">(default: {billingCurrency})</span>
+            <span className="ml-auto text-sm font-bold text-[var(--transfer)]">{fmtCur(fixedExpTotal, billingCurrency)}</span>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-[var(--border-2)]">
             {fixedExpenses.map(fe => {
               const rowCur = (fe.currency || billingCurrency).toUpperCase()
               const converted = rowCur !== (billingCurrency || 'INR').toUpperCase()
@@ -784,10 +784,10 @@ export default function ReimbursableInvoiceClient({
                     value={fe.amount === 0 ? '' : fe.amount}
                     onChange={e => updateFixedExpense(fe.id, parseFloat(e.target.value) || 0)}
                     placeholder="0.00" min="0" step="0.01" disabled={isFinalized}
-                    className="w-28 px-3 py-1.5 text-sm text-right border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-400 disabled:opacity-50"
+                    className="w-28 px-3 py-1.5 text-sm text-right border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] focus:border-[var(--brand)] disabled:opacity-50"
                   />
                   {converted != null && (
-                    <span className="text-[10px] text-teal-500 w-24 text-right tabular-nums">
+                    <span className="text-[10px] text-[var(--transfer)] w-24 text-right tabular-nums">
                       ≈ {fmtCur(converted, billingCurrency)}
                     </span>
                   )}
@@ -799,28 +799,28 @@ export default function ReimbursableInvoiceClient({
 
         {/* Additional / manual items */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-orange-50">
-            <Plus className="w-4 h-4 text-orange-600" />
-            <span className="text-sm font-semibold text-orange-700">Additional Items</span>
-            <span className="text-xs text-orange-400 ml-1">(enter in {billingCurrency})</span>
-            <span className="ml-auto text-sm font-bold text-orange-700">{fmtCur(manualEurTotal, billingCurrency)}</span>
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--border)] bg-[var(--accent-light)]">
+            <Plus className="w-4 h-4 text-[var(--amber)]" />
+            <span className="text-sm font-semibold text-[var(--amber)]">Additional Items</span>
+            <span className="text-xs text-[var(--amber)] ml-1">(enter in {billingCurrency})</span>
+            <span className="ml-auto text-sm font-bold text-[var(--amber)]">{fmtCur(manualEurTotal, billingCurrency)}</span>
           </div>
           <div className="px-5 py-4 space-y-3">
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Description</label>
-                <input type="text" value={newDesc} onChange={e => setNewDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="e.g. Office supplies paid by staff" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50" />
+                <input type="text" value={newDesc} onChange={e => setNewDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="e.g. Office supplies paid by staff" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] focus:border-[var(--brand)] disabled:opacity-50" />
               </div>
               <div className="w-36">
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Amount ({billingCurrency})</label>
-                <input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 disabled:opacity-50" />
+                <input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualLine()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] focus:border-[var(--brand)] disabled:opacity-50" />
               </div>
-              <button onClick={addManualLine} disabled={!newDesc.trim() || !newAmount || parseFloat(newAmount) <= 0 || isFinalized} className="flex items-center gap-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40">
+              <button onClick={addManualLine} disabled={!newDesc.trim() || !newAmount || parseFloat(newAmount) <= 0 || isFinalized} className="flex items-center gap-1 px-4 py-2 bg-[var(--amber)] hover:bg-[var(--amber)] text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40">
                 <Plus className="w-4 h-4" /> Add
               </button>
             </div>
             {manualLines.length > 0 ? (
-              <div className="divide-y divide-gray-50 border border-[var(--border)] rounded-xl overflow-hidden">
+              <div className="divide-y divide-[var(--border-2)] border border-[var(--border)] rounded-xl overflow-hidden">
                 {manualLines.map((line, i) => (
                   <div key={i} className="flex items-center px-4 py-2.5 gap-3">
                     <span className="flex-1 text-sm text-[var(--text)]">{line.description}</span>
@@ -860,7 +860,7 @@ export default function ReimbursableInvoiceClient({
               </button>
             </div>
             {deductions.length > 0 ? (
-              <div className="divide-y divide-gray-50 border border-[var(--border)] rounded-xl overflow-hidden">
+              <div className="divide-y divide-[var(--border-2)] border border-[var(--border)] rounded-xl overflow-hidden">
                 {deductions.map(ded => (
                   <div key={ded.id} className="flex items-center px-4 py-2.5 gap-3">
                     <span className="flex-1 text-sm text-[var(--text)]">{ded.description}</span>
@@ -880,7 +880,7 @@ export default function ReimbursableInvoiceClient({
       {/* ── EUR Grand Total ── */}
       {hasAnything && (
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-[var(--border-2)]">
             {salaryEurTotal > 0 && (
               <div className="flex justify-between px-5 py-3 text-sm text-[var(--text-muted)]">
                 <span>Salaries</span><span>{fmtCur(salaryEurTotal, billingCurrency)}</span>
@@ -945,7 +945,7 @@ export default function ReimbursableInvoiceClient({
       {!hasAnything ? (
         <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-6 text-center text-sm text-[var(--text-faint)]">
           Nothing to invoice.{' '}
-          <a href="/customers/invoices/reimbursables" className="text-indigo-600 hover:underline">Assign billing categories</a> to queue expenses.
+          <a href="/customers/invoices/reimbursables" className="text-[var(--brand)] hover:underline">Assign billing categories</a> to queue expenses.
         </div>
       ) : isFinalized ? (
         <div className="bg-[var(--brand-light)] border border-[var(--border)] rounded-2xl p-5 space-y-3">
@@ -957,7 +957,7 @@ export default function ReimbursableInvoiceClient({
             <ReimbursableInvoicePDFDownload
               data={invoiceData!}
               label="Download PDF"
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 bg-[var(--brand)] hover:bg-[var(--brand)] text-white rounded-xl font-semibold text-sm transition-all"
             />
             {/* Custom block-based template (Feature: customisable templates).
                 Opens the HTML print view, which renders the company's assigned
@@ -967,7 +967,7 @@ export default function ReimbursableInvoiceClient({
                 href={`/reimbursables/invoices/${existingInvoiceId}/print`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-5 py-2.5 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl font-semibold text-sm transition-all"
+                className="flex items-center gap-2 px-5 py-2.5 border border-[var(--border)] text-[var(--brand)] hover:bg-[var(--brand-light)] rounded-xl font-semibold text-sm transition-all"
               >
                 Template PDF
               </a>
@@ -992,7 +992,7 @@ export default function ReimbursableInvoiceClient({
             onClick={handleFinalize}
             disabled={finalizing || needsRate}
             title={needsRate ? 'Enter forex rate above to proceed' : undefined}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-6 py-3 bg-[var(--brand)] hover:bg-[var(--brand)] text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
           >
             {finalizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
             {finalizing

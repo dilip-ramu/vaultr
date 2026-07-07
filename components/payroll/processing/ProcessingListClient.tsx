@@ -218,7 +218,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                   type="month"
                   value={newMonth}
                   onChange={e => setNewMonth(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                 />
               </div>
               <div>
@@ -227,7 +227,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                   type="date"
                   value={newPayDate}
                   onChange={e => setNewPayDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                 />
               </div>
               <div>
@@ -237,7 +237,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                   value={newDescription}
                   onChange={e => setNewDescription(e.target.value)}
                   placeholder="e.g. Salary for March"
-                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                 />
               </div>
             </div>

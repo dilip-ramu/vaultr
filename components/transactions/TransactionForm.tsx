@@ -142,7 +142,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const typeConfig = {
     expense:  { label: 'Expense',  icon: TrendingDown,    color: 'bg-[var(--expense)]',   light: ' ' },
     income:   { label: 'Income',   icon: TrendingUp,      color: 'bg-[var(--income)]', light: ' ' },
-    transfer: { label: 'Transfer', icon: ArrowLeftRight,  color: 'bg-blue-500',  light: 'bg-blue-50 text-blue-500' },
+    transfer: { label: 'Transfer', icon: ArrowLeftRight,  color: 'bg-[var(--transfer)]',  light: 'bg-[var(--surface-2)] text-[var(--transfer)]' },
   }
 
   const selectedPayee = payees.find(p => p.id === payeeId)
@@ -364,7 +364,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                             onClick={() => { setPayeeId(p.id); setPayeeSearch(p.name); setShowPayeeDropdown(false) }}
                             className="w-full flex items-center gap-2.5 px-3 py-2.5 hover: text-left">
                             <span className={`text-xs px-1.5 py-0.5 rounded-md capitalize font-medium ${
-                              p.type === 'business' ? 'bg-blue-100 text-blue-600' :
+                              p.type === 'business' ? 'bg-[var(--surface-2)] text-[var(--transfer)]' :
                               p.type === 'personal' ? 'bg-[var(--brand-light)] ' :
                               ' '
                             }`}>{p.type}</span>

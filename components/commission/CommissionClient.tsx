@@ -34,7 +34,7 @@ function fmtForeign(n: number, currency: string) {
 
 const STATUS_PILL: Record<OrderStatus, string> = {
   backlog:   'bg-[var(--surface-2)] text-[var(--text-muted)]',
-  current:   'bg-blue-100 text-blue-700',
+  current:   'bg-[var(--surface-2)] text-[var(--transfer)]',
   shipped:   'bg-[var(--accent-light)] text-[var(--amber)]',
   received:  'bg-[var(--brand-light)] text-[var(--income)]',
   cancelled: 'bg-[var(--surface-2)] text-[var(--expense)]',
@@ -412,7 +412,7 @@ export default function CommissionClient() {
         {[
           {label:'Pending',   value:totalPending,  color:'text-[var(--amber)]',bg:'bg-[var(--accent-light)]', icon:<Clock className="w-4 h-4 text-[var(--amber)]"/>},
           {label:'Received',  value:totalReceived, color:'text-[var(--income)]',bg:'bg-[var(--brand-light)]', icon:<CheckCircle2 className="w-4 h-4 text-[var(--income)]"/>},
-          {label:'This month',value:thisMonth,     color:'text-blue-700', bg:'bg-blue-50',  icon:<TrendingUp className="w-4 h-4 text-blue-500"/>},
+          {label:'This month',value:thisMonth,     color:'text-[var(--transfer)]', bg:'bg-[var(--surface-2)]',  icon:<TrendingUp className="w-4 h-4 text-[var(--transfer)]"/>},
         ].map(c=>(
           <div key={c.label} className={`${c.bg} rounded-2xl p-3 sm:p-3.5 min-w-0`}>
             <div className={`flex items-center gap-1.5 mb-1 ${c.color}`}>{c.icon}<p className="text-[10px] font-semibold uppercase tracking-wide truncate">{c.label}</p></div>

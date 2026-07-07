@@ -142,7 +142,7 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
       <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up overflow-hidden">
 
         {/* Direction header */}
-        <div className={`px-6 pt-5 pb-4 ${direction === 'sent' ? 'bg-blue-500' : 'bg-indigo-500'}`}>
+        <div className={`px-6 pt-5 pb-4 ${direction === 'sent' ? 'bg-[var(--transfer)]' : 'bg-[var(--brand)]'}`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-white">{isEdit ? 'Edit Bill' : 'New Bill'}</h2>
             <button onClick={onClose} className="w-8 h-8 bg-[var(--surface)]/20 rounded-lg flex items-center justify-center">
@@ -304,7 +304,7 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
           )}
 
           <button type="submit" disabled={saving}
-            className={`w-full text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60 ${direction === 'sent' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-brand-500 hover:bg-brand-600'}`}>
+            className={`w-full text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60 ${direction === 'sent' ? 'bg-[var(--transfer)] hover:bg-[var(--transfer)]' : 'bg-brand-500 hover:bg-brand-600'}`}>
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : direction === 'sent' ? 'Create Invoice' : 'Add Bill'}
           </button>
         </form>

@@ -328,7 +328,7 @@ function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPaid ? 'bg-[var(--brand-light)]' : isOverdue ? 'bg-[var(--surface-2)]' : 'bg-[var(--surface-2)]'}`}>
             {isPaid ? <CheckCircle2 className="w-5 h-5 text-[var(--income)]" />
               : isOverdue ? <AlertCircle className="w-5 h-5 text-[var(--expense)]" />
-              : isSent ? <Send className="w-4 h-4 text-blue-500" />
+              : isSent ? <Send className="w-4 h-4 text-[var(--transfer)]" />
               : <Receipt className="w-4 h-4 text-[var(--text-muted)]" />}
           </div>
 
@@ -353,8 +353,8 @@ function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
             </div>
             {bill.follow_up_date && !isPaid && (
               <div className="flex items-center gap-1 mt-1">
-                <Calendar className="w-3 h-3 text-purple-400" />
-                <span className="text-[10px] text-purple-500">Follow-up: {formatDate(bill.follow_up_date)}</span>
+                <Calendar className="w-3 h-3 text-[#7C3AED]" />
+                <span className="text-[10px] text-[#7C3AED]">Follow-up: {formatDate(bill.follow_up_date)}</span>
               </div>
             )}
           </div>
@@ -386,7 +386,7 @@ function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
       {!isPaid && (
         <div className="flex gap-2 px-4 pb-3.5">
           <button onClick={() => onMarkPaid(bill)}
-            className={`flex-1 py-2 rounded-xl text-xs font-semibold ${isSent ? 'bg-blue-500 text-white' : 'bg-[var(--income)] text-white'}`}>
+            className={`flex-1 py-2 rounded-xl text-xs font-semibold ${isSent ? 'bg-[var(--transfer)] text-white' : 'bg-[var(--income)] text-white'}`}>
             {isSent ? 'Mark as Received' : 'Mark as Paid'}
           </button>
           <button onClick={() => onEdit(bill)}

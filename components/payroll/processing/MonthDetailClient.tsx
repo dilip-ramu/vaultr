@@ -380,7 +380,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 </span>
               )}
               {month.is_paid && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[var(--surface-2)] text-[var(--transfer)] rounded-full text-sm font-medium">
                   ✓ Paid
                 </span>
               )}
@@ -437,28 +437,28 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Billed (€)</label>
             <input type="number" min="0" step="0.01" value={billedEuros}
               onChange={e => setBilledEuros(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
               placeholder="0.00" />
           </div>
           <div>
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Received (₹)</label>
             <input type="number" min="0" step="0.01" value={receivedInr}
               onChange={e => setReceivedInr(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
               placeholder="0.00" />
           </div>
           <div>
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Bank Charges (₹)</label>
             <input type="number" min="0" step="0.01" value={bankCharges}
               onChange={e => setBankCharges(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
               placeholder="0.00" />
           </div>
           <div>
             <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Payment Date</label>
             <input type="date" value={paymentDate}
               onChange={e => setPaymentDate(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]" />
           </div>
         </div>
         {effectiveRate !== null && (
@@ -499,16 +499,16 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
       </div>
 
       {/* Generate / regenerate */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-blue-800 mb-3">
+      <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-[var(--transfer)] mb-3">
           {entries.length > 0 ? 'Regenerate Payroll Entries' : 'Generate Payroll Entries'}
         </h2>
         <div className="flex items-end gap-3">
           <div className="flex-1 max-w-xs">
-            <label className="block text-xs font-medium text-blue-700 mb-1">Exchange Rate (₹ per €)</label>
+            <label className="block text-xs font-medium text-[var(--transfer)] mb-1">Exchange Rate (₹ per €)</label>
             <input type="number" min="0" step="0.0001" value={expendedRate}
               onChange={e => setExpendedRate(e.target.value)}
-              className="w-full px-3 py-2 border border-blue-200 bg-[var(--surface)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border)] bg-[var(--surface)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
               placeholder="e.g. 89.5" />
           </div>
           <button onClick={handleGenerate} disabled={generating}
@@ -518,7 +518,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
         </div>
         {genError && <p className="text-xs text-[var(--expense)] mt-2">{genError}</p>}
         {entries.length > 0 && (
-          <p className="text-xs text-blue-600 mt-2">Regenerating resets all adjustments to zero.</p>
+          <p className="text-xs text-[var(--transfer)] mt-2">Regenerating resets all adjustments to zero.</p>
         )}
       </div>
 
@@ -533,7 +533,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
               Total: <span className="font-semibold text-[var(--text)]">{fmtInr(totalPayable)}</span>
               {selectedEntries.size !== entries.length && (
                 <span className="ml-3">
-                  Selected: <span className="font-semibold text-blue-700">{fmtInr(selectedTotal)}</span>
+                  Selected: <span className="font-semibold text-[var(--transfer)]">{fmtInr(selectedTotal)}</span>
                 </span>
               )}
             </div>
@@ -591,7 +591,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                   <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Net Payable</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-[var(--border-2)]">
                 {visibleEntries.map(entry => {
                   const v = rowValues[entry.id] ?? { allowances: 0, overtime: 0, incentives: 0, deductions: 0, advance: 0 }
                   const livePayable = calcFinalPayable(
@@ -630,7 +630,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                             placeholder="0"
                             onChange={e => setRowField(entry.id, field, parseFloat(e.target.value) || 0)}
                             onBlur={() => saveRow(entry)}
-                            className="w-24 px-2 py-1.5 border border-[var(--border)] rounded text-sm text-right bg-[var(--surface-2)] focus:outline-none focus:ring-1 focus:ring-blue-400 focus:bg-[var(--surface)] hover:border-[var(--border)] transition-colors"
+                            className="w-24 px-2 py-1.5 border border-[var(--border)] rounded text-sm text-right bg-[var(--surface-2)] focus:outline-none focus:ring-1 focus:ring-[var(--border)] focus:bg-[var(--surface)] hover:border-[var(--border)] transition-colors"
                           />
                         </td>
                       ))}
