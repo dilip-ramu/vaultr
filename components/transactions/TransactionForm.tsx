@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown } from 'lucide-react'
+import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown, ChevronLeft, CheckCircle } from 'lucide-react'
 import type { Transaction, Account, Category, TransactionType, Payee } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
@@ -65,6 +65,20 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   // Currency dropdown state
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false)
   const [currencySearch, setCurrencySearch] = useState('')
+
+  // ── Stepped flow (frames 19a-c) ───────────────────────────────────────────
+  // Steps branch by type. When editing, skip straight to Details so all fields
+  // are visible at once for a quick change.
+  type Step = 'amount' | 'from' | 'to' | 'details'
+  const stepsForType: Step[] =
+    type === 'transfer' ? ['amount', 'from', 'to', 'details']
+    : type === 'income' ? ['amount', 'to', 'details']
+    : ['amount', 'from', 'details']
+  const [stepIdx, setStepIdx] = useState(isEdit ? 99 : 0)
+  // Clamp to the current path length (type can change on the amount step).
+  const idx = Math.min(stepIdx, stepsForType.length - 1)
+  const step: Step = stepsForType[idx]
+  const isLast = idx === stepsForType.length - 1
 
   useEffect(() => {
     if (propAccounts && propCategories) {
@@ -222,32 +236,90 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const activeType = typeConfig[type]
   const currencyMeta = getCurrencyMeta(currency)
 
+  const typeAccent = type === 'expense' ? 'var(--expense)' : type === 'income' ? 'var(--income)' : 'var(--transfer)'
+  const fmtInr = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+  const accountName = (id: string) => accounts.find(a => a.id === id)?.name ?? '—'
+
+  // Advance to the next step, validating the current one first.
+  function goNext() {
+    setError('')
+    if (step === 'amount') {
+      const amt = parseAmount(originalAmount)
+      if (amt.error) { setError(amt.error); return }
+      if (currency !== 'INR' && !inrAmount) { setError('Could not get exchange rate for ' + currency); return }
+    }
+    if (step === 'from' && !accountId) { setError(type === 'transfer' ? 'Pick the account to transfer from' : 'Pick an account'); return }
+    if (step === 'to') {
+      if (type === 'transfer' && !toAccountId) { setError('Pick the destination account'); return }
+      if (type === 'income' && !accountId) { setError('Pick the account money came into'); return }
+    }
+    setStepIdx(idx + 1)
+  }
+  const goBack = () => { setError(''); setStepIdx(Math.max(0, idx - 1)) }
+
+  // Which account the current account-step edits, and its picker.
+  const accountStepSelected = (step === 'to' && type === 'income') ? accountId : step === 'to' ? toAccountId : accountId
+  const setAccountStep = (id: string) => {
+    if (step === 'to' && type === 'transfer') setToAccountId(id)
+    else setAccountId(id)
+  }
+  const stepSubtitle =
+    step === 'amount' ? '' :
+    step === 'details' && type === 'transfer' ? `${accountName(accountId)} → ${accountName(toAccountId)}` :
+    `${activeType.label} · ${fmtInr(inrAmount ?? (parseFloat(originalAmount) || 0))}`
+  const stepTitle = step === 'from' ? 'From account' : step === 'to' ? 'To account' : 'Details'
+
+  // Edit mode shows everything on one screen; new mode reveals per step.
+  const showAmount   = isEdit || step === 'amount'
+  const showAccounts = isEdit || step === 'from' || step === 'to'
+  const showDetails  = isEdit || step === 'details'
+
   return (
     <BottomSheet isOpen onClose={onClose}>
 
-        {/* Type selector header */}
-        <div className={`${activeType.color} px-6 pt-5 pb-4`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-bold text-white">{isEdit ? 'Edit Transaction' : 'New Transaction'}</h2>
-            <button onClick={onClose} className="w-11 h-11 flex items-center justify-center bg-[var(--surface)]/20 rounded-xl">
-              <X className="w-5 h-5 text-white" />
-            </button>
+        {/* Stepped header (19a-c) */}
+        {step === 'amount' || isEdit ? (
+          <div className="px-5 pt-4 pb-2">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>{isEdit ? 'Edit transaction' : 'New transaction'}</p>
+              <button type="button" onClick={onClose} className="w-8 h-8 rounded-[9px] flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="flex rounded-[11px] p-[3px]" style={{ background: 'var(--surface-2)' }}>
+              {(['expense', 'income', 'transfer'] as TransactionType[]).map(t => {
+                const active = type === t
+                const acc = t === 'expense' ? 'var(--expense)' : t === 'income' ? 'var(--income)' : 'var(--transfer)'
+                return (
+                  <button key={t} type="button" onClick={() => setType(t)}
+                    className="flex-1 py-2 rounded-[8px] text-[12.5px] font-bold transition-colors"
+                    style={active ? { background: acc, color: '#fff' } : { color: 'var(--text-muted)' }}>
+                    {typeConfig[t].label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-          <div className="flex gap-2">
-            {(Object.keys(typeConfig) as TransactionType[]).map(t => (
-              <button key={t} type="button" onClick={() => setType(t)}
-                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${type === t ? 'bg-[var(--surface)] ' : 'bg-[var(--surface)]/20 text-white'}`}>
-                {typeConfig[t].label}
-              </button>
-            ))}
+        ) : (
+          <div className="px-5 pt-4 pb-2">
+            <div className="flex items-center gap-[11px]">
+              <button type="button" onClick={goBack} className="w-8 h-8 rounded-[10px] flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><ChevronLeft className="w-4 h-4" /></button>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold truncate" style={{ color: typeAccent }}>{stepSubtitle}</p>
+                <p className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>{stepTitle}</p>
+              </div>
+              <button type="button" onClick={onClose} className="w-8 h-8 rounded-[10px] flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="flex gap-[5px] mt-3">
+              {stepsForType.map((s, i) => <span key={s} className="flex-1 h-1 rounded-full" style={{ background: i <= idx ? 'var(--brand)' : 'var(--surface-2)' }} />)}
+            </div>
           </div>
-        </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
-          {error && <div className="  text-sm rounded-xl px-4 py-3">{error}</div>}
+          {error && <div className="text-[13px] rounded-xl px-4 py-2" style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }}>{error}</div>}
 
-          {/* Name */}
+          {/* Name — details step */}
+          {showDetails && (
           <div>
             <label className="block text-sm font-medium  mb-1.5">Name</label>
             <input
@@ -256,12 +328,18 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
               onChange={e => setTxName(e.target.value)}
               placeholder="e.g. Lunch with client, Monthly rent…"
               className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm"
-              autoFocus
             />
           </div>
+          )}
 
-          {/* Amount + Currency */}
+          {/* Amount + Currency — amount step */}
+          {showAmount && (
           <div>
+            {!isEdit && (
+              <div className="text-right px-1 pt-1 pb-3">
+                <p className="text-[11px] font-bold tracking-[.08em]" style={{ color: typeAccent }}>{activeType.label.toUpperCase()} AMOUNT</p>
+              </div>
+            )}
             <label className="block text-sm font-medium  mb-1.5">Amount</label>
             <div className="flex gap-2">
               {/* Currency picker button */}
@@ -298,30 +376,46 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
               </div>
             )}
           </div>
+          )}
 
-          {/* Account */}
-          <div>
-            <label className="block text-sm font-medium  mb-1.5">
-              {type === 'transfer' ? 'From Account' : 'Account'}
-            </label>
-            <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
-            {!accountId && <p className="text-xs  mt-1">Please select an account</p>}
-          </div>
-
-          {type === 'transfer' && (
-            <div>
-              <label className="block text-sm font-medium  mb-1.5">To Account</label>
-              <AccountChipPicker
-                accounts={accounts.filter(a => a.id !== accountId)}
-                selectedId={toAccountId}
-                onSelect={setToAccountId}
-              />
-              {!toAccountId && <p className="text-xs  mt-1">Please select a destination account</p>}
+          {/* Accounts — from/to steps (new) or both pickers (edit) */}
+          {isEdit ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium  mb-1.5">{type === 'transfer' ? 'From Account' : 'Account'}</label>
+                <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
+              </div>
+              {type === 'transfer' && (
+                <div>
+                  <label className="block text-sm font-medium  mb-1.5">To Account</label>
+                  <AccountChipPicker accounts={accounts.filter(a => a.id !== accountId)} selectedId={toAccountId} onSelect={setToAccountId} />
+                </div>
+              )}
+            </>
+          ) : showAccounts && (
+            <div className="flex flex-col gap-[9px]">
+              {accounts
+                .filter(a => (step === 'to' && type === 'transfer') ? a.id !== accountId : true)
+                .map(a => {
+                  const selected = accountStepSelected === a.id
+                  return (
+                    <button key={a.id} type="button" onClick={() => setAccountStep(a.id)}
+                      className="flex items-center gap-3 p-[14px] rounded-[14px] text-left transition-colors"
+                      style={{ background: selected ? 'var(--brand-light)' : 'var(--surface-2)', border: `1.5px solid ${selected ? 'var(--brand)' : 'transparent'}` }}>
+                      <span className="w-10 h-10 rounded-[11px] flex items-center justify-center text-white text-[15px] font-bold shrink-0" style={{ background: a.color || 'var(--brand)' }}>{a.name.charAt(0)}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13.5px] font-bold truncate" style={{ color: 'var(--text)' }}>{a.name}</span>
+                        {a.balance != null && <span className="block text-[11px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmtInr(Number(a.balance))} available</span>}
+                      </span>
+                      {selected && <CheckCircle className="w-[18px] h-[18px] shrink-0" style={{ color: 'var(--brand)' }} />}
+                    </button>
+                  )
+                })}
             </div>
           )}
 
           {/* Payee */}
-          {type !== 'transfer' && (
+          {showDetails && type !== 'transfer' && (
             <div ref={payeeRef}>
               <label className="block text-sm font-medium  mb-1.5">
                 Payee <span className="">(optional)</span>
@@ -390,7 +484,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           )}
 
           {/* Category — searchable dropdown */}
-          {type !== 'transfer' && (
+          {showDetails && type !== 'transfer' && (
             <div className="relative">
               <label className="block text-sm font-medium  mb-1.5">Category</label>
 
@@ -477,14 +571,16 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           )}
 
           {/* Date */}
+          {showDetails && (
           <div>
             <label className="block text-sm font-medium  mb-1.5">Date</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} required
               className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
+          )}
 
           {/* Used for — which of YOUR companies bore this cost. Personal by default. */}
-          {companies.length > 0 && (
+          {showDetails && companies.length > 0 && (
             <div>
               <label className="block text-sm font-medium  mb-1.5">
                 Used for <span className="text-xs font-normal ">(optional)</span>
@@ -502,25 +598,38 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           )}
 
           {/* Notes */}
+          {showDetails && (
           <div>
             <label className="block text-sm font-medium  mb-1.5">Notes (optional)</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Add a note…"
               className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
+          )}
 
-          <FileUpload
-            transactionId={isEdit ? transaction!.id : undefined}
-            existingAttachments={transaction?.attachments ?? []}
-          />
+          {showDetails && (
+            <FileUpload
+              transactionId={isEdit ? transaction!.id : undefined}
+              existingAttachments={transaction?.attachments ?? []}
+            />
+          )}
         </div>
 
-        {/* Sticky submit button — always visible, never requires scrolling */}
+        {/* Footer — Continue through the steps, Save on the last */}
         <div className="shrink-0 px-6 pb-6 pt-3" style={{ borderTop: '1px solid var(--border-2)' }}>
-          <button type="submit" disabled={saving}
-            className={`w-full text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60 ${activeType.color}`}>
-            {saving ? 'Saving…' : isEdit ? 'Save Changes' : `Add ${activeType.label}`}
-          </button>
+          {isEdit || isLast ? (
+            <button type="submit" disabled={saving}
+              className="w-full text-white font-bold py-3.5 rounded-xl transition-opacity hover:opacity-90 disabled:opacity-60"
+              style={{ background: typeAccent }}>
+              {saving ? 'Saving…' : isEdit ? 'Save changes' : `Add ${activeType.label}`}
+            </button>
+          ) : (
+            <button type="button" onClick={goNext}
+              className="w-full text-white font-bold py-3.5 rounded-xl transition-opacity hover:opacity-90"
+              style={{ background: typeAccent }}>
+              Continue
+            </button>
+          )}
         </div>
         </form>
 
