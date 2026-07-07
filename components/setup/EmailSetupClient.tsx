@@ -134,14 +134,14 @@ export default function EmailSetupClient({ initialIntegration, initialSenders, a
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Yahoo Mail via IMAP App Password</p>
           </div>
           {integration && (
-            <span className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Connected
+            <span className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--brand-light)] text-[var(--income)] border border-[var(--border)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--income)]" /> Connected
             </span>
           )}
         </div>
         <div className="px-5 py-5 space-y-3">
           {intSuccess && (
-            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-xl bg-green-50 text-green-800">
+            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-xl bg-[var(--brand-light)] text-[var(--income)]">
               <CheckCircle2 className="w-4 h-4" /> {intSuccess}
             </div>
           )}
@@ -256,8 +256,8 @@ export default function EmailSetupClient({ initialIntegration, initialSenders, a
                   <input type="checkbox" checked={s.is_active} onChange={e => patchSender(s.id, { is_active: e.target.checked })} />
                   Active
                 </label>
-                <button onClick={() => deleteSender(s.id)} className="p-1.5 rounded-lg hover:bg-red-50" title="Delete">
-                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <button onClick={() => deleteSender(s.id)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]" title="Delete">
+                  <Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" />
                 </button>
               </div>
             ))}

@@ -306,8 +306,8 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Yahoo Mail via IMAP App Password</p>
           </div>
           {integration && (
-            <span className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium   border border-[var(--border)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--income)]" />
               Connected
             </span>
           )}
@@ -316,17 +316,17 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
         <div className="px-5 py-5 space-y-5">
           {/* Success/Error banners */}
           {intSuccess && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 border border-green-200">
-              <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-              <p className="text-sm text-green-800">{intSuccess}</p>
-              <button onClick={() => setIntSuccess(null)} className="ml-auto text-green-500 hover:text-green-700 text-lg leading-none">&times;</button>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl  border border-[var(--border)]">
+              <CheckCircle2 className="w-4 h-4  shrink-0" />
+              <p className="text-sm ">{intSuccess}</p>
+              <button onClick={() => setIntSuccess(null)} className="ml-auto  hover: text-lg leading-none">&times;</button>
             </div>
           )}
           {intError && (
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
-              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-              <p className="text-sm text-red-800">{intError}</p>
-              <button onClick={() => setIntError(null)} className="ml-auto text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl  border border-[var(--border)]">
+              <AlertTriangle className="w-4 h-4  shrink-0" />
+              <p className="text-sm ">{intError}</p>
+              <button onClick={() => setIntError(null)} className="ml-auto  hover: text-lg leading-none">&times;</button>
             </div>
           )}
 
@@ -360,7 +360,7 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                   <button
                     onClick={handleDisconnect}
                     disabled={intPending}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all disabled:opacity-60 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all disabled:opacity-60 hover: hover:border-[var(--border)] hover:"
                     style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
                   >
                     <Link2Off className="w-3.5 h-3.5" />
@@ -371,29 +371,29 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
 
               {/* Check result */}
               {checkResult && (
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-green-50 border border-green-200">
-                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 p-4 rounded-xl  border border-[var(--border)]">
+                  <CheckCircle2 className="w-4 h-4  shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-green-800">Mailbox checked</p>
-                    <p className="text-sm text-green-700 mt-0.5">
+                    <p className="text-sm font-semibold ">Mailbox checked</p>
+                    <p className="text-sm  mt-0.5">
                       {checkResult.checked} emails scanned &bull; {checkResult.added} new documents &bull; {checkResult.duplicates} duplicates
                     </p>
                     {checkResult.errors.length > 0 && (
                       <ul className="mt-1 space-y-0.5">
                         {checkResult.errors.map((e, i) => (
-                          <li key={i} className="text-xs text-red-600">{e}</li>
+                          <li key={i} className="text-xs ">{e}</li>
                         ))}
                       </ul>
                     )}
                   </div>
-                  <button onClick={() => setCheckResult(null)} className="text-green-400 hover:text-green-600 text-lg leading-none">&times;</button>
+                  <button onClick={() => setCheckResult(null)} className=" hover: text-lg leading-none">&times;</button>
                 </div>
               )}
               {checkError && (
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
-                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-700">{checkError}</p>
-                  <button onClick={() => setCheckError(null)} className="ml-auto text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+                <div className="flex items-start gap-3 p-4 rounded-xl  border border-[var(--border)]">
+                  <AlertTriangle className="w-4 h-4  shrink-0 mt-0.5" />
+                  <p className="text-sm ">{checkError}</p>
+                  <button onClick={() => setCheckError(null)} className="ml-auto  hover: text-lg leading-none">&times;</button>
                 </div>
               )}
 
@@ -518,9 +518,9 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
         <div className="px-5 py-5 space-y-5">
           {/* Warning if no active senders */}
           {senders.filter(s => s.is_active).length === 0 && (
-            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-800">
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-[var(--accent-light)] border border-[var(--border)]">
+              <AlertTriangle className="w-4 h-4 text-[var(--amber)] shrink-0 mt-0.5" />
+              <p className="text-sm text-[var(--amber)]">
                 No active senders configured. Add at least one sender email address to start monitoring emails.
               </p>
             </div>
@@ -564,7 +564,7 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                         <button
                           onClick={() => saveEdit(sender.id)}
                           disabled={editPending}
-                          className="p-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                          className="p-1.5 rounded-lg   border border-[var(--border)] hover:bg-[var(--brand-light)] transition-colors"
                         >
                           <Check className="w-4 h-4" />
                         </button>
@@ -597,8 +597,8 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                             sender.is_active
-                              ? 'bg-green-50 text-green-700 border border-green-200'
-                              : 'bg-gray-100 text-gray-500 border border-gray-200'
+                              ? '  border border-[var(--border)]'
+                              : '  border border-[var(--border)]'
                           }`}
                         >
                           {sender.is_active ? 'Active' : 'Inactive'}
@@ -612,7 +612,7 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                           style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
                         >
                           {sender.is_active
-                            ? <ToggleRight className="w-4 h-4 text-green-600" />
+                            ? <ToggleRight className="w-4 h-4 " />
                             : <ToggleLeft className="w-4 h-4" />}
                         </button>
 
@@ -629,7 +629,7 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
                         {/* Delete */}
                         <button
                           onClick={() => handleDeleteSender(sender.id)}
-                          className="p-1.5 rounded-lg border transition-colors hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                          className="p-1.5 rounded-lg border transition-colors hover: hover:border-[var(--border)] hover:"
                           style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
                           title="Delete sender"
                         >
@@ -650,9 +650,9 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
           >
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Add Sender</p>
             {senderError && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                <p className="text-sm text-red-700">{senderError}</p>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg  border border-[var(--border)]">
+                <AlertTriangle className="w-4 h-4  shrink-0" />
+                <p className="text-sm ">{senderError}</p>
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

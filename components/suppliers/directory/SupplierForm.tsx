@@ -106,7 +106,7 @@ export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
 
         <form id="supplier-form" onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
-            <div className="px-4 py-3 rounded-xl text-sm bg-red-50 text-red-600 border border-red-200">{error}</div>
+            <div className="px-4 py-3 rounded-xl text-sm   border border-[var(--border)]">{error}</div>
           )}
 
           {/* Basic info */}

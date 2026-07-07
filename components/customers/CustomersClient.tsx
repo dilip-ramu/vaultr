@@ -251,10 +251,10 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
                           <button
                             onClick={() => handleDelete(c.id)}
                             disabled={deleting === c.id}
-                            className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
                             title="Delete"
                           >
-                            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                            <Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" />
                           </button>
                           <span style={{ color: 'var(--text-muted)' }}>
                             {expandedId === c.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -314,8 +314,8 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
                     <button onClick={() => { setEditingCustomer(c); setShowForm(true) }} className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
                       <Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                     </button>
-                    <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg bg-red-50">
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg bg-[var(--surface-2)]">
+                      <Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" />
                     </button>
                   </div>
                 </div>

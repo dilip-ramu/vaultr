@@ -106,7 +106,7 @@ function BillingCategoryCell({
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all max-w-[140px] ${
           value
             ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+            : 'bg-[var(--surface-2)] text-[var(--text-faint)] hover:bg-[var(--border)]'
         }`}
       >
         <Tag className="w-3 h-3 shrink-0" />
@@ -115,15 +115,15 @@ function BillingCategoryCell({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-30 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
-          <div className="px-3 py-2 border-b border-gray-100">
+        <div className="absolute left-0 top-full mt-1 z-30 w-52 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg py-1">
+          <div className="px-3 py-2 border-b border-[var(--border)]">
             <input
               autoFocus
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search or create…"
-              className="w-full text-xs px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg outline-none"
+              className="w-full text-xs px-2 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg outline-none"
               onKeyDown={e => { if (e.key === 'Enter' && canCreate) handleCreate() }}
             />
           </div>
@@ -131,7 +131,7 @@ function BillingCategoryCell({
             {value && (
               <button
                 onClick={() => { onSelect(null); setOpen(false) }}
-                className="w-full px-3 py-2 text-xs text-left text-red-500 hover:bg-red-50"
+                className="w-full px-3 py-2 text-xs text-left text-[var(--expense)] hover:bg-[var(--surface-2)]"
               >
                 Remove category
               </button>
@@ -140,8 +140,8 @@ function BillingCategoryCell({
               <button
                 key={cat.id}
                 onClick={() => { onSelect(cat); setOpen(false); setSearch('') }}
-                className={`w-full px-3 py-2 text-xs text-left hover:bg-gray-50 ${
-                  value?.id === cat.id ? 'font-semibold text-purple-700' : 'text-gray-700'
+                className={`w-full px-3 py-2 text-xs text-left hover:bg-[var(--surface-2)] ${
+                  value?.id === cat.id ? 'font-semibold text-purple-700' : 'text-[var(--text)]'
                 }`}
               >
                 {cat.name}
@@ -158,10 +158,10 @@ function BillingCategoryCell({
               </button>
             )}
             {createError && (
-              <p className="px-3 py-2 text-xs text-red-600 bg-red-50 border-t border-red-100">{createError}</p>
+              <p className="px-3 py-2 text-xs text-[var(--expense)] bg-[var(--surface-2)] border-t border-[var(--border)]">{createError}</p>
             )}
             {filtered.length === 0 && !canCreate && !createError && (
-              <p className="px-3 py-2 text-xs text-gray-400">No categories found</p>
+              <p className="px-3 py-2 text-xs text-[var(--text-faint)]">No categories found</p>
             )}
           </div>
         </div>
@@ -316,13 +316,13 @@ export default function ReimbursableExpensesClient({
           <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
             <FileText className="w-5 h-5 text-purple-600" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Contrast Expenses</h1>
+          <h1 className="text-xl font-bold text-[var(--text)]">Contrast Expenses</h1>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex gap-4">
-          <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+        <div className="bg-[var(--accent-light)] border border-[var(--border)] rounded-2xl p-6 flex gap-4">
+          <AlertCircle className="w-5 h-5 text-[var(--amber)] mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium text-amber-800">No "Contrast" payee found</p>
-            <p className="text-sm text-amber-700 mt-1">
+            <p className="font-medium text-[var(--amber)]">No "Contrast" payee found</p>
+            <p className="text-sm text-[var(--amber)] mt-1">
               Create a payee named <strong>Contrast</strong> and link it to transactions to see them here.
             </p>
           </div>
@@ -337,9 +337,9 @@ export default function ReimbursableExpensesClient({
 
       {/* Migration warning */}
       {!migrationsRun && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex gap-3">
-          <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-          <p className="text-sm text-amber-800">
+        <div className="bg-[var(--accent-light)] border border-[var(--border)] rounded-2xl px-4 py-3 flex gap-3">
+          <AlertCircle className="w-4 h-4 text-[var(--amber)] mt-0.5 shrink-0" />
+          <p className="text-sm text-[var(--amber)]">
             <strong>Run migrations v18 &amp; v19</strong> in Supabase to enable Billing Categories and Invoice tracking.
             Transactions are shown in read-only mode until then.
           </p>
@@ -353,17 +353,17 @@ export default function ReimbursableExpensesClient({
             <FileText className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Contrast Expenses</h1>
-            <p className="text-sm text-gray-500">{filtered.length} transactions · payee: {payeeName}</p>
+            <h1 className="text-xl font-bold text-[var(--text)]">Contrast Expenses</h1>
+            <p className="text-sm text-[var(--text-muted)]">{filtered.length} transactions · payee: {payeeName}</p>
           </div>
         </div>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-          <p className="text-xs text-gray-500 mb-1">Total</p>
-          <p className="text-lg font-bold text-gray-900">{fmtCurrency(totalAmount)}</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 shadow-sm">
+          <p className="text-xs text-[var(--text-muted)] mb-1">Total</p>
+          <p className="text-lg font-bold text-[var(--text)]">{fmtCurrency(totalAmount)}</p>
         </div>
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 shadow-sm">
           <p className="text-xs text-indigo-500 mb-1 flex items-center gap-1">
@@ -371,9 +371,9 @@ export default function ReimbursableExpensesClient({
           </p>
           <p className="text-lg font-bold text-indigo-700">{fmtCurrency(queuedAmount)}</p>
         </div>
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-          <p className="text-xs text-gray-500 mb-1">Billed</p>
-          <p className="text-lg font-bold text-green-600">{fmtCurrency(billedAmount)}</p>
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-4 shadow-sm">
+          <p className="text-xs text-[var(--text-muted)] mb-1">Billed</p>
+          <p className="text-lg font-bold text-[var(--income)]">{fmtCurrency(billedAmount)}</p>
         </div>
       </div>
 
@@ -383,21 +383,21 @@ export default function ReimbursableExpensesClient({
         <div className="relative">
           <button
             onClick={() => setShowMonthPicker(v => !v)}
-            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="flex items-center gap-2 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-2)]"
           >
-            <Filter className="w-4 h-4 text-gray-400" />
+            <Filter className="w-4 h-4 text-[var(--text-faint)]" />
             {selectedMonth === 'all' ? 'All months' : monthLabel(selectedMonth)}
-            <ChevronDown className="w-4 h-4 text-gray-400" />
+            <ChevronDown className="w-4 h-4 text-[var(--text-faint)]" />
           </button>
           {showMonthPicker && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-[160px] py-1">
+            <div className="absolute top-full left-0 mt-1 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-lg z-20 min-w-[160px] py-1">
               <button onClick={() => { setSelectedMonth('all'); setShowMonthPicker(false) }}
-                className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-50 ${selectedMonth === 'all' ? 'font-semibold text-purple-600' : 'text-gray-700'}`}>
+                className={`w-full px-4 py-2 text-sm text-left hover:bg-[var(--surface-2)] ${selectedMonth === 'all' ? 'font-semibold text-purple-600' : 'text-[var(--text)]'}`}>
                 All months
               </button>
               {months.map(m => (
                 <button key={m} onClick={() => { setSelectedMonth(m); setShowMonthPicker(false) }}
-                  className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-50 ${selectedMonth === m ? 'font-semibold text-purple-600' : 'text-gray-700'}`}>
+                  className={`w-full px-4 py-2 text-sm text-left hover:bg-[var(--surface-2)] ${selectedMonth === m ? 'font-semibold text-purple-600' : 'text-[var(--text)]'}`}>
                   {monthLabel(m)}
                 </button>
               ))}
@@ -406,7 +406,7 @@ export default function ReimbursableExpensesClient({
         </div>
 
         {/* Billed filter */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+        <div className="flex bg-[var(--surface-2)] rounded-xl p-1 gap-1">
           {([
             ['all',     'All'],
             ['queued',  'Queued'],
@@ -416,8 +416,8 @@ export default function ReimbursableExpensesClient({
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 filter === f
-                  ? f === 'queued' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? f === 'queued' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-[var(--surface)] text-[var(--text)] shadow-sm'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text)]'
               }`}>
               {lbl}
             </button>
@@ -425,11 +425,11 @@ export default function ReimbursableExpensesClient({
         </div>
 
         {/* Group by */}
-        <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
-          <LayoutList className="w-3.5 h-3.5 text-gray-400 ml-1" />
+        <div className="flex items-center gap-1.5 bg-[var(--surface-2)] rounded-xl p-1">
+          <LayoutList className="w-3.5 h-3.5 text-[var(--text-faint)] ml-1" />
           {([['month', 'Month'], ['billing_category', 'Category'], ['status', 'Status']] as [GroupMode, string][]).map(([g, lbl]) => (
             <button key={g} onClick={() => setGroupMode(g)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${groupMode === g ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${groupMode === g ? 'bg-[var(--surface)] text-[var(--text)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}>
               {lbl}
             </button>
           ))}
@@ -440,21 +440,21 @@ export default function ReimbursableExpensesClient({
         {/* Bulk actions */}
         {someSelected && (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500">{selectedIds.size} selected</span>
+            <span className="text-xs text-[var(--text-muted)]">{selectedIds.size} selected</span>
             <button onClick={downloadSelected} disabled={downloading || selectedAttachmentCount === 0}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${selectedAttachmentCount === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${selectedAttachmentCount === 0 ? 'bg-[var(--surface-2)] text-[var(--text-faint)] cursor-not-allowed' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}>
               {downloading ? <span className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               {downloading ? 'Downloading…' : `Download (${selectedAttachmentCount})`}
             </button>
             <button onClick={() => markBilled(Array.from(selectedIds), true)} disabled={togglingIds.size > 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-xl text-xs font-medium disabled:opacity-50">
+              className="flex items-center gap-1.5 px-3 py-2 bg-[var(--brand-light)] text-[var(--income)] hover:bg-[var(--brand-light)] rounded-xl text-xs font-medium disabled:opacity-50">
               <CheckCircle2 className="w-3.5 h-3.5" /> Mark billed
             </button>
             <button onClick={() => markBilled(Array.from(selectedIds), false)} disabled={togglingIds.size > 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-xl text-xs font-medium disabled:opacity-50">
+              className="flex items-center gap-1.5 px-3 py-2 bg-[var(--accent-light)] text-[var(--amber)] hover:bg-[var(--accent-light)] rounded-xl text-xs font-medium disabled:opacity-50">
               <Circle className="w-3.5 h-3.5" /> Mark unbilled
             </button>
-            <button onClick={() => setSelectedIds(new Set())} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+            <button onClick={() => setSelectedIds(new Set())} className="w-7 h-7 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-lg">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -463,7 +463,7 @@ export default function ReimbursableExpensesClient({
 
       {/* Grouped table */}
       {filtered.length === 0 ? (
-        <div className="bg-white border border-gray-100 rounded-2xl py-16 text-center text-gray-400">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl py-16 text-center text-[var(--text-faint)]">
           <FileText className="w-8 h-8 mx-auto mb-3 opacity-30" />
           <p className="text-sm">No transactions found</p>
         </div>
@@ -472,9 +472,9 @@ export default function ReimbursableExpensesClient({
           {groups.map(group => {
             const groupTotal = group.items.reduce((s, t) => s + t.amount, 0)
             return (
-              <div key={group.key} className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+              <div key={group.key} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
                 {/* Group header */}
-                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+                <div className="flex items-center justify-between px-4 py-2.5 bg-[var(--surface-2)] border-b border-[var(--border)]">
                   <div className="flex items-center gap-2">
                     <button onClick={() => {
                       const groupIds = group.items.map(t => t.id)
@@ -484,20 +484,20 @@ export default function ReimbursableExpensesClient({
                         allGroupSelected ? groupIds.forEach(id => n.delete(id)) : groupIds.forEach(id => n.add(id))
                         return n
                       })
-                    }} className="text-gray-400 hover:text-gray-600">
+                    }} className="text-[var(--text-faint)] hover:text-[var(--text-muted)]">
                       {group.items.every(t => selectedIds.has(t.id))
                         ? <CheckSquare className="w-4 h-4 text-purple-600" />
                         : <Square className="w-4 h-4" />
                       }
                     </button>
-                    <span className="text-sm font-semibold text-gray-700">{group.label}</span>
-                    <span className="text-xs text-gray-400">({group.items.length})</span>
+                    <span className="text-sm font-semibold text-[var(--text)]">{group.label}</span>
+                    <span className="text-xs text-[var(--text-faint)]">({group.items.length})</span>
                   </div>
-                  <span className="text-sm font-bold text-gray-900">{fmtCurrency(groupTotal)}</span>
+                  <span className="text-sm font-bold text-[var(--text)]">{fmtCurrency(groupTotal)}</span>
                 </div>
 
                 {/* Column headers */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-gray-50/50 border-b border-gray-100 text-xs font-medium text-gray-400">
+                <div className="flex items-center gap-3 px-4 py-2 bg-[var(--surface-2)]/50 border-b border-[var(--border)] text-xs font-medium text-[var(--text-faint)]">
                   <div className="w-4" />
                   <span className="flex-1">Transaction</span>
                   <span className="w-28 hidden md:block">Tx Category</span>
@@ -513,19 +513,19 @@ export default function ReimbursableExpensesClient({
                     const isSelected = selectedIds.has(tx.id)
                     const isToggling = togglingIds.has(tx.id)
                     return (
-                      <div key={tx.id} className={`flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors ${isSelected ? 'bg-purple-50/50' : ''}`}>
+                      <div key={tx.id} className={`flex items-center gap-3 px-4 py-3.5 hover:bg-[var(--surface-2)] transition-colors ${isSelected ? 'bg-purple-50/50' : ''}`}>
                         {/* Checkbox */}
-                        <button onClick={() => toggleOne(tx.id)} className="shrink-0 text-gray-400 hover:text-purple-600">
+                        <button onClick={() => toggleOne(tx.id)} className="shrink-0 text-[var(--text-faint)] hover:text-purple-600">
                           {isSelected ? <CheckSquare className="w-4 h-4 text-purple-600" /> : <Square className="w-4 h-4" />}
                         </button>
 
                         {/* Main info */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-sm font-medium text-[var(--text)] truncate">
                             {tx.name ?? tx.category?.name ?? 'Expense'}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-gray-400">{fmtDate(tx.date)}</span>
+                            <span className="text-xs text-[var(--text-faint)]">{fmtDate(tx.date)}</span>
                             {tx.account && (
                               <span className="text-xs px-1.5 py-0.5 rounded-md font-medium"
                                 style={{ backgroundColor: `${tx.account.color}18`, color: tx.account.color }}>
@@ -543,7 +543,7 @@ export default function ReimbursableExpensesClient({
                               {tx.category.name}
                             </span>
                           ) : (
-                            <span className="text-xs text-gray-300">—</span>
+                            <span className="text-xs text-[var(--text-faint)]">—</span>
                           )}
                         </div>
 
@@ -563,7 +563,7 @@ export default function ReimbursableExpensesClient({
 
                         {/* Amount */}
                         <div className="w-24 text-right hidden sm:block shrink-0">
-                          <span className={`text-sm font-semibold ${tx.type === 'income' ? 'text-green-600' : 'text-gray-900'}`}>
+                          <span className={`text-sm font-semibold ${tx.type === 'income' ? 'text-[var(--income)]' : 'text-[var(--text)]'}`}>
                             {tx.type === 'income' ? '+' : '-'}{fmtCurrency(tx.amount)}
                           </span>
                         </div>
@@ -571,12 +571,12 @@ export default function ReimbursableExpensesClient({
                         {/* Attachments */}
                         <div className="w-24 hidden md:flex items-center justify-center shrink-0">
                           {tx.attachments.length > 0 ? (
-                            <div className="flex items-center gap-1 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-lg">
+                            <div className="flex items-center gap-1 text-xs text-[var(--text-muted)] bg-[var(--surface-2)] px-2 py-1 rounded-lg">
                               <Paperclip className="w-3 h-3" />
                               {tx.attachments.length}
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-300">—</span>
+                            <span className="text-xs text-[var(--text-faint)]">—</span>
                           )}
                         </div>
 
@@ -586,10 +586,10 @@ export default function ReimbursableExpensesClient({
                             const isQueued = !tx.is_contrast_billed && !!tx.contrast_billing_category_id
                             const btnBase = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all'
                             const btnColor = tx.is_contrast_billed
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              ? 'bg-[var(--brand-light)] text-[var(--income)] hover:'
                               : isQueued
                                 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-                                : 'bg-amber-50 text-amber-600 hover:bg-amber-100'
+                                : 'bg-[var(--accent-light)] text-[var(--amber)] hover:bg-[var(--accent-light)]'
                             const icon = isToggling
                               ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
                               : tx.is_contrast_billed
@@ -623,11 +623,11 @@ export default function ReimbursableExpensesClient({
 
       {/* Grand footer */}
       {filtered.length > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-100 rounded-2xl shadow-sm">
-          <span className="text-xs text-gray-500">
+        <div className="flex items-center justify-between px-4 py-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
+          <span className="text-xs text-[var(--text-muted)]">
             {filtered.length} transactions · {filtered.reduce((s, t) => s + t.attachments.length, 0)} attachments
           </span>
-          <span className="text-sm font-bold text-gray-900">{fmtCurrency(totalAmount)}</span>
+          <span className="text-sm font-bold text-[var(--text)]">{fmtCurrency(totalAmount)}</span>
         </div>
       )}
     </div>

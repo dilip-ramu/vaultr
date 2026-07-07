@@ -114,16 +114,16 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
   }: { label: string; value: string | null | undefined; field: string; mono?: boolean }) => {
     if (!value) return null
     return (
-      <div className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-        <p className="text-xs text-gray-500">{label}</p>
+      <div className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0">
+        <p className="text-xs text-[var(--text-muted)]">{label}</p>
         <div className="flex items-center gap-2">
-          <p className={`text-sm text-gray-900 ${mono ? 'font-mono' : 'font-medium'}`}>{value}</p>
+          <p className={`text-sm text-[var(--text)] ${mono ? 'font-mono' : 'font-medium'}`}>{value}</p>
           <button
             onClick={() => copyToClipboard(value, field)}
-            className="text-gray-300 hover:text-brand-500 transition-colors"
+            className="text-[var(--text-faint)] hover:text-[var(--brand)] transition-colors"
           >
             {copiedField === field
-              ? <Check className="w-3.5 h-3.5 text-green-500" />
+              ? <Check className="w-3.5 h-3.5 text-[var(--income)]" />
               : <Copy className="w-3.5 h-3.5" />}
           </button>
         </div>
@@ -137,14 +137,14 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       {/* Back */}
-      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 -ml-1">
+      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)] -ml-1">
         <ArrowLeft className="w-4 h-4" />
         Accounts
       </button>
 
       {/* Hero card */}
       <div
-        className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+        className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden"
         style={{ borderTopWidth: '4px', borderTopColor: account.color || typeDisplay.color }}
       >
         <div className="p-5">
@@ -160,22 +160,22 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-gray-900 truncate">{account.name}</h1>
-              <p className="text-sm text-gray-400">{typeDisplay.label} · {account.currency}</p>
+              <h1 className="text-xl font-bold text-[var(--text)] truncate">{account.name}</h1>
+              <p className="text-sm text-[var(--text-faint)]">{typeDisplay.label} · {account.currency}</p>
               {!account.include_in_net_worth && (
-                <p className="text-xs text-amber-500 mt-0.5">Excluded from net worth</p>
+                <p className="text-xs text-[var(--amber)] mt-0.5">Excluded from net worth</p>
               )}
             </div>
             <button
               onClick={() => setShowImport(true)}
               title="Import past statement"
-              className="w-9 h-9 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-brand-500 hover:bg-brand-50 transition-colors shrink-0"
+              className="w-9 h-9 bg-[var(--surface-2)] rounded-xl flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--brand)] hover:bg-brand-50 transition-colors shrink-0"
             >
               <Upload className="w-4 h-4" />
             </button>
             <button
               onClick={() => setShowEdit(true)}
-              className="w-9 h-9 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-brand-500 hover:bg-brand-50 transition-colors shrink-0"
+              className="w-9 h-9 bg-[var(--surface-2)] rounded-xl flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--brand)] hover:bg-brand-50 transition-colors shrink-0"
             >
               <Pencil className="w-4 h-4" />
             </button>
@@ -185,9 +185,9 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
           {isCredit(account.type) ? (() => {
             const m = creditMetrics(account)
             return (
-              <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+              <div className="bg-[var(--surface-2)] rounded-xl px-4 py-3 space-y-2">
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Outstanding</p>
+                  <p className="text-xs text-[var(--text-muted)] mb-0.5">Outstanding</p>
                   <p className="text-2xl font-bold" style={{ color: m.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>
                     {m.outstanding > 0 ? formatCurrency(m.outstanding) : (m.creditBalance > 0 ? `+${formatCurrency(m.creditBalance)}` : 'No dues')}
                   </p>
@@ -198,7 +198,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
                       <span style={{ color: m.overLimit ? 'var(--expense)' : 'var(--text-muted)' }}>
                         {m.overLimit ? 'Over limit!' : `${formatCurrency(m.available ?? 0)} available`}
                       </span>
-                      <span className="text-gray-400">of {formatCurrency(m.limit)} · {Math.round((m.utilisation ?? 0) * 100)}%</span>
+                      <span className="text-[var(--text-faint)]">of {formatCurrency(m.limit)} · {Math.round((m.utilisation ?? 0) * 100)}%</span>
                     </div>
                     <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
                       <div className="h-full rounded-full" style={{
@@ -208,22 +208,22 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
                     </div>
                   </>
                 )}
-                {account.interest_rate != null && <p className="text-xs text-gray-400">{account.interest_rate}% APR</p>}
+                {account.interest_rate != null && <p className="text-xs text-[var(--text-faint)]">{account.interest_rate}% APR</p>}
               </div>
             )
           })() : isLoan(account.type) ? (() => {
             const m = loanMetrics(account)
             return (
-              <div className="bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+              <div className="bg-[var(--surface-2)] rounded-xl px-4 py-3 space-y-2">
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Remaining</p>
+                  <p className="text-xs text-[var(--text-muted)] mb-0.5">Remaining</p>
                   <p className="text-2xl font-bold" style={{ color: m.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>{formatCurrency(m.outstanding)}</p>
                 </div>
                 {m.principal != null && (
                   <>
                     <div className="flex items-center justify-between text-xs">
                       <span style={{ color: 'var(--income)' }}>{formatCurrency(m.repaid ?? 0)} repaid</span>
-                      <span className="text-gray-400">of {formatCurrency(m.principal)} · {Math.round((m.progress ?? 0) * 100)}%</span>
+                      <span className="text-[var(--text-faint)]">of {formatCurrency(m.principal)} · {Math.round((m.progress ?? 0) * 100)}%</span>
                     </div>
                     <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
                       <div className="h-full rounded-full" style={{ width: `${Math.min((m.progress ?? 0) * 100, 100)}%`, background: 'var(--income)' }} />
@@ -231,20 +231,20 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
                   </>
                 )}
                 {(m.emi != null || m.rate != null) && (
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-[var(--text-faint)]">
                     {m.emi != null && `EMI ${formatCurrency(m.emi)}`}{m.emi != null && m.rate != null && ' · '}{m.rate != null && `${m.rate}%`}
                   </p>
                 )}
               </div>
             )
           })() : (
-            <div className="bg-gray-50 rounded-xl px-4 py-3">
-              <p className="text-xs text-gray-500 mb-0.5">Current Balance</p>
-              <p className={`text-2xl font-bold ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
+            <div className="bg-[var(--surface-2)] rounded-xl px-4 py-3">
+              <p className="text-xs text-[var(--text-muted)] mb-0.5">Current Balance</p>
+              <p className={`text-2xl font-bold ${balance < 0 ? 'text-[var(--expense)]' : 'text-[var(--text)]'}`}>
                 {formatCurrency(balance)}
               </p>
               {account.initial_balance !== 0 && (
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-[var(--text-faint)] mt-0.5">
                   Opening: {formatCurrency(account.initial_balance)}
                 </p>
               )}
@@ -255,10 +255,10 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
 
       {/* Bank Details */}
       {hasDetails && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-gray-400" />
-            <p className="text-sm font-semibold text-gray-900">Bank Details</p>
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)] flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-[var(--text-faint)]" />
+            <p className="text-sm font-semibold text-[var(--text)]">Bank Details</p>
           </div>
           <div className="px-5">
             <DetailRow label="Account Number" value={account.account_number} field="account_number" mono />
@@ -266,21 +266,21 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
             <DetailRow label="IFSC Code" value={account.ifsc_code} field="ifsc_code" mono />
             <DetailRow label="SWIFT Code" value={account.swift_code} field="swift_code" mono />
             {account.open_date && (
-              <div className="flex items-center justify-between py-3 border-b border-gray-50">
-                <p className="text-xs text-gray-500">Opened</p>
-                <p className="text-sm font-medium text-gray-900">{formatDate(account.open_date)}</p>
+              <div className="flex items-center justify-between py-3 border-b border-[var(--border)]">
+                <p className="text-xs text-[var(--text-muted)]">Opened</p>
+                <p className="text-sm font-medium text-[var(--text)]">{formatDate(account.open_date)}</p>
               </div>
             )}
             {account.closing_date && (
-              <div className="flex items-center justify-between py-3 border-b border-gray-50">
-                <p className="text-xs text-gray-500">Closing Date</p>
-                <p className="text-sm font-medium text-amber-600">{formatDate(account.closing_date)}</p>
+              <div className="flex items-center justify-between py-3 border-b border-[var(--border)]">
+                <p className="text-xs text-[var(--text-muted)]">Closing Date</p>
+                <p className="text-sm font-medium text-[var(--amber)]">{formatDate(account.closing_date)}</p>
               </div>
             )}
             {account.bank_address && (
               <div className="py-3">
-                <p className="text-xs text-gray-500 mb-1">Address</p>
-                <p className="text-sm text-gray-700">{account.bank_address}</p>
+                <p className="text-xs text-[var(--text-muted)] mb-1">Address</p>
+                <p className="text-sm text-[var(--text)]">{account.bank_address}</p>
               </div>
             )}
           </div>
@@ -288,7 +288,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
       )}
 
       {/* Transactions — Statement / List toggle */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
         <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-1 p-0.5 rounded-lg" style={{ background: 'var(--surface-2)' }}>
             {(['statement', 'list'] as const).map(v => (
@@ -348,7 +348,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
           )
         ) : (
           transactions.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-gray-400">No transactions yet</div>
+            <div className="px-5 py-8 text-center text-sm text-[var(--text-faint)]">No transactions yet</div>
           ) : (
             <div>
               {transactions.map((tx, i) => (

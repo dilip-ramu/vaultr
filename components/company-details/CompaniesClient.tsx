@@ -118,8 +118,8 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
                 <button onClick={() => { setEditing(c); setShowForm(true) }} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]" title="Edit">
                   <Pencil className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
                 </button>
-                <button onClick={() => handleDelete(c)} className="p-1.5 rounded-lg hover:bg-red-50" title="Delete">
-                  <Trash2 className="w-4 h-4 text-red-400" />
+                <button onClick={() => handleDelete(c)} className="p-1.5 rounded-lg hover:" title="Delete">
+                  <Trash2 className="w-4 h-4 " />
                 </button>
               </div>
             </div>

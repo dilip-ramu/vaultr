@@ -160,7 +160,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                         </span>
                       )}
                       {!ri.paid_at && ri.due_date && new Date(ri.due_date) < new Date() && (
-                        <span className="flex items-center gap-0.5 text-red-500">
+                        <span className="flex items-center gap-0.5 ">
                           <Clock className="w-3 h-3" /> Overdue
                         </span>
                       )}
@@ -179,7 +179,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                     {ri.balance_due > 0 && (
                       <div className="flex items-center justify-between text-xs">
                         <span style={{ color: 'var(--text-muted)' }}>Balance due</span>
-                        <span className="font-medium text-red-500">{fmt(Number(ri.balance_due))}</span>
+                        <span className="font-medium ">{fmt(Number(ri.balance_due))}</span>
                       </div>
                     )}
                   </div>
@@ -208,7 +208,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                 {unbilled >= 0 ? 'Unbilled' : 'Over-billed'}
               </p>
               <div className="flex items-center justify-center gap-1">
-                {unbilled > 0 ? <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                {unbilled > 0 ? <TrendingDown className="w-3.5 h-3.5 " />
                   : unbilled < 0 ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
                   : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                 }

@@ -71,12 +71,12 @@ interface Props {
 
 const STATUS_CONFIG: Record<EmailDocument['status'], { label: string; className: string }> = {
   new:                  { label: 'New',               className: 'bg-blue-50 text-blue-700 border border-blue-200' },
-  reviewed:             { label: 'Reviewed',          className: 'bg-amber-50 text-amber-700 border border-amber-200' },
-  processed:            { label: 'Processed',         className: 'bg-green-50 text-green-700 border border-green-200' },
-  ignored:              { label: 'Ignored',           className: 'bg-gray-100 text-gray-500 border border-gray-200' },
-  processing:           { label: 'Processing',        className: 'bg-gray-100 text-gray-500 border border-gray-200' },
-  invoice_created:      { label: 'Invoice Created',   className: 'bg-green-50 text-green-700 border border-green-200' },
-  needs_review:         { label: 'Needs Review',      className: 'bg-red-50 text-red-700 border border-red-200' },
+  reviewed:             { label: 'Reviewed',          className: 'bg-[var(--accent-light)] text-[var(--amber)] border border-[var(--border)]' },
+  processed:            { label: 'Processed',         className: 'bg-[var(--brand-light)] text-[var(--income)] border border-[var(--border)]' },
+  ignored:              { label: 'Ignored',           className: 'bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]' },
+  processing:           { label: 'Processing',        className: 'bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]' },
+  invoice_created:      { label: 'Invoice Created',   className: 'bg-[var(--brand-light)] text-[var(--income)] border border-[var(--border)]' },
+  needs_review:         { label: 'Needs Review',      className: 'bg-[var(--surface-2)] text-[var(--expense)] border border-[var(--border)]' },
   duplicate_suspected:  { label: 'Duplicate',         className: 'bg-orange-50 text-orange-700 border border-orange-200' },
 }
 
@@ -516,32 +516,32 @@ export default function EmailDocumentsClient({
 
       {/* Check result banner */}
       {checkResult && !isCheckingBackground && (
-        <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--brand-light)] px-4 py-3 flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 text-[var(--income)] shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-green-800">Mailbox check complete</p>
-            <p className="text-sm text-green-700 mt-0.5">Document list refreshed — any new emails have been added.</p>
+            <p className="text-sm font-semibold text-[var(--income)]">Mailbox check complete</p>
+            <p className="text-sm text-[var(--income)] mt-0.5">Document list refreshed — any new emails have been added.</p>
             {checkResult.errors.length > 0 && (
               <ul className="mt-1 space-y-0.5">
                 {checkResult.errors.map((e, i) => (
-                  <li key={i} className="text-xs text-red-600">{e}</li>
+                  <li key={i} className="text-xs text-[var(--expense)]">{e}</li>
                 ))}
               </ul>
             )}
           </div>
-          <button onClick={() => setCheckResult(null)} className="text-green-500 hover:text-green-700 text-lg leading-none">&times;</button>
+          <button onClick={() => setCheckResult(null)} className="text-[var(--income)] hover:text-[var(--income)] text-lg leading-none">&times;</button>
         </div>
       )}
 
       {/* Error banner */}
       {checkError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-[var(--expense)] shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-800">Check failed</p>
-            <p className="text-sm text-red-700 mt-0.5">{checkError}</p>
+            <p className="text-sm font-semibold text-[var(--expense)]">Check failed</p>
+            <p className="text-sm text-[var(--expense)] mt-0.5">{checkError}</p>
           </div>
-          <button onClick={() => setCheckError(null)} className="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+          <button onClick={() => setCheckError(null)} className="text-[var(--expense)] hover:text-[var(--expense)] text-lg leading-none">&times;</button>
         </div>
       )}
 
@@ -745,7 +745,7 @@ export default function EmailDocumentsClient({
                             )}
                             {/* Processing error */}
                             {doc.status === 'needs_review' && doc.processing_error && (
-                              <p className="text-[10px] text-red-500 mt-0.5 truncate">
+                              <p className="text-[10px] text-[var(--expense)] mt-0.5 truncate">
                                 {doc.processing_error}
                               </p>
                             )}
@@ -870,7 +870,7 @@ export default function EmailDocumentsClient({
 
                           {/* Loading state while processing */}
                           {isRowProcessing && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]">
                               <RefreshCw className="w-3 h-3 animate-spin" />
                               Processing…
                             </span>
@@ -881,7 +881,7 @@ export default function EmailDocumentsClient({
                             <a
                               href={`/suppliers/invoices?search=${encodeURIComponent(doc.extracted_invoice_number ?? doc.supplier_invoice_id)}`}
                               title="View the created invoice"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 transition-colors hover:bg-green-100"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[var(--brand-light)] text-[var(--income)] border border-[var(--border)] transition-colors hover:bg-[var(--brand-light)]"
                             >
                               <ArrowUpRight className="w-3 h-3" />
                               View Invoice
@@ -901,7 +901,7 @@ export default function EmailDocumentsClient({
                             <button
                               onClick={() => updateStatus(doc.id, 'ignored')}
                               title="Ignore document"
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-500 border border-gray-200 transition-colors hover:bg-gray-100"
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)] transition-colors hover:bg-[var(--surface-2)]"
                             >
                               <EyeOff className="w-3 h-3" />
                             </button>
@@ -909,7 +909,7 @@ export default function EmailDocumentsClient({
                           <button
                             onClick={() => deleteDoc(doc.id)}
                             title="Delete record"
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-50 text-red-500 border border-red-200 transition-colors hover:bg-red-100"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-[var(--surface-2)] text-[var(--expense)] border border-[var(--border)] transition-colors hover:bg-[var(--surface-2)]"
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>

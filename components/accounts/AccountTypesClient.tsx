@@ -185,26 +185,26 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
       <div className="flex items-center gap-3 mb-2">
-        <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+        <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-lg">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">Account Types</h1>
-          <p className="text-sm text-gray-400">Customise built-in types or create new ones</p>
+          <h1 className="text-xl font-bold text-[var(--text)]">Account Types</h1>
+          <p className="text-sm text-[var(--text-faint)]">Customise built-in types or create new ones</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-1.5 bg-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-xl"
+          className="flex items-center gap-1.5 bg-[var(--brand)] text-white text-sm font-semibold px-4 py-2 rounded-xl"
         >
           <Plus className="w-4 h-4" /> New Type
         </button>
       </div>
 
       {/* Built-in types */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <p className="text-sm font-semibold text-gray-900">Built-in Types</p>
-          <p className="text-xs text-gray-400 mt-0.5">Tap edit to rename or recolour</p>
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border)]">
+          <p className="text-sm font-semibold text-[var(--text)]">Built-in Types</p>
+          <p className="text-xs text-[var(--text-faint)] mt-0.5">Tap edit to rename or recolour</p>
         </div>
         <div className="divide-y divide-gray-50">
           {(Object.keys(ACCOUNT_TYPE_CONFIG) as AccountType[]).map(key => {
@@ -220,21 +220,21 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
                     {iconEmoji}
                   </div>
                 )}
-                <p className="text-sm text-gray-700 flex-1">{d.name}</p>
+                <p className="text-sm text-[var(--text)] flex-1">{d.name}</p>
                 {d.isOverridden && (
-                  <span className="text-[10px] bg-brand-50 text-brand-500 px-1.5 py-0.5 rounded-md font-medium">custom</span>
+                  <span className="text-[10px] bg-brand-50 text-[var(--brand)] px-1.5 py-0.5 rounded-md font-medium">custom</span>
                 )}
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
                 <button
                   onClick={() => openEditBuiltin(key)}
-                  className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg ml-1"
+                  className="w-7 h-7 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--brand)] hover:bg-brand-50 rounded-lg ml-1"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 {d.isOverridden && (
                   <button
                     onClick={() => handleResetBuiltin(key)}
-                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                    className="w-7 h-7 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--expense)] hover:bg-[var(--surface-2)] rounded-lg"
                     title="Reset to default"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -248,9 +248,9 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
 
       {/* Custom types */}
       {types.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-900">Custom Types</p>
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)]">
+            <p className="text-sm font-semibold text-[var(--text)]">Custom Types</p>
           </div>
           <div className="divide-y divide-gray-50">
             {types.map(t => {
@@ -265,12 +265,12 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
                       {iconEmoji}
                     </div>
                   )}
-                  <p className="text-sm font-medium text-gray-800 flex-1">{t.name}</p>
+                  <p className="text-sm font-medium text-[var(--text)] flex-1">{t.name}</p>
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
-                  <button onClick={() => openEditCustom(t)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg ml-1">
+                  <button onClick={() => openEditCustom(t)} className="w-7 h-7 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--brand)] hover:bg-brand-50 rounded-lg ml-1">
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => handleDeleteCustom(t.id, t.name)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                  <button onClick={() => handleDeleteCustom(t.id, t.name)} className="w-7 h-7 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--expense)] hover:bg-[var(--surface-2)] rounded-lg">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -281,7 +281,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
       )}
 
       {types.length === 0 && (
-        <div className="text-center py-10 text-gray-400">
+        <div className="text-center py-10 text-[var(--text-faint)]">
           <p className="text-3xl mb-2">🗂️</p>
           <p className="text-sm font-medium">No custom types yet</p>
           <p className="text-xs mt-1">Create types like PPF, NPS, Gold, Crypto…</p>
@@ -292,13 +292,13 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
           <div className="fixed inset-0 bg-black/40" onClick={() => setShowForm(false)} />
-          <div className="relative bg-white w-full md:max-w-sm rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up space-y-4">
-            <h2 className="text-base font-bold text-gray-900">
+          <div className="relative bg-[var(--surface)] w-full md:max-w-sm rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up space-y-4">
+            <h2 className="text-base font-bold text-[var(--text)]">
               {formMode === 'edit-builtin' ? `Edit "${ACCOUNT_TYPE_CONFIG[editBuiltinKey!]?.label}"` :
                formMode === 'edit-custom' ? 'Edit Type' : 'New Account Type'}
             </h2>
 
-            {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+            {error && <div className="bg-[var(--surface-2)] text-[var(--expense)] text-sm rounded-xl px-4 py-3">{error}</div>}
 
             {/* Avatar */}
             <div className="flex items-center gap-4">
@@ -308,7 +308,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
                   type="button"
                   onClick={() => avatarInputRef.current?.click()}
                   disabled={avatarUploading}
-                  className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center shadow-md"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--brand)] rounded-full flex items-center justify-center shadow-md"
                 >
                   {avatarUploading
                     ? <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
@@ -317,19 +317,19 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
                 <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+                <label className="block text-sm font-medium text-[var(--text)] mb-1.5">Name</label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)}
                   placeholder="e.g. PPF, NPS, Gold, Crypto"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                  className="w-full px-4 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Icon</label>
               <div className="grid grid-cols-6 gap-2">
                 {ICON_OPTIONS.map(opt => (
                   <button key={opt.value} type="button" onClick={() => setIcon(opt.value)}
-                    className={`h-10 rounded-xl text-lg flex items-center justify-center transition-all ${icon === opt.value ? 'ring-2 ring-brand-500 bg-brand-50' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                    className={`h-10 rounded-xl text-lg flex items-center justify-center transition-all ${icon === opt.value ? 'ring-2 ring-brand-500 bg-brand-50' : 'bg-[var(--surface-2)] hover:bg-[var(--surface-2)]'}`}>
                     {opt.emoji}
                   </button>
                 ))}
@@ -337,7 +337,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-2">Color</label>
               <div className="flex gap-2 flex-wrap">
                 {ACCOUNT_COLORS.map(c => (
                   <button key={c} type="button" onClick={() => setColor(c)}
@@ -350,7 +350,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
             </div>
 
             {/* Preview */}
-            <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-3 bg-[var(--surface-2)] rounded-xl px-4 py-3">
               {avatarUrl ? (
                 <img src={avatarUrl} alt={name} className="w-9 h-9 rounded-xl object-cover shrink-0" />
               ) : (
@@ -359,17 +359,17 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
                   {selectedIconEmoji}
                 </div>
               )}
-              <p className="text-sm font-medium text-gray-800">{name || 'Preview'}</p>
+              <p className="text-sm font-medium text-[var(--text)]">{name || 'Preview'}</p>
               <div className="w-3 h-3 rounded-full ml-auto" style={{ backgroundColor: color }} />
             </div>
 
             <div className="flex gap-3 pt-1">
               <button onClick={() => setShowForm(false)}
-                className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                className="flex-1 py-3 rounded-xl border border-[var(--border)] text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-2)]">
                 Cancel
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="flex-1 py-3 rounded-xl bg-brand-500 text-white text-sm font-semibold disabled:opacity-60">
+                className="flex-1 py-3 rounded-xl bg-[var(--brand)] text-white text-sm font-semibold disabled:opacity-60">
                 {saving ? 'Saving…' : formMode === 'create-custom' ? 'Create' : 'Save'}
               </button>
             </div>

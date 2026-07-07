@@ -122,132 +122,132 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up max-h-[85vh] overflow-y-auto">
+      <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-gray-900">{isEdit ? 'Edit Customer' : 'New Customer'}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 rounded-lg">
+          <h2 className="text-lg font-bold ">{isEdit ? 'Edit Customer' : 'New Customer'}</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center  hover: rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+          {error && <div className="  text-sm rounded-xl px-4 py-3">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Customer / Company Name *</label>
+            <label className="block text-sm font-medium  mb-1.5">Customer / Company Name *</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)} required
-              placeholder="e.g. Acme Corp" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              placeholder="e.g. Acme Corp" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <label className="block text-sm font-medium  mb-1.5">Email</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="billing@company.com" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                placeholder="billing@company.com" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+              <label className="block text-sm font-medium  mb-1.5">Phone</label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
-                placeholder="+91 98765 43210" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                placeholder="+91 98765 43210" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">GST Number</label>
+            <label className="block text-sm font-medium  mb-1.5">GST Number</label>
             <input type="text" value={gst} onChange={e => setGst(e.target.value)}
-              placeholder="22AAAAA0000A1Z5" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+              placeholder="22AAAAA0000A1Z5" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm font-mono" />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
+            <label className="block text-sm font-medium  mb-1.5">Address</label>
             <textarea value={address} onChange={e => setAddress(e.target.value)}
               placeholder="Street / Building / Area…" rows={2}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm resize-none" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
+              <label className="block text-sm font-medium  mb-1.5">City</label>
               <input type="text" value={city} onChange={e => setCity(e.target.value)}
-                placeholder="e.g. Mumbai" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                placeholder="e.g. Mumbai" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Pincode</label>
+              <label className="block text-sm font-medium  mb-1.5">Pincode</label>
               <input type="text" value={pincode} onChange={e => setPincode(e.target.value)}
-                placeholder="400001" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                placeholder="400001" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">State</label>
+              <label className="block text-sm font-medium  mb-1.5">State</label>
               <input type="text" value={state} onChange={e => setState(e.target.value)}
-                placeholder="e.g. Maharashtra" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                placeholder="e.g. Maharashtra" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">State Code</label>
+              <label className="block text-sm font-medium  mb-1.5">State Code</label>
               <input type="text" value={stateCode} onChange={e => setStateCode(e.target.value)}
-                placeholder="e.g. 27" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+                placeholder="e.g. 27" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm font-mono" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Country</label>
+              <label className="block text-sm font-medium  mb-1.5">Country</label>
               <input type="text" value={country} onChange={e => setCountry(e.target.value)}
-                placeholder="India" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                placeholder="India" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Billing currency</label>
+              <label className="block text-sm font-medium  mb-1.5">Billing currency</label>
               <select
                 value={billingCurrency}
                 onChange={e => setBillingCurrency(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm"
               >
                 {['INR','EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF'].map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Used when billing this customer for reimbursable expenses.</p>
+              <p className="text-xs  mt-1">Used when billing this customer for reimbursable expenses.</p>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">CSV Alias</label>
+            <label className="block text-sm font-medium  mb-1.5">CSV Alias</label>
             <input type="text" value={csvAlias} onChange={e => setCsvAlias(e.target.value)}
-              placeholder="e.g. SURIYAA KNITWEAR" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
-            <p className="text-xs text-gray-400 mt-1">
+              placeholder="e.g. SURIYAA KNITWEAR" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm font-mono" />
+            <p className="text-xs  mt-1">
               Exact column header used in courier CSV files. Used to auto-match imports.
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
+            <label className="block text-sm font-medium  mb-1.5">Notes</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="Internal notes…" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              placeholder="Internal notes…" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           {/* Commission flag — private, not visible to customer */}
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-200">
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl  border border-[var(--border)]">
             <div>
-              <p className="text-sm font-medium text-gray-700">Pays commission</p>
-              <p className="text-xs text-gray-400 mt-0.5">Private — only visible to you</p>
+              <p className="text-sm font-medium ">Pays commission</p>
+              <p className="text-xs  mt-0.5">Private — only visible to you</p>
             </div>
             <button
               type="button"
               onClick={() => setPaysCommission(v => !v)}
-              className={`w-11 h-6 rounded-full transition-colors relative ${paysCommission ? 'bg-brand-500' : 'bg-gray-300'}`}
+              className={`w-11 h-6 rounded-full transition-colors relative ${paysCommission ? 'bg-brand-500' : ''}`}
             >
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${paysCommission ? 'right-0.5' : 'left-0.5'}`} />
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-[var(--surface)] shadow transition-all ${paysCommission ? 'right-0.5' : 'left-0.5'}`} />
             </button>
           </div>
 
           {/* Reimbursable flag — links a payee so a tab auto-opens under
               Reimbursables and any payee-tagged expense counts toward them. */}
-          <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-200">
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl  border border-[var(--border)]">
             <div>
-              <p className="text-sm font-medium text-gray-700">Reimbursable</p>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <p className="text-sm font-medium ">Reimbursable</p>
+              <p className="text-xs  mt-0.5">
                 {isReimbursable
                   ? 'A tab for this customer shows under Reimbursables.'
                   : 'Turn on to bill this customer for pass-through expenses.'}
@@ -256,9 +256,9 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
             <button
               type="button"
               onClick={() => setIsReimbursable(v => !v)}
-              className={`w-11 h-6 rounded-full transition-colors relative ${isReimbursable ? 'bg-brand-500' : 'bg-gray-300'}`}
+              className={`w-11 h-6 rounded-full transition-colors relative ${isReimbursable ? 'bg-brand-500' : ''}`}
             >
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${isReimbursable ? 'right-0.5' : 'left-0.5'}`} />
+              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-[var(--surface)] shadow transition-all ${isReimbursable ? 'right-0.5' : 'left-0.5'}`} />
             </button>
           </div>
 
@@ -267,10 +267,10 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
               you don't retype rent/internet/etc every month. Amounts are
               stored and displayed in the customer's billing currency. */}
           {isReimbursable && (
-            <div className="px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+            <div className="px-4 py-3 rounded-xl  border border-[var(--border)] space-y-3">
               <div>
-                <p className="text-sm font-medium text-gray-700">Fixed monthly expenses</p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-sm font-medium ">Fixed monthly expenses</p>
+                <p className="text-xs  mt-0.5">
                   Templates seeded into every reimbursement invoice for this customer. Each row can override the customer&apos;s billing currency (default: {billingCurrency}). Editable per-invoice.
                 </p>
               </div>
@@ -282,19 +282,19 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
                       value={f.description}
                       onChange={e => setFixedExpenses(prev => prev.map((row, i) => i === idx ? { ...row, description: e.target.value } : row))}
                       placeholder="e.g. Office Rent"
-                      className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                      className="flex-1 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm"
                     />
                     <input
                       type="number"
                       value={f.amount === 0 ? '' : f.amount}
                       onChange={e => setFixedExpenses(prev => prev.map((row, i) => i === idx ? { ...row, amount: parseFloat(e.target.value) || 0 } : row))}
                       placeholder="0.00"
-                      className="w-24 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-right tabular-nums"
+                      className="w-24 px-3 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm text-right tabular-nums"
                     />
                     <select
                       value={f.currency ?? ''}
                       onChange={e => setFixedExpenses(prev => prev.map((row, i) => i === idx ? { ...row, currency: e.target.value || undefined } : row))}
-                      className="w-24 px-2 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                      className="w-24 px-2 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg text-sm"
                       title="Per-row currency. Blank = customer's billing currency."
                     >
                       <option value="">{billingCurrency}</option>
@@ -305,7 +305,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
                     <button
                       type="button"
                       onClick={() => setFixedExpenses(prev => prev.filter((_, i) => i !== idx))}
-                      className="w-9 h-9 flex items-center justify-center text-red-500 hover:bg-red-50 rounded-lg"
+                      className="w-9 h-9 flex items-center justify-center  hover: rounded-lg"
                       title="Remove row"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -315,7 +315,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
                 <button
                   type="button"
                   onClick={() => setFixedExpenses(prev => [...prev, { description: '', amount: 0 }])}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium bg-white border border-dashed border-gray-300 text-gray-500 hover:bg-gray-50"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium bg-[var(--surface)] border border-dashed border-[var(--border)]  hover:"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add expense row
                 </button>

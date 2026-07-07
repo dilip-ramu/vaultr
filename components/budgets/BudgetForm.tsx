@@ -184,7 +184,7 @@ export default function BudgetForm({ budget, categories, currentMonth, currentYe
               style={{ backgroundColor: rollover ? 'var(--brand)' : 'var(--border)' }}
             >
               <span
-                className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-[var(--surface)] shadow transition-all"
                 style={{ left: rollover ? '22px' : '2px' }}
               />
             </button>

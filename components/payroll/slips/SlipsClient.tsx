@@ -202,7 +202,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
     return (
       <div>
         <div className="no-print flex items-center justify-between mb-6 max-w-2xl mx-auto">
-          <button onClick={() => setSelectedEntry(null)} className="text-gray-500 hover:text-gray-900 text-sm">
+          <button onClick={() => setSelectedEntry(null)} className="text-[var(--text-muted)] hover:text-[var(--text)] text-sm">
             ← Back to list
           </button>
           <div className="flex items-center gap-3">
@@ -218,7 +218,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
             />
             <button
               onClick={() => window.print()}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+              className="px-4 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm font-medium hover:bg-[var(--surface-2)]"
             >
               🖨 Print
             </button>
@@ -229,7 +229,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
               href={`/payroll/slips/${selectedEntry.id}/print`}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+              className="px-4 py-2 border border-[var(--border)] text-[var(--text)] rounded-lg text-sm font-medium hover:bg-[var(--surface-2)]"
             >
               Template PDF
             </a>
@@ -253,14 +253,14 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Salary Slips</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-[var(--text)]">Salary Slips</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
             {entries.length} slip{entries.length !== 1 ? 's' : ''} across {monthGroups.length} month{monthGroups.length !== 1 ? 's' : ''}
           </p>
         </div>
         {entries.length > 0 && (
           <div className="flex items-center gap-3">
-            <button onClick={toggleAll} className="text-sm text-gray-500 hover:text-gray-900">
+            <button onClick={toggleAll} className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
               {selected.size === entries.length ? 'Deselect all' : 'Select all'}
             </button>
             {selected.size > 0 && (
@@ -303,7 +303,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
               key={f.key}
               onClick={() => setEmailFilter(f.key)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                emailFilter === f.key ? 'btn-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                emailFilter === f.key ? 'btn-brand text-white' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--border)]'
               }`}
             >
               {f.label}
@@ -314,14 +314,14 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
 
       {/* Email result banner */}
       {emailSummary && (
-        <div className="bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+        <div className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--text)] text-sm rounded-xl px-4 py-3 flex items-start justify-between gap-3">
           <span>{emailSummary}</span>
-          <button onClick={() => setEmailSummary(null)} className="text-gray-400 hover:text-gray-600 shrink-0">×</button>
+          <button onClick={() => setEmailSummary(null)} className="text-[var(--text-faint)] hover:text-[var(--text-muted)] shrink-0">×</button>
         </div>
       )}
 
       {entries.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-[var(--text-faint)]">
           No salary slips yet. Finalize a payroll month to generate slips.
         </div>
       ) : (
@@ -341,26 +341,26 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                       checked={allGroupSelected}
                       ref={el => { if (el) el.indeterminate = someGroupSelected && !allGroupSelected }}
                       onChange={() => toggleGroup(group)}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                      className="w-4 h-4 rounded border-[var(--border)] text-blue-600 cursor-pointer"
                     />
-                    <h2 className="font-semibold text-gray-800">{fmtMonth(month.payroll_month)}</h2>
+                    <h2 className="font-semibold text-[var(--text)]">{fmtMonth(month.payroll_month)}</h2>
                   </div>
-                  <span className="text-sm text-gray-500">
-                    Total: <span className="font-medium text-gray-900">{fmtInr(total)}</span>
+                  <span className="text-sm text-[var(--text-muted)]">
+                    Total: <span className="font-medium text-[var(--text)]">{fmtInr(total)}</span>
                   </span>
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden overflow-x-auto">
                   <table className="w-full min-w-[760px] text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
+                    <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
                       <tr>
                         <th className="px-4 py-3 w-8"></th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary €</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary ₹</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Adjustments</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Payable</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Employee</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Salary €</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Salary ₹</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Adjustments</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Net Payable</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -369,24 +369,24 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                           Number(entry.allowances) + Number(entry.overtime) + Number(entry.incentives)
                           - Number(entry.deductions) - Number(entry.advance)
                         return (
-                          <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${selected.has(entry.id) ? 'bg-blue-50' : ''}`}>
+                          <tr key={entry.id} className={`hover:bg-[var(--surface-2)] transition-colors ${selected.has(entry.id) ? 'bg-blue-50' : ''}`}>
                             <td className="px-4 py-3">
                               <input
                                 type="checkbox"
                                 checked={selected.has(entry.id)}
                                 onChange={() => toggleEntry(entry.id)}
-                                className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                                className="w-4 h-4 rounded border-[var(--border)] text-blue-600 cursor-pointer"
                               />
                             </td>
                             <td className="px-4 py-3">
-                              <div className="font-medium text-gray-900">{entry.employee?.name ?? '—'}</div>
-                              <div className="text-xs text-gray-400">{entry.employee?.employee_id ?? ''}</div>
+                              <div className="font-medium text-[var(--text)]">{entry.employee?.name ?? '—'}</div>
+                              <div className="text-xs text-[var(--text-faint)]">{entry.employee?.employee_id ?? ''}</div>
                               {entry.slip_emailed_at ? (
                                 <div className="text-[11px] text-emerald-600 mt-0.5">
                                   ✓ emailed {new Date(entry.slip_emailed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                   <button
                                     onClick={() => toggleEmailedMark(entry)}
-                                    className="ml-1.5 text-gray-300 hover:text-gray-500"
+                                    className="ml-1.5 text-[var(--text-faint)] hover:text-[var(--text-muted)]"
                                     title="Clear the emailed mark (doesn't send anything)"
                                   >
                                     ×
@@ -395,27 +395,27 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                               ) : (
                                 <button
                                   onClick={() => toggleEmailedMark(entry)}
-                                  className="text-[11px] text-gray-300 hover:text-gray-500 mt-0.5"
+                                  className="text-[11px] text-[var(--text-faint)] hover:text-[var(--text-muted)] mt-0.5"
                                   title="Mark as emailed without sending (e.g. sent outside the app)"
                                 >
                                   mark emailed
                                 </button>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-right font-mono text-gray-700">
+                            <td className="px-4 py-3 text-right font-mono text-[var(--text)]">
                               €{Number(entry.salary_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="px-4 py-3 text-right font-mono text-gray-700">
+                            <td className="px-4 py-3 text-right font-mono text-[var(--text)]">
                               {fmtInr(Number(entry.salary_inr))}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-sm">
                               {adjustments !== 0 ? (
-                                <span className={adjustments > 0 ? 'text-green-600' : 'text-red-500'}>
+                                <span className={adjustments > 0 ? 'text-[var(--income)]' : 'text-[var(--expense)]'}>
                                   {adjustments > 0 ? '+' : ''}{fmtInr(Math.abs(adjustments))}
                                 </span>
-                              ) : <span className="text-gray-300">—</span>}
+                              ) : <span className="text-[var(--text-faint)]">—</span>}
                             </td>
-                            <td className="px-4 py-3 text-right font-mono font-semibold text-gray-900">
+                            <td className="px-4 py-3 text-right font-mono font-semibold text-[var(--text)]">
                               {fmtInr(Number(entry.final_payable))}
                             </td>
                             <td className="px-4 py-3 text-right">
@@ -434,7 +434,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
                                   <button
                                     onClick={() => openWhatsApp(entry)}
                                     title="Open WhatsApp chat with a prefilled message"
-                                    className="text-xs text-green-600 hover:text-green-800 font-medium"
+                                    className="text-xs text-[var(--income)] hover:text-[var(--income)] font-medium"
                                   >
                                     WhatsApp
                                   </button>

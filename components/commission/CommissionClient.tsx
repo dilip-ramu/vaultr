@@ -33,11 +33,11 @@ function fmtForeign(n: number, currency: string) {
 }
 
 const STATUS_PILL: Record<OrderStatus, string> = {
-  backlog:   'bg-gray-100 text-gray-600',
+  backlog:   'bg-[var(--surface-2)] text-[var(--text-muted)]',
   current:   'bg-blue-100 text-blue-700',
-  shipped:   'bg-amber-100 text-amber-700',
-  received:  'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-600',
+  shipped:   'bg-[var(--accent-light)] text-[var(--amber)]',
+  received:  'bg-[var(--brand-light)] text-[var(--income)]',
+  cancelled: 'bg-[var(--surface-2)] text-[var(--expense)]',
 }
 
 // ── Simple account select (no external imports) ───────────────────────────────
@@ -122,7 +122,7 @@ function BulkReceiveModal({ rows, accounts, onDone, onClose }: {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4" style={{ overscrollBehavior: 'contain' }}>
-          {err && <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 shrink-0" />{err}</div>}
+          {err && <div className="flex items-center gap-2 bg-[var(--surface-2)] text-[var(--expense)] text-sm rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 shrink-0" />{err}</div>}
           <div className="rounded-xl px-4 py-3" style={{ background: 'var(--surface-2)' }}>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Expected commission</p>
             <p className="text-xl font-bold" style={{ color: 'var(--text)' }}>{formatCurrency(expected)}</p>
@@ -132,7 +132,7 @@ function BulkReceiveModal({ rows, accounts, onDone, onClose }: {
             <input type="number" min="0" step="0.01" value={actual} onChange={e => setActual(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none" style={iS} />
             {Math.abs(adjustment) > 0.009 && (
-              <p className={`text-xs mt-1 ${adjustment < 0 ? 'text-red-500' : 'text-green-600'}`}>
+              <p className={`text-xs mt-1 ${adjustment < 0 ? 'text-[var(--expense)]' : 'text-[var(--income)]'}`}>
                 {adjustment < 0 ? `Shortage: ${formatCurrency(Math.abs(adjustment))}` : `Excess: ${formatCurrency(adjustment)}`}
               </p>
             )}
@@ -384,7 +384,7 @@ export default function CommissionClient() {
   }
 
   if (loading) return <div className="flex justify-center py-24 text-sm" style={{color:'var(--text-muted)'}}>Loading…</div>
-  if (loadErr)  return <div className="max-w-xl mx-auto px-4 py-16 text-center"><p className="text-red-500 font-semibold mb-2">Error</p><p className="text-sm font-mono bg-red-50 text-red-700 rounded-xl px-4 py-3 break-all">{loadErr}</p></div>
+  if (loadErr)  return <div className="max-w-xl mx-auto px-4 py-16 text-center"><p className="text-[var(--expense)] font-semibold mb-2">Error</p><p className="text-sm font-mono bg-[var(--surface-2)] text-[var(--expense)] rounded-xl px-4 py-3 break-all">{loadErr}</p></div>
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -401,7 +401,7 @@ export default function CommissionClient() {
           <button onClick={()=>setShowImport(true)} className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-xl border transition-all" style={{borderColor:'var(--border)',color:'var(--text-muted)',background:'var(--surface)'}}>
             <Upload className="w-4 h-4" /> Import
           </button>
-          <button onClick={()=>{setEditOrder(null);setShowForm(true)}} className="flex items-center gap-1.5 bg-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-600 transition-all">
+          <button onClick={()=>{setEditOrder(null);setShowForm(true)}} className="flex items-center gap-1.5 bg-[var(--brand)] text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition-all">
             <Plus className="w-4 h-4" /> Add order
           </button>
         </div>
@@ -410,8 +410,8 @@ export default function CommissionClient() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          {label:'Pending',   value:totalPending,  color:'text-amber-700',bg:'bg-amber-50', icon:<Clock className="w-4 h-4 text-amber-500"/>},
-          {label:'Received',  value:totalReceived, color:'text-green-700',bg:'bg-green-50', icon:<CheckCircle2 className="w-4 h-4 text-green-500"/>},
+          {label:'Pending',   value:totalPending,  color:'text-[var(--amber)]',bg:'bg-[var(--accent-light)]', icon:<Clock className="w-4 h-4 text-[var(--amber)]"/>},
+          {label:'Received',  value:totalReceived, color:'text-[var(--income)]',bg:'bg-[var(--brand-light)]', icon:<CheckCircle2 className="w-4 h-4 text-[var(--income)]"/>},
           {label:'This month',value:thisMonth,     color:'text-blue-700', bg:'bg-blue-50',  icon:<TrendingUp className="w-4 h-4 text-blue-500"/>},
         ].map(c=>(
           <div key={c.label} className={`${c.bg} rounded-2xl p-3 sm:p-3.5 min-w-0`}>
@@ -429,7 +429,7 @@ export default function CommissionClient() {
             : allRows.filter(r=>r.order_status===f).length
           return (
             <button key={f} onClick={()=>setStatFilter(f)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${statFilter===f?'bg-brand-500 text-white border-transparent':''}`}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${statFilter===f?'bg-[var(--brand)] text-white border-transparent':''}`}
               style={statFilter!==f?{borderColor:'var(--border)',background:'var(--surface)',color:'var(--text-muted)'}:{}}>
               {f==='all'?'All':f==='active'?'Active':ORDER_STATUS_LABELS[f as OrderStatus] ?? f}
               <span className="ml-1 opacity-70">{count}</span>
@@ -460,11 +460,11 @@ export default function CommissionClient() {
             ))}
           </select>
           {selectedRows.some(r=>r.order_status==='shipped') && (
-            <button onClick={()=>setShowRecv(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500 text-white">
+            <button onClick={()=>setShowRecv(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--income)] text-white">
               <CheckCircle2 className="w-3 h-3"/> Mark received
             </button>
           )}
-          <button onClick={handleBulkDelete} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 text-white">
+          <button onClick={handleBulkDelete} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--expense)] text-white">
             <Trash2 className="w-3 h-3"/> Delete
           </button>
           <button onClick={()=>setSelected(new Set())} className="w-7 h-7 flex items-center justify-center rounded-lg" style={{color:'var(--brand)'}}>
@@ -519,9 +519,9 @@ export default function CommissionClient() {
                     )}
                     <div className="flex items-center justify-between mt-2">
                       {isRecv
-                        ? <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">Received</span>
+                        ? <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-[var(--brand-light)] text-[var(--income)]">Received</span>
                         : <select value={row.order_status} onChange={e=>handleStatusChange(row,e.target.value as OrderStatus)}
-                            className={`text-[10px] font-semibold px-2 py-1 rounded-full border-0 outline-none ${STATUS_PILL[row.order_status] ?? 'bg-gray-100 text-gray-600'}`}>
+                            className={`text-[10px] font-semibold px-2 py-1 rounded-full border-0 outline-none ${STATUS_PILL[row.order_status] ?? 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>
                             {(['backlog','current','shipped','cancelled'] as OrderStatus[]).map(s=><option key={s} value={s}>{ORDER_STATUS_LABELS[s] ?? s}</option>)}
                           </select>
                       }
@@ -590,9 +590,9 @@ export default function CommissionClient() {
                       <td className="px-3 py-2.5"><span className="text-xs" style={{color:row.etd?'var(--text)':'var(--text-faint)'}}>{row.etd?formatDate(row.etd):'—'}</span></td>
                       <td className="px-3 py-2.5">
                         {isRecv
-                          ? <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">Received</span>
+                          ? <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-[var(--brand-light)] text-[var(--income)]">Received</span>
                           : <select value={row.order_status} onChange={e=>handleStatusChange(row,e.target.value as OrderStatus)}
-                              className={`text-[10px] font-semibold px-2 py-1 rounded-full border-0 outline-none cursor-pointer ${STATUS_PILL[row.order_status] ?? 'bg-gray-100 text-gray-600'}`}>
+                              className={`text-[10px] font-semibold px-2 py-1 rounded-full border-0 outline-none cursor-pointer ${STATUS_PILL[row.order_status] ?? 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>
                               {(['backlog','current','shipped','cancelled'] as OrderStatus[]).map(s=><option key={s} value={s}>{ORDER_STATUS_LABELS[s] ?? s}</option>)}
                             </select>
                         }

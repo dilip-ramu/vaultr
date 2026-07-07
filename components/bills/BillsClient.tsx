@@ -119,28 +119,28 @@ export default function BillsClient({ initialBills, accounts, categories, custom
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Bills</h1>
-          <p className="text-sm text-gray-500">{directionBills.length} total</p>
+          <h1 className="text-xl font-bold text-[var(--text)]">Bills</h1>
+          <p className="text-sm text-[var(--text-muted)]">{directionBills.length} total</p>
         </div>
         <button
           onClick={() => { setEditBill(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 bg-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm hover:bg-brand-600 transition-all"
+          className="flex items-center gap-1.5 bg-[var(--brand)] text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm hover:opacity-90 transition-all"
         >
           <Plus className="w-4 h-4" /> Add
         </button>
       </div>
 
       {/* Direction tabs */}
-      <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
+      <div className="flex bg-[var(--surface-2)] rounded-xl p-1 mb-5">
         <button
           onClick={() => setDirection('received')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${direction === 'received' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${direction === 'received' ? 'bg-[var(--surface)] shadow-sm text-[var(--text)]' : 'text-[var(--text-muted)]'}`}
         >
           <Inbox className="w-4 h-4" /> Bills Received
         </button>
         <button
           onClick={() => setDirection('sent')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${direction === 'sent' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all ${direction === 'sent' ? 'bg-[var(--surface)] shadow-sm text-[var(--text)]' : 'text-[var(--text-muted)]'}`}
         >
           <Send className="w-4 h-4" /> Bills Sent
         </button>
@@ -148,20 +148,20 @@ export default function BillsClient({ initialBills, accounts, categories, custom
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3 mb-5">
-        <div className="bg-white rounded-2xl border border-gray-100 p-3.5 shadow-sm">
-          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mb-1">Pending</p>
-          <p className="text-base font-bold text-gray-900">{formatCurrency(totalPending)}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">{directionBills.filter(b => b.status === 'pending').length} bills</p>
+        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-3.5 shadow-sm">
+          <p className="text-[10px] text-[var(--text-faint)] font-medium uppercase tracking-wide mb-1">Pending</p>
+          <p className="text-base font-bold text-[var(--text)]">{formatCurrency(totalPending)}</p>
+          <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{directionBills.filter(b => b.status === 'pending').length} bills</p>
         </div>
-        <div className={`rounded-2xl border p-3.5 ${dueThisWeek.length > 0 ? 'bg-amber-50 border-amber-100' : 'bg-white border-gray-100'}`}>
-          <p className="text-[10px] text-amber-600 font-medium uppercase tracking-wide mb-1">Due Soon</p>
-          <p className="text-base font-bold text-amber-700">{dueThisWeek.length}</p>
-          <p className="text-[10px] text-amber-500 mt-0.5">within 7 days</p>
+        <div className={`rounded-2xl border p-3.5 ${dueThisWeek.length > 0 ? 'bg-[var(--accent-light)] border-[var(--border)]' : 'bg-[var(--surface)] border-[var(--border)]'}`}>
+          <p className="text-[10px] text-[var(--amber)] font-medium uppercase tracking-wide mb-1">Due Soon</p>
+          <p className="text-base font-bold text-[var(--amber)]">{dueThisWeek.length}</p>
+          <p className="text-[10px] text-[var(--amber)] mt-0.5">within 7 days</p>
         </div>
-        <div className={`rounded-2xl border p-3.5 ${overdue.length > 0 ? 'bg-red-50 border-red-100' : 'bg-white border-gray-100'}`}>
-          <p className="text-[10px] text-red-600 font-medium uppercase tracking-wide mb-1">Overdue</p>
-          <p className="text-base font-bold text-red-700">{overdue.length}</p>
-          <p className="text-[10px] text-red-500 mt-0.5">{formatCurrency(overdue.reduce((s, b) => s + b.amount, 0))}</p>
+        <div className={`rounded-2xl border p-3.5 ${overdue.length > 0 ? 'bg-[var(--surface-2)] border-[var(--border)]' : 'bg-[var(--surface)] border-[var(--border)]'}`}>
+          <p className="text-[10px] text-[var(--expense)] font-medium uppercase tracking-wide mb-1">Overdue</p>
+          <p className="text-base font-bold text-[var(--expense)]">{overdue.length}</p>
+          <p className="text-[10px] text-[var(--expense)] mt-0.5">{formatCurrency(overdue.reduce((s, b) => s + b.amount, 0))}</p>
         </div>
       </div>
 
@@ -170,7 +170,7 @@ export default function BillsClient({ initialBills, accounts, categories, custom
         {(['all', 'pending', 'overdue', 'paid'] as const).map(f => (
           <button key={f} onClick={() => setStatusFilter(f)}
             className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-              statusFilter === f ? 'bg-brand-500 text-white' : 'bg-white border border-gray-200 text-gray-600'
+              statusFilter === f ? 'bg-[var(--brand)] text-white' : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)]'
             }`}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -181,14 +181,14 @@ export default function BillsClient({ initialBills, accounts, categories, custom
       {/* Bills list */}
       {filtered.length === 0 ? (
         <div className="text-center py-16">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            {direction === 'sent' ? <Send className="w-7 h-7 text-gray-400" /> : <Receipt className="w-7 h-7 text-gray-400" />}
+          <div className="w-16 h-16 bg-[var(--surface-2)] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            {direction === 'sent' ? <Send className="w-7 h-7 text-[var(--text-faint)]" /> : <Receipt className="w-7 h-7 text-[var(--text-faint)]" />}
           </div>
-          <p className="text-gray-500 font-medium">
+          <p className="text-[var(--text-muted)] font-medium">
             No {direction === 'sent' ? 'outgoing' : 'incoming'} bills {statusFilter !== 'all' ? `(${statusFilter})` : ''}
           </p>
           {statusFilter === 'all' && (
-            <button onClick={() => setShowForm(true)} className="mt-3 text-brand-500 text-sm font-medium">
+            <button onClick={() => setShowForm(true)} className="mt-3 text-[var(--brand)] text-sm font-medium">
               + Add first bill
             </button>
           )}
@@ -284,7 +284,7 @@ export default function BillsClient({ initialBills, accounts, categories, custom
                 <button
                   onClick={handleMarkPaidConfirm}
                   disabled={payingSaving || (payBill.direction !== 'sent' && !payAccountId)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-500 disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[var(--income)] disabled:opacity-50"
                 >
                   {payingSaving ? 'Saving…' : 'Confirm'}
                 </button>
@@ -312,40 +312,40 @@ function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
   const isSent = (bill.direction ?? 'received') === 'sent'
   const customer = bill.customer as Customer | undefined
 
-  const cardBg = isPaid ? 'bg-white' : isOverdue ? 'bg-red-50 border-red-100' : daysUntil <= 3 ? 'bg-amber-50 border-amber-100' : 'bg-white'
+  const cardBg = isPaid ? 'bg-[var(--surface)]' : isOverdue ? 'bg-[var(--surface-2)] border-[var(--border)]' : daysUntil <= 3 ? 'bg-[var(--accent-light)] border-[var(--border)]' : 'bg-[var(--surface)]'
   const dueBadge = isPaid
-    ? { text: bill.settled_at ? `Settled ${formatDate(bill.settled_at)}` : 'Settled', cls: 'bg-green-100 text-green-700' }
+    ? { text: bill.settled_at ? `Settled ${formatDate(bill.settled_at)}` : 'Settled', cls: 'bg-[var(--brand-light)] text-[var(--income)]' }
     : isOverdue
-    ? { text: `${Math.abs(daysUntil)}d overdue`, cls: 'bg-red-100 text-red-700' }
+    ? { text: `${Math.abs(daysUntil)}d overdue`, cls: 'bg-[var(--surface-2)] text-[var(--expense)]' }
     : daysUntil === 0
-    ? { text: 'Due today!', cls: 'bg-amber-100 text-amber-700' }
-    : { text: `Due in ${daysUntil}d`, cls: 'bg-gray-100 text-gray-600' }
+    ? { text: 'Due today!', cls: 'bg-[var(--accent-light)] text-[var(--amber)]' }
+    : { text: `Due in ${daysUntil}d`, cls: 'bg-[var(--surface-2)] text-[var(--text-muted)]' }
 
   return (
-    <div className={`rounded-2xl border ${cardBg} border-gray-100 overflow-hidden shadow-sm`}>
+    <div className={`rounded-2xl border ${cardBg} border-[var(--border)] overflow-hidden shadow-sm`}>
       <div className="p-4">
         <div className="flex items-start gap-3">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPaid ? 'bg-green-100' : isOverdue ? 'bg-red-100' : 'bg-gray-100'}`}>
-            {isPaid ? <CheckCircle2 className="w-5 h-5 text-green-500" />
-              : isOverdue ? <AlertCircle className="w-5 h-5 text-red-500" />
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isPaid ? 'bg-[var(--brand-light)]' : isOverdue ? 'bg-[var(--surface-2)]' : 'bg-[var(--surface-2)]'}`}>
+            {isPaid ? <CheckCircle2 className="w-5 h-5 text-[var(--income)]" />
+              : isOverdue ? <AlertCircle className="w-5 h-5 text-[var(--expense)]" />
               : isSent ? <Send className="w-4 h-4 text-blue-500" />
-              : <Receipt className="w-4 h-4 text-gray-500" />}
+              : <Receipt className="w-4 h-4 text-[var(--text-muted)]" />}
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-gray-900 text-sm">{bill.name}</p>
+              <p className="font-semibold text-[var(--text)] text-sm">{bill.name}</p>
               {bill.invoice_number && (
-                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-md font-mono">#{bill.invoice_number}</span>
+                <span className="text-[10px] bg-[var(--surface-2)] text-[var(--text-muted)] px-1.5 py-0.5 rounded-md font-mono">#{bill.invoice_number}</span>
               )}
-              {bill.is_recurring && <RefreshCw className="w-3 h-3 text-gray-400" />}
+              {bill.is_recurring && <RefreshCw className="w-3 h-3 text-[var(--text-faint)]" />}
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               {customer && (
-                <span className="text-xs text-brand-500 font-medium">{customer.name}</span>
+                <span className="text-xs text-[var(--brand)] font-medium">{customer.name}</span>
               )}
               {bill.payment_terms && (
-                <span className="text-xs text-gray-400">{PAYMENT_TERMS_LABELS[bill.payment_terms]}</span>
+                <span className="text-xs text-[var(--text-faint)]">{PAYMENT_TERMS_LABELS[bill.payment_terms]}</span>
               )}
               <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${dueBadge.cls}`}>
                 {dueBadge.text}
@@ -360,25 +360,25 @@ function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
           </div>
 
           <div className="text-right shrink-0">
-            <p className="font-bold text-gray-900 text-sm">{formatCurrency(bill.amount)}</p>
-            {bill.is_recurring && <p className="text-[10px] text-gray-400">{bill.recurrence_interval}</p>}
+            <p className="font-bold text-[var(--text)] text-sm">{formatCurrency(bill.amount)}</p>
+            {bill.is_recurring && <p className="text-[10px] text-[var(--text-faint)]">{bill.recurrence_interval}</p>}
           </div>
         </div>
 
         {/* Expand/collapse details */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center justify-center gap-1 mt-2.5 text-xs text-gray-400 hover:text-gray-600"
+          className="w-full flex items-center justify-center gap-1 mt-2.5 text-xs text-[var(--text-faint)] hover:text-[var(--text-muted)]"
         >
           <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
       {expanded && (
-        <div className="px-4 pb-3 border-t border-black/5 pt-3 space-y-1.5 text-xs text-gray-500">
-          <div className="flex justify-between"><span className="text-gray-400">Account</span><span>{(bill.account as Account | undefined)?.name}</span></div>
-          <div className="flex justify-between"><span className="text-gray-400">Due date</span><span>{formatDate(bill.due_date)}</span></div>
-          {bill.notes && <div className="flex justify-between"><span className="text-gray-400">Notes</span><span className="text-right">{bill.notes}</span></div>}
+        <div className="px-4 pb-3 border-t border-black/5 pt-3 space-y-1.5 text-xs text-[var(--text-muted)]">
+          <div className="flex justify-between"><span className="text-[var(--text-faint)]">Account</span><span>{(bill.account as Account | undefined)?.name}</span></div>
+          <div className="flex justify-between"><span className="text-[var(--text-faint)]">Due date</span><span>{formatDate(bill.due_date)}</span></div>
+          {bill.notes && <div className="flex justify-between"><span className="text-[var(--text-faint)]">Notes</span><span className="text-right">{bill.notes}</span></div>}
         </div>
       )}
 
@@ -386,15 +386,15 @@ function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
       {!isPaid && (
         <div className="flex gap-2 px-4 pb-3.5">
           <button onClick={() => onMarkPaid(bill)}
-            className={`flex-1 py-2 rounded-xl text-xs font-semibold ${isSent ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'}`}>
+            className={`flex-1 py-2 rounded-xl text-xs font-semibold ${isSent ? 'bg-blue-500 text-white' : 'bg-[var(--income)] text-white'}`}>
             {isSent ? 'Mark as Received' : 'Mark as Paid'}
           </button>
           <button onClick={() => onEdit(bill)}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700">
+            className="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-2)] text-[var(--text)]">
             Edit
           </button>
           <button onClick={() => onDelete(bill.id)}
-            className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-red-500">
+            className="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-2)] text-[var(--expense)]">
             Delete
           </button>
         </div>
@@ -403,12 +403,12 @@ function BillCard({ bill, onMarkPaid, onMarkUnpaid, onEdit, onDelete }: {
         <div className="flex gap-2 px-4 pb-3.5">
           <button
             onClick={() => onMarkUnpaid(bill)}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-600"
+            className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--accent-light)] text-[var(--amber)]"
           >
             <RotateCcw className="w-3 h-3" /> Mark Unpaid
           </button>
-          <button onClick={() => onEdit(bill)} className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-700">Edit</button>
-          <button onClick={() => onDelete(bill.id)} className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-red-500">Delete</button>
+          <button onClick={() => onEdit(bill)} className="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-2)] text-[var(--text)]">Edit</button>
+          <button onClick={() => onDelete(bill.id)} className="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--surface-2)] text-[var(--expense)]">Delete</button>
         </div>
       )}
     </div>

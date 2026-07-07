@@ -159,13 +159,13 @@ export default function MarkPaidModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
+      <div className="bg-[var(--surface)] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">Mark Payroll as Paid</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] shrink-0">
+          <h2 className="text-lg font-semibold ">Mark Payroll as Paid</h2>
           {step !== 'uploading' && (
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
+            <button onClick={onClose} className=" hover: text-xl font-light">×</button>
           )}
         </div>
 
@@ -174,16 +174,16 @@ export default function MarkPaidModal({
           {/* Select step */}
           {step === 'select' && (
             <>
-              {error && <div className="bg-red-50 text-red-700 text-sm px-4 py-2 rounded-lg">{error}</div>}
+              {error && <div className="  text-sm px-4 py-2 rounded-lg">{error}</div>}
 
-              <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-1">
+              <div className=" rounded-xl p-4 text-sm  space-y-1">
                 <div className="flex justify-between">
                   <span>Employees</span>
-                  <span className="font-medium text-gray-900">{entries.length}</span>
+                  <span className="font-medium ">{entries.length}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Total payable</span>
-                  <span className="font-semibold text-gray-900">{fmtInr(total)}</span>
+                  <span className="font-semibold ">{fmtInr(total)}</span>
                 </div>
               </div>
 
@@ -193,16 +193,16 @@ export default function MarkPaidModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Payment Date</label>
+                <label className="block text-xs font-medium  mb-1">Payment Date</label>
                 <input
                   type="date"
                   value={payDate}
                   onChange={e => setPayDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              <p className="text-xs text-gray-400">
+              <p className="text-xs ">
                 This will create {entries.length} expense transaction{entries.length !== 1 ? 's' : ''} and attach
                 each employee's salary slip as a PDF.
               </p>
@@ -212,23 +212,23 @@ export default function MarkPaidModal({
           {/* Uploading step */}
           {(step === 'uploading' || step === 'done') && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-700 mb-3">
+              <p className="text-sm font-medium  mb-3">
                 {step === 'uploading' ? 'Creating transactions & uploading slips…' : 'All done!'}
               </p>
               {progress.map((p, i) => (
                 <div key={i} className="flex items-center gap-3 text-sm">
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
                     p.done
-                      ? p.error ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                      : 'bg-gray-100'
+                      ? p.error ? 'bg-[var(--surface-2)] ' : 'bg-[var(--brand-light)] '
+                      : ''
                   }`}>
                     {p.done ? (p.error ? '✕' : '✓') : (
-                      <span className="w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin block" />
+                      <span className="w-3 h-3 border-2 border-[var(--border)] border-t-blue-500 rounded-full animate-spin block" />
                     )}
                   </div>
-                  <span className={`flex-1 ${p.error ? 'text-red-600' : 'text-gray-700'}`}>
+                  <span className={`flex-1 ${p.error ? '' : ''}`}>
                     {p.name}
-                    {p.error && <span className="text-xs ml-1 text-red-400">({p.error})</span>}
+                    {p.error && <span className="text-xs ml-1 ">({p.error})</span>}
                   </span>
                 </div>
               ))}
@@ -237,10 +237,10 @@ export default function MarkPaidModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl shrink-0">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)]  rounded-b-2xl shrink-0">
           {step === 'select' && (
             <>
-              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+              <button onClick={onClose} className="px-4 py-2 text-sm  hover:">Cancel</button>
               <button
                 onClick={handleConfirm}
                 className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  transition-colors"

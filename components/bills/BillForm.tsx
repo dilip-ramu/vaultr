@@ -139,58 +139,58 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up overflow-hidden">
+      <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up overflow-hidden">
 
         {/* Direction header */}
         <div className={`px-6 pt-5 pb-4 ${direction === 'sent' ? 'bg-blue-500' : 'bg-indigo-500'}`}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-white">{isEdit ? 'Edit Bill' : 'New Bill'}</h2>
-            <button onClick={onClose} className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+            <button onClick={onClose} className="w-8 h-8 bg-[var(--surface)]/20 rounded-lg flex items-center justify-center">
               <X className="w-4 h-4 text-white" />
             </button>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => setDirection('received')}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold ${direction === 'received' ? 'bg-white text-gray-800' : 'bg-white/20 text-white'}`}>
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold ${direction === 'received' ? 'bg-[var(--surface)] ' : 'bg-[var(--surface)]/20 text-white'}`}>
               📥 Received
             </button>
             <button type="button" onClick={() => setDirection('sent')}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold ${direction === 'sent' ? 'bg-white text-gray-800' : 'bg-white/20 text-white'}`}>
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold ${direction === 'sent' ? 'bg-[var(--surface)] ' : 'bg-[var(--surface)]/20 text-white'}`}>
               📤 Sent
             </button>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
-          {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+          {error && <div className="  text-sm rounded-xl px-4 py-3">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium  mb-1.5">
               {direction === 'sent' ? 'Invoice / Bill Name' : 'Bill Name'}
             </label>
             <input type="text" value={name} onChange={e => setName(e.target.value)} required
               placeholder={direction === 'sent' ? 'e.g. Web Design Invoice' : 'e.g. Electricity Bill'}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           {/* Amount + Currency */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Amount</label>
+            <label className="block text-sm font-medium  mb-1.5">Amount</label>
             <div className="flex gap-2">
               <button type="button" onClick={() => setShowCurrencyPicker(true)}
-                className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shrink-0 min-w-[80px]">
+                className="flex items-center gap-1.5 px-3 py-3  border border-[var(--border)] rounded-xl text-sm font-semibold  shrink-0 min-w-[80px]">
                 <span>{getCurrencyMeta(currency).flag}</span>
                 <span>{currency}</span>
-                <ChevronDown className="w-3 h-3 text-gray-400" />
+                <ChevronDown className="w-3 h-3 " />
               </button>
               <AmountField value={amount} onChange={setAmount}
-                placeholder="0.00" className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" />
+                placeholder="0.00" className="flex-1 px-4 py-3  border border-[var(--border)] rounded-xl text-sm font-bold" />
             </div>
             {currency !== 'INR' && amount && (
               <div className="mt-1.5 px-3 py-1.5 rounded-xl text-xs" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
                 {loadingRate ? 'Fetching rate…' : inrAmount
                   ? <>{parseFloat(amount).toFixed(2)} {currency} × ₹{exchangeRate?.toFixed(2)} = <strong>₹{inrAmount.toFixed(2)}</strong></>
-                  : <span className="text-amber-600">No rate for {currency}. Set it in Currencies.</span>
+                  : <span className="text-[var(--amber)]">No rate for {currency}. Set it in Currencies.</span>
                 }
               </div>
             )}
@@ -198,16 +198,16 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
 
           {/* Due Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Due Date</label>
+            <label className="block text-sm font-medium  mb-1.5">Due Date</label>
             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required
-              className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              className="w-full px-3 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           {/* Payment Terms */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Payment Terms</label>
+            <label className="block text-sm font-medium  mb-1.5">Payment Terms</label>
             <select value={paymentTerms} onChange={e => setPaymentTerms(e.target.value as PaymentTerms)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm">
               {(Object.entries(PAYMENT_TERMS_LABELS) as [PaymentTerms, string][]).map(([val, label]) => (
                 <option key={val} value={val}>{label}</option>
               ))}
@@ -217,18 +217,18 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
           {/* Invoice number (for sent bills) */}
           {direction === 'sent' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Invoice Number</label>
+              <label className="block text-sm font-medium  mb-1.5">Invoice Number</label>
               <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)}
-                placeholder="INV-001" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+                placeholder="INV-001" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm font-mono" />
             </div>
           )}
 
           {/* Customer (for sent bills) */}
           {direction === 'sent' && customers.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Customer</label>
+              <label className="block text-sm font-medium  mb-1.5">Customer</label>
               <select value={customerId} onChange={e => setCustomerId(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+                className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm">
                 <option value="">Select customer…</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -237,16 +237,16 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
 
           {/* Account */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Account</label>
+            <label className="block text-sm font-medium  mb-1.5">Account</label>
             <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
-            {!accountId && <p className="text-xs text-red-400 mt-1">Please select an account</p>}
+            {!accountId && <p className="text-xs  mt-1">Please select an account</p>}
           </div>
 
           {/* Category */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+            <label className="block text-sm font-medium  mb-1.5">Category</label>
             <select value={categoryId} onChange={e => setCategoryId(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm">
               <option value="">No category</option>
               {expenseCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -254,27 +254,27 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
 
           {/* Follow-up date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Follow-up Reminder Date <span className="text-gray-400">(optional)</span>
+            <label className="block text-sm font-medium  mb-1.5">
+              Follow-up Reminder Date <span className="">(optional)</span>
             </label>
             <input type="date" value={followUpDate} onChange={e => setFollowUpDate(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           {/* Recurring */}
-          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+          <div className=" rounded-xl p-4 space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
               <div onClick={() => setIsRecurring(!isRecurring)}
-                className={`w-10 h-6 rounded-full transition-colors relative ${isRecurring ? 'bg-brand-500' : 'bg-gray-200'}`}>
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${isRecurring ? 'translate-x-5' : 'translate-x-1'}`} />
+                className={`w-10 h-6 rounded-full transition-colors relative ${isRecurring ? 'bg-brand-500' : ''}`}>
+                <div className={`absolute top-1 w-4 h-4 bg-[var(--surface)] rounded-full shadow transition-transform ${isRecurring ? 'translate-x-5' : 'translate-x-1'}`} />
               </div>
-              <span className="text-sm font-medium text-gray-700">Recurring</span>
+              <span className="text-sm font-medium ">Recurring</span>
             </label>
             {isRecurring && (
               <div className="grid grid-cols-4 gap-1.5">
                 {(['daily', 'weekly', 'monthly', 'yearly'] as RecurrenceInterval[]).map(i => (
                   <button key={i} type="button" onClick={() => setInterval(i)}
-                    className={`py-2 rounded-xl text-xs font-medium capitalize transition-all ${interval === i ? 'bg-brand-500 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
+                    className={`py-2 rounded-xl text-xs font-medium capitalize transition-all ${interval === i ? 'bg-brand-500 text-white' : 'bg-[var(--surface)] border border-[var(--border)] '}`}>
                     {i}
                   </button>
                 ))}
@@ -283,14 +283,14 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
+            <label className="block text-sm font-medium  mb-1.5">Notes</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="Add a note…" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              placeholder="Add a note…" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           {/* Attachments — only shown when editing an existing bill */}
           {isEdit && bill?.id && (
-            <div className="border-t border-gray-100 pt-4">
+            <div className="border-t border-[var(--border)] pt-4">
               <FileUpload
                 billId={bill.id}
                 existingAttachments={bill.attachments ?? []}
@@ -298,7 +298,7 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
             </div>
           )}
           {!isEdit && (
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-xs  text-center">
               💡 Save first, then edit to attach receipts or invoices
             </p>
           )}

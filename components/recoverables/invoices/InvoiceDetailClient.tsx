@@ -621,7 +621,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                   {margin > 0
                     ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
                     : margin < 0
-                      ? <TrendingDown className="w-3.5 h-3.5 text-red-500" />
+                      ? <TrendingDown className="w-3.5 h-3.5 " />
                       : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                   }
                   <p

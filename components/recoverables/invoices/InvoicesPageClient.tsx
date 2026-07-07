@@ -406,7 +406,7 @@ function InvoiceRow({
       <Link
         href={`/recoverables/invoices/${invoice.id}`}
         title="Edit invoice"
-        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white shrink-0 transition-colors"
+        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--surface)] shrink-0 transition-colors"
       >
         <Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
       </Link>
@@ -415,11 +415,11 @@ function InvoiceRow({
         onClick={() => onDelete(invoice)}
         disabled={deleting}
         title="Delete invoice"
-        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 disabled:opacity-50 shrink-0 transition-colors"
+        className="w-7 h-7 flex items-center justify-center rounded-lg hover: disabled:opacity-50 shrink-0 transition-colors"
       >
         {deleting
           ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#dc2626' }} />
-          : <Trash2 className="w-3.5 h-3.5 text-red-400" />}
+          : <Trash2 className="w-3.5 h-3.5 " />}
       </button>
     </div>
   )

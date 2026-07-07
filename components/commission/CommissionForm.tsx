@@ -43,11 +43,11 @@ function blankStyle(): StyleDraft {
 }
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  backlog:   'bg-gray-100 text-gray-600',
+  backlog:   ' ',
   current:   'bg-blue-100 text-blue-700',
-  shipped:   'bg-amber-100 text-amber-700',
-  received:  'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-600',
+  shipped:   'bg-[var(--accent-light)] text-[var(--amber)]',
+  received:  'bg-[var(--brand-light)] ',
+  cancelled: 'bg-[var(--surface-2)] ',
 }
 
 const inputCls   = 'w-full px-3 py-2 rounded-xl border text-sm outline-none'
@@ -247,7 +247,7 @@ export default function CommissionForm({ order, customers, accounts, onSaved, on
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4" style={{ overscrollBehavior: 'contain' }}>
           {error && (
-            <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>
+            <div className="  text-sm rounded-xl px-4 py-3">{error}</div>
           )}
 
           {/* ── Order header fields ── */}

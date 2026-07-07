@@ -384,7 +384,7 @@ export default function SubscriptionsClient({
                 <button
                   onClick={handlePayConfirm}
                   disabled={payingSaving || !payAccountId}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-500 disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[var(--income)] disabled:opacity-50"
                 >
                   {payingSaving ? 'Saving…' : 'Confirm Paid'}
                 </button>

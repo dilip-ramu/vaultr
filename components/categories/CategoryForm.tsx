@@ -80,18 +80,18 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up">
+      <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-gray-900">
+          <h2 className="text-lg font-bold ">
             {isEdit ? 'Edit Category' : 'New Category'}
           </h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:bg-gray-100 rounded-lg">
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center  hover: rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+          {error && <div className="  text-sm rounded-xl px-4 py-3">{error}</div>}
 
           {/* Avatar + Name row */}
           <div className="flex items-center gap-4">
@@ -111,21 +111,21 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
             </div>
 
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Category Name</label>
+              <label className="block text-sm font-medium  mb-1.5">Category Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="e.g. Groceries"
                 required
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm"
               />
             </div>
           </div>
 
           {/* Icon picker */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
+            <label className="block text-sm font-medium  mb-2">Icon</label>
             <div className="grid grid-cols-6 gap-2 max-h-32 overflow-y-auto">
               {CATEGORY_ICONS.map(({ value }) => (
                 <button
@@ -133,7 +133,7 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
                   type="button"
                   onClick={() => setIcon(value)}
                   className={`w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-all ${
-                    icon === value ? 'ring-2 ring-offset-1 ring-brand-500 bg-brand-50' : 'bg-gray-50 hover:bg-gray-100'
+                    icon === value ? 'ring-2 ring-offset-1 ring-brand-500 bg-brand-50' : ' hover:'
                   }`}
                 >
                   {ICON_EMOJI_MAP[value] ?? '•'}
@@ -144,7 +144,7 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+            <label className="block text-sm font-medium  mb-2">Color</label>
             <div className="flex gap-2 flex-wrap">
               {ACCOUNT_COLORS.map(c => (
                 <button

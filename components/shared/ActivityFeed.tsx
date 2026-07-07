@@ -93,13 +93,13 @@ export default function ActivityFeed({ transactionId, accountId, billId }: Props
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <MessageCircle className="w-4 h-4 text-gray-400" />
-        <p className="text-sm font-medium text-gray-700">Activity</p>
-        {notes.length > 0 && <span className="text-xs text-gray-400">{notes.length}</span>}
+        <MessageCircle className="w-4 h-4 " />
+        <p className="text-sm font-medium ">Activity</p>
+        {notes.length > 0 && <span className="text-xs ">{notes.length}</span>}
       </div>
 
       {notes.length === 0 && (
-        <p className="text-xs text-gray-400 italic mb-3">No notes yet — add one below</p>
+        <p className="text-xs  italic mb-3">No notes yet — add one below</p>
       )}
 
       <div className="space-y-3 mb-3 max-h-48 overflow-y-auto">
@@ -115,11 +115,11 @@ export default function ActivityFeed({ transactionId, accountId, billId }: Props
               />
               <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                 <div className={`rounded-2xl px-3 py-2 text-sm ${
-                  isMe ? 'bg-brand-500 text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                  isMe ? 'bg-brand-500 text-white rounded-tr-sm' : '  rounded-tl-sm'
                 }`}>
                   {note.content}
                 </div>
-                <span className="text-[10px] text-gray-400 mt-0.5 px-1">
+                <span className="text-[10px]  mt-0.5 px-1">
                   {!isMe && (creator?.nickname || creator?.full_name || 'Unknown') + ' · '}
                   {formatTime(note.created_at)}
                 </span>
@@ -136,7 +136,7 @@ export default function ActivityFeed({ transactionId, accountId, billId }: Props
           value={newNote}
           onChange={e => setNewNote(e.target.value)}
           placeholder="Add a note…"
-          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+          className="flex-1 px-3 py-2  border border-[var(--border)] rounded-xl text-sm"
         />
         <button
           type="submit"

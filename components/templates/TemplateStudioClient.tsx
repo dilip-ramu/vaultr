@@ -213,7 +213,7 @@ export default function TemplateStudioClient({ docType, docLabel, initialTemplat
                   <div className="flex items-center gap-3">
                     <button onClick={() => openEditor(t.id)} className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Edit</button>
                     <button onClick={() => duplicate(t)} className="text-xs inline-flex items-center gap-1" style={{ color: 'var(--text-muted)' }}><Copy className="w-3.5 h-3.5" />Duplicate</button>
-                    <button onClick={() => remove(t)} className="text-xs inline-flex items-center gap-1 text-red-500 hover:text-red-700"><Trash2 className="w-3.5 h-3.5" />Delete</button>
+                    <button onClick={() => remove(t)} className="text-xs inline-flex items-center gap-1  hover:"><Trash2 className="w-3.5 h-3.5" />Delete</button>
                   </div>
                 </div>
               ))}
@@ -351,7 +351,7 @@ function BlockEditor({ block, index, total, onMove, onToggle, onProps, onRemove 
         <button onClick={onToggle} title={block.visible ? 'Hide' : 'Show'}>
           {block.visible ? <Eye className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /> : <EyeOff className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />}
         </button>
-        {removable && <button onClick={() => onRemove(block.id)}><Trash2 className="w-3.5 h-3.5 text-red-500" /></button>}
+        {removable && <button onClick={() => onRemove(block.id)}><Trash2 className="w-3.5 h-3.5 " /></button>}
       </div>
 
       {open && editable && (

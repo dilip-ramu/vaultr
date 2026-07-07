@@ -74,19 +74,19 @@ export default function SettingsClient({ user, profile }: Props) {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
-      <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+      <h1 className="text-xl font-bold text-[var(--text)]">Settings</h1>
 
       {message && (
-        <div className="bg-green-50 text-green-700 text-sm rounded-xl px-4 py-3 border border-green-100 fade-in">
+        <div className="bg-[var(--brand-light)] text-[var(--income)] text-sm rounded-xl px-4 py-3 border border-green-100 fade-in">
           {message}
         </div>
       )}
 
       {/* Profile card */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-          <User className="w-4 h-4 text-gray-400" />
-          <p className="text-sm font-semibold text-gray-900">My Profile</p>
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border)] flex items-center gap-2">
+          <User className="w-4 h-4 text-[var(--text-faint)]" />
+          <p className="text-sm font-semibold text-[var(--text)]">My Profile</p>
         </div>
 
         <div className="p-5 space-y-4">
@@ -97,7 +97,7 @@ export default function SettingsClient({ user, profile }: Props) {
               <button
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={avatarUploading}
-                className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center shadow-md"
+                className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--brand)] rounded-full flex items-center justify-center shadow-md"
               >
                 {avatarUploading
                   ? <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
@@ -106,39 +106,39 @@ export default function SettingsClient({ user, profile }: Props) {
               <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-900">{fullName || user.email}</p>
-              <p className="text-xs text-gray-400">{user.email}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Tap camera to change photo</p>
+              <p className="text-sm font-semibold text-[var(--text)]">{fullName || user.email}</p>
+              <p className="text-xs text-[var(--text-faint)]">{user.email}</p>
+              <p className="text-xs text-[var(--text-faint)] mt-0.5">Tap camera to change photo</p>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Full Name</label>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Full Name</label>
             <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              className="w-full px-3 py-2.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Nickname <span className="text-gray-400">(shown in activity feed)</span>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">
+              Nickname <span className="text-[var(--text-faint)]">(shown in activity feed)</span>
             </label>
             <input type="text" value={nickname} onChange={e => setNickname(e.target.value)}
               placeholder="e.g. Dad, Dilip"
-              className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              className="w-full px-3 py-2.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           <button onClick={handleSaveProfile} disabled={saving}
-            className="w-full bg-brand-500 text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-60">
+            className="w-full bg-[var(--brand)] text-white font-semibold py-2.5 rounded-xl text-sm disabled:opacity-60">
             {saving ? 'Saving…' : 'Save Profile'}
           </button>
         </div>
       </div>
 
       {/* App preferences */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-          <Palette className="w-4 h-4 text-gray-400" />
-          <p className="text-sm font-semibold text-gray-900">Preferences</p>
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--border)] flex items-center gap-2">
+          <Palette className="w-4 h-4 text-[var(--text-faint)]" />
+          <p className="text-sm font-semibold text-[var(--text)]">Preferences</p>
         </div>
         <div className="divide-y divide-gray-50">
           {[
@@ -147,11 +147,11 @@ export default function SettingsClient({ user, profile }: Props) {
             <div key={item.label} className="px-5 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className="text-base">{item.icon}</span>
-                <p className="text-sm text-gray-700">{item.label}</p>
+                <p className="text-sm text-[var(--text)]">{item.label}</p>
               </div>
-              <div className="flex items-center gap-1 text-sm text-gray-500">
+              <div className="flex items-center gap-1 text-sm text-[var(--text-muted)]">
                 {item.value}
-                <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+                <ChevronRight className="w-3.5 h-3.5 text-[var(--text-faint)]" />
               </div>
             </div>
           ))}
@@ -159,17 +159,17 @@ export default function SettingsClient({ user, profile }: Props) {
       </div>
 
       {/* Danger zone */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
         <button
           onClick={handleLogout}
-          className="w-full px-5 py-4 flex items-center gap-3 text-red-500 hover:bg-red-50 transition-colors"
+          className="w-full px-5 py-4 flex items-center gap-3 text-[var(--expense)] hover:bg-[var(--surface-2)] transition-colors"
         >
           <LogOut className="w-4 h-4" />
           <span className="text-sm font-medium">Sign Out</span>
         </button>
       </div>
 
-      <p className="text-center text-xs text-gray-300 pb-4">InEx v0.2 · Built with ❤️</p>
+      <p className="text-center text-xs text-[var(--text-faint)] pb-4">InEx v0.2 · Built with ❤️</p>
     </div>
   )
 }

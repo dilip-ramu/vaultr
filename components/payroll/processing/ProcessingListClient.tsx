@@ -47,8 +47,8 @@ function monthStatus(m: PayrollMonth): Exclude<StatusFilter, 'all'> {
 
 const STATUS_BADGE: Record<Exclude<StatusFilter, 'all'>, { label: string; cls: string }> = {
   settled:     { label: '✓ Settled',     cls: 'bg-emerald-100 text-emerald-700' },
-  finalized:   { label: '✓ Finalized',   cls: 'bg-green-100 text-green-700' },
-  in_progress: { label: 'In progress',   cls: 'bg-amber-100 text-amber-700' },
+  finalized:   { label: '✓ Finalized',   cls: 'bg-[var(--brand-light)] text-[var(--income)]' },
+  in_progress: { label: 'In progress',   cls: 'bg-[var(--accent-light)] text-[var(--amber)]' },
 }
 
 export default function ProcessingListClient({ months: initialMonths }: Props) {
@@ -105,8 +105,8 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Monthly Processing</h1>
-          <p className="text-sm text-gray-500 mt-1">Create and manage payroll for each month</p>
+          <h1 className="text-2xl font-bold text-[var(--text)]">Monthly Processing</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Create and manage payroll for each month</p>
         </div>
         <button
           onClick={() => { setShowCreate(true); setCreateError(null); setNewMonth(''); setNewPayDate(''); setNewDescription('') }}
@@ -131,7 +131,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                 key={f.key}
                 onClick={() => setFilter(f.key)}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  filter === f.key ? 'btn-brand text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  filter === f.key ? 'btn-brand text-white' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--border)]'
                 }`}
               >
                 {f.label} ({count})
@@ -143,7 +143,7 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
 
       {/* Month list */}
       {months.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-[var(--text-faint)]">
           No payroll months yet. Click "+ New Month" to start.
         </div>
       ) : (
@@ -152,14 +152,14 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
             <div
               key={m.id}
               onClick={() => router.push(`/payroll/processing/${m.id}`)}
-              className="bg-white border border-gray-200 rounded-xl px-5 py-4 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
+              className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-5 py-4 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all"
             >
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex items-start gap-3 min-w-0">
                   <div className="min-w-0">
-                    <div className="font-semibold text-gray-900">{fmtMonth(m.payroll_month)}</div>
+                    <div className="font-semibold text-[var(--text)]">{fmtMonth(m.payroll_month)}</div>
                     {m.description && (
-                      <div className="text-sm text-gray-500 mt-0.5">{m.description}</div>
+                      <div className="text-sm text-[var(--text-muted)] mt-0.5">{m.description}</div>
                     )}
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[monthStatus(m)].cls}`}>
@@ -167,30 +167,30 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
                   </span>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-lg font-semibold text-gray-900 tabular-nums">{fmtInr(Number(m.total_payable ?? 0))}</div>
+                  <div className="text-lg font-semibold text-[var(--text)] tabular-nums">{fmtInr(Number(m.total_payable ?? 0))}</div>
                   <button
                     onClick={(e) => handleDelete(m.id, e)}
-                    className="text-xs text-red-400 hover:text-red-600"
+                    className="text-xs text-[var(--expense)] hover:text-[var(--expense)]"
                   >
                     Delete
                   </button>
                 </div>
               </div>
               {/* Rate + dates strip */}
-              <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-500">
+              <div className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-[var(--text-muted)]">
                 {Number(m.expended_rate) > 0 && (
                   <span>
-                    Exchange rate <span className="font-medium text-gray-700 tabular-nums">₹{Number(m.expended_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    Exchange rate <span className="font-medium text-[var(--text)] tabular-nums">₹{Number(m.expended_rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                   </span>
                 )}
                 {m.finalized_at && (
                   <span>
-                    Processed <span className="font-medium text-gray-700">{fmtDate(m.finalized_at)}</span>
+                    Processed <span className="font-medium text-[var(--text)]">{fmtDate(m.finalized_at)}</span>
                   </span>
                 )}
                 {m.payment_date && (
                   <span>
-                    Paid <span className="font-medium text-gray-700">{fmtDate(m.payment_date)}</span>
+                    Paid <span className="font-medium text-[var(--text)]">{fmtDate(m.payment_date)}</span>
                   </span>
                 )}
               </div>
@@ -202,46 +202,46 @@ export default function ProcessingListClient({ months: initialMonths }: Props) {
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">New Payroll Month</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
+          <div className="bg-[var(--surface)] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold text-[var(--text)]">New Payroll Month</h2>
+              <button onClick={() => setShowCreate(false)} className="text-[var(--text-faint)] hover:text-[var(--text-muted)] text-xl font-light">×</button>
             </div>
             <div className="px-6 py-5 space-y-4">
               {createError && (
-                <div className="bg-red-50 text-red-700 text-sm px-4 py-2 rounded-lg">{createError}</div>
+                <div className="bg-[var(--surface-2)] text-[var(--expense)] text-sm px-4 py-2 rounded-lg">{createError}</div>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Payroll Month *</label>
+                <label className="block text-xs font-medium text-[var(--text)] mb-1">Payroll Month *</label>
                 <input
                   type="month"
                   value={newMonth}
                   onChange={e => setNewMonth(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Payment Date <span className="text-gray-400 font-normal">(optional)</span></label>
+                <label className="block text-xs font-medium text-[var(--text)] mb-1">Payment Date <span className="text-[var(--text-faint)] font-normal">(optional)</span></label>
                 <input
                   type="date"
                   value={newPayDate}
                   onChange={e => setNewPayDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+                <label className="block text-xs font-medium text-[var(--text)] mb-1">Description <span className="text-[var(--text-faint)] font-normal">(optional)</span></label>
                 <input
                   type="text"
                   value={newDescription}
                   onChange={e => setNewDescription(e.target.value)}
                   placeholder="e.g. Salary for March"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface-2)] rounded-b-2xl">
+              <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text)]">Cancel</button>
               <button
                 onClick={handleCreate}
                 disabled={creating}

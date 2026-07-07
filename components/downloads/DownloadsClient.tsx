@@ -381,8 +381,8 @@ export default function DownloadsClient() {
           <Archive className="w-5 h-5 text-indigo-600" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Data Export & Backup</h1>
-          <p className="text-sm text-gray-500">Download all your data as a ZIP with readable PDFs and machine-readable CSVs</p>
+          <h1 className="text-xl font-bold text-[var(--text)]">Data Export & Backup</h1>
+          <p className="text-sm text-[var(--text-muted)]">Download all your data as a ZIP with readable PDFs and machine-readable CSVs</p>
         </div>
       </div>
 
@@ -406,34 +406,34 @@ export default function DownloadsClient() {
       </div>
 
       {/* Date range */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm space-y-3">
-        <h2 className="text-sm font-semibold text-gray-700">Date Range</h2>
-        <p className="text-xs text-gray-400">Applies to transactions, invoices, and dated records. Staff and accounts export fully regardless of range.</p>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-3">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Date Range</h2>
+        <p className="text-xs text-[var(--text-faint)]">Applies to transactions, invoices, and dated records. Staff and accounts export fully regardless of range.</p>
         <div className="flex items-center gap-4">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">From</label>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">From</label>
             <input
               type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
               disabled={isRunning}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
+              className="px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
             />
           </div>
-          <div className="text-gray-400 mt-5">→</div>
+          <div className="text-[var(--text-faint)] mt-5">→</div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">To</label>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">To</label>
             <input
               type="date" value={toDate} onChange={e => setToDate(e.target.value)}
               disabled={isRunning}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
+              className="px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:opacity-50"
             />
           </div>
         </div>
       </div>
 
       {/* Module selection */}
-      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-700">Modules to Include</h2>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border)]">
+          <h2 className="text-sm font-semibold text-[var(--text)]">Modules to Include</h2>
           <button
             onClick={toggleAll}
             disabled={isRunning}
@@ -453,7 +453,7 @@ export default function DownloadsClient() {
               <div
                 key={m}
                 onClick={() => !isRunning && toggle(m)}
-                className={`flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${!checked ? 'opacity-40' : ''}`}
+                className={`flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-[var(--surface-2)] transition-colors ${!checked ? 'opacity-40' : ''}`}
               >
                 <input
                   type="checkbox" checked={checked} onChange={() => toggle(m)}
@@ -462,10 +462,10 @@ export default function DownloadsClient() {
                   className="w-4 h-4 accent-indigo-600 cursor-pointer"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{info.label}</p>
-                  <p className="text-xs text-gray-400">{info.desc}</p>
+                  <p className="text-sm font-medium text-[var(--text)]">{info.label}</p>
+                  <p className="text-xs text-[var(--text-faint)]">{info.desc}</p>
                 </div>
-                <span className="text-xs text-gray-300 font-mono">{info.folder}/</span>
+                <span className="text-xs text-[var(--text-faint)] font-mono">{info.folder}/</span>
               </div>
             )
           })}
@@ -482,15 +482,15 @@ export default function DownloadsClient() {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="bg-[var(--surface-2)] border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-[var(--expense)] mt-0.5 shrink-0" />
+          <p className="text-sm text-[var(--expense)]">{error}</p>
         </div>
       )}
 
       {/* Status / progress */}
       {(isRunning || status === 'done') && (
-        <div className={`rounded-xl px-5 py-4 flex items-center gap-3 text-sm ${status === 'done' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-indigo-50 border border-indigo-100 text-indigo-700'}`}>
+        <div className={`rounded-xl px-5 py-4 flex items-center gap-3 text-sm ${status === 'done' ? 'bg-[var(--brand-light)] border border-green-200 text-[var(--income)]' : 'bg-indigo-50 border border-indigo-100 text-indigo-700'}`}>
           {isRunning
             ? <Loader2 className="w-4 h-4 animate-spin shrink-0" />
             : <CheckCircle2 className="w-4 h-4 shrink-0" />

@@ -145,7 +145,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
       {/* Grouped by customer */}
       {byCustomer.length === 0 ? (
         <div className="py-20 text-center rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <FileWarning className="w-10 h-10 mx-auto mb-3 text-green-500" />
+          <FileWarning className="w-10 h-10 mx-auto mb-3 " />
           <p className="font-medium" style={{ color: 'var(--text)' }}>No pending recoverables</p>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>All supplier costs are either billed or recovered</p>
         </div>
@@ -195,7 +195,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                             <span>{fmtDate(inv.invoice_date)}</span>
-                            <span className={age > 30 ? 'text-red-500 font-medium' : ''}>{age}d old</span>
+                            <span className={age > 30 ? ' font-medium' : ''}>{age}d old</span>
                           </div>
                         </div>
 

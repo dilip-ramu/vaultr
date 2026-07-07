@@ -198,8 +198,8 @@ export default function StaffClient({ employees: initialEmployees, customers = [
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Particulars</h1>
-          <p className="text-sm text-gray-500 mt-1">{activeCount} active employee{activeCount !== 1 ? 's' : ''}</p>
+          <h1 className="text-2xl font-bold text-[var(--text)]">Staff Particulars</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">{activeCount} active employee{activeCount !== 1 ? 's' : ''}</p>
         </div>
         <button
           onClick={openCreate}
@@ -216,9 +216,9 @@ export default function StaffClient({ employees: initialEmployees, customers = [
           placeholder="Search by name, ID or designation…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="flex-1 max-w-sm px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 max-w-sm px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-sm text-[var(--text-muted)] cursor-pointer select-none">
           <input
             type="checkbox"
             checked={showInactive}
@@ -249,47 +249,47 @@ export default function StaffClient({ employees: initialEmployees, customers = [
 
       {/* Table */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-[var(--text-faint)]">
           {employees.length === 0
             ? 'No employees yet. Click "+ Add Employee" to get started.'
             : 'No employees match your search.'}
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Designation</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Bank</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">PAN</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Employee</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Designation</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Bank</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">PAN</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Joined</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map(emp => (
-                  <tr key={emp.id} className={`hover:bg-gray-50 transition-colors ${!emp.is_active ? 'opacity-50' : ''}`}>
+                  <tr key={emp.id} className={`hover:bg-[var(--surface-2)] transition-colors ${!emp.is_active ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{emp.name}</div>
-                      <div className="text-xs text-gray-400">{emp.employee_id}</div>
+                      <div className="font-medium text-[var(--text)]">{emp.name}</div>
+                      <div className="text-xs text-[var(--text-faint)]">{emp.employee_id}</div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{emp.designation ?? '—'}</td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">{emp.designation ?? '—'}</td>
                     <td className="px-4 py-3">
                       {emp.bank_name ? (
                         <div>
-                          <div className="text-gray-700">{emp.bank_name}</div>
-                          <div className="text-xs text-gray-400">{emp.account_number ?? ''} {emp.ifsc ? `· ${emp.ifsc}` : ''}</div>
+                          <div className="text-[var(--text)]">{emp.bank_name}</div>
+                          <div className="text-xs text-[var(--text-faint)]">{emp.account_number ?? ''} {emp.ifsc ? `· ${emp.ifsc}` : ''}</div>
                         </div>
-                      ) : <span className="text-gray-300">—</span>}
+                      ) : <span className="text-[var(--text-faint)]">—</span>}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{emp.pan_number ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-600">{fmtDate(emp.joining_date)}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">{emp.pan_number ?? '—'}</td>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(emp.joining_date)}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        emp.is_active ? 'bg-[var(--brand-light)] text-[var(--income)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)]'
                       }`}>
                         {emp.is_active ? 'Active' : 'Inactive'}
                       </span>
@@ -315,8 +315,8 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                           onClick={() => handleDeactivate(emp)}
                           className={`text-xs font-medium ${
                             emp.is_active
-                              ? 'text-red-500 hover:text-red-700'
-                              : 'text-green-600 hover:text-green-800'
+                              ? 'text-[var(--expense)] hover:text-[var(--expense)]'
+                              : 'text-[var(--income)] hover:text-[var(--income)]'
                           }`}
                         >
                           {emp.is_active ? 'Deactivate' : 'Reactivate'}
@@ -334,59 +334,59 @@ export default function StaffClient({ employees: initialEmployees, customers = [
       {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[92dvh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">
+          <div className="bg-[var(--surface)] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[92dvh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold text-[var(--text)]">
                 {editing ? 'Edit Employee' : 'Add Employee'}
               </h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
+              <button onClick={closeModal} className="text-[var(--text-faint)] hover:text-[var(--text-muted)] text-xl font-light">×</button>
             </div>
 
             <div className="px-6 py-5 space-y-4">
               {error && (
-                <div className="bg-red-50 text-red-700 text-sm px-4 py-2 rounded-lg">{error}</div>
+                <div className="bg-[var(--surface-2)] text-[var(--expense)] text-sm px-4 py-2 rounded-lg">{error}</div>
               )}
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Employee Name */}
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Employee Name *</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Employee Name *</label>
                   <input
                     type="text"
                     value={form.name ?? ''}
                     onChange={e => setField('name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Full name"
                   />
                 </div>
 
                 {/* Employee ID */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Employee ID *</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Employee ID *</label>
                   <input
                     type="text"
                     value={form.employee_id ?? ''}
                     onChange={e => setField('employee_id', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g. EMP001"
                   />
                 </div>
 
                 {/* Designation */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Designation</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Designation</label>
                   <input
                     type="text"
                     value={form.designation ?? ''}
                     onChange={e => setField('designation', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g. Software Engineer"
                   />
                 </div>
 
                 {/* Salary amount + currency */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Salary *</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Salary *</label>
                   <div className="flex gap-2">
                     <input
                       type="number"
@@ -394,13 +394,13 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                       step="0.01"
                       value={form.salary_amount ?? ''}
                       onChange={e => setField('salary_amount', parseFloat(e.target.value) || 0)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="0.00"
                     />
                     <select
                       value={form.salary_currency ?? 'INR'}
                       onChange={e => setField('salary_currency', e.target.value)}
-                      className="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-2 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {['INR','EUR','USD','GBP','AED','SGD','AUD','CAD','JPY','CHF'].map(c => (
                         <option key={c} value={c}>{c}</option>
@@ -411,39 +411,39 @@ export default function StaffClient({ employees: initialEmployees, customers = [
 
                 {/* Joining Date */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Joining Date</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Joining Date</label>
                   <input
                     type="date"
                     value={form.joining_date ?? ''}
                     onChange={e => setField('joining_date', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 {/* Divider */}
-                <div className="col-span-2 border-t border-gray-100 pt-2">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bank Details</p>
+                <div className="col-span-2 border-t border-[var(--border)] pt-2">
+                  <p className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wider">Bank Details</p>
                 </div>
 
                 {/* Account Number */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Account Number</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Account Number</label>
                   <input
                     type="text"
                     value={form.account_number ?? ''}
                     onChange={e => setField('account_number', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Account number"
                   />
                 </div>
 
                 {/* Account Type */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Account Type</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Account Type</label>
                   <select
                     value={form.account_type ?? 'SB'}
                     onChange={e => setField('account_type', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="10">10 — Savings</option>
                     <option value="11">11 — Current</option>
@@ -455,129 +455,129 @@ export default function StaffClient({ employees: initialEmployees, customers = [
 
                 {/* IFSC */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">IFSC Code</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">IFSC Code</label>
                   <input
                     type="text"
                     value={form.ifsc ?? ''}
                     onChange={e => setField('ifsc', e.target.value.toUpperCase())}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                     placeholder="SBIN0001234"
                   />
                 </div>
 
                 {/* Bank Name */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Bank Name</label>
                   <input
                     type="text"
                     value={form.bank_name ?? ''}
                     onChange={e => setField('bank_name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g. State Bank of India"
                   />
                 </div>
 
                 {/* Branch */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Branch</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Branch</label>
                   <input
                     type="text"
                     value={form.branch ?? ''}
                     onChange={e => setField('branch', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Branch name"
                   />
                 </div>
 
                 {/* Divider */}
-                <div className="col-span-2 border-t border-gray-100 pt-2">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tax & Payment</p>
+                <div className="col-span-2 border-t border-[var(--border)] pt-2">
+                  <p className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wider">Tax & Payment</p>
                 </div>
 
                 {/* PAN */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">PAN Number</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">PAN Number</label>
                   <input
                     type="text"
                     value={form.pan_number ?? ''}
                     onChange={e => setField('pan_number', e.target.value.toUpperCase())}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                     placeholder="ABCDE1234F"
                   />
                 </div>
 
                 {/* UPI */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">UPI ID <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">UPI ID <span className="text-[var(--text-faint)] font-normal">(optional)</span></label>
                   <input
                     type="text"
                     value={form.upi_id ?? ''}
                     onChange={e => setField('upi_id', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="name@upi"
                   />
                 </div>
 
                 {/* Divider */}
-                <div className="col-span-2 border-t border-gray-100 pt-2">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Personal Details</p>
+                <div className="col-span-2 border-t border-[var(--border)] pt-2">
+                  <p className="text-xs font-semibold text-[var(--text-faint)] uppercase tracking-wider">Personal Details</p>
                 </div>
 
                 {/* Date of Birth */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Date of Birth</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Date of Birth</label>
                   <input
                     type="date"
                     value={form.date_of_birth ?? ''}
                     onChange={e => setField('date_of_birth', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 {/* Phone */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Phone Number</label>
                   <input
                     type="tel"
                     value={form.phone ?? ''}
                     onChange={e => setField('phone', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="+91 99999 99999"
                   />
                 </div>
 
                 {/* WhatsApp */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">WhatsApp Number</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">WhatsApp Number</label>
                   <input
                     type="tel"
                     value={form.whatsapp_number ?? ''}
                     onChange={e => setField('whatsapp_number', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="+91 99999 99999 (for salary slips)"
                   />
                 </div>
 
                 {/* Email */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Email ID</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Email ID</label>
                   <input
                     type="email"
                     value={form.email ?? ''}
                     onChange={e => setField('email', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="employee@example.com"
                   />
                 </div>
 
                 {/* Address */}
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Address</label>
                   <textarea
                     value={form.address ?? ''}
                     onChange={e => setField('address', e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                     placeholder="Street, City, State, PIN"
                   />
                 </div>
@@ -585,70 +585,70 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                 {/* Contract fields (v73) — reporting manager + place of employment */}
                 <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Reporting manager</label>
+                    <label className="block text-xs font-medium text-[var(--text)] mb-1">Reporting manager</label>
                     <input
                       value={form.reporting_manager ?? ''}
                       onChange={e => setField('reporting_manager', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g. Priya Nair"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Reporting manager&apos;s designation</label>
+                    <label className="block text-xs font-medium text-[var(--text)] mb-1">Reporting manager&apos;s designation</label>
                     <input
                       value={form.reporting_manager_designation ?? ''}
                       onChange={e => setField('reporting_manager_designation', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g. Operations Head"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Country of employment</label>
+                    <label className="block text-xs font-medium text-[var(--text)] mb-1">Country of employment</label>
                     <input
                       value={form.employment_country ?? ''}
                       onChange={e => setField('employment_country', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g. India"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">City of employment</label>
+                    <label className="block text-xs font-medium text-[var(--text)] mb-1">City of employment</label>
                     <input
                       value={form.employment_city ?? ''}
                       onChange={e => setField('employment_city', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="e.g. Chennai"
                     />
                   </div>
                 </div>
 
                 {/* Company + Works for + invoicing toggle */}
-                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 mt-2 border-t border-gray-100">
+                <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 mt-2 border-t border-[var(--border)]">
                   {/* v66 — which of the user's own companies employs this person.
                        Blank / "Personal" = not attached to any business entity. */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Company</label>
+                    <label className="block text-xs font-medium text-[var(--text)] mb-1">Company</label>
                     <select
                       value={(form.company_id as string | null) ?? ''}
                       onChange={e => setField('company_id', (e.target.value || null) as never)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Personal (no company)</option>
                       {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
-                    <p className="text-[10px] text-gray-400 mt-1">Which company employs them.</p>
+                    <p className="text-[10px] text-[var(--text-faint)] mt-1">Which company employs them.</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Works for (customer)</label>
+                    <label className="block text-xs font-medium text-[var(--text)] mb-1">Works for (customer)</label>
                     <select
                       value={form.works_for_customer_id ?? ''}
                       onChange={e => setField('works_for_customer_id', e.target.value || (null as never))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Me (own work)</option>
                       {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
-                    <p className="text-[10px] text-gray-400 mt-1">Drives where their salary gets invoiced.</p>
+                    <p className="text-[10px] text-[var(--text-faint)] mt-1">Drives where their salary gets invoiced.</p>
                   </div>
                   <div className="flex items-end">
                     <label
@@ -671,10 +671,10 @@ export default function StaffClient({ employees: initialEmployees, customers = [
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface-2)] rounded-b-2xl">
               <button
                 onClick={closeModal}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
               >
                 Cancel
               </button>

@@ -343,12 +343,12 @@ function InvoiceRow({
         <button
           onClick={() => onDelete(invoice)}
           disabled={deleting}
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover: disabled:opacity-50 transition-colors"
           title="Delete invoice"
         >
           {deleting
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#dc2626' }} />
-            : <Trash2 className="w-3.5 h-3.5 text-red-400" />}
+            : <Trash2 className="w-3.5 h-3.5 " />}
         </button>
       </div>
     </div>

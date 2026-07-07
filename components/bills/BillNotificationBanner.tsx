@@ -82,9 +82,9 @@ export default function BillNotificationBanner() {
   const isOverdue = overdueCount > 0
 
   return (
-    <div className={`shrink-0 ${isOverdue ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'} border-b px-4 py-2.5 flex items-center gap-3`}>
-      <AlertCircle className={`w-4 h-4 shrink-0 ${isOverdue ? 'text-red-500' : 'text-amber-500'}`} />
-      <p className={`text-xs font-medium flex-1 ${isOverdue ? 'text-red-700' : 'text-amber-700'}`}>
+    <div className={`shrink-0 ${isOverdue ? ' border-[var(--border)]' : 'bg-[var(--accent-light)] border-[var(--border)]'} border-b px-4 py-2.5 flex items-center gap-3`}>
+      <AlertCircle className={`w-4 h-4 shrink-0 ${isOverdue ? '' : 'text-[var(--amber)]'}`} />
+      <p className={`text-xs font-medium flex-1 ${isOverdue ? '' : 'text-[var(--amber)]'}`}>
         {overdueCount > 0
           ? `${overdueCount} bill${overdueCount > 1 ? 's' : ''} overdue`
           : `${urgentBills.length} bill${urgentBills.length > 1 ? 's' : ''} due in the next 3 days`
@@ -98,18 +98,18 @@ export default function BillNotificationBanner() {
         {notifPermission === 'default' && 'Notification' in window && (
           <button
             onClick={requestNotifications}
-            className={`text-xs font-medium flex items-center gap-1 px-2 py-1 rounded-lg ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}
+            className={`text-xs font-medium flex items-center gap-1 px-2 py-1 rounded-lg ${isOverdue ? 'bg-[var(--surface-2)] ' : 'bg-[var(--accent-light)] text-[var(--amber)]'}`}
           >
             <Bell className="w-3 h-3" /> Enable alerts
           </button>
         )}
         <Link
           href="/bills"
-          className={`text-xs font-semibold px-2 py-1 rounded-lg ${isOverdue ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}`}
+          className={`text-xs font-semibold px-2 py-1 rounded-lg ${isOverdue ? 'bg-[var(--expense)] text-white' : ' text-white'}`}
         >
           View
         </Link>
-        <button onClick={() => setDismissed(true)} className="text-gray-400 hover:text-gray-600">
+        <button onClick={() => setDismissed(true)} className=" hover:">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>

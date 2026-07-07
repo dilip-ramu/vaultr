@@ -27,13 +27,13 @@ export default function BulkActionsBar({
       <button onClick={() => onBulkStatus('new')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors">
         <RotateCcw className="w-3 h-3" /> Mark New
       </button>
-      <button onClick={() => onBulkStatus('reviewed')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors">
+      <button onClick={() => onBulkStatus('reviewed')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent-light)] text-[var(--amber)] border border-[var(--border)] hover:bg-[var(--accent-light)] transition-colors">
         <CheckCircle2 className="w-3 h-3" /> Mark Reviewed
       </button>
-      <button onClick={() => onBulkStatus('ignored')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200 transition-colors">
+      <button onClick={() => onBulkStatus('ignored')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium   border border-[var(--border)] hover: transition-colors">
         <EyeOff className="w-3 h-3" /> Ignore
       </button>
-      <button onClick={onBulkDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors ml-auto">
+      <button onClick={onBulkDelete} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium   border border-[var(--border)] hover:bg-[var(--surface-2)] transition-colors ml-auto">
         <Trash2 className="w-3 h-3" /> Delete {count}
       </button>
       <button onClick={onClearSelection} className="text-xs px-2 py-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors" style={{ color: 'var(--text-faint)' }}>

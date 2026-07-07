@@ -140,8 +140,8 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const filteredCategories = type === 'transfer' ? [] : categories.filter(c => c.type === 'expense')
 
   const typeConfig = {
-    expense:  { label: 'Expense',  icon: TrendingDown,    color: 'bg-red-500',   light: 'bg-red-50 text-red-500' },
-    income:   { label: 'Income',   icon: TrendingUp,      color: 'bg-green-500', light: 'bg-green-50 text-green-500' },
+    expense:  { label: 'Expense',  icon: TrendingDown,    color: 'bg-[var(--expense)]',   light: ' ' },
+    income:   { label: 'Income',   icon: TrendingUp,      color: 'bg-[var(--income)]', light: ' ' },
     transfer: { label: 'Transfer', icon: ArrowLeftRight,  color: 'bg-blue-500',  light: 'bg-blue-50 text-blue-500' },
   }
 
@@ -229,14 +229,14 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
         <div className={`${activeType.color} px-6 pt-5 pb-4`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-bold text-white">{isEdit ? 'Edit Transaction' : 'New Transaction'}</h2>
-            <button onClick={onClose} className="w-11 h-11 flex items-center justify-center bg-white/20 rounded-xl">
+            <button onClick={onClose} className="w-11 h-11 flex items-center justify-center bg-[var(--surface)]/20 rounded-xl">
               <X className="w-5 h-5 text-white" />
             </button>
           </div>
           <div className="flex gap-2">
             {(Object.keys(typeConfig) as TransactionType[]).map(t => (
               <button key={t} type="button" onClick={() => setType(t)}
-                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${type === t ? 'bg-white text-gray-800' : 'bg-white/20 text-white'}`}>
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${type === t ? 'bg-[var(--surface)] ' : 'bg-[var(--surface)]/20 text-white'}`}>
                 {typeConfig[t].label}
               </button>
             ))}
@@ -245,31 +245,31 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
-          {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+          {error && <div className="  text-sm rounded-xl px-4 py-3">{error}</div>}
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+            <label className="block text-sm font-medium  mb-1.5">Name</label>
             <input
               type="text"
               value={txName}
               onChange={e => setTxName(e.target.value)}
               placeholder="e.g. Lunch with client, Monthly rent…"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm"
               autoFocus
             />
           </div>
 
           {/* Amount + Currency */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Amount</label>
+            <label className="block text-sm font-medium  mb-1.5">Amount</label>
             <div className="flex gap-2">
               {/* Currency picker button */}
               <button type="button" onClick={() => setShowCurrencyPicker(true)}
-                className="flex items-center gap-1.5 px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 shrink-0 hover:bg-gray-100 min-w-[80px]">
+                className="flex items-center gap-1.5 px-3 py-3  border border-[var(--border)] rounded-xl text-sm font-semibold  shrink-0 hover: min-w-[80px]">
                 <span>{currencyMeta.flag}</span>
                 <span>{currency}</span>
-                <ChevronDown className="w-3 h-3 text-gray-400" />
+                <ChevronDown className="w-3 h-3 " />
               </button>
               <div className="relative flex-1">
                 <AmountField
@@ -277,7 +277,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                   onChange={setOriginalAmount}
                   placeholder="0.00"
                   title={`Amount (${currency})`}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xl font-bold"
+                  className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-xl font-bold"
                 />
               </div>
             </div>
@@ -293,7 +293,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                     {' '}<span className="text-brand-400">({type === 'income' ? 'billing rate' : 'expended rate'})</span>
                   </span>
                 ) : (
-                  <span className="text-amber-600">No rate found for {currency}. Go to Currencies page to set it up.</span>
+                  <span className="text-[var(--amber)]">No rate found for {currency}. Go to Currencies page to set it up.</span>
                 )}
               </div>
             )}
@@ -301,81 +301,81 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
           {/* Account */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium  mb-1.5">
               {type === 'transfer' ? 'From Account' : 'Account'}
             </label>
             <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
-            {!accountId && <p className="text-xs text-red-400 mt-1">Please select an account</p>}
+            {!accountId && <p className="text-xs  mt-1">Please select an account</p>}
           </div>
 
           {type === 'transfer' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">To Account</label>
+              <label className="block text-sm font-medium  mb-1.5">To Account</label>
               <AccountChipPicker
                 accounts={accounts.filter(a => a.id !== accountId)}
                 selectedId={toAccountId}
                 onSelect={setToAccountId}
               />
-              {!toAccountId && <p className="text-xs text-red-400 mt-1">Please select a destination account</p>}
+              {!toAccountId && <p className="text-xs  mt-1">Please select a destination account</p>}
             </div>
           )}
 
           {/* Payee */}
           {type !== 'transfer' && (
             <div ref={payeeRef}>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Payee <span className="text-gray-400">(optional)</span>
+              <label className="block text-sm font-medium  mb-1.5">
+                Payee <span className="">(optional)</span>
               </label>
               <div className="relative">
                 <div
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center gap-2 cursor-pointer"
+                  className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm flex items-center gap-2 cursor-pointer"
                   onClick={() => setShowPayeeDropdown(true)}
                 >
                   {selectedPayee ? (
                     <>
-                      <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-md capitalize">{selectedPayee.type}</span>
-                      <span className="flex-1 text-gray-800">{selectedPayee.name}</span>
+                      <span className="text-xs   px-1.5 py-0.5 rounded-md capitalize">{selectedPayee.type}</span>
+                      <span className="flex-1 ">{selectedPayee.name}</span>
                       <button type="button" onClick={e => { e.stopPropagation(); setPayeeId(''); setPayeeSearch('') }}
-                        className="text-gray-400 hover:text-gray-600">
+                        className=" hover:">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </>
                   ) : (
-                    <span className="text-gray-400 flex-1">Select payee…</span>
+                    <span className=" flex-1">Select payee…</span>
                   )}
-                  <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                  <ChevronDown className="w-4 h-4  shrink-0" />
                 </div>
 
                 {showPayeeDropdown && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowPayeeDropdown(false)} />
-                    <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden">
-                      <div className="p-2 border-b border-gray-100">
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-[var(--surface)] rounded-xl shadow-lg border border-[var(--border)] z-20 overflow-hidden">
+                      <div className="p-2 border-b border-[var(--border)]">
                         <div className="relative">
-                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                          <Search className="w-3.5 h-3.5  absolute left-2.5 top-1/2 -translate-y-1/2" />
                           <input autoFocus value={payeeSearch} onChange={e => setPayeeSearch(e.target.value)}
                             placeholder="Search payees…"
-                            className="w-full pl-8 pr-3 py-2 bg-gray-50 rounded-lg text-sm" />
+                            className="w-full pl-8 pr-3 py-2  rounded-lg text-sm" />
                         </div>
                       </div>
                       <div className="max-h-44 overflow-y-auto">
                         {filteredPayees.map(p => (
                           <button key={p.id} type="button"
                             onClick={() => { setPayeeId(p.id); setPayeeSearch(p.name); setShowPayeeDropdown(false) }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-50 text-left">
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 hover: text-left">
                             <span className={`text-xs px-1.5 py-0.5 rounded-md capitalize font-medium ${
                               p.type === 'business' ? 'bg-blue-100 text-blue-600' :
-                              p.type === 'personal' ? 'bg-green-100 text-green-600' :
-                              'bg-gray-100 text-gray-600'
+                              p.type === 'personal' ? 'bg-[var(--brand-light)] ' :
+                              ' '
                             }`}>{p.type}</span>
-                            <span className="text-sm text-gray-800">{p.name}</span>
+                            <span className="text-sm ">{p.name}</span>
                           </button>
                         ))}
                         {filteredPayees.length === 0 && (
-                          <p className="text-xs text-gray-400 text-center py-3">No payees found</p>
+                          <p className="text-xs  text-center py-3">No payees found</p>
                         )}
                       </div>
-                      <div className="border-t border-gray-100 p-2">
+                      <div className="border-t border-[var(--border)] p-2">
                         <button type="button"
                           onClick={() => { setShowPayeeDropdown(false); setNewPayeeName(payeeSearch); setShowAddPayee(true) }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-brand-500 font-medium hover:bg-brand-50 rounded-lg">
@@ -392,13 +392,13 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           {/* Category — searchable dropdown */}
           {type !== 'transfer' && (
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+              <label className="block text-sm font-medium  mb-1.5">Category</label>
 
               {/* Trigger button */}
               <button
                 type="button"
                 onClick={() => { setShowCategoryDropdown(true); setCategorySearch('') }}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm flex items-center gap-2 text-left"
+                className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm flex items-center gap-2 text-left"
                 style={{ color: categoryId ? 'var(--text)' : 'var(--text-muted)' }}
               >
                 {(() => {
@@ -478,35 +478,35 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
           {/* Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
+            <label className="block text-sm font-medium  mb-1.5">Date</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} required
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           {/* Used for — which of YOUR companies bore this cost. Personal by default. */}
           {companies.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Used for <span className="text-xs font-normal text-gray-400">(optional)</span>
+              <label className="block text-sm font-medium  mb-1.5">
+                Used for <span className="text-xs font-normal ">(optional)</span>
               </label>
               <select
                 value={usedForCompanyId}
                 onChange={e => setUsedForCompanyId(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm"
               >
                 <option value="">Personal (default)</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <p className="text-xs text-gray-400 mt-1">Slice spending by which business — doesn&apos;t affect who pays or invoices.</p>
+              <p className="text-xs  mt-1">Slice spending by which business — doesn&apos;t affect who pays or invoices.</p>
             </div>
           )}
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes (optional)</label>
+            <label className="block text-sm font-medium  mb-1.5">Notes (optional)</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="Add a note…"
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+              className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
 
           <FileUpload

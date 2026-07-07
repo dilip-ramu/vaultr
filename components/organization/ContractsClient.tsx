@@ -215,7 +215,7 @@ export default function ContractsClient({ initialTemplates, companies, designati
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-3">
                         <button onClick={() => openVersions(t)} className="inline-flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}><History className="w-3.5 h-3.5" />Versions</button>
-                        <button onClick={() => deleteTemplate(t)} className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700"><Trash2 className="w-3.5 h-3.5" />Delete</button>
+                        <button onClick={() => deleteTemplate(t)} className="inline-flex items-center gap-1 text-xs text-[var(--expense)] hover:text-[var(--expense)]"><Trash2 className="w-3.5 h-3.5" />Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -270,7 +270,7 @@ export default function ContractsClient({ initialTemplates, companies, designati
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <button onClick={() => editJd(r)} className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Edit</button>
-                    <button onClick={() => deleteJd(r)} className="text-xs inline-flex items-center gap-1 text-red-500 hover:text-red-700"><Trash2 className="w-3.5 h-3.5" />Delete</button>
+                    <button onClick={() => deleteJd(r)} className="text-xs inline-flex items-center gap-1 text-[var(--expense)] hover:text-[var(--expense)]"><Trash2 className="w-3.5 h-3.5" />Delete</button>
                   </div>
                 </div>
                 {r.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: 'var(--text-muted)' }}>{r.description}</p>}

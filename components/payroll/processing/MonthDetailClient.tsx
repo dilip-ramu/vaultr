@@ -368,14 +368,14 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/payroll/processing')} className="text-gray-400 hover:text-gray-600 text-sm">
+          <button onClick={() => router.push('/payroll/processing')} className="text-[var(--text-faint)] hover:text-[var(--text-muted)] text-sm">
             ← Back
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{fmtMonth(month.payroll_month)}</h1>
+              <h1 className="text-2xl font-bold text-[var(--text)]">{fmtMonth(month.payroll_month)}</h1>
               {month.is_finalized && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[var(--brand-light)] text-[var(--income)] rounded-full text-sm font-medium">
                   ✓ Finalized
                 </span>
               )}
@@ -385,12 +385,12 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-500 mt-0.5">Payroll processing</p>
+            <p className="text-sm text-[var(--text-muted)] mt-0.5">Payroll processing</p>
           </div>
         </div>
         {entries.length > 0 && (
           <div className="flex items-center gap-3">
-            {finalizeError && <span className="text-xs text-red-600">{finalizeError}</span>}
+            {finalizeError && <span className="text-xs text-[var(--expense)]">{finalizeError}</span>}
 
             {/* Finalize / Re-finalize */}
             {!month.is_finalized ? (
@@ -406,7 +406,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 <button
                   onClick={handleFinalize}
                   disabled={finalizing}
-                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 border border-[var(--border)] text-[var(--text-muted)] rounded-lg text-sm font-medium hover:bg-[var(--surface-2)] disabled:opacity-50 transition-colors"
                 >
                   {finalizing ? 'Saving…' : '↺ Re-finalize'}
                 </button>
@@ -420,7 +420,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             ) : (
               <button
                 onClick={handleUndoPay}
-                className="px-4 py-2 border border-red-200 text-red-500 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
+                className="px-4 py-2 border border-[var(--border)] text-[var(--expense)] rounded-lg text-sm font-medium hover:bg-[var(--surface-2)] transition-colors"
               >
                 ↩ Undo Payment
               </button>
@@ -430,51 +430,51 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
       </div>
 
       {/* Settlement details */}
-      <div className="bg-white border border-gray-200 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">Settlement Details</h2>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)] mb-4">Settlement Details</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Billed (€)</label>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Billed (€)</label>
             <input type="number" min="0" step="0.01" value={billedEuros}
               onChange={e => setBilledEuros(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="0.00" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Received (₹)</label>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Received (₹)</label>
             <input type="number" min="0" step="0.01" value={receivedInr}
               onChange={e => setReceivedInr(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="0.00" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Bank Charges (₹)</label>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Bank Charges (₹)</label>
             <input type="number" min="0" step="0.01" value={bankCharges}
               onChange={e => setBankCharges(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="0.00" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Payment Date</label>
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Payment Date</label>
             <input type="date" value={paymentDate}
               onChange={e => setPaymentDate(e.target.value)} onBlur={saveMeta}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
         </div>
         {effectiveRate !== null && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
-            <span className="text-gray-400">Effective Rate:</span>
-            <span className="font-mono font-semibold text-gray-900">
+          <div className="mt-3 flex items-center gap-2 text-sm text-[var(--text-muted)]">
+            <span className="text-[var(--text-faint)]">Effective Rate:</span>
+            <span className="font-mono font-semibold text-[var(--text)]">
               ₹{effectiveRate.toLocaleString('en-IN', { minimumFractionDigits: 4 })} / €
             </span>
-            <span className="text-xs text-gray-400">(auto-calculated)</span>
+            <span className="text-xs text-[var(--text-faint)]">(auto-calculated)</span>
           </div>
         )}
 
         {/* Income logging */}
         {Number(month.received_inr) > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
-            <div className="text-xs text-gray-500">
+          <div className="mt-4 pt-4 border-t border-[var(--border)] flex items-center justify-between gap-3">
+            <div className="text-xs text-[var(--text-muted)]">
               {month.income_transaction_id
                 ? '✓ Income & forex transactions logged'
                 : 'Log received amount as income and bank charges as expense'}
@@ -482,7 +482,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             {month.income_transaction_id ? (
               <button
                 onClick={handleReverseIncome}
-                className="px-3 py-1.5 border border-red-200 text-red-500 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors"
+                className="px-3 py-1.5 border border-[var(--border)] text-[var(--expense)] rounded-lg text-xs font-medium hover:bg-[var(--surface-2)] transition-colors"
               >
                 ↩ Reverse
               </button>
@@ -508,7 +508,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             <label className="block text-xs font-medium text-blue-700 mb-1">Exchange Rate (₹ per €)</label>
             <input type="number" min="0" step="0.0001" value={expendedRate}
               onChange={e => setExpendedRate(e.target.value)}
-              className="w-full px-3 py-2 border border-blue-200 bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-blue-200 bg-[var(--surface)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="e.g. 89.5" />
           </div>
           <button onClick={handleGenerate} disabled={generating}
@@ -516,7 +516,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
             {generating ? 'Generating…' : entries.length > 0 ? 'Regenerate' : 'Generate'}
           </button>
         </div>
-        {genError && <p className="text-xs text-red-600 mt-2">{genError}</p>}
+        {genError && <p className="text-xs text-[var(--expense)] mt-2">{genError}</p>}
         {entries.length > 0 && (
           <p className="text-xs text-blue-600 mt-2">Regenerating resets all adjustments to zero.</p>
         )}
@@ -524,13 +524,13 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
 
       {/* Entries table — always editable */}
       {entries.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-gray-700">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-[var(--text)]">
               Payroll Entries — {entries.length} employee{entries.length !== 1 ? 's' : ''}
             </h2>
-            <div className="text-sm text-gray-500">
-              Total: <span className="font-semibold text-gray-900">{fmtInr(totalPayable)}</span>
+            <div className="text-sm text-[var(--text-muted)]">
+              Total: <span className="font-semibold text-[var(--text)]">{fmtInr(totalPayable)}</span>
               {selectedEntries.size !== entries.length && (
                 <span className="ml-3">
                   Selected: <span className="font-semibold text-blue-700">{fmtInr(selectedTotal)}</span>
@@ -540,7 +540,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           </div>
           {/* Works-for filter chips — only show when we have > 1 group */}
           {worksForOptions.length > 1 && (
-            <div className="px-5 py-2 border-b border-gray-100 flex flex-wrap gap-2 bg-gray-50">
+            <div className="px-5 py-2 border-b border-[var(--border)] flex flex-wrap gap-2 bg-[var(--surface-2)]">
               <button
                 onClick={() => setWorksForFilter('all')}
                 className="px-2.5 py-1 rounded-full text-xs font-medium"
@@ -570,9 +570,9 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
                 <tr>
-                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-10">
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider w-10">
                     <input
                       type="checkbox"
                       checked={visibleEntries.length > 0 && visibleEntries.every(e => selectedEntries.has(e.id))}
@@ -580,15 +580,15 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                       title="Select all shown"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary ₹</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Allowances</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Overtime</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Incentives</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Deductions</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Advance</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Payable</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Employee</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Salary</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Salary ₹</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Allowances</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Overtime</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Incentives</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Deductions</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Advance</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Net Payable</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -601,7 +601,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                   const isChecked = selectedEntries.has(entry.id)
 
                   return (
-                    <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${isSaving ? 'opacity-60' : ''} ${!isChecked ? 'opacity-40' : ''}`}>
+                    <tr key={entry.id} className={`hover:bg-[var(--surface-2)] transition-colors ${isSaving ? 'opacity-60' : ''} ${!isChecked ? 'opacity-40' : ''}`}>
                       <td className="px-3 py-2 text-center">
                         <input
                           type="checkbox"
@@ -612,13 +612,13 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                         />
                       </td>
                       <td className="px-4 py-2">
-                        <div className="font-medium text-gray-900">{entry.employee?.name ?? '—'}</div>
-                        <div className="text-xs text-gray-400">{entry.employee?.employee_id ?? ''}</div>
+                        <div className="font-medium text-[var(--text)]">{entry.employee?.name ?? '—'}</div>
+                        <div className="text-xs text-[var(--text-faint)]">{entry.employee?.employee_id ?? ''}</div>
                       </td>
-                      <td className="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
+                      <td className="px-4 py-2 text-right font-mono text-[var(--text)] whitespace-nowrap">
                         {currencySymbol(entry.employee?.salary_currency)}{Number(entry.salary_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="px-4 py-2 text-right font-mono text-gray-700 whitespace-nowrap">
+                      <td className="px-4 py-2 text-right font-mono text-[var(--text)] whitespace-nowrap">
                         {fmtInr(Number(entry.salary_inr))}
                       </td>
 
@@ -630,31 +630,31 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                             placeholder="0"
                             onChange={e => setRowField(entry.id, field, parseFloat(e.target.value) || 0)}
                             onBlur={() => saveRow(entry)}
-                            className="w-24 px-2 py-1.5 border border-gray-200 rounded text-sm text-right bg-gray-50 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:bg-white hover:border-gray-300 transition-colors"
+                            className="w-24 px-2 py-1.5 border border-[var(--border)] rounded text-sm text-right bg-[var(--surface-2)] focus:outline-none focus:ring-1 focus:ring-blue-400 focus:bg-[var(--surface)] hover:border-[var(--border)] transition-colors"
                           />
                         </td>
                       ))}
 
-                      <td className="px-4 py-2 text-right font-mono font-semibold text-gray-900 whitespace-nowrap">
-                        {isSaving ? <span className="text-gray-400 text-xs">saving…</span> : fmtInr(livePayable)}
+                      <td className="px-4 py-2 text-right font-mono font-semibold text-[var(--text)] whitespace-nowrap">
+                        {isSaving ? <span className="text-[var(--text-faint)] text-xs">saving…</span> : fmtInr(livePayable)}
                       </td>
                     </tr>
                   )
                 })}
               </tbody>
-              <tfoot className="bg-gray-50 border-t border-gray-200">
+              <tfoot className="bg-[var(--surface-2)] border-t border-[var(--border)]">
                 <tr>
-                  <td colSpan={8} className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <td colSpan={8} className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">
                     Total Payable
                   </td>
-                  <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">
+                  <td className="px-4 py-3 text-right font-mono font-bold text-[var(--text)]">
                     {fmtInr(totalPayable)}
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
-          <p className="px-5 py-2 text-xs text-gray-400 border-t border-gray-100">
+          <p className="px-5 py-2 text-xs text-[var(--text-faint)] border-t border-[var(--border)]">
             Changes auto-save when you click out of a field.
           </p>
         </div>
@@ -663,32 +663,32 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
       {/* Log Income & Forex modal */}
       {showIncomeModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-              <h2 className="text-lg font-semibold text-gray-900">Log Income & Forex</h2>
-              <button onClick={() => setShowIncomeModal(false)} className="text-gray-400 hover:text-gray-600 text-xl font-light">×</button>
+          <div className="bg-[var(--surface)] rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-md max-h-[92dvh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] shrink-0">
+              <h2 className="text-lg font-semibold text-[var(--text)]">Log Income & Forex</h2>
+              <button onClick={() => setShowIncomeModal(false)} className="text-[var(--text-faint)] hover:text-[var(--text-muted)] text-xl font-light">×</button>
             </div>
             <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
               {incomeError && (
-                <div className="bg-red-50 text-red-700 text-sm px-4 py-2 rounded-lg">{incomeError}</div>
+                <div className="bg-[var(--surface-2)] text-[var(--expense)] text-sm px-4 py-2 rounded-lg">{incomeError}</div>
               )}
 
               {/* Preview */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+              <div className="bg-[var(--surface-2)] rounded-xl p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Income</span>
-                  <span className="font-semibold text-green-700">
+                  <span className="text-[var(--text-muted)]">Income</span>
+                  <span className="font-semibold text-[var(--income)]">
                     + Rs.{Number(month.received_inr).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="text-xs text-gray-400 -mt-1">
+                <div className="text-xs text-[var(--text-faint)] -mt-1">
                   Business Income - {fmtMonth(month.payroll_month)}
                 </div>
                 {Number(month.bank_charges) > 0 && (
                   <>
-                    <div className="border-t border-gray-200 pt-2 flex justify-between">
-                      <span className="text-gray-500">Bank Forex Charges</span>
-                      <span className="font-semibold text-red-600">
+                    <div className="border-t border-[var(--border)] pt-2 flex justify-between">
+                      <span className="text-[var(--text-muted)]">Bank Forex Charges</span>
+                      <span className="font-semibold text-[var(--expense)]">
                         − Rs.{Number(month.bank_charges).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -697,7 +697,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Bank Account *</label>
+                <label className="block text-xs font-medium text-[var(--text)] mb-1">Bank Account *</label>
                 <AccountChipPicker
                   accounts={accounts}
                   selectedId={incomeAccountId}
@@ -705,8 +705,8 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl shrink-0">
-              <button onClick={() => setShowIncomeModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[var(--border)] bg-[var(--surface-2)] rounded-b-2xl shrink-0">
+              <button onClick={() => setShowIncomeModal(false)} className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-[var(--text)]">Cancel</button>
               <button
                 onClick={handleLogIncome}
                 disabled={loggingIncome}
@@ -739,10 +739,10 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
 
       {/* Salary slips link + bank CSV download */}
       {month.is_finalized && entries.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5 flex items-center justify-between gap-4">
+        <div className="bg-[var(--brand-light)] border border-[var(--border)] rounded-xl p-5 flex items-center justify-between gap-4">
           <div>
-            <p className="font-medium text-green-800">Payroll finalized</p>
-            <p className="text-sm text-green-600 mt-0.5">Salary slips ready · download bank transfer CSV for bulk payment</p>
+            <p className="font-medium text-[var(--income)]">Payroll finalized</p>
+            <p className="text-sm text-[var(--income)] mt-0.5">Salary slips ready · download bank transfer CSV for bulk payment</p>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <button
@@ -751,7 +751,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 if (!csv) { notify('No eligible entries — check that employees have IFSC code and account number filled in.'); return }
                 triggerCSVDownload(csv, 'BULK.csv')
               }}
-              className="px-4 py-2 border border-green-400 text-green-700 bg-white rounded-lg text-sm font-medium hover:bg-green-50 transition-colors"
+              className="px-4 py-2 border border-[var(--border)] text-[var(--income)] bg-[var(--surface)] rounded-lg text-sm font-medium hover:bg-[var(--brand-light)] transition-colors"
             >
               ↓ Bank Transfer CSV
             </button>

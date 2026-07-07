@@ -323,7 +323,7 @@ export default function CommissionImport({ customers, accounts, onImported, onCl
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2   text-sm rounded-xl px-4 py-3">
                   <AlertCircle className="w-4 h-4 shrink-0" /> {error}
                 </div>
               )}
@@ -343,7 +343,7 @@ export default function CommissionImport({ customers, accounts, onImported, onCl
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2   text-sm rounded-xl px-4 py-3">
                   <AlertCircle className="w-4 h-4 shrink-0" /> {error}
                 </div>
               )}
@@ -365,8 +365,8 @@ export default function CommissionImport({ customers, accounts, onImported, onCl
                       <span className="ml-2">{r.quantity} pcs · {r.currency} {r.rate_per_piece} · {r.commission_pct}%</span>
                     </div>
                     {r.error
-                      ? <span className="text-red-500 ml-2 shrink-0">{r.error}</span>
-                      : <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0 ml-2" />}
+                      ? <span className=" ml-2 shrink-0">{r.error}</span>
+                      : <CheckCircle2 className="w-3.5 h-3.5  shrink-0 ml-2" />}
                   </div>
                 ))}
               </div>
@@ -391,7 +391,7 @@ export default function CommissionImport({ customers, accounts, onImported, onCl
           {/* ── Done ── */}
           {step === 'done' && (
             <div className="text-center py-10">
-              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+              <CheckCircle2 className="w-12 h-12  mx-auto mb-3" />
               <p className="font-semibold" style={{ color: 'var(--text)' }}>
                 Imported {valid.length} style{valid.length !== 1 ? 's' : ''}
               </p>

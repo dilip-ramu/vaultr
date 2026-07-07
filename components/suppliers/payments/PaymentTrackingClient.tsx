@@ -71,7 +71,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
       <div className="grid grid-cols-3 gap-4">
         <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2 mb-2">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <CheckCircle2 className="w-4 h-4 text-[var(--income)]" />
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Paid</span>
           </div>
           <p className="text-xl font-bold" style={{ color: '#16a34a' }}>₹{fmtAmt(stats.totalPaid)}</p>
@@ -90,10 +90,10 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
           style={{ backgroundColor: 'var(--surface)', borderColor: stats.overdueCount > 0 ? '#ef4444' : 'var(--border)', borderWidth: stats.overdueCount > 0 ? 2 : 1 }}
         >
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-red-500" />
+            <AlertTriangle className="w-4 h-4 text-[var(--expense)]" />
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Overdue</span>
           </div>
-          <p className="text-xl font-bold text-red-500">₹{fmtAmt(stats.totalOverdue)}</p>
+          <p className="text-xl font-bold text-[var(--expense)]">₹{fmtAmt(stats.totalOverdue)}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{stats.overdueCount} invoices</p>
         </div>
       </div>
@@ -211,7 +211,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
                     <div className="flex flex-wrap gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                       {inv.invoice_number && <span className="font-mono">{inv.invoice_number}</span>}
                       <span>{fmtDate(inv.invoice_date)}</span>
-                      {inv.payment_date && <span className="text-green-600">Paid {fmtDate(inv.payment_date)}</span>}
+                      {inv.payment_date && <span className="text-[var(--income)]">Paid {fmtDate(inv.payment_date)}</span>}
                       {inv.payment_reference && <span className="font-mono">{inv.payment_reference}</span>}
                     </div>
                   </div>

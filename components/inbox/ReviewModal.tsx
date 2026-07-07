@@ -32,7 +32,7 @@ function Field({
   return (
     <div className="space-y-1">
       <label className="text-xs font-medium" style={{ color: 'var(--text)' }}>
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+        {label}{required && <span className=" ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -243,9 +243,9 @@ export default function ReviewModal({ doc, onClose, onApproved }: Props) {
             </Field>
 
             {error && (
-              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-red-700">{error}</p>
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg  border border-[var(--border)]">
+                <AlertTriangle className="w-3.5 h-3.5  shrink-0 mt-0.5" />
+                <p className="text-xs ">{error}</p>
               </div>
             )}
 

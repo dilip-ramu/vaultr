@@ -185,7 +185,7 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div className="w-full max-w-sm rounded-2xl p-8 text-center shadow-2xl" style={{ backgroundColor: 'var(--surface)' }}>
-          <CheckCircle2 className="w-14 h-14 mx-auto text-green-500 mb-4" />
+          <CheckCircle2 className="w-14 h-14 mx-auto  mb-4" />
           <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text)' }}>Payment Recorded</h3>
           <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
             {invoiceIds.length} invoice{invoiceIds.length !== 1 ? 's' : ''} marked paid
@@ -224,7 +224,7 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
         </div>
 
         <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-          {error && <div className="px-4 py-3 rounded-xl text-sm bg-red-50 text-red-600 border border-red-200">{error}</div>}
+          {error && <div className="px-4 py-3 rounded-xl text-sm   border border-[var(--border)]">{error}</div>}
 
           {/* Invoice list (collapsed if many) */}
           {!isSingle && (

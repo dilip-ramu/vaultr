@@ -77,14 +77,14 @@ function DeleteModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+      <div className="bg-[var(--surface)] rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
+          <div className="w-10 h-10 rounded-xl bg-[var(--surface-2)] flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-[var(--expense)]" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">Delete {invoice.invoice_number}?</p>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="font-semibold text-[var(--text)]">Delete {invoice.invoice_number}?</p>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
               This will permanently delete the invoice and restore all linked
               expenses, courier charges, and payroll entries to unbilled so they
               can be re-invoiced.
@@ -95,14 +95,14 @@ function DeleteModal({
           <button
             onClick={onCancel}
             disabled={deleting}
-            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-[var(--text-muted)] bg-[var(--surface-2)] hover:bg-[var(--border)] rounded-xl transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={deleting}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[var(--expense)] hover:bg-[var(--expense)] rounded-xl transition-colors disabled:opacity-50"
           >
             {deleting ? (
               <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -219,33 +219,33 @@ function InvoiceRow({
           <div className="flex items-center gap-3 min-w-0">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
               inv.status === 'paid'      ? 'bg-emerald-100'
-              : inv.status === 'finalized' ? 'bg-green-100'
-              : 'bg-amber-100'
+              : inv.status === 'finalized' ? 'bg-[var(--brand-light)]'
+              : 'bg-[var(--accent-light)]'
             }`}>
               {inv.status === 'paid'
                 ? <DollarSign className="w-4 h-4 text-emerald-600" />
                 : inv.status === 'finalized'
-                ? <CheckCircle2 className="w-4 h-4 text-green-600" />
-                : <Clock className="w-4 h-4 text-amber-600" />
+                ? <CheckCircle2 className="w-4 h-4 text-[var(--income)]" />
+                : <Clock className="w-4 h-4 text-[var(--amber)]" />
               }
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{inv.invoice_number}</p>
-              <p className="text-xs text-gray-500">{monthLabel(inv.invoice_month)}</p>
+              <p className="text-sm font-semibold text-[var(--text)] truncate">{inv.invoice_number}</p>
+              <p className="text-xs text-[var(--text-muted)]">{monthLabel(inv.invoice_month)}</p>
             </div>
           </div>
 
           {/* Right: total + status + actions */}
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-gray-900">{fmtEur(inv.total)}</p>
-              <p className="text-xs text-gray-400">incl. GST {fmtEur(inv.gst_amount)}</p>
+              <p className="text-sm font-bold text-[var(--text)]">{fmtEur(inv.total)}</p>
+              <p className="text-xs text-[var(--text-faint)]">incl. GST {fmtEur(inv.gst_amount)}</p>
             </div>
 
             <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
               inv.status === 'paid'      ? 'bg-emerald-100 text-emerald-700'
-              : inv.status === 'finalized' ? 'bg-green-100 text-green-700'
-              : 'bg-amber-100 text-amber-700'
+              : inv.status === 'finalized' ? 'bg-[var(--brand-light)] text-[var(--income)]'
+              : 'bg-[var(--accent-light)] text-[var(--amber)]'
             }`}>
               {inv.status === 'paid' ? 'Paid' : inv.status === 'finalized' ? 'Finalized' : 'Draft'}
             </span>
@@ -278,7 +278,7 @@ function InvoiceRow({
             <button
               onClick={() => setEditingNotes(v => !v)}
               title="Edit notes"
-              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+              className="p-2 text-[var(--text-faint)] hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
             >
               <FileEdit className="w-4 h-4" />
             </button>
@@ -287,7 +287,7 @@ function InvoiceRow({
             <button
               onClick={() => setConfirmDelete(true)}
               title="Delete invoice"
-              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+              className="p-2 text-[var(--text-faint)] hover:text-[var(--expense)] hover:bg-[var(--surface-2)] rounded-xl transition-colors"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -296,7 +296,7 @@ function InvoiceRow({
             {sortedItems.length > 0 && (
               <button
                 onClick={() => setExpanded(v => !v)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-colors"
+                className="p-2 text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-xl transition-colors"
               >
                 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
@@ -319,7 +319,7 @@ function InvoiceRow({
         )}
         {inv.payroll?.status === 'finalized' && (
           <p className="mt-3 ml-11 text-xs" style={{ color: 'var(--text-muted)' }}>
-            <CheckCircle2 className="w-3 h-3 inline mr-1 text-green-600" />
+            <CheckCircle2 className="w-3 h-3 inline mr-1 text-[var(--income)]" />
             Payroll for {monthLabel(inv.payroll.payroll_month)} finalized.
           </p>
         )}
@@ -332,7 +332,7 @@ function InvoiceRow({
               onChange={e => setNotes(e.target.value)}
               rows={2}
               placeholder="Add a note to this invoice…"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 resize-none"
+              className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 resize-none"
             />
             <div className="flex gap-2">
               <button
@@ -345,7 +345,7 @@ function InvoiceRow({
               </button>
               <button
                 onClick={() => { setNotes(inv.notes ?? ''); setEditingNotes(false) }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-muted)] rounded-lg text-xs font-medium transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
                 Cancel
@@ -356,14 +356,14 @@ function InvoiceRow({
 
         {/* Show saved notes */}
         {!editingNotes && inv.notes && (
-          <p className="mt-2 ml-11 text-xs text-gray-500 italic">{inv.notes}</p>
+          <p className="mt-2 ml-11 text-xs text-[var(--text-muted)] italic">{inv.notes}</p>
         )}
 
         {/* ── Line items ── */}
         {sortedItems.length > 0 && (
           <div className="mt-3 ml-11 space-y-1">
             {previewItems.map(item => (
-              <div key={item.id} className="flex justify-between text-xs text-gray-500">
+              <div key={item.id} className="flex justify-between text-xs text-[var(--text-muted)]">
                 <span className="capitalize">[{item.item_type}] {item.description}</span>
                 <span className="font-medium">{fmtEur(item.amount_inr)}</span>
               </div>
@@ -376,15 +376,15 @@ function InvoiceRow({
                 +{sortedItems.length - 4} more lines
               </button>
             )}
-            <div className="flex justify-between text-xs font-semibold text-gray-700 pt-1.5 border-t border-gray-100 mt-1">
+            <div className="flex justify-between text-xs font-semibold text-[var(--text)] pt-1.5 border-t border-[var(--border)] mt-1">
               <span>Sub Total</span>
               <span>{fmtEur(inv.subtotal)}</span>
             </div>
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className="flex justify-between text-xs text-[var(--text-muted)]">
               <span>GST @ 18%</span>
               <span>{fmtEur(inv.gst_amount)}</span>
             </div>
-            <div className="flex justify-between text-xs font-bold text-gray-900">
+            <div className="flex justify-between text-xs font-bold text-[var(--text)]">
               <span>Grand Total</span>
               <span>{fmtEur(inv.total)}</span>
             </div>
@@ -392,7 +392,7 @@ function InvoiceRow({
         )}
 
         {/* ── Timestamps ── */}
-        <div className="mt-2 ml-11 text-xs text-gray-400">
+        <div className="mt-2 ml-11 text-xs text-[var(--text-faint)]">
           Created {fmtDate(inv.created_at.split('T')[0])}
           {inv.finalized_at && ` · Finalized ${fmtDate(inv.finalized_at.split('T')[0])}`}
         </div>
@@ -411,22 +411,22 @@ export default function ReimbursableHistoryClient({ invoices: initial }: { invoi
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-5">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center">
-          <History className="w-5 h-5 text-gray-600" />
+        <div className="w-10 h-10 rounded-xl bg-[var(--surface-2)] flex items-center justify-center">
+          <History className="w-5 h-5 text-[var(--text-muted)]" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Invoice History</h1>
-          <p className="text-sm text-gray-500">All reimbursement invoices you&apos;ve raised</p>
+          <h1 className="text-xl font-bold text-[var(--text)]">Invoice History</h1>
+          <p className="text-sm text-[var(--text-muted)]">All reimbursement invoices you&apos;ve raised</p>
         </div>
       </div>
 
       {invoices.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-10 text-center">
-          <History className="w-8 h-8 mx-auto mb-3 text-gray-300" />
-          <p className="text-sm text-gray-400">No invoices generated yet</p>
+        <div className="bg-[var(--surface-2)] border border-[var(--border)] rounded-2xl p-10 text-center">
+          <History className="w-8 h-8 mx-auto mb-3 text-[var(--text-faint)]" />
+          <p className="text-sm text-[var(--text-faint)]">No invoices generated yet</p>
         </div>
       ) : (
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-50">
             {invoices.map(inv => (
               <InvoiceRow key={inv.id} inv={inv} onDelete={handleDelete} />

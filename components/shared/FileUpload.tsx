@@ -60,13 +60,13 @@ function Lightbox({
         className="flex items-center justify-between px-4 shrink-0"
         style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)', paddingBottom: 12 }}
       >
-        <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center bg-white/10">
+        <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center bg-[var(--surface)]/10">
           <X className="w-5 h-5 text-white" />
         </button>
         <p className="text-white text-sm font-medium truncate flex-1 mx-4 text-center">{att.name}</p>
         <button
           onClick={handleDownload}
-          className="w-9 h-9 rounded-full flex items-center justify-center bg-white/10"
+          className="w-9 h-9 rounded-full flex items-center justify-center bg-[var(--surface)]/10"
         >
           <Download className="w-5 h-5 text-white" />
         </button>
@@ -84,7 +84,7 @@ function Lightbox({
         ) : (
           <div className="flex flex-col items-center gap-5 px-6 text-center">
             <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.2)' }}>
-              <FileText className="w-10 h-10 text-red-400" />
+              <FileText className="w-10 h-10 " />
             </div>
             <p className="text-white font-semibold">{att.name}</p>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>PDF preview isn&apos;t supported in the app.</p>
@@ -109,7 +109,7 @@ function Lightbox({
           <button
             onClick={prev}
             disabled={current === 0}
-            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center disabled:opacity-30"
+            className="w-10 h-10 rounded-full bg-[var(--surface)]/10 flex items-center justify-center disabled:opacity-30"
           >
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
@@ -117,7 +117,7 @@ function Lightbox({
           <button
             onClick={next}
             disabled={current === attachments.length - 1}
-            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center disabled:opacity-30"
+            className="w-10 h-10 rounded-full bg-[var(--surface)]/10 flex items-center justify-center disabled:opacity-30"
           >
             <ChevronRight className="w-5 h-5 text-white" />
           </button>
@@ -248,7 +248,7 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFiles(e.target.files)} />
         </div>
 
-        {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
+        {error && <p className="text-xs  mb-2">{error}</p>}
 
         {attachments.length > 0 && (
           <div className="space-y-2">
@@ -265,7 +265,7 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
                   {att.content_type?.startsWith('image/') ? (
                     <ZoomIn className="w-4 h-4 text-blue-500" />
                   ) : (
-                    <FileText className="w-4 h-4 text-red-500" />
+                    <FileText className="w-4 h-4 " />
                   )}
                 </div>
 

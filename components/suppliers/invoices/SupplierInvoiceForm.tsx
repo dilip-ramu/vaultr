@@ -194,7 +194,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {error && <div className="px-4 py-3 rounded-xl text-sm bg-red-50 text-red-600 border border-red-200">{error}</div>}
+          {error && <div className="px-4 py-3 rounded-xl text-sm   border border-[var(--border)]">{error}</div>}
 
           {/* Supplier + Invoice # */}
           <div className="grid grid-cols-2 gap-4">
@@ -281,7 +281,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
                 className="w-10 h-6 rounded-full relative transition-colors"
                 style={{ backgroundColor: form.is_recurring ? 'var(--brand)' : 'var(--border)' }}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.is_recurring ? 'translate-x-5' : 'translate-x-1'}`} />
+                <div className={`absolute top-1 w-4 h-4 bg-[var(--surface)] rounded-full shadow transition-transform ${form.is_recurring ? 'translate-x-5' : 'translate-x-1'}`} />
               </div>
               <span className="text-sm font-medium" style={{ color: 'var(--text)' }}>Recurring / Subscription</span>
             </label>
@@ -327,8 +327,8 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
                     {form.attachment_size && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmtFileSize(form.attachment_size)}</p>}
                   </div>
                 </div>
-                <button type="button" onClick={handleRemoveAttachment} className="p-1.5 rounded-lg hover:bg-red-50">
-                  <Trash2 className="w-4 h-4 text-red-400" />
+                <button type="button" onClick={handleRemoveAttachment} className="p-1.5 rounded-lg hover:">
+                  <Trash2 className="w-4 h-4 " />
                 </button>
               </div>
             ) : (
@@ -365,7 +365,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
                 style={{ backgroundColor: form.is_recoverable ? 'var(--brand)' : 'var(--border)' }}
               >
                 <span
-                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-[var(--surface)] shadow transition-transform"
                   style={{ transform: form.is_recoverable ? 'translateX(20px)' : 'translateX(0)' }}
                 />
               </div>
@@ -403,7 +403,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
                 style={{ backgroundColor: form.is_paid ? '#16a34a' : 'var(--border)' }}
               >
                 <span
-                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-[var(--surface)] shadow transition-transform"
                   style={{ transform: form.is_paid ? 'translateX(20px)' : 'translateX(0)' }}
                 />
               </div>
