@@ -112,50 +112,36 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Accounts</h1>
-          <p className="text-sm text-gray-500">{accounts.length} account{accounts.length !== 1 ? 's' : ''}</p>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Accounts</h1>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''}</p>
         </div>
         <button
           onClick={() => { setEditAccount(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 bg-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm hover:bg-brand-600 transition-all"
+          className="flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+          style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
         >
           <Plus className="w-4 h-4" />
           Add
         </button>
       </div>
 
-      {/* Net Worth Summary */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-6 shadow-sm">
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Net Worth</p>
-        <p className="text-3xl font-bold text-gray-900 mb-4">{formatCurrency(netWorth)}</p>
-        <div className="flex gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-green-50 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5 text-green-500" />
-            </div>
-            <div>
-              <p className="text-[11px] text-gray-400">Assets</p>
-              <p className="text-sm font-semibold text-gray-900">{formatCurrency(totalAssets)}</p>
-            </div>
+      {/* Net Worth band */}
+      <div className="rounded-2xl p-5 md:p-6 mb-6" style={{ background: 'linear-gradient(135deg, var(--brand-deep) 0%, var(--brand-dark) 100%)', boxShadow: 'var(--shadow-lg)' }}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-1" style={{ color: 'rgba(255,255,255,0.55)' }}>Net Worth</p>
+        <p className="text-3xl font-extrabold tracking-tight mb-4" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(netWorth)}</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="md:pr-5 md:border-r" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Assets</p>
+            <p className="text-lg font-extrabold tracking-tight" style={{ color: '#86EFAC', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalAssets)}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-red-50 rounded-lg flex items-center justify-center">
-              <TrendingDown className="w-3.5 h-3.5 text-red-500" />
-            </div>
-            <div>
-              <p className="text-[11px] text-gray-400">Liabilities</p>
-              <p className="text-sm font-semibold text-gray-900">{formatCurrency(totalLiabilities)}</p>
-            </div>
+          <div className="md:px-5 md:border-r" style={{ borderColor: 'rgba(255,255,255,0.14)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Liabilities</p>
+            <p className="text-lg font-extrabold tracking-tight" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalLiabilities)}</p>
           </div>
           {credit.totalLimit > 0 && (
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--brand-light)' }}>
-                <CreditCard className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} />
-              </div>
-              <div>
-                <p className="text-[11px] text-gray-400">Available credit</p>
-                <p className="text-sm font-semibold text-gray-900">{formatCurrency(credit.totalAvailable)}</p>
-              </div>
+            <div className="md:px-5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Available credit</p>
+              <p className="text-lg font-extrabold tracking-tight" style={{ color: '#F6D08A', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(credit.totalAvailable)}</p>
             </div>
           )}
         </div>
@@ -164,14 +150,15 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
       {/* Accounts by type */}
       {accounts.length === 0 ? (
         <div className="text-center py-16">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Wallet className="w-7 h-7 text-gray-400" />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--surface-2)' }}>
+            <Wallet className="w-7 h-7" style={{ color: 'var(--text-faint)' }} />
           </div>
-          <p className="text-gray-500 font-medium">No accounts yet</p>
-          <p className="text-gray-400 text-sm mt-1">Add your first account to get started</p>
+          <p className="font-medium" style={{ color: 'var(--text-muted)' }}>No accounts yet</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>Add your first account to get started</p>
           <button
             onClick={() => setShowForm(true)}
-            className="mt-4 text-brand-500 text-sm font-medium"
+            className="mt-4 text-sm font-medium"
+            style={{ color: 'var(--brand)' }}
           >
             + Add Account
           </button>
@@ -180,7 +167,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
         <div className="space-y-3">
           {accountGroups.map(group => (
             <div key={group.key}>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-2">
+              <p className="text-xs font-semibold uppercase tracking-wide px-1 mb-2" style={{ color: 'var(--text-muted)' }}>
                 {group.label}
               </p>
               <div className="space-y-2">
