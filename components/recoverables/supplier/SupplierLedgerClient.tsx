@@ -69,7 +69,7 @@ export default function SupplierLedgerClient({
   ]
 
   return (
-    <div className="page-enter max-w-3xl mx-auto px-4 py-6 space-y-6">
+    <div className="page-enter w-full px-4 md:px-8 py-6 space-y-6">
       {/* Back */}
       <button
         onClick={() => router.back()}

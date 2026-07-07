@@ -165,7 +165,7 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
   }, [filtered])
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+    <div className="w-full px-4 md:px-8 py-6 space-y-4">
 
       {/* Action row — New invoice button. Courier tax invoices are created
           from the Couriers tab (via CSV import + batch allocations); this

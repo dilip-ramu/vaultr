@@ -105,7 +105,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--background)' }}>
-      <div className="max-w-3xl mx-auto px-4 py-6">
+      <div className="w-full px-4 md:px-8 py-6">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

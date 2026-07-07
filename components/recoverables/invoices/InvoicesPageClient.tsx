@@ -123,7 +123,7 @@ export default function InvoicesPageClient({
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+    <div className="w-full px-4 md:px-8 py-6 space-y-5">
 
       {/* Header — title + Import button + mode toggle */}
       <div className="flex items-center justify-between gap-3 flex-wrap">

@@ -387,7 +387,7 @@ export default function CommissionClient() {
   if (loadErr)  return <div className="max-w-xl mx-auto px-4 py-16 text-center"><p className="text-[var(--expense)] font-semibold mb-2">Error</p><p className="text-sm font-mono bg-[var(--surface-2)] text-[var(--expense)] rounded-xl px-4 py-3 break-all">{loadErr}</p></div>
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <div className="w-full px-4 md:px-8 py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>

@@ -135,7 +135,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
     account.swift_code || account.bank_address || account.open_date || account.closing_date
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+    <div className="w-full px-4 md:px-8 py-6 space-y-4">
       {/* Back */}
       <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] hover:text-[var(--text)] -ml-1">
         <ArrowLeft className="w-4 h-4" />

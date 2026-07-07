@@ -148,7 +148,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
   return (
     <>
     <div className={hideHeader ? '' : 'min-h-screen'} style={hideHeader ? {} : { background: 'var(--background)' }}>
-      <div className={hideHeader ? '' : 'max-w-4xl mx-auto px-4 py-6'}>
+      <div className={hideHeader ? '' : 'w-full px-4 md:px-8 py-6'}>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">

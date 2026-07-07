@@ -137,7 +137,7 @@ export default function InvoiceSettingsClient({ settings, hideHeader = false }: 
   }
 
   return (
-    <div className={hideHeader ? 'space-y-6' : 'max-w-2xl mx-auto px-4 py-6 space-y-6'}>
+    <div className={hideHeader ? 'space-y-6' : 'w-full px-4 md:px-8 py-6 space-y-6'}>
 
       {/* Header */}
       {!hideHeader && (

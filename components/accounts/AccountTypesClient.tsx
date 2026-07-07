@@ -183,7 +183,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+    <div className="w-full px-4 md:px-8 py-6 space-y-4">
       <div className="flex items-center gap-3 mb-2">
         <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-lg">
           <ArrowLeft className="w-4 h-4" />

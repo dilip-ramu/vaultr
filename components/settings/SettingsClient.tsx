@@ -73,7 +73,7 @@ export default function SettingsClient({ user, profile }: Props) {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 space-y-5">
+    <div className="w-full px-4 md:px-8 py-6 space-y-5">
       <h1 className="text-xl font-bold text-[var(--text)]">Settings</h1>
 
       {message && (
