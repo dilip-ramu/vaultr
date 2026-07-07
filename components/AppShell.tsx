@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import HubTabs from './HubTabs'
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight, ChevronDown,
@@ -490,6 +491,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         {/* Desktop main content */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}>
+            <HubTabs />
             <div className="min-w-0">{children}</div>
           </main>
         </div>
@@ -543,6 +545,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             backgroundColor: 'var(--bg)',
           }}
         >
+          <HubTabs />
           <div className="min-w-0" style={{ minHeight: '100%', backgroundColor: 'var(--bg)' }}>
             {children}
           </div>
