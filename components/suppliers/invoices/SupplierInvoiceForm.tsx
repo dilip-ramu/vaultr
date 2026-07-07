@@ -6,6 +6,7 @@ import type { SupplierInvoice, Supplier, PaymentTerms } from '@/lib/suppliers/ty
 import { INVOICE_CATEGORIES, PAYMENT_TERMS_OPTIONS, calcDueDateFromTerms } from '@/lib/suppliers/types'
 import { createClient } from '@/lib/supabase/client'
 import { uploadAttachment } from '@/lib/upload'
+import AmountField from '@/components/shared/AmountField'
 
 interface Props {
   invoice: SupplierInvoice | null
@@ -228,12 +229,9 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
             <Field label="Amount *" className="col-span-2">
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>₹</span>
-                <input
-                  type="number"
+                <AmountField
                   value={form.amount}
-                  onChange={e => set('amount', e.target.value)}
-                  step="0.01"
-                  min="0"
+                  onChange={v => set('amount', v)}
                   placeholder="0.00"
                   className="w-full pl-7 pr-3 py-2.5 rounded-xl border text-sm outline-none"
                   style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}

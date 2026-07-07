@@ -9,6 +9,7 @@ import { getTodayString } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import FileUpload from '../shared/FileUpload'
 import AccountChipPicker from '../shared/AccountChipPicker'
+import AmountField from '../shared/AmountField'
 
 interface Props {
   bill: Bill | null
@@ -182,8 +183,7 @@ export default function BillForm({ bill, defaultDirection, accounts, categories,
                 <span>{currency}</span>
                 <ChevronDown className="w-3 h-3 text-gray-400" />
               </button>
-              <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min="0.01" step="0.01"
-                inputMode="decimal" autoComplete="off" enterKeyHint="done"
+              <AmountField value={amount} onChange={setAmount}
                 placeholder="0.00" className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" />
             </div>
             {currency !== 'INR' && amount && (

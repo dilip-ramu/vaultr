@@ -10,6 +10,7 @@ import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import { parseAmount, dateError } from '@/lib/validation'
 import FileUpload from '../shared/FileUpload'
 import BottomSheet from '../shared/BottomSheet'
+import AmountField from '../shared/AmountField'
 import AccountChipPicker from '../shared/AccountChipPicker'
 
 interface Props {
@@ -271,17 +272,11 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                 <ChevronDown className="w-3 h-3 text-gray-400" />
               </button>
               <div className="relative flex-1">
-                <input
-                  type="number"
+                <AmountField
                   value={originalAmount}
-                  onChange={e => setOriginalAmount(e.target.value)}
+                  onChange={setOriginalAmount}
                   placeholder="0.00"
-                  required
-                  min="0.01"
-                  step="0.01"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  enterKeyHint="done"
+                  title={`Amount (${currency})`}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xl font-bold"
                 />
               </div>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { RecoverableInvoice } from '@/lib/recoverables/types'
 import AccountChipPicker from '@/components/shared/AccountChipPicker'
+import AmountField from '@/components/shared/AmountField'
 
 interface Account {
   id: string
@@ -197,12 +198,10 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
             <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
               Amount Received (₹)
             </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
+            <AmountField
               value={paidAmount}
-              onChange={e => setPaidAmount(e.target.value)}
+              onChange={setPaidAmount}
+              title="Amount received"
               className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
               style={{
                 background: 'var(--surface-2)',
@@ -223,12 +222,10 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
               <label className="text-xs font-semibold block mb-1.5" style={{ color: 'var(--text-muted)' }}>
                 Debit Note / Adjustment (₹) <span style={{ fontWeight: 400 }}>— optional</span>
               </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
+              <AmountField
                 value={adjAmount}
-                onChange={e => setAdjAmount(e.target.value)}
+                onChange={setAdjAmount}
+                title="Adjustment"
                 className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
               />
