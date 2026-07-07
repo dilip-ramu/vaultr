@@ -62,6 +62,8 @@ export interface PayrollMonth {
   /** Reimbursement invoice this month was opened from (legacy column name).
    *  Logging income settles this invoice; see the income API route. */
   contrast_invoice_id?: string | null
+  /** 'claude' → this month's slips use the new 17a layout; null → legacy. */
+  design_version?: string | null
   created_at: string
 }
 

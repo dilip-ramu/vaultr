@@ -179,6 +179,7 @@ export async function POST(
             billed_euros: totalBilledEuros,
             is_finalized: false,
             contrast_invoice_id: id,
+            design_version: 'claude',
           },
           { onConflict: 'user_id,payroll_month' }
         )

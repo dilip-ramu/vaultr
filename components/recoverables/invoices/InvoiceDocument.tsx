@@ -73,6 +73,105 @@ export default function InvoiceDocument({
     ['--accent-soft' as string]: accentSoft(accent),
   } as React.CSSProperties
 
+  // ── Claude design (frame 16a) — future invoices only ─────────────────────
+  // Same per-company data (logo, address, GSTIN, bank) + the company accent
+  // for the grand total. Only the layout schema is from the Claude design.
+  if (invoice.design_version === 'claude') {
+    const isPaid = invoice.status === 'paid'
+    const pill = isPaid
+      ? { text: 'PAID', color: '#14532D', bg: '#DCFCE7' }
+      : { text: `DUE · ${termsLabel.toUpperCase()}`, color: '#B4530F', bg: '#FBEEDD' }
+    const acctLast4 = (settings?.bank_account_number ?? '').replace(/\s/g, '').slice(-4)
+    const LBL: React.CSSProperties = { fontSize: '9px', fontWeight: 800, letterSpacing: '.1em', color: '#aaa', margin: '0 0 5px' }
+    const numSt: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' }
+    const totRow = (label: string, val: string) => (
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: '11.5px', color: '#666' }}>
+        <span>{label}</span><span style={numSt}>{val}</span>
+      </div>
+    )
+    return (
+      <div className="vinv-claude" style={{ background: preview ? 'transparent' : '#e5e7eb', padding: preview ? 0 : '32px 0', display: 'flex', justifyContent: 'center' }}>
+        <div style={{
+          width: preview ? '100%' : '210mm', minHeight: preview ? 'auto' : '297mm',
+          background: '#fff', color: '#111', fontFamily: "'Manrope', system-ui, sans-serif",
+          padding: preview ? '32px 34px' : '48px 44px', borderRadius: preview ? '10px' : '2px',
+          boxShadow: preview ? 'none' : '0 12px 40px rgba(0,0,0,.16)',
+          WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+        }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '36px' }}>
+            <div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {logoUrl && <img src={logoUrl} alt="" style={{ height: '28px', width: 'auto', objectFit: 'contain', marginBottom: '14px' }} />}
+              <p style={{ fontSize: '11px', color: '#888', lineHeight: 1.55, margin: 0 }}>
+                <span style={{ fontWeight: 700, color: '#333' }}>{companyName}</span>
+                {settings?.company_address && <><br />{settings.company_address}</>}
+                {settings?.company_gstin && <><br />GSTIN {settings.company_gstin}</>}
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-.02em', color: '#111', margin: 0 }}>Invoice</p>
+              <p style={{ fontSize: '12px', color: '#888', marginTop: '2px', ...numSt }}>{invoice.invoice_number}</p>
+              <span style={{ display: 'inline-block', marginTop: '12px', fontSize: '10px', fontWeight: 700, color: pill.color, background: pill.bg, padding: '4px 11px', borderRadius: '20px' }}>{pill.text}</span>
+            </div>
+          </div>
+          {/* Meta */}
+          <div style={{ display: 'flex', gap: '40px', marginBottom: '30px' }}>
+            <div style={{ flex: 1 }}>
+              <p style={LBL}>BILLED TO</p>
+              <p style={{ fontSize: '13px', fontWeight: 700, color: '#111', margin: 0 }}>{invoice.customer_name}</p>
+              {(invoice.customer_address || invoice.customer_gstin) && (
+                <p style={{ fontSize: '10.5px', color: '#888', marginTop: '2px', lineHeight: 1.5 }}>
+                  {invoice.customer_address}
+                  {invoice.customer_address && invoice.customer_gstin && <br />}
+                  {invoice.customer_gstin}
+                </p>
+              )}
+            </div>
+            <div>
+              <p style={LBL}>ISSUED</p>
+              <p style={{ fontSize: '12px', color: '#333', margin: 0 }}>{fmtDateLong(invoice.invoice_date)}</p>
+              <p style={{ ...LBL, margin: '10px 0 5px' }}>DUE</p>
+              <p style={{ fontSize: '12px', color: '#333', margin: 0 }}>{fmtDateLong(invoice.due_date)}</p>
+            </div>
+          </div>
+          {/* Line table */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0 18px', fontSize: '9px', fontWeight: 800, letterSpacing: '.08em', color: '#aaa', paddingBottom: '8px', borderBottom: '1px solid #eee' }}>
+            <span>DESCRIPTION</span><span style={{ textAlign: 'right' }}>QTY</span><span style={{ textAlign: 'right' }}>RATE</span><span style={{ textAlign: 'right' }}>AMOUNT</span>
+          </div>
+          {lines.map(l => (
+            <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0 18px', fontSize: '11.5px', color: '#222', padding: '12px 0', borderBottom: '1px solid #f2f2f2' }}>
+              <span>{l.description || l.awb}</span>
+              <span style={{ textAlign: 'right', ...numSt }}>{l.qty || ''}</span>
+              <span style={{ textAlign: 'right', ...numSt }}>{l.rate ? fmtInr(l.rate, 2) : ''}</span>
+              <span style={{ textAlign: 'right', fontWeight: 600, ...numSt }}>{fmtInr(l.amount)}</span>
+            </div>
+          ))}
+          {/* Totals */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '28px' }}>
+            <div style={{ width: '260px' }}>
+              {totRow('Subtotal', `₹${fmtInr(invoice.subtotal)}`)}
+              {invoice.cgst_amount > 0 && totRow(`CGST${uniformCgst ? ` ${lines[0].cgst_rate}%` : ''}`, `₹${fmtInr(invoice.cgst_amount)}`)}
+              {invoice.sgst_amount > 0 && totRow(`SGST${uniformSgst ? ` ${lines[0].sgst_rate}%` : ''}`, `₹${fmtInr(invoice.sgst_amount)}`)}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '14px 0 0', marginTop: '8px', borderTop: '2px solid #111' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '.06em', color: '#111' }}>BALANCE DUE</span>
+                <span style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '-.02em', color: accent, ...numSt }}>₹{fmtInr(balanceDue)}</span>
+              </div>
+            </div>
+          </div>
+          {/* Footer */}
+          <div style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}>
+            <p style={{ fontSize: '9.5px', color: '#aaa', lineHeight: 1.6, margin: 0 }}>
+              {settings?.bank_name && <>{settings.bank_name}{acctLast4 && ` •••• ${acctLast4}`}<br /></>}
+              {settings?.bank_ifsc && <>IFSC {settings.bank_ifsc}</>}
+            </p>
+            <p style={{ fontSize: '9.5px', color: '#aaa', textAlign: 'right', margin: 0 }}>Thank you<br />for your business</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const CompanyInfo = (
     <div className="company-info">
       <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '3px' }}>{companyName}</div>

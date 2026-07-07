@@ -156,6 +156,7 @@ export async function POST(req: Request) {
       markup_type: 'none', markup_value: 0,
       payment_terms: 'due_on_receipt',
       currency,
+      design_version: 'claude',
     })
     .select(`
       id, invoice_number, invoice_month, invoice_date, status,

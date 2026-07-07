@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('payroll_months')
-    .insert({ ...body, user_id: user.id })
+    // New months use the Claude slip design (17a); existing months stay legacy.
+    .insert({ ...body, user_id: user.id, design_version: 'claude' })
     .select()
     .single()
 

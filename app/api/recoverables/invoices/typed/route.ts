@@ -171,6 +171,7 @@ export async function POST(req: NextRequest) {
       status:           'draft',
       notes:            notes ?? null,
       currency:         'INR',
+      design_version:   'claude',
     })
     .select('id')
     .single()

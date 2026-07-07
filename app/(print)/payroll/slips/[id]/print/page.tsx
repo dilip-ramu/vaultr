@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import SalarySlipPrintView from '@/components/payroll/slips/SalarySlipPrintView'
+import SalarySlip17a from '@/components/payroll/slips/SalarySlip17a'
 import type { SalarySlipDocData } from '@/components/templates/SalarySlipRenderer'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import { salarySlipPreset, type DocumentSchema } from '@/lib/templates/schema'
@@ -33,17 +34,28 @@ export default async function SalarySlipPrintPage({ params }: Props) {
   const employee = e.employee
   const companyId = employee?.company_id ?? null
 
-  type Co = { name: string | null; address: string | null; invoice_accent: string | null }
+  type Co = { name: string | null; address: string | null; invoice_accent: string | null; logo_path: string | null }
   let company: Co | null = null
   if (companyId) {
-    const { data } = await supabase.from('companies').select('name, address, invoice_accent').eq('id', companyId).eq('user_id', user.id).maybeSingle()
+    const { data } = await supabase.from('companies').select('name, address, invoice_accent, logo_path').eq('id', companyId).eq('user_id', user.id).maybeSingle()
     company = (data as Co | null) ?? null
+  }
+
+  let logoUrl: string | null = null
+  if (company?.logo_path) {
+    logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(company.logo_path).data.publicUrl ?? null
   }
 
   const sdata: SalarySlipDocData = {
     entry: e, month: e.month, employee,
     companyName: company?.name ?? null,
     companyAddress: company?.address ?? null,
+  }
+
+  // Claude design (17a) — only for payroll months created under the new design.
+  // Every field is the app's own slip data; only the layout schema is Claude's.
+  if ((e.month as { design_version?: string | null })?.design_version === 'claude') {
+    return <SalarySlip17a data={sdata} logoUrl={logoUrl} accent={normalizeAccent(company?.invoice_accent ?? undefined)} />
   }
 
   // Resolve the assigned salary-slip template; fall back to the classic preset.

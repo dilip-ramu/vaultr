@@ -30,7 +30,11 @@ export default function InvoicePrintView({
   accent = DEFAULT_INVOICE_ACCENT,
   schema = null,
 }: Props) {
-  const btnAccent = schema?.theme?.accent ?? accent
+  // Claude-design invoices always use the built-in 16a layout (InvoiceDocument),
+  // never a custom block template — the new design is the whole point.
+  const useClaude = invoice.design_version === 'claude'
+  const effectiveSchema = useClaude ? null : schema
+  const btnAccent = effectiveSchema?.theme?.accent ?? accent
   return (
     <>
       <style>{`
@@ -44,9 +48,9 @@ export default function InvoicePrintView({
         Print / Download PDF
       </button>
 
-      {schema ? (
+      {effectiveSchema ? (
         <DocumentRenderer
-          schema={schema}
+          schema={effectiveSchema}
           invoice={invoice}
           lines={lines}
           settings={settings}

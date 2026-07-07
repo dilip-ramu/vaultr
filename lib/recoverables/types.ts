@@ -175,6 +175,8 @@ export interface RecoverableInvoice {
   currency: string
   sent_at: string | null
   paid_at: string | null
+  /** 'claude' → new 16a layout; null/'legacy' → existing template layout. */
+  design_version?: string | null
   created_at: string
   updated_at: string
 }
