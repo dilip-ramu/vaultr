@@ -62,7 +62,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 {opts.danger && (
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                    style={{ background: 'rgba(239,68,68,0.1)' }}
+                    style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)' }}
                   >
                     <AlertTriangle className="w-4 h-4" style={{ color: 'var(--expense)' }} />
                   </div>

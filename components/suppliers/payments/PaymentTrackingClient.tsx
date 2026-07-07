@@ -182,9 +182,9 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
                           <span
                             className="px-2 py-1 rounded-full text-xs font-medium"
                             style={inv.is_paid
-                              ? { backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--income)' }
+                              ? { backgroundColor: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)' }
                               : isOverdue
-                                ? { backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--expense)' }
+                                ? { backgroundColor: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }
                                 : { backgroundColor: 'rgba(42,122,80,0.08)', color: 'var(--brand)' }
                             }
                           >

@@ -61,9 +61,9 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
     const ts = new Date(account.last_reconciled_at).getTime()
     const days = Math.floor((Date.now() - ts) / 86400000)
     const when = days < 1 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`
-    if (days <= 7)  return { key: 'fresh', label: `Reconciled ${when}`, color: 'var(--income)',  bg: 'rgba(34,197,94,0.10)',  tick: true  }
-    if (days <= 30) return { key: 'stale', label: `Reconciled ${when}`, color: 'var(--amber)',        bg: 'rgba(245,158,11,0.10)', tick: true  }
-    return             { key: 'old',   label: `Reconciled ${when}`, color: 'var(--expense)', bg: 'rgba(239,68,68,0.10)',  tick: false }
+    if (days <= 7)  return { key: 'fresh', label: `Reconciled ${when}`, color: 'var(--income)',  bg: 'color-mix(in srgb, var(--income) 10%, transparent)',  tick: true  }
+    if (days <= 30) return { key: 'stale', label: `Reconciled ${when}`, color: 'var(--amber)',        bg: 'color-mix(in srgb, var(--amber) 10%, transparent)', tick: true  }
+    return             { key: 'old',   label: `Reconciled ${when}`, color: 'var(--expense)', bg: 'color-mix(in srgb, var(--expense) 10%, transparent)',  tick: false }
   })()
 
   const handleDelete = async () => {

@@ -53,7 +53,7 @@ export default function ForecastClient({ forecast }: { forecast: Forecast }) {
       {anyTight && (
         <div
           className="card p-3 flex items-center gap-2 text-sm"
-          style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.25)' }}
+          style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--expense) 25%, transparent)' }}
         >
           <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: 'var(--expense)' }} />
           <span style={{ color: 'var(--text)' }}>
@@ -67,7 +67,7 @@ export default function ForecastClient({ forecast }: { forecast: Forecast }) {
         <div
           key={week.label}
           className="card p-4 space-y-3"
-          style={week.tight ? { borderColor: 'rgba(239,68,68,0.4)' } : undefined}
+          style={week.tight ? { borderColor: 'color-mix(in srgb, var(--expense) 40%, transparent)' } : undefined}
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">

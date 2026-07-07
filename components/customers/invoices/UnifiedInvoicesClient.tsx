@@ -271,7 +271,7 @@ function InvoiceRow({
       {/* Type icon */}
       <div
         className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-        style={{ background: isReimbursement ? 'rgba(42,122,80,0.12)' : 'rgba(59,74,199,0.12)' }}
+        style={{ background: isReimbursement ? 'rgba(42,122,80,0.12)' : 'color-mix(in srgb, var(--transfer) 12%, transparent)' }}
       >
         {isReimbursement
           ? <FileText className="w-4 h-4" style={{ color: '#2A7A50' }} />
@@ -285,7 +285,7 @@ function InvoiceRow({
           <span
             className="text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-widest"
             style={{
-              background: isReimbursement ? 'rgba(42,122,80,0.12)' : 'rgba(59,74,199,0.12)',
+              background: isReimbursement ? 'rgba(42,122,80,0.12)' : 'color-mix(in srgb, var(--transfer) 12%, transparent)',
               color:      isReimbursement ? '#2A7A50' : '#3B4AC7',
             }}
           >
@@ -359,9 +359,9 @@ function StatusChip({ status }: { status: Invoice['status'] }) {
   const map: Record<Invoice['status'], { bg: string; fg: string; label: string; icon: React.ReactNode }> = {
     draft:      { bg: 'rgba(107,114,128,0.15)', fg: '#6B7280',  label: 'Draft',      icon: <Clock       className="w-3 h-3" /> },
     sent:      { bg: 'rgba(180,83,9,0.15)',    fg: 'var(--amber)', label: 'Sent',       icon: <Clock       className="w-3 h-3" /> },
-    finalized:  { bg: 'rgba(34,197,94,0.15)',   fg: '#16A34A', label: 'Finalized',  icon: <CheckCircle2 className="w-3 h-3" /> },
+    finalized:  { bg: 'color-mix(in srgb, var(--income) 15%, transparent)',   fg: '#16A34A', label: 'Finalized',  icon: <CheckCircle2 className="w-3 h-3" /> },
     paid:       { bg: 'rgba(16,185,129,0.15)',  fg: '#059669', label: 'Paid',       icon: <DollarSign  className="w-3 h-3" /> },
-    overdue:    { bg: 'rgba(239,68,68,0.15)',   fg: 'var(--expense)', label: 'Overdue',    icon: <Clock       className="w-3 h-3" /> },
+    overdue:    { bg: 'color-mix(in srgb, var(--expense) 15%, transparent)',   fg: 'var(--expense)', label: 'Overdue',    icon: <Clock       className="w-3 h-3" /> },
     cancelled:  { bg: 'rgba(107,114,128,0.15)', fg: '#6B7280', label: 'Cancelled',  icon: <Clock       className="w-3 h-3" /> },
   }
   const s = map[status] ?? map.draft

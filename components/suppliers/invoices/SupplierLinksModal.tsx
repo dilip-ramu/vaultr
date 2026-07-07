@@ -41,8 +41,8 @@ function fmtDate(d: string | null | undefined) {
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
   draft:     { bg: 'rgba(107,114,128,0.1)', text: '#6b7280',        label: 'Draft' },
   sent:      { bg: 'rgba(42,122,80,0.1)',   text: 'var(--brand)',   label: 'Sent' },
-  overdue:   { bg: 'rgba(239,68,68,0.1)',   text: 'var(--expense)',        label: 'Overdue' },
-  paid:      { bg: 'rgba(34,197,94,0.1)',   text: 'var(--income)',        label: 'Paid' },
+  overdue:   { bg: 'color-mix(in srgb, var(--expense) 10%, transparent)',   text: 'var(--expense)',        label: 'Overdue' },
+  paid:      { bg: 'color-mix(in srgb, var(--income) 10%, transparent)',   text: 'var(--income)',        label: 'Paid' },
   cancelled: { bg: 'rgba(107,114,128,0.1)', text: '#6b7280',        label: 'Cancelled' },
 }
 
@@ -144,7 +144,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                           onClick={() => removeLink(link.id)}
                           disabled={removing === link.id}
                           className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-40"
-                          style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}
+                          style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)' }}
                         >
                           <X className="w-4 h-4" />
                         </button>

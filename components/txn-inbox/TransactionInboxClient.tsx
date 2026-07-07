@@ -341,7 +341,7 @@ function Select({ label, value, onChange, options, warn }: {
     <div className="relative">
       <select value={value} onChange={e => onChange(e.target.value)} aria-label={label}
         className="w-full appearance-none px-3 py-2 pr-7 rounded-lg text-sm"
-        style={{ background: 'var(--surface-2)', color: 'var(--text)', border: `1px solid ${warn ? 'rgba(245,158,11,0.5)' : 'var(--border)'}` }}>
+        style={{ background: 'var(--surface-2)', color: 'var(--text)', border: `1px solid ${warn ? 'color-mix(in srgb, var(--amber) 50%, transparent)' : 'var(--border)'}` }}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-faint)' }} />

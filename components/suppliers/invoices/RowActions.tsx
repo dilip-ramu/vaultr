@@ -30,7 +30,7 @@ export default function RowActions({
           <button
             onClick={() => onPay(inv)}
             className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
-            style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--income)', border: '1px solid rgba(34,197,94,0.2)' }}
+            style={{ background: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)', border: '1px solid color-mix(in srgb, var(--income) 20%, transparent)' }}
           >
             Mark Paid
           </button>
@@ -39,7 +39,7 @@ export default function RowActions({
           <button
             onClick={() => onUnpay(inv)}
             className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
-            style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
+            style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 20%, transparent)' }}
           >
             Mark Unpaid
           </button>
@@ -49,7 +49,7 @@ export default function RowActions({
           <button
             onClick={() => onMarkBilled(inv)}
             className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
-            style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.2)' }}
+            style={{ background: 'color-mix(in srgb, var(--amber) 10%, transparent)', color: 'var(--amber)', border: '1px solid color-mix(in srgb, var(--amber) 20%, transparent)' }}
           >
             Mark Billed
           </button>
@@ -98,9 +98,9 @@ export default function RowActions({
               onClick={() => onSkipAutoPay(inv)}
               className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
               style={{
-                background: inv.skip_next_autopay ? 'rgba(245,158,11,0.1)' : 'rgba(107,114,128,0.08)',
+                background: inv.skip_next_autopay ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'rgba(107,114,128,0.08)',
                 color: inv.skip_next_autopay ? 'var(--amber)' : '#6b7280',
-                border: `1px solid ${inv.skip_next_autopay ? 'rgba(245,158,11,0.3)' : 'rgba(107,114,128,0.2)'}`,
+                border: `1px solid ${inv.skip_next_autopay ? 'color-mix(in srgb, var(--amber) 30%, transparent)' : 'rgba(107,114,128,0.2)'}`,
               }}
             >
               {inv.skip_next_autopay ? 'Skip set ✓' : 'Skip next'}
@@ -108,7 +108,7 @@ export default function RowActions({
             <button
               onClick={() => onStopAutoPay(inv)}
               className="px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap"
-              style={{ background: 'rgba(239,68,68,0.06)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.15)' }}
+              style={{ background: 'color-mix(in srgb, var(--expense) 6%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 15%, transparent)' }}
             >
               Stop auto-pay
             </button>

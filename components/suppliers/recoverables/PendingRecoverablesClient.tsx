@@ -21,9 +21,9 @@ function daysSince(d: string) {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending_billing:  { bg: 'rgba(245,158,11,0.12)', text: 'var(--amber)' },
+  pending_billing:  { bg: 'color-mix(in srgb, var(--amber) 12%, transparent)', text: 'var(--amber)' },
   billed:           { bg: 'rgba(42,122,80,0.1)',  text: 'var(--brand)' },
-  recovered:        { bg: 'rgba(34,197,94,0.1)',   text: 'var(--income)' },
+  recovered:        { bg: 'color-mix(in srgb, var(--income) 10%, transparent)',   text: 'var(--income)' },
   partial_recovery: { bg: 'rgba(168,85,247,0.1)',  text: '#9333ea' },
   written_off:      { bg: 'rgba(107,114,128,0.1)', text: '#4b5563' },
 }
@@ -221,7 +221,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
                               onClick={() => handleUpdateStatus(inv.id, 'recovered')}
                               disabled={updating === inv.id}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                              style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--income)' }}
+                              style={{ backgroundColor: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)' }}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               {updating === inv.id ? 'Updating…' : 'Mark Recovered'}

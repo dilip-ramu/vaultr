@@ -390,7 +390,7 @@ export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onS
 
                 <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
                   {payError && (
-                    <div className="text-sm px-4 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
+                    <div className="text-sm px-4 py-2 rounded-lg" style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)' }}>
                       {payError}
                     </div>
                   )}
@@ -532,7 +532,7 @@ export default function CardsClient({ cards, txns, statements, payAccounts }: Pr
         </div>
         {grandTotal > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
-               style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+               style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--expense) 20%, transparent)' }}>
             <AlertTriangle className="w-4 h-4" style={{ color: 'var(--expense)' }} />
             <span style={{ color: 'var(--text)' }}>
               Hidden charges last 12 months: <strong style={{ color: 'var(--expense)' }}>{fmt(grandTotal)}</strong>

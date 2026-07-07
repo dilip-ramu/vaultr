@@ -21,9 +21,9 @@ interface Props {
 
 const TYPE_STYLE: Record<Insight['type'], { bg: string; border: string; dot: string }> = {
   positive: { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)', dot: 'var(--income)' },
-  warning:  { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', dot: 'var(--amber)' },
+  warning:  { bg: 'color-mix(in srgb, var(--amber) 8%, transparent)', border: 'color-mix(in srgb, var(--amber) 20%, transparent)', dot: 'var(--amber)' },
   info:     { bg: 'rgba(99,102,241,0.06)', border: 'rgba(99,102,241,0.15)', dot: 'var(--brand)' },
-  alert:    { bg: 'rgba(239,68,68,0.07)',  border: 'rgba(239,68,68,0.2)',   dot: 'var(--expense)' },
+  alert:    { bg: 'color-mix(in srgb, var(--expense) 7%, transparent)',  border: 'color-mix(in srgb, var(--expense) 20%, transparent)',   dot: 'var(--expense)' },
 }
 
 export default function InsightsClient({ transactions, accounts, budgets, bills, currentMonth, hideHeader = false, periodStart, periodEnd, periodLabel }: Props) {
@@ -141,7 +141,7 @@ export default function InsightsClient({ transactions, accounts, budgets, bills,
           <div
             className="px-3 py-1.5 rounded-xl text-sm font-semibold"
             style={{
-              backgroundColor: netChange >= 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+              backgroundColor: netChange >= 0 ? 'rgba(16,185,129,0.1)' : 'color-mix(in srgb, var(--expense) 10%, transparent)',
               color: netChange >= 0 ? 'var(--income)' : 'var(--expense)',
             }}
           >
@@ -162,7 +162,7 @@ export default function InsightsClient({ transactions, accounts, budgets, bills,
           </div>
           <div
             className="rounded-xl p-3"
-            style={{ backgroundColor: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.15)' }}
+            style={{ backgroundColor: 'color-mix(in srgb, var(--expense) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--expense) 15%, transparent)' }}
           >
             <p className="text-label mb-1" style={{ color: 'var(--expense)' }}>Expenses</p>
             <p className="text-base font-bold tabular-nums" style={{ color: 'var(--text)' }}>

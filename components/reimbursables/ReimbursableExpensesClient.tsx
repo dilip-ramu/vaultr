@@ -316,7 +316,7 @@ export default function ReimbursableExpensesClient({
           <div className="w-10 h-10 rounded-xl bg-[var(--surface-2)] flex items-center justify-center">
             <FileText className="w-5 h-5 text-[#7C3AED]" />
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Contrast Expenses</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Reimbursables</h1>
         </div>
         <div className="bg-[var(--accent-light)] border border-[var(--border)] rounded-2xl p-6 flex gap-4">
           <AlertCircle className="w-5 h-5 text-[var(--amber)] mt-0.5 shrink-0" />
@@ -353,7 +353,7 @@ export default function ReimbursableExpensesClient({
             <FileText className="w-5 h-5 text-[#7C3AED]" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Contrast Expenses</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Reimbursables</h1>
             <p className="text-sm text-[var(--text-muted)]">{filtered.length} transactions · payee: {payeeName}</p>
           </div>
         </div>

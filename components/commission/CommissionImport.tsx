@@ -357,7 +357,7 @@ export default function CommissionImport({ customers, accounts, onImported, onCl
                 {rows.map((r, i) => (
                   <div key={i}
                     className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
-                    style={{ background: r.error ? 'rgba(239,68,68,0.06)' : 'var(--surface-2)' }}>
+                    style={{ background: r.error ? 'color-mix(in srgb, var(--expense) 6%, transparent)' : 'var(--surface-2)' }}>
                     <div style={{ color: r.error ? 'var(--expense)' : 'var(--text)' }}>
                       <span className="font-mono">{r.style_ref || '—'}</span>
                       {r.client_name && <span className="ml-2" style={{ color: 'var(--text-muted)' }}>{r.client_name}</span>}

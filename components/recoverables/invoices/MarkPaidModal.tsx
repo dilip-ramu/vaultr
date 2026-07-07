@@ -205,7 +205,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
               className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
               style={{
                 background: 'var(--surface-2)',
-                border: `1px solid ${overPaid ? 'rgba(239,68,68,0.5)' : 'var(--border)'}`,
+                border: `1px solid ${overPaid ? 'color-mix(in srgb, var(--expense) 50%, transparent)' : 'var(--border)'}`,
                 color: 'var(--text)',
               }}
             />
@@ -245,7 +245,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
           {/* Live summary */}
           <div
             className="rounded-xl p-3.5 space-y-2 text-sm"
-            style={{ background: 'var(--surface-2)', border: `1px solid ${overPaid ? 'rgba(239,68,68,0.4)' : 'var(--border)'}` }}
+            style={{ background: 'var(--surface-2)', border: `1px solid ${overPaid ? 'color-mix(in srgb, var(--expense) 40%, transparent)' : 'var(--border)'}` }}
           >
             <div className="flex justify-between">
               <span style={{ color: 'var(--text-muted)' }}>Received in bank</span>

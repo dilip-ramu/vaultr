@@ -206,7 +206,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                   onClick={handleBulkCancel}
                   disabled={cancelling}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                  style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.25)' }}
+                  style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 25%, transparent)' }}
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   {cancelling ? 'Cancelling…' : `Cancel ${selected.size}`}
@@ -351,7 +351,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                         onClick={e => handleRevert(e, inv.id)}
                         disabled={revertingId === inv.id}
                         className="w-full py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                        style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
+                        style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 20%, transparent)' }}
                       >
                         {revertingId === inv.id ? 'Reverting…' : '↩ Mark as Unpaid'}
                       </button>
@@ -359,7 +359,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                       <button
                         onClick={e => { e.stopPropagation(); setModalInvoice(inv) }}
                         className="w-full py-1.5 rounded-lg text-xs font-semibold"
-                        style={{ background: 'rgba(22,163,74,0.1)', color: 'var(--income)', border: '1px solid rgba(22,163,74,0.2)' }}
+                        style={{ background: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)', border: '1px solid color-mix(in srgb, var(--income) 20%, transparent)' }}
                       >
                         ✓ Record Payment
                       </button>

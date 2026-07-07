@@ -240,12 +240,12 @@ export default function AccountReconcilePanel({
               <td className="px-4 py-2 text-right font-medium" style={{ color: 'var(--text)' }}>{fmt(Number(account.initial_balance) || 0)}</td>
             </tr>
             {rows.map(r => (
-              <tr key={r.txn.id} style={{ borderBottom: '1px solid var(--border-2)', background: r.flags.length ? 'rgba(245,158,11,0.06)' : undefined }}>
+              <tr key={r.txn.id} style={{ borderBottom: '1px solid var(--border-2)', background: r.flags.length ? 'color-mix(in srgb, var(--amber) 6%, transparent)' : undefined }}>
                 <td className="px-4 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatDate(r.txn.date)}</td>
                 <td className="px-4 py-2" style={{ color: 'var(--text)' }}>
                   {r.txn.name ?? <span className="capitalize">{r.txn.type}</span>}
                   {r.flags.map(f => (
-                    <span key={f} className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: FLAG_LABEL[f]?.color ?? 'var(--amber)' }}>
+                    <span key={f} className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--amber) 15%, transparent)', color: FLAG_LABEL[f]?.color ?? 'var(--amber)' }}>
                       {FLAG_LABEL[f]?.text ?? f}
                     </span>
                   ))}

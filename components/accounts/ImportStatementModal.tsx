@@ -164,7 +164,7 @@ export default function ImportStatementModal({ accountId, accountName, earliestE
 
               {/* Errors / warnings */}
               {error && (
-                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-sm" style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)' }}>
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{error}</span>
                 </div>
@@ -224,7 +224,7 @@ export default function ImportStatementModal({ accountId, accountName, earliestE
           {/* Done */}
           {stage === 'done' && result && (
             <div className="space-y-3 text-center py-4">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto" style={{ background: 'rgba(34,197,94,0.1)' }}>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto" style={{ background: 'color-mix(in srgb, var(--income) 10%, transparent)' }}>
                 <CheckCircle2 className="w-7 h-7" style={{ color: 'var(--income)' }} />
               </div>
               <div>

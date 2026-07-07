@@ -463,7 +463,7 @@ function SubRow({
         paddingTop: 12,
         paddingBottom: 12,
         borderBottom: !isLast ? '1px solid var(--border-2)' : 'none',
-        backgroundColor: highlight ? 'rgba(239,68,68,0.04)' : 'transparent',
+        backgroundColor: highlight ? 'color-mix(in srgb, var(--expense) 4%, transparent)' : 'transparent',
       }}
     >
       {/* Icon */}

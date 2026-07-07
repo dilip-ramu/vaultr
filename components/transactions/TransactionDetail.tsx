@@ -152,7 +152,7 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
               onClick={handleDelete}
               disabled={deleting}
               className="w-full py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
-              style={{ color: 'var(--expense)', background: 'rgba(239,68,68,0.06)' }}
+              style={{ color: 'var(--expense)', background: 'color-mix(in srgb, var(--expense) 6%, transparent)' }}
             >
               {deleting ? 'Deleting…' : 'Delete Transaction'}
             </button>

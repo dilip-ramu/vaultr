@@ -442,8 +442,8 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           onClick={() => setStatusTab(statusTab === 'overdue' ? '' : 'overdue')}
           className="rounded-2xl p-4 text-left transition-all"
           style={{
-            background: summary.overdueCount > 0 ? 'rgba(239,68,68,0.04)' : 'var(--surface)',
-            border: `1px solid ${statusTab === 'overdue' ? 'var(--expense)' : summary.overdueCount > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+            background: summary.overdueCount > 0 ? 'color-mix(in srgb, var(--expense) 4%, transparent)' : 'var(--surface)',
+            border: `1px solid ${statusTab === 'overdue' ? 'var(--expense)' : summary.overdueCount > 0 ? 'color-mix(in srgb, var(--expense) 30%, transparent)' : 'var(--border)'}`,
             borderLeftWidth: statusTab === 'overdue' ? 3 : 1,
           }}
         >
@@ -629,7 +629,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                   setShowBulkPay(true)
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
-                style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--income)', border: '1px solid rgba(34,197,94,0.25)' }}
+                style={{ background: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)', border: '1px solid color-mix(in srgb, var(--income) 25%, transparent)' }}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Mark Paid ({selUnpaidCount})
@@ -639,7 +639,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               <button
                 onClick={handleBulkUnpay}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
+                style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 20%, transparent)' }}
               >
                 <XCircle className="w-3.5 h-3.5" />
                 Mark Unpaid ({selPaidCount})
@@ -649,7 +649,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               <button
                 onClick={handleBulkBill}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.25)' }}
+                style={{ background: 'color-mix(in srgb, var(--amber) 10%, transparent)', color: 'var(--amber)', border: '1px solid color-mix(in srgb, var(--amber) 25%, transparent)' }}
               >
                 Mark Billed ({selPendingBillingCount})
               </button>
@@ -696,7 +696,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             <button
               onClick={handleBulkDelete}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
-              style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.25)' }}
+              style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 25%, transparent)' }}
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete ({selected.size})
@@ -746,7 +746,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                     <tr
                       key={inv.id}
                       style={{
-                        background: isOverdue ? 'rgba(239,68,68,0.02)' : 'var(--surface)',
+                        background: isOverdue ? 'color-mix(in srgb, var(--expense) 2%, transparent)' : 'var(--surface)',
                         borderBottom: '1px solid var(--border)',
                         borderLeft: isOverdue ? '3px solid var(--expense)' : '3px solid transparent',
                       }}
@@ -808,7 +808,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         )}
                         {inv.is_recurring && inv.auto_pay_account_id && (
                           <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                            style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--income)' }}>
+                            style={{ background: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)' }}>
                             ⚡ Auto-pay{inv.skip_next_autopay ? ' (skip)' : ''}
                           </span>
                         )}
@@ -915,7 +915,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                   key={inv.id}
                   className="p-4 space-y-3"
                   style={{
-                    background: isOverdue ? 'rgba(239,68,68,0.02)' : 'var(--surface)',
+                    background: isOverdue ? 'color-mix(in srgb, var(--expense) 2%, transparent)' : 'var(--surface)',
                     borderLeft: isOverdue ? '3px solid var(--expense)' : '3px solid transparent',
                   }}
                 >
@@ -994,7 +994,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <button
                         onClick={() => handleQuickPay(inv)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                        style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--income)', border: '1px solid rgba(34,197,94,0.2)' }}
+                        style={{ background: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)', border: '1px solid color-mix(in srgb, var(--income) 20%, transparent)' }}
                       >
                         Mark Paid
                       </button>
@@ -1003,7 +1003,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <button
                         onClick={() => handleQuickUnpay(inv)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                        style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
+                        style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 20%, transparent)' }}
                       >
                         Mark Unpaid
                       </button>
@@ -1013,7 +1013,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <button
                         onClick={() => handleQuickMarkBilled(inv)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                        style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.2)' }}
+                        style={{ background: 'color-mix(in srgb, var(--amber) 10%, transparent)', color: 'var(--amber)', border: '1px solid color-mix(in srgb, var(--amber) 20%, transparent)' }}
                       >
                         Mark Billed
                       </button>
@@ -1065,7 +1065,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                     <button
                       onClick={() => handleDelete(inv.id)}
                       className="px-3 py-1.5 rounded-xl text-xs font-medium"
-                      style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
+                      style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 20%, transparent)' }}
                     >
                       Delete
                     </button>

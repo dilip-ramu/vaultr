@@ -83,7 +83,7 @@ function Lightbox({
           />
         ) : (
           <div className="flex flex-col items-center gap-5 px-6 text-center">
-            <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'rgba(239,68,68,0.2)' }}>
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--expense) 20%, transparent)' }}>
               <FileText className="w-10 h-10 " />
             </div>
             <p className="text-white font-semibold">{att.name}</p>

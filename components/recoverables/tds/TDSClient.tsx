@@ -160,7 +160,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
             {pending.length > 0 && (
               <div
                 className="rounded-xl p-3.5 mb-5 flex items-center justify-between gap-3"
-                style={{ background: 'rgba(217,119,6,0.07)', border: '1px solid rgba(217,119,6,0.25)' }}
+                style={{ background: 'color-mix(in srgb, var(--amber) 7%, transparent)', border: '1px solid color-mix(in srgb, var(--amber) 25%, transparent)' }}
               >
                 <div>
                   <p className="text-sm font-semibold" style={{ color: 'var(--amber)' }}>
@@ -266,7 +266,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                               <span
                                 className="text-xs px-1.5 py-0.5 rounded-full"
                                 style={{
-                                  background: entry.settled ? 'rgba(22,163,74,0.1)' : 'rgba(217,119,6,0.1)',
+                                  background: entry.settled ? 'color-mix(in srgb, var(--income) 10%, transparent)' : 'color-mix(in srgb, var(--amber) 10%, transparent)',
                                   color:      entry.settled ? 'var(--income)' : 'var(--amber)',
                                 }}
                               >
@@ -280,7 +280,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                               style={
                                 entry.settled
                                   ? { background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
-                                  : { background: 'rgba(22,163,74,0.1)', color: 'var(--income)', border: '1px solid rgba(22,163,74,0.25)' }
+                                  : { background: 'color-mix(in srgb, var(--income) 10%, transparent)', color: 'var(--income)', border: '1px solid color-mix(in srgb, var(--income) 25%, transparent)' }
                               }
                             >
                               {settling === entry.id

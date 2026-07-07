@@ -261,7 +261,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
               onClick={handleRevert}
               disabled={busy}
               className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-              style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.25)' }}
+              style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 25%, transparent)' }}
             >
               {busy ? 'Reverting…' : '↩ Mark as Unpaid'}
             </button>
@@ -560,7 +560,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                             {link.allocated_amount === null && <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>(full)</span>}
                           </td>
                           <td className="px-3 py-2.5">
-                            <button onClick={() => removeLink(link.id)} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
+                            <button onClick={() => removeLink(link.id)} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)' }}>
                               <X className="w-4 h-4" />
                             </button>
                           </td>
@@ -587,7 +587,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                           <span style={{ color: 'var(--text-muted)' }}>Share: <strong style={{ color: 'var(--brand)' }}>₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong></span>
                         </div>
                       </div>
-                      <button onClick={() => removeLink(link.id)} className="w-9 h-9 flex items-center justify-center rounded-lg shrink-0" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
+                      <button onClick={() => removeLink(link.id)} className="w-9 h-9 flex items-center justify-center rounded-lg shrink-0" style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)' }}>
                         <X className="w-4 h-4" />
                       </button>
                     </div>

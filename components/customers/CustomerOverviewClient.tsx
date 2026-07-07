@@ -247,9 +247,9 @@ function StatCard({ icon, label, value, sub, color, highlight }: {
 }) {
   const colors: Record<string, { bg: string; icon: string; text: string }> = {
     blue:  { bg: 'rgba(42,122,80,0.08)',  icon: 'var(--brand)', text: 'var(--brand)' },
-    red:   { bg: 'rgba(239,68,68,0.08)',  icon: 'var(--expense)', text: 'var(--expense)' },
-    amber: { bg: 'rgba(245,158,11,0.08)', icon: 'var(--amber)', text: 'var(--amber)' },
-    green: { bg: 'rgba(34,197,94,0.08)',  icon: 'var(--income)', text: 'var(--income)' },
+    red:   { bg: 'color-mix(in srgb, var(--expense) 8%, transparent)',  icon: 'var(--expense)', text: 'var(--expense)' },
+    amber: { bg: 'color-mix(in srgb, var(--amber) 8%, transparent)', icon: 'var(--amber)', text: 'var(--amber)' },
+    green: { bg: 'color-mix(in srgb, var(--income) 8%, transparent)',  icon: 'var(--income)', text: 'var(--income)' },
   }
   const c = colors[color] ?? colors.blue
   return (

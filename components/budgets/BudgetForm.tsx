@@ -93,7 +93,7 @@ export default function BudgetForm({ budget, categories, currentMonth, currentYe
 
         <div className="px-5 pb-5 space-y-5">
           {error && (
-            <div className="px-4 py-3 rounded-xl text-sm" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--expense)' }}>
+            <div className="px-4 py-3 rounded-xl text-sm" style={{ backgroundColor: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }}>
               {error}
             </div>
           )}
