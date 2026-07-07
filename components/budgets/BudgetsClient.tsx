@@ -199,26 +199,22 @@ export default function BudgetsClient({
         </div>
       )}
 
-      {/* Health score */}
-      {budgets.length > 0 && (
-        <div className="rounded-2xl p-5 shadow-sm" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-label mb-1" style={{ color: 'var(--text-faint)' }}>Budget Health</p>
-              <p className="text-display" style={{ color: healthColor }}>{healthScore}</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                {healthScore > 70 ? 'On track — great job!' : healthScore >= 40 ? 'Watch your spending' : 'Overspending in multiple areas'}
-              </p>
-            </div>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${healthColor}18` }}>
-              <Target className="w-8 h-8" style={{ color: healthColor }} />
-            </div>
+      {/* Summary band */}
+      {budgets.length > 0 && (() => {
+        const totalSpent = budgets.reduce((s, b) => s + (b.spent ?? 0), 0)
+        const totalBudget = budgets.reduce((s, b) => s + (b.amount ?? 0), 0)
+        const remaining = totalBudget - totalSpent
+        const overCount = budgets.filter(b => (b.percentage ?? 0) > 100).length
+        const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <BTile label="SPENT OF BUDGET" value={`${inr(totalSpent)} / ${inr(totalBudget)}`} color="var(--text)" />
+            <BTile label="REMAINING" value={inr(Math.max(remaining, 0))} color={remaining >= 0 ? 'var(--income)' : 'var(--expense)'} />
+            <BTile label="ON TRACK" value={`${budgets.length - overCount} of ${budgets.length}`} color="var(--brand)" />
+            <BTile label="OVER BUDGET" value={`${overCount} ${overCount === 1 ? 'category' : 'categories'}`} color={overCount > 0 ? 'var(--expense)' : 'var(--text-muted)'} />
           </div>
-          <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--surface-2)' }}>
-            <div className="h-2 rounded-full transition-all" style={{ width: `${healthScore}%`, backgroundColor: healthColor }} />
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Budget cards */}
       {budgets.length === 0 ? (
@@ -347,6 +343,15 @@ export default function BudgetsClient({
           onClose={() => setShowForm(false)}
         />
       )}
+    </div>
+  )
+}
+
+function BTile({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+      <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-[18px] font-extrabold tracking-tight mt-1 truncate" style={{ color, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
     </div>
   )
 }
