@@ -3,8 +3,8 @@
 import { useMemo } from 'react'
 import Link from 'next/link'
 import {
-  AlertTriangle, Clock, TrendingUp, Package,
-  ArrowRight, CheckCircle2, FileWarning, DollarSign,
+  Clock, TrendingUp, Package, Plus,
+  ArrowRight, CheckCircle2, FileWarning,
 } from 'lucide-react'
 import type { SupplierInvoice } from '@/lib/suppliers/types'
 import { computeInvoiceStatus } from '@/lib/suppliers/types'
@@ -96,140 +96,82 @@ export default function SupplierOverviewClient({ invoices, suppliers }: Props) {
     return [...map.values()].sort((a, b) => b.amount - a.amount).slice(0, 5)
   }, [enriched])
 
+  const dueThisWeek = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const wk = new Date(today); wk.setDate(wk.getDate() + 7)
+    let amt = 0, count = 0
+    for (const i of enriched) {
+      if (i.is_paid || i.computedStatus === 'cancelled' || !i.due_date) continue
+      const d = new Date(i.due_date)
+      if (d >= today && d <= wk) { amt += Number(i.amount ?? 0); count++ }
+    }
+    return { amt, count }
+  }, [enriched])
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Supplier Overview</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Operational finance visibility — outstanding payments, recoverable tracking, overdue alerts.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Suppliers</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{suppliers.length} supplier{suppliers.length !== 1 ? 's' : ''}</p>
+        </div>
+        <Link href="/suppliers/directory" className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl shrink-0" style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}>
+          <Plus className="w-4 h-4" /> Add supplier
+        </Link>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={<DollarSign className="w-5 h-5" />}
-          label="Total Outstanding"
-          value={`₹${fmtAmt(stats.totalOutstanding)}`}
-          sub={`${suppliers.length} active suppliers`}
-          color="blue"
-        />
-        <StatCard
-          icon={<AlertTriangle className="w-5 h-5" />}
-          label="Overdue Payments"
-          value={`₹${fmtAmt(stats.overdueAmount)}`}
-          sub={`${stats.overdueCount} invoice${stats.overdueCount !== 1 ? 's' : ''}`}
-          color="red"
-          highlight={stats.overdueCount > 0}
-        />
-        <StatCard
-          icon={<FileWarning className="w-5 h-5" />}
-          label="Unbilled Recoverables"
-          value={`₹${fmtAmt(stats.unbilledRecAmount)}`}
-          sub={`${stats.pendingRecCount} item${stats.pendingRecCount !== 1 ? 's' : ''} to bill`}
-          color="amber"
-          highlight={stats.pendingRecCount > 0}
-        />
-        <StatCard
-          icon={<CheckCircle2 className="w-5 h-5" />}
-          label="Billed Recoverables"
-          value={`₹${fmtAmt(stats.billedRecAmount)}`}
-          sub={`₹${fmtAmt(stats.recoveredAmount)} recovered`}
-          color="green"
-        />
+      {/* Band tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Tile label="TO PAY" value={`₹${fmtAmt(stats.totalOutstanding)}`} sub="outstanding" color="var(--expense)" />
+        <Tile label="DUE THIS WEEK" value={`₹${fmtAmt(dueThisWeek.amt)}`} sub={`${dueThisWeek.count} bill${dueThisWeek.count !== 1 ? 's' : ''}`} color="var(--amber)" />
+        <Tile label="OVERDUE" value={`₹${fmtAmt(stats.overdueAmount)}`} sub={`${stats.overdueCount} invoice${stats.overdueCount !== 1 ? 's' : ''}`} color="var(--expense)" />
+        <Tile label="ACTIVE" value={`${suppliers.length}`} sub="suppliers" color="var(--text)" />
       </div>
 
-      {/* Main Grid */}
-      <div className="grid md:grid-cols-3 gap-6">
-        {/* Top Suppliers */}
-        <div className="md:col-span-2 rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Top Suppliers by Outstanding</h2>
-            <Link href="/suppliers/directory" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>
-              View all <ArrowRight className="w-3 h-3" />
-            </Link>
+      {/* Payables table + pending-billing rail */}
+      <div className="grid lg:grid-cols-3 gap-4 items-start">
+        <div className="lg:col-span-2 rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Payables by supplier</p>
+            <Link href="/suppliers/directory" className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--brand)' }}>Directory <ArrowRight className="w-3 h-3" /></Link>
+          </div>
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-5 py-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border-2)' }}>
+            <span>Supplier</span><span className="text-right">Overdue</span><span className="text-right">Outstanding</span>
           </div>
           {topSuppliers.length === 0 ? (
             <div className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No outstanding invoices</div>
-          ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {topSuppliers.map(s => (
-                <div key={s.name} className="flex items-center justify-between px-5 py-3.5">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{s.name}</p>
-                    {s.overdue > 0 && (
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--error, #ef4444)' }}>
-                        ₹{fmtAmt(s.overdue)} overdue
-                      </p>
-                    )}
-                  </div>
-                  <span className="text-sm font-semibold" style={{ color: s.overdue > 0 ? 'var(--error, #ef4444)' : 'var(--text)' }}>
-                    ₹{fmtAmt(s.outstanding)}
-                  </span>
-                </div>
-              ))}
+          ) : topSuppliers.map(s => (
+            <div key={s.name} className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center px-5 py-3" style={{ borderTop: '1px solid var(--border-2)' }}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}>{s.name.slice(0, 2).toUpperCase()}</span>
+                <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{s.name}</p>
+              </div>
+              <span className="text-[13px] font-semibold text-right tabular-nums" style={{ color: s.overdue > 0 ? 'var(--expense)' : 'var(--text-faint)' }}>{s.overdue > 0 ? `₹${fmtAmt(s.overdue)}` : '—'}</span>
+              <span className="text-[13px] font-bold text-right tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(s.outstanding)}</span>
             </div>
-          )}
+          ))}
         </div>
 
-        {/* Recoverables Pending Billing */}
-        <div className="rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Pending Billing</h2>
-            <Link href="/suppliers/recoverables" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>
-              View <ArrowRight className="w-3 h-3" />
-            </Link>
+        {/* Pending billing rail */}
+        <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Pending billing</p>
+            <Link href="/suppliers/recoverables" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>All</Link>
           </div>
           {pendingByCustomer.length === 0 ? (
-            <div className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No pending recoverables</div>
+            <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>Nothing to bill</p>
           ) : (
-            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+            <div className="space-y-2.5">
               {pendingByCustomer.map(c => (
-                <div key={c.customer} className="flex items-center justify-between px-5 py-3.5">
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{c.customer}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{c.count} item{c.count !== 1 ? 's' : ''}</p>
-                  </div>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--amber, #f59e0b)' }}>₹{fmtAmt(c.amount)}</span>
+                <div key={c.customer} className="flex items-center justify-between text-[13px]">
+                  <span className="min-w-0 truncate" style={{ color: 'var(--text-muted)' }}>{c.customer} <span style={{ color: 'var(--text-faint)' }}>· {c.count}</span></span>
+                  <span className="font-bold tabular-nums shrink-0 ml-2" style={{ color: 'var(--amber)' }}>₹{fmtAmt(c.amount)}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
-      </div>
-
-      {/* Recently Paid */}
-      <div className="rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Recently Paid Invoices</h2>
-          <Link href="/suppliers/payments" className="text-xs flex items-center gap-1" style={{ color: 'var(--brand)' }}>
-            Payment Tracking <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-        {stats.recentPaid.length === 0 ? (
-          <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No paid invoices yet</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Supplier', 'Invoice #', 'Amount', 'Paid On'].map(h => (
-                    <th key={h} className="px-5 py-2.5 text-left text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {stats.recentPaid.map(inv => (
-                  <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td className="px-5 py-3" style={{ color: 'var(--text)' }}>—</td>
-                    <td className="px-5 py-3 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{inv.invoice_number ?? '—'}</td>
-                    <td className="px-5 py-3 font-semibold" style={{ color: 'var(--text)' }}>₹{fmtAmt(Number(inv.amount))}</td>
-                    <td className="px-5 py-3" style={{ color: 'var(--text-muted)' }}>{inv.payment_date ? fmtDate(inv.payment_date) : '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
       {/* Quick Links */}
@@ -257,6 +199,16 @@ export default function SupplierOverviewClient({ invoices, suppliers }: Props) {
           </Link>
         ))}
       </div>
+    </div>
+  )
+}
+
+function Tile({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
+  return (
+    <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+      <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-[22px] font-extrabold tracking-tight mt-1" style={{ color, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+      <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{sub}</p>
     </div>
   )
 }
