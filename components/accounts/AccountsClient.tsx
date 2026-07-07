@@ -314,6 +314,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           cardStatements={cardStatements}
           payAccounts={payAccounts}
           onEdit={a => { setDetailAccount(null); handleEdit(a) }}
+          onDeleted={handleDelete}
           onClose={() => setDetailAccount(null)}
         />
       )}

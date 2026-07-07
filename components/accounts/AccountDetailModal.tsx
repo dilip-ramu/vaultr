@@ -2,11 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Pencil, ArrowLeftRight, Scale, CreditCard } from 'lucide-react'
+import { X, Pencil, Trash2, ArrowLeftRight, Scale, CreditCard } from 'lucide-react'
 import type { Account } from '@/lib/types'
 import { formatCurrency, getRelativeDate } from '@/lib/utils'
 import type { ReconTxn } from '@/lib/reconcile'
 import type { CardTxn } from '@/lib/cards'
+import { createClient } from '@/lib/supabase/client'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { notify } from '@/components/shared/Toast'
 import AccountReconcilePanel from './AccountReconcilePanel'
 import { SingleCard, type StatementRow } from '../cards/CardsClient'
 import type { PickerAccount } from '../shared/AccountChipPicker'
@@ -22,7 +25,7 @@ function signedForAccount(t: ReconTxn, accountId: string): number {
 export default function AccountDetailModal({
   account, txns, currencyById, today, onReconciled,
   cardTxns = [], cardStatements = [], payAccounts = [],
-  onEdit, onClose,
+  onEdit, onDeleted, onClose,
 }: {
   account: Account
   txns: ReconTxn[]
@@ -33,11 +36,33 @@ export default function AccountDetailModal({
   cardStatements?: StatementRow[]
   payAccounts?: PickerAccount[]
   onEdit: (a: Account) => void
+  onDeleted?: (id: string) => void
   onClose: () => void
 }) {
   const router = useRouter()
   const isCredit = account.type === 'credit'
   const [tab, setTab] = useState<Tab>('transactions')
+  const [deleting, setDeleting] = useState(false)
+
+  // Same guarded soft-delete as the old AccountCard: block if the account has
+  // linked transactions, otherwise deactivate (is_active=false).
+  async function handleDelete() {
+    const supabase = createClient()
+    const { data: count } = await supabase.rpc('get_account_transaction_count', { p_account_id: account.id })
+    if ((count ?? 0) > 0) {
+      notify(`Cannot delete "${account.name}" — it has ${count} linked transaction${count! > 1 ? 's' : ''}. Delete or move them first.`, 'error')
+      router.push(`/transactions?account=${account.id}`)
+      return
+    }
+    if (!await confirmDialog(`Delete "${account.name}"? This cannot be undone.`)) return
+    setDeleting(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setDeleting(false); return }
+    const { error } = await supabase.from('accounts').update({ is_active: false }).eq('id', account.id).eq('user_id', user.id)
+    if (error) { notify('Could not delete account: ' + error.message, 'error'); setDeleting(false); return }
+    onDeleted?.(account.id)
+    onClose()
+  }
 
   const accountTxns = txns
     .filter(t => t.account_id === account.id || t.to_account_id === account.id)
@@ -60,6 +85,7 @@ export default function AccountDetailModal({
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={() => onEdit(account)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Edit"><Pencil className="w-4 h-4" /></button>
+            <button onClick={handleDelete} disabled={deleting} className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-50" style={{ background: 'var(--surface-2)', color: 'var(--expense)' }} title="Delete account"><Trash2 className="w-4 h-4" /></button>
             <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><X className="w-4 h-4" /></button>
           </div>
         </div>
