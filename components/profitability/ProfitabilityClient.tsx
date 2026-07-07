@@ -1,41 +1,20 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { TrendingUp, TrendingDown, Scale, CalendarRange } from 'lucide-react'
+import { TrendingUp, TrendingDown, Scale } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import {
   summarize, monthlyHistory,
   type ProfitLine, type ProfitSummary,
 } from '@/lib/profitability'
+import PeriodPills, { type PeriodValue } from '@/components/shared/PeriodPills'
+import { bounds } from '@/lib/budget-insights/period'
 
 interface Props {
   lines: ProfitLine[]
 }
 
-type Preset = 'month' | '1m' | '3m' | '6m' | '1y' | 'custom'
-
-const PRESETS: { key: Preset; label: string }[] = [
-  { key: 'month', label: 'This Month' },
-  { key: '1m', label: '1 Month' },
-  { key: '3m', label: '3 Months' },
-  { key: '6m', label: '6 Months' },
-  { key: '1y', label: '1 Year' },
-  { key: 'custom', label: 'Custom' },
-]
-
 const iso = (d: Date) => d.toISOString().split('T')[0]
-
-function presetRange(preset: Preset): { from: string; to: string } {
-  const to = new Date()
-  if (preset === 'month') {
-    // 1st of the current month → today
-    return { from: iso(new Date(to.getFullYear(), to.getMonth(), 1)), to: iso(to) }
-  }
-  const from = new Date()
-  const months = preset === '1m' ? 1 : preset === '3m' ? 3 : preset === '6m' ? 6 : 12
-  from.setMonth(from.getMonth() - months)
-  return { from: iso(from), to: iso(to) }
-}
 
 function monthLabel(month: string): string {
   const [y, m] = month.split('-').map(Number)
@@ -146,11 +125,11 @@ function Breakdown({ s }: { s: ProfitSummary }) {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export default function ProfitabilityClient({ lines }: Props) {
-  const [preset, setPreset] = useState<Preset>('month')
+  const [preset, setPreset] = useState<PeriodValue>('month')
   const [customFrom, setCustomFrom] = useState(() => iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
   const [customTo, setCustomTo] = useState(() => iso(new Date()))
 
-  const range = preset === 'custom' ? { from: customFrom, to: customTo } : presetRange(preset)
+  const range = bounds(preset, customFrom, customTo)
 
   const summary = useMemo(
     () => summarize(lines, range.from, range.to),
@@ -173,38 +152,13 @@ export default function ProfitabilityClient({ lines }: Props) {
 
       {/* Filter bar */}
       <div className="card p-3 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {PRESETS.map(p => (
-            <button
-              key={p.key}
-              onClick={() => setPreset(p.key)}
-              className="px-3 py-1.5 rounded-full text-sm font-medium transition-base"
-              style={preset === p.key
-                ? { background: 'var(--brand)', color: '#fff' }
-                : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        {preset === 'custom' && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <CalendarRange className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-            <input
-              type="date" value={customFrom} max={customTo}
-              onChange={e => setCustomFrom(e.target.value)}
-              className="px-2 py-1.5 rounded-lg text-sm"
-              style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
-            />
-            <span style={{ color: 'var(--text-muted)' }}>to</span>
-            <input
-              type="date" value={customTo} min={customFrom}
-              onChange={e => setCustomTo(e.target.value)}
-              className="px-2 py-1.5 rounded-lg text-sm"
-              style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
-            />
-          </div>
-        )}
+        <PeriodPills
+          value={preset}
+          onChange={p => setPreset(p)}
+          customFrom={customFrom}
+          customTo={customTo}
+          onApplyCustom={(from, to) => { setCustomFrom(from); setCustomTo(to); setPreset('custom') }}
+        />
         <p className="text-caption">
           Showing {range.from} → {range.to} · Expected is dated by due date; Actual by transaction date
         </p>

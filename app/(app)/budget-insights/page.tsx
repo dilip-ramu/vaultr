@@ -20,7 +20,7 @@ export default async function BudgetInsightsPage({
   const uid = user!.id
 
   const sp = await searchParams
-  const period = (sp.period as PeriodKey | undefined) ?? 'this_month'
+  const period = (sp.period as PeriodKey | undefined) ?? 'month'
   const { from: periodStart, to: periodEnd, label: periodLabel, months: periodMonths } =
     bounds(period, sp.from ?? null, sp.to ?? null)
 

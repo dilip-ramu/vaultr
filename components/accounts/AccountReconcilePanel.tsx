@@ -233,13 +233,10 @@ export default function AccountReconcilePanel({
             </tr>
           </thead>
           <tbody>
-            <tr style={{ borderBottom: '1px solid var(--border-2)' }}>
-              <td className="px-4 py-2" style={{ color: 'var(--text-muted)' }}>—</td>
-              <td className="px-4 py-2 italic" style={{ color: 'var(--text-muted)' }}>Opening balance</td>
-              <td className="px-4 py-2 text-right" style={{ color: 'var(--text-faint)' }}>—</td>
-              <td className="px-4 py-2 text-right font-medium" style={{ color: 'var(--text)' }}>{fmt(Number(account.initial_balance) || 0)}</td>
-            </tr>
-            {rows.map(r => (
+            {/* Newest first: reverse the chronological ledger for display; each
+                row still shows the running balance as of that transaction. The
+                opening balance sits at the bottom (the oldest point). */}
+            {[...rows].reverse().map(r => (
               <tr key={r.txn.id} style={{ borderBottom: '1px solid var(--border-2)', background: r.flags.length ? 'color-mix(in srgb, var(--amber) 6%, transparent)' : undefined }}>
                 <td className="px-4 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatDate(r.txn.date)}</td>
                 <td className="px-4 py-2" style={{ color: 'var(--text)' }}>
@@ -256,6 +253,12 @@ export default function AccountReconcilePanel({
                 <td className="px-4 py-2 text-right font-medium" style={{ color: 'var(--text)' }}>{fmt(r.running)}</td>
               </tr>
             ))}
+            <tr style={{ borderBottom: '1px solid var(--border-2)' }}>
+              <td className="px-4 py-2" style={{ color: 'var(--text-muted)' }}>—</td>
+              <td className="px-4 py-2 italic" style={{ color: 'var(--text-muted)' }}>Opening balance</td>
+              <td className="px-4 py-2 text-right" style={{ color: 'var(--text-faint)' }}>—</td>
+              <td className="px-4 py-2 text-right font-medium" style={{ color: 'var(--text)' }}>{fmt(Number(account.initial_balance) || 0)}</td>
+            </tr>
             {rows.length === 0 && (
               <tr><td colSpan={4} className="px-4 py-6 text-center" style={{ color: 'var(--text-faint)' }}>No transactions.</td></tr>
             )}

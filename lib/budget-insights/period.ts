@@ -1,18 +1,13 @@
 // Period helpers shared between the server page and the client selector.
 // Lives in lib/ (not inside a 'use client' file) so the server page can import
 // `bounds` without dragging the client component into the server build.
+//
+// The period model mirrors the Dashboard exactly: Month · Quarter · Year ·
+// Custom (same keys, same windows), so both pages behave identically.
 
-export type PeriodKey = 'this_month' | 'last_month' | '3m' | '6m' | 'this_year' | 'all' | 'custom'
+export type PeriodKey = 'month' | 'quarter' | 'year' | 'custom'
 
-export const PERIOD_LABEL: Record<PeriodKey, string> = {
-  this_month: 'This month',
-  last_month: 'Last month',
-  '3m': 'Last 3 months',
-  '6m': 'Last 6 months',
-  this_year: 'This year',
-  all: 'All time',
-  custom: 'Custom range',
-}
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 /** India-standard financial year bounds (April 1 → March 31) containing `today`. */
 export function fyBounds(today = new Date()): { start: string; end: string; label: string } {
@@ -26,7 +21,8 @@ export function fyBounds(today = new Date()): { start: string; end: string; labe
   return { start, end, label: `FY ${fyStartYear}-${String((fyStartYear + 1) % 100).padStart(2, '0')}` }
 }
 
-/** Compute YYYY-MM-DD start/end and an inclusive month count for the period. */
+/** Compute YYYY-MM-DD start/end and an inclusive month count for the period.
+ *  Windows match the Dashboard's period toggle exactly. */
 export function bounds(
   period: PeriodKey,
   customFrom: string | null,
@@ -36,18 +32,27 @@ export function bounds(
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
   const y = today.getFullYear()
   const m = today.getMonth()
-  const todayStr = fmt(today)
-  if (period === 'all') {
-    return { from: fmt(new Date(y - 5, 0, 1)), to: todayStr, label: 'All time', months: 60 }
+
+  if (period === 'quarter') {
+    const q = Math.floor(m / 3)
+    return {
+      from: fmt(new Date(y, q * 3, 1)),
+      to:   fmt(new Date(y, q * 3 + 3, 0)),
+      label: `Q${q + 1} ${y}`,
+      months: 3,
+    }
   }
-  if (period === 'this_month')  return { from: fmt(new Date(y, m, 1)),     to: fmt(new Date(y, m + 1, 0)), label: PERIOD_LABEL.this_month, months: 1 }
-  if (period === 'last_month')  return { from: fmt(new Date(y, m - 1, 1)), to: fmt(new Date(y, m, 0)),     label: PERIOD_LABEL.last_month, months: 1 }
-  if (period === '3m')          return { from: fmt(new Date(y, m - 2, 1)), to: fmt(new Date(y, m + 1, 0)), label: PERIOD_LABEL['3m'],       months: 3 }
-  if (period === '6m')          return { from: fmt(new Date(y, m - 5, 1)), to: fmt(new Date(y, m + 1, 0)), label: PERIOD_LABEL['6m'],       months: 6 }
-  if (period === 'this_year')   return { from: fmt(new Date(y, 0, 1)),     to: fmt(new Date(y, 11, 31)),   label: `${y}`,                    months: 12 }
-  const f = customFrom || fmt(new Date(y, m, 1))
-  const t = customTo   || todayStr
-  const fd = new Date(f), td = new Date(t)
-  const ms = Math.max(1, (td.getFullYear() - fd.getFullYear()) * 12 + (td.getMonth() - fd.getMonth()) + 1)
-  return { from: f, to: t, label: `${f} → ${t}`, months: ms }
+  if (period === 'year') {
+    return { from: `${y}-01-01`, to: `${y}-12-31`, label: `${y}`, months: 12 }
+  }
+  if (period === 'custom') {
+    const f = customFrom || fmt(new Date(y, m, 1))
+    const t = customTo   || fmt(today)
+    const fd = new Date(f), td = new Date(t)
+    const months = Math.max(1, (td.getFullYear() - fd.getFullYear()) * 12 + (td.getMonth() - fd.getMonth()) + 1)
+    const short = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    return { from: f, to: t, label: `${short(f)} – ${short(t)}`, months }
+  }
+  // month (default)
+  return { from: fmt(new Date(y, m, 1)), to: fmt(new Date(y, m + 1, 0)), label: `${MON[m]} ${y}`, months: 1 }
 }
