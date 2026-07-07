@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { X, Check, Camera, ChevronDown, ChevronUp } from 'lucide-react'
-import type { Account, AccountType, CustomAccountType } from '@/lib/types'
+import { X, Check, Camera, ChevronDown, ChevronUp, CreditCard, Trash2, Plus } from 'lucide-react'
+import type { Account, AccountType, CustomAccountType, DebitCard } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
@@ -38,16 +38,26 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
 
   // Extended details
   const [accountNumber, setAccountNumber] = useState(account?.account_number ?? '')
+  const [accountHolder, setAccountHolder] = useState(account?.account_holder ?? '')
   const [branch, setBranch] = useState(account?.branch ?? '')
   const [ifscCode, setIfscCode] = useState(account?.ifsc_code ?? '')
   const [swiftCode, setSwiftCode] = useState(account?.swift_code ?? '')
   const [bankAddress, setBankAddress] = useState(account?.bank_address ?? '')
   const [openDate, setOpenDate] = useState(account?.open_date ?? '')
   const [closingDate, setClosingDate] = useState(account?.closing_date ?? '')
+  // Credit card identity (CVV intentionally never stored)
+  const [cardNetwork, setCardNetwork] = useState(account?.card_network ?? '')
+  const [cardExpiryMonth, setCardExpiryMonth] = useState(account?.card_expiry_month?.toString() ?? '')
+  const [cardExpiryYear, setCardExpiryYear] = useState(account?.card_expiry_year?.toString() ?? '')
 
   const [customTypes, setCustomTypes] = useState<CustomAccountType[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // v73 — debit cards linked to this account (edit mode only)
+  const [dcList, setDcList] = useState<DebitCard[]>([])
+  const emptyDC = { label: '', card_number: '', card_network: '', card_holder: '', expiry_month: '', expiry_year: '' }
+  const [dcDraft, setDcDraft] = useState(emptyDC)
 
   useEffect(() => {
     const supabase = createClient()
@@ -55,6 +65,38 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       if (data) setCustomTypes(data)
     })
   }, [])
+
+  useEffect(() => {
+    if (!account) return
+    const supabase = createClient()
+    supabase.from('debit_cards').select('*').eq('account_id', account.id).then(({ data }) => {
+      if (data) setDcList(data as DebitCard[])
+    })
+  }, [account])
+
+  async function addDebitCard() {
+    if (!account) return
+    if (!dcDraft.card_number.trim() && !dcDraft.label.trim()) return
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error: e } = await supabase.from('debit_cards').insert({
+      user_id: user!.id, account_id: account.id,
+      label: dcDraft.label.trim() || null,
+      card_number: dcDraft.card_number.trim() || null,
+      card_network: dcDraft.card_network.trim() || null,
+      card_holder: dcDraft.card_holder.trim() || null,
+      expiry_month: dcDraft.expiry_month ? parseInt(dcDraft.expiry_month) : null,
+      expiry_year: dcDraft.expiry_year ? parseInt(dcDraft.expiry_year) : null,
+    }).select().single()
+    if (e) { setError(e.message); return }
+    if (data) { setDcList(prev => [...prev, data as DebitCard]); setDcDraft(emptyDC) }
+  }
+
+  async function removeDebitCard(id: string) {
+    const supabase = createClient()
+    await supabase.from('debit_cards').delete().eq('id', id)
+    setDcList(prev => prev.filter(d => d.id !== id))
+  }
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -91,6 +133,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       include_in_net_worth: includeNetWorth,
       avatar_url: avatarUrl || null,
       account_number: accountNumber.trim() || null,
+      account_holder: accountHolder.trim() || null,
       branch: branch.trim() || null,
       ifsc_code: ifscCode.trim() || null,
       swift_code: swiftCode.trim() || null,
@@ -100,6 +143,9 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       statement_due_day: (type === 'credit' && statementDueDay) ? parseInt(statementDueDay) : null,
       statement_day: (type === 'credit' && statementDay) ? parseInt(statementDay) : null,
       credit_limit:   (type === 'credit' && creditLimit) ? parseFloat(creditLimit) : null,
+      card_network:      (type === 'credit' && cardNetwork.trim()) ? cardNetwork.trim() : null,
+      card_expiry_month: (type === 'credit' && cardExpiryMonth) ? parseInt(cardExpiryMonth) : null,
+      card_expiry_year:  (type === 'credit' && cardExpiryYear) ? parseInt(cardExpiryYear) : null,
       loan_principal: (isLoan(type) && loanPrincipal) ? parseFloat(loanPrincipal) : null,
       interest_rate:  ((type === 'credit' || isLoan(type)) && interestRate) ? parseFloat(interestRate) : null,
       emi_amount:     (isLoan(type) && emiAmount) ? parseFloat(emiAmount) : null,
@@ -269,8 +315,22 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                     onChange={e => setStatementDueDay(e.target.value)} placeholder="due on"
                     className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Card network</label>
+                  <input type="text" value={cardNetwork} onChange={e => setCardNetwork(e.target.value)} placeholder="Visa / Mastercard / RuPay"
+                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Expiry (MM / YYYY)</label>
+                  <div className="flex gap-2">
+                    <input type="number" min="1" max="12" value={cardExpiryMonth} onChange={e => setCardExpiryMonth(e.target.value)} placeholder="MM"
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    <input type="number" min="2000" max="2099" value={cardExpiryYear} onChange={e => setCardExpiryYear(e.target.value)} placeholder="YYYY"
+                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                  </div>
+                </div>
               </div>
-              <p className="text-[11px] text-gray-400">Limit enables available-credit and utilisation tracking. Statement days feed the Cards page and forecast.</p>
+              <p className="text-[11px] text-gray-400">Card number goes in Account Number below. We never store CVV. Limit enables utilisation tracking; statement days feed the Cards view and forecast.</p>
             </div>
           )}
 
@@ -345,10 +405,16 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
               <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
                 <div className="grid grid-cols-2 gap-3 pt-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Account Number</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{type === 'credit' ? 'Card Number' : 'Account Number'}</label>
                     <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}
                       placeholder="XXXX XXXX XXXX"
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">{type === 'credit' ? 'Cardholder Name' : 'Account Holder'}</label>
+                    <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)}
+                      placeholder="e.g. Dilip T R"
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Branch</label>
@@ -388,6 +454,37 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
               </div>
             )}
           </div>
+
+          {/* Debit cards — linkable to funding (non-credit/loan) accounts */}
+          {type !== 'credit' && !isLoan(type) && (
+            <div className="border border-gray-100 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-gray-500" />
+                <p className="text-sm font-medium text-gray-700">Debit cards <span className="text-gray-400 font-normal">(optional)</span></p>
+              </div>
+              {!isEdit ? (
+                <p className="text-xs text-gray-400">Save the account first, then reopen it to link debit cards.</p>
+              ) : (
+                <>
+                  {dcList.map(dc => (
+                    <div key={dc.id} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="font-medium text-gray-700 truncate flex-1">{dc.label || dc.card_network || 'Debit card'}{dc.card_number ? ` ···· ${dc.card_number.replace(/\s+/g, '').slice(-4)}` : ''}</span>
+                      <button type="button" onClick={() => removeDebitCard(dc.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={dcDraft.label} onChange={e => setDcDraft({ ...dcDraft, label: e.target.value })} placeholder="Label (e.g. Platinum)" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                    <input value={dcDraft.card_network} onChange={e => setDcDraft({ ...dcDraft, card_network: e.target.value })} placeholder="Network" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                    <input value={dcDraft.card_number} onChange={e => setDcDraft({ ...dcDraft, card_number: e.target.value })} placeholder="Card number" className="col-span-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono" />
+                    <input value={dcDraft.expiry_month} onChange={e => setDcDraft({ ...dcDraft, expiry_month: e.target.value })} placeholder="Exp MM" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                    <input value={dcDraft.expiry_year} onChange={e => setDcDraft({ ...dcDraft, expiry_year: e.target.value })} placeholder="Exp YYYY" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                  </div>
+                  <button type="button" onClick={addDebitCard} className="flex items-center gap-1.5 text-sm font-medium text-brand-600"><Plus className="w-4 h-4" /> Add debit card</button>
+                  <p className="text-[11px] text-gray-400">CVV is never stored.</p>
+                </>
+              )}
+            </div>
+          )}
 
           <button
             type="submit"
