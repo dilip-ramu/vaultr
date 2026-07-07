@@ -63,13 +63,16 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} — the default is auto-selected when you create an invoice
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Organization</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} · legal entities & GST
+          </p>
+        </div>
         <button
           onClick={() => { setEditing(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white shrink-0"
           style={{ background: 'var(--brand)' }}
         >
           <Plus className="w-4 h-4" /> Add company
