@@ -415,7 +415,7 @@ export default function ReimbursableHistoryClient({ invoices: initial }: { invoi
           <History className="w-5 h-5 text-[var(--text-muted)]" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Invoice History</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Invoice History</h1>
           <p className="text-sm text-[var(--text-muted)]">All reimbursement invoices you&apos;ve raised</p>
         </div>
       </div>

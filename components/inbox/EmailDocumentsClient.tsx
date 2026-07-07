@@ -439,7 +439,7 @@ export default function EmailDocumentsClient({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {!hideHeader ? (
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{pageTitle}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>{pageTitle}</h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{pageDescription}</p>
           </div>
         ) : <div />}

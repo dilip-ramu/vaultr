@@ -119,7 +119,7 @@ export default function BillsClient({ initialBills, accounts, categories, custom
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Bills</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Bills</h1>
           <p className="text-sm text-[var(--text-muted)]">{directionBills.length} total</p>
         </div>
         <button

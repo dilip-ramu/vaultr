@@ -278,7 +278,7 @@ export default function EmailIntegrationSettings({ initialIntegration, initialSe
       {/* Page header */}
       {!hideHeader && (
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Email Setup</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Email Setup</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Connect your Yahoo Mail inbox to automatically receive and review invoice documents
           </p>

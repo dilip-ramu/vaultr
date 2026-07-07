@@ -253,7 +253,7 @@ export default function SlipsClient({ entries, companyName, companyAddress, comp
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Salary Slips</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Salary Slips</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
             {entries.length} slip{entries.length !== 1 ? 's' : ''} across {monthGroups.length} month{monthGroups.length !== 1 ? 's' : ''}
           </p>

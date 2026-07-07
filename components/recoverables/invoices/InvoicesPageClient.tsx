@@ -128,7 +128,7 @@ export default function InvoicesPageClient({
       {/* Header — title + Import button + mode toggle */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Invoices</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Invoices</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Every courier tax invoice you&apos;ve raised, grouped by the CSV batch it came from.
           </p>

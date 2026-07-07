@@ -160,7 +160,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-[var(--text)] truncate">{account.name}</h1>
+              <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)] truncate">{account.name}</h1>
               <p className="text-sm text-[var(--text-faint)]">{typeDisplay.label} · {account.currency}</p>
               {!account.include_in_net_worth && (
                 <p className="text-xs text-[var(--amber)] mt-0.5">Excluded from net worth</p>

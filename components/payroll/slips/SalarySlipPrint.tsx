@@ -90,20 +90,20 @@ export default function SalarySlipPrint({ entry, month, employee, companyName, c
         {/* Company header (per template, v69) */}
         {tpl === 'modern' ? (
           <div className="rounded-md p-4 mb-4 text-center" style={{ background: ac }}>
-            <h1 className="text-xl font-bold text-white">{name}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white">{name}</h1>
             {companyAddress && <p className="text-xs text-white/90 mt-1">{companyAddress}</p>}
             <p className="text-base font-semibold text-white mt-2">SALARY SLIP · {fmtMonth(month.payroll_month)}</p>
           </div>
         ) : tpl === 'minimal' ? (
           <div className="mb-4">
-            <h1 className="text-xl font-bold inline-block pb-0.5" style={{ color: ac, borderBottom: `2px solid ${ac}` }}>{name}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight inline-block pb-0.5" style={{ color: ac, borderBottom: `2px solid ${ac}` }}>{name}</h1>
             {companyAddress && <p className="text-xs  mt-1">{companyAddress}</p>}
             <p className="text-base font-semibold  mt-3">SALARY SLIP</p>
             <p className="text-sm ">For the month of {fmtMonth(month.payroll_month)}</p>
           </div>
         ) : (
           <div className="text-center pb-4 mb-4" style={{ borderBottom: `2px solid ${ac}` }}>
-            <h1 className="text-xl font-bold ">{name}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight ">{name}</h1>
             {companyAddress && <p className="text-xs  mt-1">{companyAddress}</p>}
             <p className="text-base font-semibold  mt-3">SALARY SLIP</p>
             <p className="text-sm ">For the month of {fmtMonth(month.payroll_month)}</p>

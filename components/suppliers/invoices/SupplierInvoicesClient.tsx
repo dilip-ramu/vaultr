@@ -393,7 +393,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
       <div className="flex items-center justify-between">
         {!hideHeader ? (
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Bills &amp; Invoices</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Bills &amp; Invoices</h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
               {enriched.length} item{enriched.length !== 1 ? 's' : ''}
               {summary.overdueCount > 0 && (

@@ -228,7 +228,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             ← Back
           </button>
           <div className="flex-1 flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>
               {invoice.invoice_number}
             </h1>
             <StatusBadge status={resolvedStatus} />

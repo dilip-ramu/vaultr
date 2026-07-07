@@ -84,7 +84,7 @@ export default function SupplierLedgerClient({
       <div className="card space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-xl font-bold truncate" style={{ color: 'var(--text)' }}>
+            <h1 className="text-2xl font-extrabold tracking-tight truncate" style={{ color: 'var(--text)' }}>
               {supplierName}
             </h1>
             {customer && (

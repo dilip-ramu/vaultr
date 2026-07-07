@@ -132,7 +132,7 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Customer Directory</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Customer Directory</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
             {customers.length} customer{customers.length !== 1 ? 's' : ''}
             {grandOutstanding > 0 && <> · ₹{fmtAmt(grandOutstanding)} outstanding</>}

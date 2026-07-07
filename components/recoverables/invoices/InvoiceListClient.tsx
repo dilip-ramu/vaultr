@@ -154,7 +154,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
         <div className="flex items-center justify-between mb-4">
           {!hideHeader ? (
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Invoices</h1>
+              <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Invoices</h1>
               <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
                 {enriched.length} invoice{enriched.length !== 1 ? 's' : ''}
               </p>

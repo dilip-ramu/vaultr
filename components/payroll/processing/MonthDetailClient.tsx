@@ -373,7 +373,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-[var(--text)]">{fmtMonth(month.payroll_month)}</h1>
+              <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">{fmtMonth(month.payroll_month)}</h1>
               {month.is_finalized && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[var(--brand-light)] text-[var(--income)] rounded-full text-sm font-medium">
                   ✓ Finalized

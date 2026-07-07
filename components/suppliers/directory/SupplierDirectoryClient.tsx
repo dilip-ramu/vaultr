@@ -134,7 +134,7 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Supplier Directory</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Supplier Directory</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
             {suppliers.filter(s => s.is_active).length} active suppliers
             {grandOutstanding > 0 && <> · ₹{fmtAmt(grandOutstanding)} outstanding</>}

@@ -97,7 +97,7 @@ export default function SupplierCategoriesClient({ initialSuppliers, categories 
     <div className="space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Supplier Categories</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Supplier Categories</h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
           Default expense category applied to transactions when marking invoices paid.
           {' '}

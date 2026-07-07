@@ -74,7 +74,7 @@ export default function SettingsClient({ user, profile }: Props) {
 
   return (
     <div className="w-full px-4 md:px-8 py-6 space-y-5">
-      <h1 className="text-xl font-bold text-[var(--text)]">Settings</h1>
+      <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Settings</h1>
 
       {message && (
         <div className="bg-[var(--brand-light)] text-[var(--income)] text-sm rounded-xl px-4 py-3 border border-[var(--brand-light)] fade-in">

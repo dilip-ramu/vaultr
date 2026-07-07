@@ -146,7 +146,7 @@ export default function CurrenciesClient({ initialRates }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Currency Rates</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Currency Rates</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
             {lastFetched
               ? `Updated ${lastFetched.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`

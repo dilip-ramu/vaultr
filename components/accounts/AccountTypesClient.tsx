@@ -189,7 +189,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-[var(--text)]">Account Types</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Account Types</h1>
           <p className="text-sm text-[var(--text-faint)]">Customise built-in types or create new ones</p>
         </div>
         <button

@@ -101,7 +101,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Pending Recoverables</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Pending Recoverables</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Supplier costs that have not yet been billed back to customers.</p>
       </div>
 

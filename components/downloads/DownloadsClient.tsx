@@ -381,7 +381,7 @@ export default function DownloadsClient() {
           <Archive className="w-5 h-5 text-[var(--brand)]" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-[var(--text)]">Data Export & Backup</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Data Export & Backup</h1>
           <p className="text-sm text-[var(--text-muted)]">Download all your data as a ZIP with readable PDFs and machine-readable CSVs</p>
         </div>
       </div>

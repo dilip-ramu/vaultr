@@ -43,7 +43,7 @@ export default function CategoriesClient({ initialCategories }: { initialCategor
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Categories</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Categories</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{categories.length} categories</p>
         </div>
         <button

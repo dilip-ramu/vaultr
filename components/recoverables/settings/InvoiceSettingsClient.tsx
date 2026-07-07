@@ -150,7 +150,7 @@ export default function InvoiceSettingsClient({ settings, hideHeader = false }: 
             <ChevronLeft className="w-4 h-4" />
             Back
           </button>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Invoice Settings</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Invoice Settings</h1>
         </div>
       )}
 

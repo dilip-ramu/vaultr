@@ -121,7 +121,7 @@ export default function CategoryDetailClient({ category, transactions: initial }
             </div>
           )}
           <div className="min-w-0">
-            <h1 className="text-xl font-bold truncate" style={{ color: 'var(--text)' }}>{category.name}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight truncate" style={{ color: 'var(--text)' }}>{category.name}</h1>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               {totals.count} transaction{totals.count !== 1 ? 's' : ''} in {PERIOD_LABEL[period].toLowerCase()}
             </p>

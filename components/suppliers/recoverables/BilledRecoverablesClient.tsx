@@ -71,7 +71,7 @@ export default function BilledRecoverablesClient({ initialInvoices }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Billed Recoverables</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Billed Recoverables</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Recovery status of billed customer expenses.</p>
       </div>
 

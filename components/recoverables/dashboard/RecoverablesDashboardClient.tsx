@@ -25,7 +25,7 @@ export default function RecoverablesDashboardClient({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Recoverables</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Recoverables</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Track and recover operational expenses
           </p>

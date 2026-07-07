@@ -63,7 +63,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>Payment Tracking</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Payment Tracking</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Track all supplier payments, overdue invoices, and bulk payment batches.</p>
       </div>
 
