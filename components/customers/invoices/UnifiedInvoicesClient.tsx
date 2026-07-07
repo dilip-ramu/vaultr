@@ -68,15 +68,22 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
   const params = useSearchParams()
   const reimbursableSet = useMemo(() => new Set(reimbursableCustomerIds), [reimbursableCustomerIds])
 
-  // "+ New invoice" href — preserves the currently-picked customer chip so
-  // the builder lands on the same customer without another click. Skipped
-  // when All is selected (the builder handles the empty state itself).
-  const newInvoiceHref = useMemo(() => {
-    const cust = params.get('customer')
-    return cust && cust !== 'all'
-      ? `/customers/invoices/reimbursables/new?customer=${cust}`
-      : '/customers/invoices/reimbursables/new'
-  }, [params])
+  // "+ New invoice" — preserves the currently-picked customer chip so the
+  // builder lands on the same customer. Behaviour depends on the customer:
+  //   • reimbursable customer → chooser (reimbursable expense invoice vs a
+  //     blank typed invoice — both are valid for them)
+  //   • normal customer / All → straight to the blank typed builder
+  const pickedCustomer = params.get('customer')
+  const pickedIsReimbursable = !!pickedCustomer && pickedCustomer !== 'all' && reimbursableSet.has(pickedCustomer)
+  const custQs = pickedCustomer && pickedCustomer !== 'all' ? `?customer=${pickedCustomer}` : ''
+  const typedHref       = `/customers/invoices/new${custQs}`
+  const reimbursableHref = `/customers/invoices/reimbursables/new${custQs}`
+  const [chooserOpen, setChooserOpen] = useState(false)
+
+  function handleNewInvoice() {
+    if (pickedIsReimbursable) { setChooserOpen(true); return }
+    router.push(typedHref)
+  }
   const [markingId,  setMarkingId]  = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType,   setFilterType]   = useState<'all' | 'tax_invoice' | 'reimbursement'>('all')
@@ -171,14 +178,40 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
           from the Couriers tab (via CSV import + batch allocations); this
           button drives the manual/reimbursement creation path. */}
       <div className="flex justify-end">
-        <Link
-          href={newInvoiceHref}
+        <button
+          onClick={handleNewInvoice}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white"
           style={{ background: 'var(--brand)' }}
         >
           <Plus className="w-4 h-4" /> New invoice
-        </Link>
+        </button>
       </div>
+
+      {/* Chooser — only shown for reimbursable customers, who can bill either
+          a reimbursable expense invoice or a blank typed invoice. */}
+      {chooserOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) setChooserOpen(false) }}>
+          <div className="w-full max-w-md rounded-2xl p-5" style={{ background: 'var(--surface)', boxShadow: 'var(--shadow-lg)' }}>
+            <h3 className="text-base font-bold" style={{ color: 'var(--text)' }}>New invoice</h3>
+            <p className="text-sm mt-0.5 mb-4" style={{ color: 'var(--text-muted)' }}>
+              This is a reimbursable customer — pick what you&apos;re billing.
+            </p>
+            <div className="space-y-2">
+              <Link href={reimbursableHref} className="block rounded-xl px-4 py-3" style={{ border: '1px solid var(--border)' }}>
+                <span className="block text-sm font-bold" style={{ color: 'var(--text)' }}>Reimbursable expense invoice</span>
+                <span className="block text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Bundle salaries, courier charges and queued expenses for this customer.</span>
+              </Link>
+              <Link href={typedHref} className="block rounded-xl px-4 py-3" style={{ border: '1px solid var(--border)' }}>
+                <span className="block text-sm font-bold" style={{ color: 'var(--text)' }}>Blank typed invoice</span>
+                <span className="block text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Type each line yourself (description, qty, rate, GST) and bill it.</span>
+              </Link>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setChooserOpen(false)} className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-2">

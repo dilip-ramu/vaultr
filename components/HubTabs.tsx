@@ -53,8 +53,13 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/templates', label: 'Templates' },
   ] },
   { name: 'System', tabs: [
-    { href: '/setup', label: 'Setup' },
-    { href: '/downloads', label: 'Downloads' },
+    { href: '/setup/settings',      label: 'Settings' },
+    { href: '/setup/email',         label: 'Email' },
+    { href: '/setup/categories',    label: 'Categories' },
+    { href: '/setup/account-types', label: 'Account types' },
+    { href: '/setup/currencies',    label: 'Currencies' },
+    { href: '/setup/export',        label: 'Export & Backup' },
+    { href: '/downloads',           label: 'Downloads' },
   ] },
 ]
 

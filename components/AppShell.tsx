@@ -379,10 +379,10 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
       {/* Settings — always at bottom of nav */}
       <div className={collapsed ? '' : 'pt-1'}>
         <NavLink
-          href="/settings"
+          href="/setup/settings"
           label="Settings"
           icon={Settings}
-          isActive={pathname === '/settings' || pathname.startsWith('/settings/')}
+          isActive={pathname.startsWith('/setup/settings')}
           collapsed={collapsed}
           onClick={onItemClick}
         />
@@ -473,7 +473,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             style={{ borderColor: 'var(--border)' }}
           >
             {collapsed ? (
-              <Link href="/settings"><Avatar url={avatarUrl} initials={initials} size="sm" /></Link>
+              <Link href="/setup/settings"><Avatar url={avatarUrl} initials={initials} size="sm" /></Link>
             ) : (
               <div className="flex items-center gap-2.5 px-1">
                 <Avatar url={avatarUrl} initials={initials} size="sm" />
@@ -531,7 +531,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
               >
                 <Search className="w-5 h-5" />
               </button>
-              <Link href="/settings" className="w-10 h-10 flex items-center justify-center">
+              <Link href="/setup/settings" className="w-10 h-10 flex items-center justify-center">
                 <Avatar url={avatarUrl} initials={initials} size="sm" />
               </Link>
             </div>
@@ -612,7 +612,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
                   </div>
                 </div>
               ))}
-              <NavLink href="/settings" label="Settings" icon={Settings} isActive={pathname === '/settings'} collapsed={false} onClick={() => setMobileSidebarOpen(false)} />
+              <NavLink href="/setup/settings" label="Settings" icon={Settings} isActive={pathname.startsWith('/setup/settings')} collapsed={false} onClick={() => setMobileSidebarOpen(false)} />
             </nav>
 
             <div className="px-3 py-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>

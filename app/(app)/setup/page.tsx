@@ -6,5 +6,5 @@ export const dynamic = 'force-dynamic'
  *  /organization (Deploy v66) — Setup is now just app config. Land on
  *  the Email tab so the URL still resolves. */
 export default function SetupRedirect() {
-  redirect('/setup/email')
+  redirect('/setup/settings')
 }

@@ -186,6 +186,11 @@ export interface RecoverableInvoiceLine {
   allocation_id: string | null
   line_number: number
   awb: string
+  /** Free-typed line label (typed tax invoices). When set, the PDF shows this
+   *  instead of the courier date/consignee/AWB block. */
+  description?: string | null
+  /** 'tax_invoice_line' for free-typed lines; null for courier shipment lines. */
+  item_type?: string | null
   client_name: string | null
   shipment_date: string | null
   hsn_sac: string | null

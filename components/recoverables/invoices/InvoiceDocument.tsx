@@ -278,9 +278,13 @@ export default function InvoiceDocument({
               <tr key={line.id}>
                 <td>{line.line_number}</td>
                 <td>
-                  <div>{fmtDate(line.shipment_date)}</div>
-                  {line.client_name && <div style={{ fontWeight: 600 }}>Consignee: {line.client_name}</div>}
-                  <div className="awb-cell">AWB: {line.awb}</div>
+                  {line.description
+                    ? <div style={{ fontWeight: 600 }}>{line.description}</div>
+                    : <>
+                        <div>{fmtDate(line.shipment_date)}</div>
+                        {line.client_name && <div style={{ fontWeight: 600 }}>Consignee: {line.client_name}</div>}
+                        <div className="awb-cell">AWB: {line.awb}</div>
+                      </>}
                 </td>
                 <td>{line.hsn_sac ?? settings?.hsn_sac ?? '996812'}</td>
                 <td className="right">{line.qty}</td>
