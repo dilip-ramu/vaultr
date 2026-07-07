@@ -475,11 +475,11 @@ export default function CardsClient({ cards, txns, statements, payAccounts }: Pr
   }, [cards, txnsByCard, bankByCard])
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="w-full px-4 md:px-8 py-6 space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-heading" style={{ color: 'var(--text)' }}>Credit Cards</h1>
-          <p className="text-caption">Statement amounts, due dates — and what the bank quietly charges you</p>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Cards</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{cards.length} card{cards.length !== 1 ? 's' : ''} · statement cycle, pay &amp; reconcile</p>
         </div>
         {grandTotal > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
