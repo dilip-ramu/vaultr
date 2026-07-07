@@ -253,253 +253,131 @@ export default function DashboardClient({
           </div>
         </div>
 
-        {/* ── Profitability — this month till date ───────────────────────── */}
-        {profitMTD && (
-          <Link
-            href="/profitability"
-            className="block rounded-2xl p-4 md:p-5 transition-opacity hover:opacity-90"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Scale className="w-4 h-4" style={{ color: 'var(--brand)' }} />
-                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                  Profitability — {monthLabel} till date
-                </p>
-              </div>
-              <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                  Realised (actual)
-                </p>
-                <p
-                  className="text-xl font-bold tracking-tight"
-                  style={{ color: profitMTD.actualNet >= 0 ? 'var(--income)' : 'var(--expense)' }}
-                >
-                  {profitMTD.actualNet < 0 ? '−₹' : '₹'}{fmt(profitMTD.actualNet)}
-                </p>
-                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                  in ₹{fmt(profitMTD.actualIncome)} · out ₹{fmt(profitMTD.actualExpense)}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                  Expected (booked)
-                </p>
-                <p
-                  className="text-xl font-bold tracking-tight"
-                  style={{ color: profitMTD.expectedNet >= 0 ? 'var(--income)' : 'var(--expense)' }}
-                >
-                  {profitMTD.expectedNet < 0 ? '−₹' : '₹'}{fmt(profitMTD.expectedNet)}
-                </p>
-                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                  in ₹{fmt(profitMTD.expectedIncome)} · out ₹{fmt(profitMTD.expectedExpense)}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                  Unrealised
-                </p>
-                <p
-                  className="text-xl font-bold tracking-tight"
-                  style={{ color: 'var(--text)' }}
-                >
-                  {profitMTD.outstandingNet < 0 ? '−₹' : '₹'}{fmt(profitMTD.outstandingNet)}
-                </p>
-                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>expected − actual</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                  To collect
-                </p>
-                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--income)' }}>
-                  ₹{fmt(Math.max(profitMTD.outstandingIncome, 0))}
-                </p>
-                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                  to pay ₹{fmt(Math.max(profitMTD.outstandingExpense, 0))}
-                </p>
-              </div>
-            </div>
-          </Link>
-        )}
+        {/* ── Bento grid (Command layout) ────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* ── Credit overview ────────────────────────────────────────────── */}
-        {(credit.totalLimit > 0 || credit.totalOutstanding > 0) && (
-          <Link
-            href="/accounts"
-            className="block rounded-2xl p-4 md:p-5 transition-opacity hover:opacity-90"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Credit</p>
-              <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />
+          {/* Needs attention — tall left column */}
+          <div className="lg:row-span-2 rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+              <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Needs attention</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Available credit</p>
-                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--income)' }}>₹{fmt(credit.totalAvailable)}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Total owed</p>
-                <p className="text-xl font-bold tracking-tight" style={{ color: 'var(--expense)' }}>₹{fmt(credit.totalOutstanding)}</p>
-                <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                  cards ₹{fmt(credit.totalCardOutstanding)}{credit.totalLoanOutstanding > 0 ? ` · loans ₹${fmt(credit.totalLoanOutstanding)}` : ''}
-                </p>
-              </div>
-              {credit.overallUtilisation != null && (
-                <div className="col-span-2 md:col-span-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Card utilisation</p>
-                  <p className="text-xl font-bold tracking-tight" style={{
-                    color: credit.overallUtilisation >= 0.9 ? 'var(--expense)' : credit.overallUtilisation >= 0.5 ? '#F59E0B' : 'var(--text)',
-                  }}>{Math.round(credit.overallUtilisation * 100)}%</p>
-                  <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                    <div className="h-full rounded-full" style={{
-                      width: `${Math.min(credit.overallUtilisation * 100, 100)}%`,
-                      background: credit.overallUtilisation >= 0.9 ? 'var(--expense)' : credit.overallUtilisation >= 0.5 ? '#F59E0B' : 'var(--income)',
-                    }} />
-                  </div>
-                </div>
-              )}
-            </div>
-          </Link>
-        )}
-
-        {/* ── Card payments due ──────────────────────────────────────────── */}
-        {cardDues.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
-              Card payments due
-            </p>
-            {/* Mobile: horizontal swipe with snap so each card lines up.
-                ≥md: even grid that fits up to 4 across with wrapping. */}
-            <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 lg:grid-cols-4 md:overflow-visible">
-              {cardDues.map(cd => {
+            <div className="space-y-2.5">
+              {cardDues.slice(0, 3).map(cd => {
                 const daysLeft = Math.ceil((new Date(cd.dueDate).getTime() - Date.now()) / 86400000)
                 const urgent = daysLeft <= 5
-                const color = cd.color ?? '#6366f1'
                 return (
-                  <div
-                    key={cd.id}
-                    className="snap-start shrink-0 w-[72%] sm:w-56 md:w-auto rounded-xl p-3 md:p-4 flex flex-col gap-2"
-                    style={{
-                      background: urgent ? 'rgba(239,68,68,0.07)' : 'var(--surface)',
-                      border: `1px solid ${urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
-                      borderLeft: `3px solid ${urgent ? '#ef4444' : color}`,
-                    }}
-                  >
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-widest truncate flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                        <CreditCard className="w-3 h-3 shrink-0" /> {cd.name}
-                      </p>
-                      <p className="text-lg font-bold" style={{ color: urgent ? '#ef4444' : 'var(--text)' }}>
-                        ₹{fmt(cd.amount)}
-                      </p>
-                      <p className="text-[10px]" style={{ color: urgent ? '#ef4444' : 'var(--text-faint)' }}>
-                        due {new Date(cd.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        {daysLeft >= 0 ? ` · ${daysLeft === 0 ? 'today' : `${daysLeft}d left`}` : ` · ${-daysLeft}d overdue`}
-                      </p>
+                  <div key={cd.id} className="rounded-xl p-3" style={{ background: urgent ? 'rgba(200,55,42,0.06)' : 'var(--surface-2)', border: `1px solid ${urgent ? 'rgba(200,55,42,0.2)' : 'var(--border)'}` }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{cd.name} card due</p>
+                      <span className="text-[10px] font-semibold shrink-0 mt-0.5" style={{ color: urgent ? 'var(--expense)' : 'var(--text-muted)' }}>{daysLeft >= 0 ? `${daysLeft}d` : `${-daysLeft}d`}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-auto">
-                      <button
-                        type="button"
-                        onClick={() => setPayCard(cd)}
-                        className="flex-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg text-white"
-                        style={{ background: urgent ? '#ef4444' : 'var(--brand)' }}
-                      >
-                        Mark Paid
-                      </button>
-                      <Link
-                        href="/cards"
-                        className="text-xs font-medium px-2 py-1.5 rounded-lg"
-                        style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
-                      >
-                        Details
-                      </Link>
-                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>₹{fmt(cd.amount)} payment due {new Date(cd.dueDate).toLocaleDateString('en-IN', { weekday: 'long' })}</p>
+                    <button onClick={() => setPayCard(cd)} className="mt-2 text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--expense)' }}>Mark paid</button>
                   </div>
                 )
               })}
+              {unbilledInvoices.length > 0 && (
+                <div className="rounded-xl p-3" style={{ background: 'var(--accent-light)', border: '1px solid var(--border)' }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{unbilledInvoices.length} unbilled invoice{unbilledInvoices.length !== 1 ? 's' : ''}</p>
+                    <span className="text-[10px] font-semibold shrink-0 mt-0.5" style={{ color: 'var(--accent)' }}>₹{fmt(supplierDue)}</span>
+                  </div>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Ready to bill</p>
+                  <Link href="/customers/invoices" className="mt-2 inline-block text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}>Review &amp; send</Link>
+                </div>
+              )}
+              {activeBudgets.filter(b => (b.percentage ?? 0) > 100).slice(0, 1).map(b => {
+                const cat = b.category as { name?: string } | null
+                return (
+                  <div key={b.id} className="rounded-xl p-3" style={{ background: 'var(--accent-light)', border: '1px solid var(--border)' }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{cat?.name ?? 'Budget'} over</p>
+                      <span className="text-[10px] font-semibold shrink-0 mt-0.5" style={{ color: 'var(--expense)' }}>{Math.round(b.percentage ?? 0)}%</span>
+                    </div>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>₹{fmt((b.spent ?? 0) - (b.amount ?? 0))} above your monthly cap</p>
+                    <Link href="/budget-insights" className="mt-2 inline-block text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}>View budget</Link>
+                  </div>
+                )
+              })}
+              {cardDues.length === 0 && unbilledInvoices.length === 0 && activeBudgets.every(b => (b.percentage ?? 0) <= 100) && (
+                <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>All clear — nothing needs attention.</p>
+              )}
             </div>
           </div>
-        )}
 
-        {/* ── 5-Month spending trend ─────────────────────────────────────── */}
-        <div>
-          {/* Spending trend chart */}
-          <div
-            className="rounded-2xl p-5"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-          >
+          {/* 5-month trend */}
+          <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>5-Month Trend</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>5-month trend</p>
               <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--income)' }} />
-                  Income
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--expense)' }} />
-                  Expense
-                </span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--income)' }} />In</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--expense)' }} />Out</span>
               </div>
             </div>
             {chartData.length > 1 ? (
-              <ResponsiveContainer width="100%" height={160}>
+              <ResponsiveContainer width="100%" height={150}>
                 <AreaChart data={chartData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="var(--income)" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="var(--income)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gExpense" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="var(--expense)" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="var(--expense)" stopOpacity={0} />
-                    </linearGradient>
+                    <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--income)" stopOpacity={0.2} /><stop offset="95%" stopColor="var(--income)" stopOpacity={0} /></linearGradient>
+                    <linearGradient id="gExpense" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--expense)" stopOpacity={0.15} /><stop offset="95%" stopColor="var(--expense)" stopOpacity={0} /></linearGradient>
                   </defs>
                   <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }}
-                    formatter={(v: number) => [`₹${fmt(v)}`, '']}
-                  />
-                  <Area type="monotone" dataKey="income"  stroke="var(--income)"  strokeWidth={2} fill="url(#gIncome)"  dot={false} />
+                  <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }} formatter={(v: number) => [`₹${fmt(v)}`, '']} />
+                  <Area type="monotone" dataKey="income" stroke="var(--income)" strokeWidth={2} fill="url(#gIncome)" dot={false} />
                   <Area type="monotone" dataKey="expense" stroke="var(--expense)" strokeWidth={2} fill="url(#gExpense)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-40 flex items-center justify-center">
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Not enough data yet</p>
-              </div>
+              <div className="h-36 flex items-center justify-center"><p className="text-sm" style={{ color: 'var(--text-muted)' }}>Not enough data yet</p></div>
             )}
           </div>
-        </div>
 
-        {/* ── Spend by Payee (one ring per payee, coloured by category) ──── */}
-        <PayeeSpendRings rings={payeeRings} />
+          {/* Credit gauge */}
+          <div className="rounded-2xl p-5 flex flex-col" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+            <p className="text-sm font-bold mb-2" style={{ color: 'var(--text)' }}>Credit</p>
+            {credit.overallUtilisation != null ? (
+              <div className="flex flex-col items-center flex-1 justify-center">
+                <div className="relative w-28 h-28">
+                  <svg viewBox="0 0 100 100" className="w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--surface-2)" strokeWidth="10" />
+                    <circle cx="50" cy="50" r="42" fill="none" strokeLinecap="round" strokeWidth="10"
+                      stroke={credit.overallUtilisation >= 0.9 ? 'var(--expense)' : 'var(--brand)'}
+                      strokeDasharray={`${Math.min(credit.overallUtilisation, 1) * 263.9} 263.9`} />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-extrabold" style={{ color: 'var(--text)' }}>{Math.round(credit.overallUtilisation * 100)}%</span>
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>utilised</span>
+                  </div>
+                </div>
+                <div className="flex gap-8 mt-3 text-center">
+                  <div><p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Available</p><p className="text-sm font-bold" style={{ color: 'var(--income)' }}>₹{fmt(credit.totalAvailable)}</p></div>
+                  <div><p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Owed</p><p className="text-sm font-bold" style={{ color: 'var(--expense)' }}>₹{fmt(credit.totalOutstanding)}</p></div>
+                </div>
+              </div>
+            ) : <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No credit cards</p>}
+          </div>
 
-        {/* ── Budgets ────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-4">
+          {/* Top spend */}
+          <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+            <p className="text-sm font-bold mb-2" style={{ color: 'var(--text)' }}>Top spend</p>
+            <PayeeSpendRings rings={payeeRings} />
+          </div>
 
           {/* Budgets */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Budgets</p>
-              <Link href="/budget-insights" className="flex items-center gap-0.5 text-xs font-medium" style={{ color: 'var(--brand)' }}>
-                All <ChevronRight className="w-3 h-3" />
-              </Link>
+          <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Budgets</p>
+              <Link href="/budget-insights" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>All</Link>
             </div>
             {activeBudgets.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-2">
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active budgets</p>
-                <Link href="/budget-insights" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>Set one up →</Link>
-              </div>
+              <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>No active budgets</p>
             ) : (
-              <div className="p-5 space-y-4">
+              <div className="space-y-3">
                 {activeBudgets.map(b => {
-                  const pct  = Math.min(b.percentage ?? 0, 100)
+                  const pct = Math.min(b.percentage ?? 0, 100)
                   const over = (b.percentage ?? 0) > 100
-                  const cat  = b.category as { name?: string; icon?: string } | null
+                  const cat = b.category as { name?: string; icon?: string } | null
                   return (
                     <div key={b.id} className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -507,18 +385,10 @@ export default function DashboardClient({
                           {cat?.icon && <span className="text-sm">{getCategoryEmoji(cat.icon)}</span>}
                           <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>{cat?.name ?? 'Budget'}</p>
                         </div>
-                        <p className="text-xs shrink-0 ml-2" style={{ color: over ? 'var(--expense)' : 'var(--text-muted)' }}>
-                          ₹{fmt(b.spent ?? 0)} / ₹{fmt(b.amount)}
-                        </p>
+                        <p className="text-xs shrink-0 ml-2" style={{ color: over ? 'var(--expense)' : 'var(--text-muted)' }}>{Math.round(b.percentage ?? 0)}%</p>
                       </div>
                       <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${pct}%`,
-                            background: over ? 'var(--expense)' : pct > 80 ? '#f59e0b' : 'var(--brand)',
-                          }}
-                        />
+                        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: over ? 'var(--expense)' : pct > 80 ? 'var(--amber)' : 'var(--brand)' }} />
                       </div>
                     </div>
                   )
@@ -526,7 +396,37 @@ export default function DashboardClient({
               </div>
             )}
           </div>
+        </div>
 
+        {/* ── Recent transactions ────────────────────────────────────────── */}
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Recent transactions</p>
+            <Link href="/transactions" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>View all</Link>
+          </div>
+          {txSlice.length === 0 ? (
+            <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No transactions yet</p>
+          ) : (
+            <div className="grid sm:grid-cols-2">
+              {txSlice.map((tx, i) => {
+                const acct = tx.account as { name?: string } | undefined
+                const cat = tx.category as { name?: string; icon?: string } | undefined
+                const income = tx.type === 'income'
+                return (
+                  <div key={tx.id} className="flex items-center justify-between gap-3 px-5 py-3" style={{ borderTop: i >= 2 ? '1px solid var(--border)' : 'none' }}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-base shrink-0">{tx.type === 'transfer' ? '↔️' : getCategoryEmoji(cat?.icon)}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{tx.name || cat?.name || 'Uncategorised'}</p>
+                        <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{acct?.name ?? ''}{acct?.name ? ' · ' : ''}{getRelativeDate(tx.date)}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-semibold shrink-0" style={{ color: income ? 'var(--income)' : 'var(--expense)' }}>{income ? '+' : '−'}₹{fmt(tx.amount)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
       </div>
