@@ -12,7 +12,7 @@ export default async function CardsPage() {
   const [{ data: cards }, { data: payAccounts }] = await Promise.all([
     supabase
       .from('accounts')
-      .select('id, name, color, avatar_url, initial_balance, statement_day, statement_due_day')
+      .select('id, name, color, avatar_url, initial_balance, statement_day, statement_due_day, credit_limit')
       .eq('user_id', uid)
       .eq('type', 'credit')
       .eq('is_active', true)

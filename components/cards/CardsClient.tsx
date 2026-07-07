@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CreditCard, AlertTriangle, PiggyBank, X } from 'lucide-react'
+import { CreditCard, AlertTriangle, PiggyBank, X, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getTodayString } from '@/lib/utils'
 import { cardOverview, type CardTxn, type CardCycle } from '@/lib/cards'
@@ -18,6 +18,7 @@ interface CardAccount {
   initial_balance: number
   statement_day: number | null
   statement_due_day: number | null
+  credit_limit: number | null
 }
 
 interface StatementRow {
@@ -131,6 +132,20 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
   const latestRow = latest ? stmtRows[latest.statementDate] : undefined
   const latestPaid = !!latestRow?.payment_transaction_id || (latest ? latest.remainingDue <= 0 && latest.paidSinceClose > 0 : false)
 
+  // Derived display values for the spec card visual + stats
+  const remainingDue = latest ? latest.remainingDue : 0
+  const dueDateStr = latest ? new Date(latest.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : ''
+  const daysToDue = latest ? Math.ceil((new Date(latest.dueDate).getTime() - Date.now()) / 86400000) : null
+  const paidOff = remainingDue <= 0
+  const urgent = !paidOff && daysToDue != null && daysToDue <= 2
+  const dueColor = paidOff ? 'var(--income)' : daysToDue != null && daysToDue <= 2 ? 'var(--expense)' : daysToDue != null && daysToDue <= 5 ? 'var(--amber)' : 'var(--text-muted)'
+  const dueLabel = paidOff ? 'No dues' : daysToDue == null ? '' : daysToDue < 0 ? `${-daysToDue}d overdue · ${dueDateStr}` : daysToDue === 0 ? `Due today · ${dueDateStr}` : `Due in ${daysToDue} day${daysToDue !== 1 ? 's' : ''} · ${dueDateStr}`
+  const statementAmount = latest ? (latest.bankAmount ?? latest.calculatedAmount) : 0
+  const outstanding = (overview ? overview.currentCycleSpend : 0) + remainingDue
+  const cardLimit = card.credit_limit ? Number(card.credit_limit) : null
+  const utilisation = cardLimit && cardLimit > 0 ? outstanding / cardLimit : null
+  const cardColor = card.color ?? '#2A7A50'
+
   function openPay(cycle: CardCycle) {
     setPayBankAmount(cycle.bankAmount !== null ? String(cycle.bankAmount) : '')
     setPayFromId(payAccounts[0]?.id ?? '')
@@ -212,7 +227,7 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
   }
 
   return (
-    <div className="card p-4 space-y-4">
+    <div className="rounded-2xl p-4 md:p-5 space-y-4" style={{ background: 'var(--surface)', border: `1px solid ${urgent ? 'color-mix(in srgb, var(--expense) 30%, transparent)' : 'var(--border)'}`, boxShadow: 'var(--shadow)' }}>
       {/* Card header + cycle settings */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -221,7 +236,7 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
           ) : (
             <CreditCard className="w-4 h-4" style={{ color: card.color ?? 'var(--brand)' }} />
           )}
-          <h2 className="text-heading" style={{ color: 'var(--text)' }}>{card.name}</h2>
+          <h2 className="text-base font-bold" style={{ color: 'var(--text)' }}>{card.name}</h2>
         </div>
         <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
           <span>Statement closes on</span>
@@ -237,56 +252,67 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
         </p>
       ) : !overview ? null : (
         <>
-          {/* Headline strip */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div>
-              <p className="text-caption">Latest statement ({latest ? formatDate(latest.statementDate) : '—'})</p>
-              <p className="text-heading" style={{ color: 'var(--text)' }}>
-                {latest ? fmt(latest.bankAmount ?? latest.calculatedAmount) : '—'}
-              </p>
+          {/* Card visual + statement stats */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* gradient card face */}
+            <div className="lg:w-[260px] shrink-0 rounded-2xl p-5 flex flex-col justify-between" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${cardColor} 52%, #000), ${cardColor})`, minHeight: '134px' }}>
+              <div className="flex items-center justify-between">
+                <CreditCard className="w-6 h-6" style={{ color: 'rgba(255,255,255,0.9)' }} />
+                <span className="text-[11px] font-bold tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.8)' }}>CREDIT</span>
+              </div>
+              <div>
+                <p className="text-[15px] font-semibold tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.85)' }}>•••• ••••</p>
+                <p className="text-[13px] font-bold mt-2" style={{ color: '#fff' }}>{card.name}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-caption">Still to pay{latest?.dueDate ? ` by ${formatDate(latest.dueDate)}` : ''}</p>
-              <div className="flex items-center gap-2">
-                <p className="text-heading" style={{ color: latest && latest.remainingDue > 0 ? 'var(--expense)' : 'var(--income)' }}>
-                  {latest ? fmt(latest.remainingDue) : '—'}
-                </p>
+            {/* stats */}
+            <div className="flex-1 min-w-0">
+              {dueLabel && (
+                <div className="flex items-center gap-2 mb-3.5">
+                  <span className="w-2 h-2 rounded-full" style={{ background: dueColor }} />
+                  <p className="text-xs font-bold" style={{ color: dueColor }}>{dueLabel}</p>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-x-8 gap-y-3 mb-4">
+                <div>
+                  <p className="text-[10.5px]" style={{ color: 'var(--text-muted)' }}>Statement amount</p>
+                  <p className="text-[22px] font-extrabold tracking-tight" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(statementAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-[10.5px]" style={{ color: 'var(--text-muted)' }}>Remaining due</p>
+                  <p className="text-[22px] font-extrabold tracking-tight" style={{ color: remainingDue > 0 ? 'var(--expense)' : 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{fmt(remainingDue)}</p>
+                </div>
+                {utilisation != null && (
+                  <div>
+                    <p className="text-[10.5px]" style={{ color: 'var(--text-muted)' }}>Utilisation</p>
+                    <p className="text-[22px] font-extrabold tracking-tight" style={{ color: utilisation >= 0.9 ? 'var(--expense)' : 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(utilisation * 100)}%</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10.5px]" style={{ color: 'var(--text-muted)' }}>Spent this cycle</p>
+                  <p className="text-[22px] font-extrabold tracking-tight" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(overview.currentCycleSpend)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
                 {latest && latest.remainingDue > 0 && (
-                  <button
-                    onClick={() => openPay(latest)}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold"
-                    style={{ background: 'var(--brand)', color: '#fff' }}
-                  >
-                    Pay
-                  </button>
+                  <button onClick={() => openPay(latest)} className="text-white text-[12.5px] font-bold rounded-lg px-4 py-2" style={{ background: urgent ? 'var(--expense)' : 'var(--brand)' }}>Pay statement</button>
                 )}
                 {latest && latestPaid && latestRow?.payment_transaction_id && (
-                  <button
-                    onClick={() => markUnpaid(latest)}
-                    disabled={saving}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold"
-                    style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-                    title="Deletes the transfer transaction this payment created"
-                  >
-                    Paid ✓ · undo
-                  </button>
+                  <button onClick={() => markUnpaid(latest)} disabled={saving} className="text-[12.5px] font-semibold rounded-lg px-3 py-2" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }} title="Deletes the transfer transaction this payment created">Paid ✓ · undo</button>
+                )}
+                {latest && latest.bankAmount != null && (
+                  Math.abs(latest.hiddenCharges ?? 0) < 0.01
+                    ? <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold" style={{ color: 'var(--income)' }}><CheckCircle2 className="w-3.5 h-3.5" /> Bank amount matches</span>
+                    : <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold" style={{ color: 'var(--amber)' }}><AlertTriangle className="w-3.5 h-3.5" /> Hidden charge {(latest.hiddenCharges ?? 0) > 0 ? '+' : '−'}{fmt(Math.abs(latest.hiddenCharges ?? 0))}</span>
                 )}
               </div>
             </div>
-            <div>
-              <p className="text-caption">Spent this cycle (since {formatDate(overview.currentCycleStart)})</p>
-              <p className="text-heading" style={{ color: 'var(--text)' }}>{fmt(overview.currentCycleSpend)}</p>
-            </div>
-            <div>
-              <p className="text-caption">Hidden charges · {overview.cyclesWithBankAmount} statement{overview.cyclesWithBankAmount !== 1 ? 's' : ''} checked</p>
-              <p className="text-heading" style={{ color: overview.totalHiddenCharges > 0 ? 'var(--expense)' : 'var(--income)' }}>
-                {fmt(overview.totalHiddenCharges)}
-              </p>
-            </div>
           </div>
 
-          {/* Cycle history */}
-          <div className="overflow-x-auto">
+          {/* Cycle history (collapsible) */}
+          <details>
+            <summary className="cursor-pointer text-[12px] font-bold py-1.5 select-none" style={{ color: 'var(--brand)' }}>Statement history &amp; hidden charges</summary>
+            <div className="overflow-x-auto mt-2">
             <table className="w-full min-w-[680px] text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -347,10 +373,11 @@ function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }:
               </tbody>
             </table>
           </div>
-          <p className="text-caption">
+          <p className="text-caption mt-2">
             "Bank said" — type in the closing balance from the bank's statement SMS/PDF. The difference is interest,
             fees and GST the bank added that your transactions don't show.
           </p>
+          </details>
 
           {/* Pay modal */}
           {payOpen && latest && (
@@ -474,12 +501,34 @@ export default function CardsClient({ cards, txns, statements, payAccounts }: Pr
     return Math.round(total * 100) / 100
   }, [cards, txnsByCard, bankByCard])
 
+  // Portfolio summary for the spec's 3 tiles
+  const summary = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const weekAhead = new Date(); weekAhead.setDate(weekAhead.getDate() + 7)
+    const weekStr = weekAhead.toISOString().split('T')[0]
+    let outstanding = 0, available = 0, hasLimit = false, dueAmt = 0, dueCount = 0
+    for (const c of cards) {
+      if (!c.statement_day) continue
+      const o = cardOverview({
+        accountId: c.id, initialBalance: Number(c.initial_balance) || 0,
+        statementDay: c.statement_day, dueDay: c.statement_due_day,
+        txns: txnsByCard[c.id] ?? [], bankAmounts: bankByCard[c.id] ?? {}, today,
+      })
+      const latest = o.cycles[0]
+      const owed = (latest ? latest.remainingDue : 0) + o.currentCycleSpend
+      outstanding += owed
+      if (c.credit_limit && c.credit_limit > 0) { hasLimit = true; available += Math.max(0, Number(c.credit_limit) - owed) }
+      if (latest && latest.remainingDue > 0 && latest.dueDate >= today && latest.dueDate <= weekStr) { dueAmt += latest.remainingDue; dueCount++ }
+    }
+    return { outstanding, available, hasLimit, dueAmt, dueCount }
+  }, [cards, txnsByCard, bankByCard])
+
   return (
     <div className="w-full px-4 md:px-8 py-6 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Cards</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{cards.length} card{cards.length !== 1 ? 's' : ''} · statement cycle, pay &amp; reconcile</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{cards.length} card{cards.length !== 1 ? 's' : ''}{summary.outstanding > 0 ? ` · ${fmt(summary.outstanding)} outstanding` : ''}</p>
         </div>
         {grandTotal > 0 && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
@@ -491,6 +540,27 @@ export default function CardsClient({ cards, txns, statements, payAccounts }: Pr
           </div>
         )}
       </div>
+
+      {/* Summary tiles */}
+      {cards.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+            <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>TOTAL OUTSTANDING</p>
+            <p className="text-[22px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{fmt(summary.outstanding)}</p>
+          </div>
+          <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+            <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>AVAILABLE CREDIT</p>
+            <p className="text-[22px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{summary.hasLimit ? fmt(summary.available) : '—'}</p>
+          </div>
+          <div className="rounded-2xl p-4 flex items-center justify-between" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>DUE THIS WEEK</p>
+              <p className="text-[22px] font-extrabold tracking-tight mt-1" style={{ color: summary.dueAmt > 0 ? 'var(--amber)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(summary.dueAmt)}</p>
+            </div>
+            {summary.dueCount > 0 && <span className="text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0" style={{ color: 'var(--amber)', background: 'var(--accent-light)' }}>{summary.dueCount} card{summary.dueCount !== 1 ? 's' : ''}</span>}
+          </div>
+        </div>
+      )}
 
       {cards.length === 0 ? (
         <div className="card p-8 text-center space-y-2">
