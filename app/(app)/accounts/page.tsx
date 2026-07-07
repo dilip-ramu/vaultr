@@ -28,7 +28,7 @@ export default async function AccountsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: accounts }, { data: overrides }, reconcileTxns] = await Promise.all([
+  const [{ data: accounts }, { data: overrides }, { data: debitCards }, reconcileTxns] = await Promise.all([
     supabase
       .from('account_balances')
       .select('*')
@@ -39,6 +39,14 @@ export default async function AccountsPage() {
       .from('builtin_account_type_overrides')
       .select('*')
       .eq('user_id', user!.id),
+    // v73 — debit cards linked to accounts (table may not exist until the
+    // migration runs; fall back to [] so the page never hard-fails).
+    supabase
+      .from('debit_cards')
+      .select('*')
+      .eq('user_id', user!.id)
+      .order('created_at', { ascending: true })
+      .then(r => r, () => ({ data: [] })),
     fetchAllAccountTxns(supabase, user!.id),
   ])
 
@@ -46,6 +54,7 @@ export default async function AccountsPage() {
     <AccountsClient
       initialAccounts={accounts ?? []}
       builtinOverrides={overrides ?? []}
+      debitCards={debitCards ?? []}
       reconcileTxns={reconcileTxns}
     />
   )
