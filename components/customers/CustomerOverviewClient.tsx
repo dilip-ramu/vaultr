@@ -29,7 +29,7 @@ interface Props {
   orders: OrderRow[]
   styles: StyleRow[]
   customers: { id: string; name: string; pays_commission: boolean }[]
-  receivables: { balance_due: number; customer_id: string | null; customer_name: string | null }[]
+  receivables: { balance_due: number; customer_id: string | null; customer_name: string | null; due_date?: string | null }[]
 }
 
 function fmtAmt(n: number) {
@@ -111,9 +111,21 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [styles, receivables, orderById, customerById])
 
-  const totalIncoming = topCustomers.reduce((s, c) => s + c.incoming, 0)
-  const totalReceivable = topCustomers.reduce((s, c) => s + c.receivable, 0)
-  const totalOverdue = topCustomers.reduce((s, c) => s + c.overdue, 0)
+  // Receivables ageing from invoice due dates
+  const ageing = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const b = { notDue: 0, d30: 0, d60: 0, d60plus: 0 }
+    for (const r of receivables) {
+      const amt = Number(r.balance_due || 0)
+      if (!r.due_date) { b.notDue += amt; continue }
+      const days = Math.floor((today.getTime() - new Date(r.due_date).getTime()) / 86400000)
+      if (days <= 0) b.notDue += amt
+      else if (days <= 30) b.d30 += amt
+      else if (days <= 60) b.d60 += amt
+      else b.d60plus += amt
+    }
+    return b
+  }, [receivables])
 
   return (
     <div className="space-y-5">
@@ -167,12 +179,12 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
         {/* Rail: breakdown + top debtor */}
         <div className="space-y-4">
           <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-            <p className="text-sm font-bold mb-3" style={{ color: 'var(--text)' }}>Breakdown</p>
+            <p className="text-sm font-bold mb-3" style={{ color: 'var(--text)' }}>Ageing</p>
             <div className="space-y-2.5">
-              {[['Incoming pipeline', totalIncoming, 'var(--amber)'], ['Receivables', totalReceivable, 'var(--income)'], ['Overdue', totalOverdue, 'var(--expense)']].map(([label, val, col]) => (
-                <div key={label as string} className="flex items-center justify-between text-[13px]">
-                  <span className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}><span className="w-2 h-2 rounded-full" style={{ background: col as string }} />{label}</span>
-                  <span className="font-bold tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(val as number)}</span>
+              {([['Not due', ageing.notDue, 'var(--income)'], ['1–30 days', ageing.d30, 'var(--amber)'], ['31–60 days', ageing.d60, '#E8863B'], ['60+ days', ageing.d60plus, 'var(--expense)']] as const).map(([label, val, col]) => (
+                <div key={label} className="flex items-center justify-between text-[13px]">
+                  <span className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}><span className="w-2 h-2 rounded-full" style={{ background: col }} />{label}</span>
+                  <span className="font-bold tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(val)}</span>
                 </div>
               ))}
             </div>

@@ -234,13 +234,17 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     return { monthNet: net, sparkPoints: poly, monthLabel: now.toLocaleDateString('en-IN', { month: 'long' }).toUpperCase() }
   }, [transactions])
 
-  // Open an attachment in a new tab. The transactions query doesn't include a
-  // ready URL, so mint a short-lived signed URL from the storage bucket.
-  const openAttachment = async (att: { file_path: string; url?: string }) => {
-    if (att.url) { window.open(att.url, '_blank', 'noopener'); return }
-    const s = createClient()
-    const { data } = await s.storage.from('vaultr-attachments').createSignedUrl(att.file_path, 3600)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
+  // Inline attachment preview shown in the detail rail. Mints a short-lived
+  // signed URL (the transactions query doesn't include a ready one).
+  const [preview, setPreview] = useState<{ id: string; url: string; name: string; contentType: string | null } | null>(null)
+  const openAttachment = async (att: { id: string; file_path: string; file_name: string; content_type: string | null; url?: string }) => {
+    let url = att.url
+    if (!url) {
+      const s = createClient()
+      const { data } = await s.storage.from('vaultr-attachments').createSignedUrl(att.file_path, 3600)
+      url = data?.signedUrl
+    }
+    if (url) setPreview({ id: att.id, url, name: att.file_name, contentType: att.content_type })
     else notify('Could not open attachment', 'error')
   }
 
@@ -288,13 +292,27 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         {(tx.attachments?.length ?? 0) > 0 && (
           <div className="py-4 space-y-2" style={{ borderBottom: '1px solid var(--border)' }}>
             <p className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>ATTACHMENT{(tx.attachments?.length ?? 0) > 1 ? 'S' : ''}</p>
-            {(tx.attachments ?? []).map(a => (
-              <button key={a.id} onClick={() => openAttachment(a)} className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                <FileText className="w-[18px] h-[18px] shrink-0" style={{ color: 'var(--brand)' }} />
-                <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{a.file_name}</span>
-                <ExternalLink className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-faint)' }} />
-              </button>
-            ))}
+            {(tx.attachments ?? []).map(a => {
+              const open = preview?.id === a.id
+              return (
+                <button key={a.id} onClick={() => (open ? setPreview(null) : openAttachment(a))} className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left" style={{ background: open ? 'var(--brand-light)' : 'var(--surface-2)', border: `1px solid ${open ? 'var(--brand)' : 'var(--border)'}` }}>
+                  <FileText className="w-[18px] h-[18px] shrink-0" style={{ color: 'var(--brand)' }} />
+                  <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{a.file_name}</span>
+                  {open ? <X className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-faint)' }} /> : <ExternalLink className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-faint)' }} />}
+                </button>
+              )
+            })}
+            {preview && tx.attachments?.some(a => a.id === preview.id) && (
+              <div className="rounded-xl overflow-hidden mt-1" style={{ border: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between px-2.5 py-1.5" style={{ background: 'var(--surface-2)' }}>
+                  <span className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{preview.name}</span>
+                  <a href={preview.url} target="_blank" rel="noreferrer" title="Open in new tab" className="shrink-0"><ExternalLink className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} /></a>
+                </div>
+                {(preview.contentType ?? '').startsWith('image/')
+                  ? <img src={preview.url} alt={preview.name} className="w-full max-h-[440px] object-contain" style={{ background: 'var(--surface-2)' }} />
+                  : <iframe src={preview.url} title={preview.name} className="w-full" style={{ height: '440px', border: 'none', background: 'var(--surface-2)' }} />}
+              </div>
+            )}
           </div>
         )}
         <div className="flex gap-2 mt-4">
@@ -530,9 +548,9 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         </div>
       )}
 
-      {/* Body: columnar list + persistent detail rail */}
-      <div className="flex gap-5 items-start">
-        <div className="flex-1 min-w-0">
+      {/* Body: columnar list + persistent detail rail (50/50 split) */}
+      <div className="grid lg:grid-cols-2 gap-5 items-start">
+        <div className="min-w-0">
           {grouped.length === 0 ? (
             <div className="text-center py-16">
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--surface-2)' }}>
@@ -598,7 +616,13 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
                               </p>
                             </div>
                             {(tx.attachments?.length ?? 0) > 0 && (
-                              <Paperclip className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-faint)' }} />
+                              <button
+                                onClick={e => { e.stopPropagation(); setSelectedTx(tx); const a = tx.attachments?.[0]; if (a) openAttachment(a) }}
+                                title="View attachment"
+                                className="shrink-0 p-0.5 rounded hover:opacity-70"
+                              >
+                                <Paperclip className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} />
+                              </button>
                             )}
                             <span className="text-[14.5px] font-bold shrink-0" style={{ color, fontVariantNumeric: 'tabular-nums' }}>
                               {income ? '+' : transfer ? '' : '−'}{formatCurrency(tx.amount)}
@@ -615,7 +639,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         </div>
 
         {/* Desktop detail rail */}
-        <aside className="hidden lg:block w-[330px] shrink-0 sticky top-4 rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+        <aside className="hidden lg:block sticky top-4 rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
           {selectedTx ? renderDetail(selectedTx) : (
             <div className="text-center py-16">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--surface-2)' }}>

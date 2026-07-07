@@ -30,7 +30,7 @@ export default async function CustomerOverviewPage() {
       .order('name'),
     supabase
       .from('recoverable_invoices')
-      .select('balance_due, customer_id, customer_name')
+      .select('balance_due, customer_id, customer_name, due_date')
       .eq('user_id', user.id)
       .eq('invoice_type', 'tax_invoice')  // Batch E: skip reimbursements
       .in('status', ['sent', 'overdue'])

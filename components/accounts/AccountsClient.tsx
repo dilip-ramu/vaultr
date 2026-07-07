@@ -165,19 +165,19 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           <p className="text-4xl font-extrabold tracking-tight leading-none mt-1.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(netWorth)}</p>
         </div>
         <div className="hidden md:block w-px h-14 mx-6" style={{ background: 'rgba(255,255,255,0.15)' }} />
-        <div className="grid grid-cols-3 gap-4 md:flex-[2] md:gap-6">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 md:flex-[2] md:gap-6">
+          <div className="flex items-baseline justify-between gap-2 sm:block">
             <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Assets</p>
-            <p className="text-xl md:text-[22px] font-extrabold tracking-tight mt-0.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalAssets)}</p>
+            <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalAssets)}</p>
           </div>
-          <div>
+          <div className="flex items-baseline justify-between gap-2 sm:block">
             <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Liabilities</p>
-            <p className="text-xl md:text-[22px] font-extrabold tracking-tight mt-0.5" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalLiabilities)}</p>
+            <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalLiabilities)}</p>
           </div>
           {credit.totalLimit > 0 && (
-            <div>
+            <div className="flex items-baseline justify-between gap-2 sm:block">
               <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Available credit</p>
-              <p className="text-xl md:text-[22px] font-extrabold tracking-tight mt-0.5" style={{ color: '#9DE8B8', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(credit.totalAvailable)}</p>
+              <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#9DE8B8', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(credit.totalAvailable)}</p>
             </div>
           )}
         </div>
