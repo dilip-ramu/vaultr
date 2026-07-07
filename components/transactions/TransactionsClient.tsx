@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Search, ArrowLeftRight, TrendingUp, TrendingDown, Filter, X, CheckSquare, Square, Trash2 } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, TrendingUp, TrendingDown, Filter, X, CheckSquare, Square, Trash2, Download, ChevronDown, SlidersHorizontal, FileText, ExternalLink, Pencil, ArrowRight } from 'lucide-react'
 import type { Transaction, Account, Category, Payee } from '@/lib/types'
+import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
 import TransactionItem from './TransactionItem'
 import { createClient } from '@/lib/supabase/client'
@@ -196,47 +197,169 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     setShowForm(true)
   }, [])
 
+  // Persistent detail-rail selection (replaces the pop-up modal on desktop)
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
+
+  // Compact ₹ formatter for the stat strip (₹1.42Cr / ₹98.6L / ₹4.5K)
+  const fmtCompact = useCallback((n: number) => {
+    const abs = Math.abs(n)
+    const sign = n < 0 ? '−' : ''
+    if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(2).replace(/\.?0+$/, '')}Cr`
+    if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(2).replace(/\.?0+$/, '')}L`
+    if (abs >= 1e3) return `${sign}₹${(abs / 1e3).toFixed(1).replace(/\.?0+$/, '')}K`
+    return `${sign}₹${abs.toFixed(0)}`
+  }, [])
+
+  const netPosition = totalCredits - totalDebits
+
+  // This-month net flow + a small cumulative sparkline
+  const { monthNet, sparkPoints, monthLabel } = useMemo(() => {
+    const now = new Date()
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const monthTx = transactions
+      .filter(t => t.date.startsWith(ym) && t.type !== 'transfer')
+      .sort((a, b) => a.date.localeCompare(b.date))
+    let running = 0
+    const cum = monthTx.map(t => { running += t.type === 'income' ? t.amount : -t.amount; return running })
+    const net = running
+    // sample up to 6 points for the polyline
+    const pts: number[] = []
+    if (cum.length > 0) {
+      const n = Math.min(6, cum.length)
+      for (let i = 0; i < n; i++) pts.push(cum[Math.floor((i * (cum.length - 1)) / (n - 1 || 1))])
+    }
+    const min = Math.min(0, ...pts), max = Math.max(0, ...pts)
+    const range = max - min || 1
+    const poly = pts.map((v, i) => `${(i / (pts.length - 1 || 1)) * 90},${28 - ((v - min) / range) * 24}`).join(' ')
+    return { monthNet: net, sparkPoints: poly, monthLabel: now.toLocaleDateString('en-IN', { month: 'long' }).toUpperCase() }
+  }, [transactions])
+
+  // Shared detail-panel content, reused in the desktop rail + mobile sheet
+  const renderDetail = (tx: Transaction) => {
+    const acct = tx.account as Account | undefined
+    const cat = tx.category as Category | undefined
+    const income = tx.type === 'income'
+    const transfer = tx.type === 'transfer'
+    const color = income ? 'var(--income)' : transfer ? 'var(--transfer)' : 'var(--expense)'
+    const usedFor = companies.find(c => c.id === tx.used_for_company_id)?.name
+    const att = tx.attachments?.[0]
+    return (
+      <>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-extrabold tracking-[0.06em]" style={{ color: 'var(--text-muted)' }}>TRANSACTION</p>
+          <button onClick={() => setSelectedTx(null)} aria-label="Close"><X className="w-4 h-4" style={{ color: 'var(--text-faint)' }} /></button>
+        </div>
+        <div className="flex flex-col items-center text-center pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-3" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
+            {transfer ? '↔️' : getCategoryEmoji(cat?.icon)}
+          </div>
+          <p className="text-[15px] font-bold" style={{ color: 'var(--text)' }}>{tx.name || cat?.name || 'Transaction'}</p>
+          <p className="text-3xl font-extrabold mt-1.5" style={{ color, fontVariantNumeric: 'tabular-nums' }}>
+            {income ? '+' : transfer ? '' : '−'}{formatCurrency(tx.amount)}
+          </p>
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full mt-2" style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
+            {tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}
+          </span>
+        </div>
+        <div className="py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
+          {[
+            ['Date', new Date(tx.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })],
+            ['Account', acct?.name ?? '—'],
+            ['Category', cat ? `${getCategoryEmoji(cat.icon)} ${cat.name}` : '—'],
+            ['Payee', (tx.payee as Payee | undefined)?.name ?? '—'],
+            ...(usedFor ? [['Used for', usedFor]] : []),
+            ...(tx.notes ? [['Notes', tx.notes]] : []),
+          ].map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-3 py-2">
+              <span className="text-[12.5px] shrink-0" style={{ color: 'var(--text-muted)' }}>{k}</span>
+              <span className="text-[12.5px] font-semibold text-right" style={{ color: 'var(--text)' }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        {att && (
+          <div className="py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--text-muted)' }}>ATTACHMENT</p>
+            <a href={att.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+              <FileText className="w-[18px] h-[18px]" style={{ color: 'var(--brand)' }} />
+              <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{att.file_name}</span>
+              <ExternalLink className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />
+            </a>
+          </div>
+        )}
+        <div className="flex gap-2 mt-4">
+          <button onClick={() => handleEdit(tx)} className="flex-1 flex items-center justify-center gap-1.5 text-white rounded-xl py-2.5 text-[12.5px] font-bold" style={{ background: 'var(--brand)' }}>
+            <Pencil className="w-3.5 h-3.5" /> Edit
+          </button>
+          <button onClick={async () => { if (await confirmDialog('Delete this transaction?')) { const s = createClient(); const { data: { user } } = await s.auth.getUser(); if (user) await s.from('transactions').delete().eq('id', tx.id).eq('user_id', user.id); handleDelete(tx.id); setSelectedTx(null) } }} className="flex items-center justify-center rounded-xl px-3.5 py-2.5" style={{ background: 'var(--surface)', color: 'var(--expense)', border: '1px solid var(--border)' }}>
+            <Trash2 className="w-[15px] h-[15px]" />
+          </button>
+        </div>
+      </>
+    )
+  }
+
   return (
-    <div className={hideHeader ? '' : 'max-w-2xl mx-auto px-4 py-6'}>
+    <div className={hideHeader ? '' : 'w-full px-4 md:px-6 py-6'}>
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         {!hideHeader ? (
           <div>
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Transactions</h1>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{filtered.length} records</p>
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Transactions</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{filtered.length.toLocaleString('en-IN')} of {transactions.length.toLocaleString('en-IN')} records</p>
           </div>
         ) : (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{filtered.length} records</p>
         )}
-        <button
-          onClick={() => { setEditTx(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all"
-          style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
-        >
-          <Plus className="w-4 h-4" />
-          Add
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              const rows = [['Date', 'Name', 'Type', 'Amount', 'Account', 'Category'],
+                ...filtered.map(t => [t.date, (t.name ?? '').replace(/,/g, ' '), t.type, String(t.amount),
+                  (t.account as Account | undefined)?.name ?? '', (t.category as Category | undefined)?.name ?? ''])]
+              const csv = rows.map(r => r.join(',')).join('\n')
+              const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+              const a = document.createElement('a'); a.href = url; a.download = 'transactions.csv'; a.click(); URL.revokeObjectURL(url)
+            }}
+            className="flex items-center gap-1.5 text-sm font-bold px-3.5 py-2 rounded-xl"
+            style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+          >
+            <Download className="w-4 h-4" /> Export
+          </button>
+          <button
+            onClick={() => { setEditTx(null); setShowForm(true) }}
+            className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
+            style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
+          >
+            <Plus className="w-4 h-4" />
+            Add
+          </button>
+        </div>
       </div>
 
-      {/* Summary strip — all-time totals across every transaction */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      {/* Summary strip — all-time totals + this-month net flow */}
+      <div className="grid grid-cols-2 md:grid-cols-[1fr_1fr_1fr_1.4fr] gap-3 mb-4">
         <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <TrendingUp className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--income)' }} />
-            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Money in</p>
-          </div>
-          <p className="text-base font-bold tracking-tight" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalCredits)}</p>
+          <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>CREDITS · ALL TIME</p>
+          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{fmtCompact(totalCredits)}</p>
         </div>
         <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <TrendingDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--expense)' }} />
-            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Money out</p>
-          </div>
-          <p className="text-base font-bold tracking-tight" style={{ color: 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalDebits)}</p>
+          <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>DEBITS · ALL TIME</p>
+          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{fmtCompact(totalDebits)}</p>
         </div>
         <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-          <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: 'var(--text-muted)' }}>Net</p>
-          <p className="text-base font-bold tracking-tight" style={{ color: totalCredits - totalDebits >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalCredits - totalDebits)}</p>
+          <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>NET POSITION</p>
+          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{netPosition >= 0 ? '+' : ''}{fmtCompact(netPosition)}</p>
+        </div>
+        <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: 'linear-gradient(135deg, var(--brand-deep), var(--brand-dark))' }}>
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'rgba(255,255,255,0.6)' }}>{monthLabel} NET FLOW</p>
+            <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{monthNet >= 0 ? '+' : '−'}{fmtCompact(Math.abs(monthNet))}</p>
+          </div>
+          {sparkPoints && (
+            <svg viewBox="0 0 90 34" preserveAspectRatio="none" className="w-[90px] h-[30px] shrink-0">
+              <polyline points={sparkPoints} fill="none" stroke="#7FD9A4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </div>
       </div>
 
@@ -396,77 +519,107 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         </div>
       )}
 
-      {/* Transaction List */}
-      {grouped.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--surface-2)' }}>
-            <ArrowLeftRight className="w-7 h-7" style={{ color: 'var(--text-faint)' }} />
-          </div>
-          <p className="font-medium" style={{ color: 'var(--text-muted)' }}>No transactions found</p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>
-            {search || filter !== 'all' ? 'Try changing your filters' : 'Add your first transaction'}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {grouped.map(([date, txs]) => (
-            <div key={date}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{getRelativeDate(date)}</p>
-                <p className="text-xs">
-                  {txs.filter(t => t.type === 'income').length > 0 && (
-                    <span className="mr-2" style={{ color: 'var(--income)' }}>
-                      +{formatCurrency(txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0))}
-                    </span>
-                  )}
-                  {txs.filter(t => t.type === 'expense').length > 0 && (
-                    <span style={{ color: 'var(--expense)' }}>
-                      -{formatCurrency(txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0))}
-                    </span>
-                  )}
-                </p>
+      {/* Body: columnar list + persistent detail rail */}
+      <div className="flex gap-5 items-start">
+        <div className="flex-1 min-w-0">
+          {grouped.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--surface-2)' }}>
+                <ArrowLeftRight className="w-7 h-7" style={{ color: 'var(--text-faint)' }} />
               </div>
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-                {txs.map((tx, i) => (
-                  selectMode ? (
-                    <div key={tx.id} className="flex items-stretch">
-                      <button
-                        onClick={() => toggleSelected(tx.id)}
-                        className="flex items-center justify-center px-3 shrink-0 border-r"
-                        style={{ borderColor: 'var(--border)' }}
-                        aria-label={selected.has(tx.id) ? 'Deselect' : 'Select'}
-                      >
-                        {selected.has(tx.id)
-                          ? <CheckSquare className="w-5 h-5" style={{ color: 'var(--brand)' }} />
-                          : <Square className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />
-                        }
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <TransactionItem
-                          transaction={tx}
-                          isFirst={i === 0}
-                          isLast={i === txs.length - 1}
-                          onEdit={handleEdit}
-                          onDelete={handleDelete}
-                          contextAccountId={accountFilter !== 'all' ? accountFilter : undefined}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <TransactionItem
-                      key={tx.id}
-                      transaction={tx}
-                      isFirst={i === 0}
-                      isLast={i === txs.length - 1}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                      contextAccountId={accountFilter !== 'all' ? accountFilter : undefined}
-                    />
-                  )
-                ))}
-              </div>
+              <p className="font-medium" style={{ color: 'var(--text-muted)' }}>No transactions found</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>
+                {search || filter !== 'all' ? 'Try changing your filters' : 'Add your first transaction'}
+              </p>
             </div>
-          ))}
+          ) : (
+            <div className="space-y-5">
+              {grouped.map(([date, txs]) => {
+                const inSum = txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+                const outSum = txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+                return (
+                  <div key={date}>
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <p className="text-xs font-extrabold tracking-[0.04em] uppercase" style={{ color: 'var(--text-muted)' }}>{getRelativeDate(date)}</p>
+                      <p className="text-xs font-bold" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        {inSum > 0 && <span style={{ color: 'var(--income)' }}>+{fmtCompact(inSum)}</span>}
+                        {outSum > 0 && <span className="ml-2" style={{ color: 'var(--expense)' }}>−{fmtCompact(outSum)}</span>}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+                      {txs.map((tx, i) => {
+                        const income = tx.type === 'income', transfer = tx.type === 'transfer'
+                        const color = income ? 'var(--income)' : transfer ? 'var(--transfer)' : 'var(--expense)'
+                        const acct = tx.account as Account | undefined
+                        const cat = tx.category as Category | undefined
+                        const isSel = selectedTx?.id === tx.id
+                        const last = i === txs.length - 1
+                        if (selectMode) {
+                          return (
+                            <div key={tx.id} className="flex items-stretch">
+                              <button onClick={() => toggleSelected(tx.id)} className="flex items-center justify-center px-3 shrink-0 border-r" style={{ borderColor: 'var(--border)' }} aria-label={selected.has(tx.id) ? 'Deselect' : 'Select'}>
+                                {selected.has(tx.id) ? <CheckSquare className="w-5 h-5" style={{ color: 'var(--brand)' }} /> : <Square className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <TransactionItem transaction={tx} isFirst={i === 0} isLast={last} onEdit={handleEdit} onDelete={handleDelete} contextAccountId={accountFilter !== 'all' ? accountFilter : undefined} />
+                              </div>
+                            </div>
+                          )
+                        }
+                        return (
+                          <button
+                            key={tx.id}
+                            onClick={() => setSelectedTx(tx)}
+                            className="w-full flex items-center gap-3.5 px-4 py-3 text-left transition-colors"
+                            style={{
+                              borderBottom: last ? 'none' : '1px solid var(--border-2)',
+                              background: isSel ? 'var(--brand-light)' : 'transparent',
+                              borderLeft: `3px solid ${isSel ? 'var(--brand)' : 'transparent'}`,
+                            }}
+                          >
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[17px] shrink-0" style={{ background: income || transfer ? `color-mix(in srgb, ${color} 16%, transparent)` : 'var(--surface-2)' }}>
+                              {transfer ? '↔️' : getCategoryEmoji(cat?.icon)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13.5px] truncate" style={{ color: 'var(--text)', fontWeight: isSel ? 700 : 600 }}>{tx.name || cat?.name || (transfer ? 'Transfer' : 'Uncategorised')}</p>
+                              <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--text-faint)' }}>
+                                {transfer ? `${acct?.name ?? ''} → ${(tx.to_account as Account | undefined)?.name ?? ''}` : `${cat?.name ?? (income ? 'Income' : 'Expense')} · ${acct?.name ?? ''}`}
+                              </p>
+                            </div>
+                            <span className="text-[14.5px] font-bold shrink-0" style={{ color, fontVariantNumeric: 'tabular-nums' }}>
+                              {income ? '+' : transfer ? '' : '−'}{formatCurrency(tx.amount)}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Desktop detail rail */}
+        <aside className="hidden lg:block w-[330px] shrink-0 sticky top-4 rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+          {selectedTx ? renderDetail(selectedTx) : (
+            <div className="text-center py-16">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--surface-2)' }}>
+                <ArrowLeftRight className="w-6 h-6" style={{ color: 'var(--text-faint)' }} />
+              </div>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Select a transaction</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>Details appear here</p>
+            </div>
+          )}
+        </aside>
+      </div>
+
+      {/* Mobile detail sheet */}
+      {selectedTx && (
+        <div className="lg:hidden fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) setSelectedTx(null) }}>
+          <div className="w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
+            {renderDetail(selectedTx)}
+          </div>
         </div>
       )}
 

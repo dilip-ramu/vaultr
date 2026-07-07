@@ -358,10 +358,35 @@ export default function DashboardClient({
             ) : <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No credit cards</p>}
           </div>
 
-          {/* Top spend */}
-          <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
-            <p className="text-sm font-bold mb-2" style={{ color: 'var(--text)' }}>Top spend</p>
-            <PayeeSpendRings rings={payeeRings} />
+          {/* Recent transactions (compact) */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+              <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Recent transactions</p>
+              <Link href="/transactions" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>View all</Link>
+            </div>
+            {txSlice.length === 0 ? (
+              <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No transactions yet</p>
+            ) : (
+              <div>
+                {txSlice.slice(0, 5).map((tx, i) => {
+                  const acct = tx.account as { name?: string } | undefined
+                  const cat = tx.category as { name?: string; icon?: string } | undefined
+                  const income = tx.type === 'income'
+                  return (
+                    <div key={tx.id} className="flex items-center justify-between gap-3 px-5 py-2.5" style={{ borderTop: i > 0 ? '1px solid var(--border-2)' : 'none' }}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-base shrink-0">{tx.type === 'transfer' ? '↔️' : getCategoryEmoji(cat?.icon)}</span>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text)' }}>{tx.name || cat?.name || 'Uncategorised'}</p>
+                          <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{acct?.name ?? ''}{acct?.name ? ' · ' : ''}{getRelativeDate(tx.date)}</p>
+                        </div>
+                      </div>
+                      <p className="text-[13px] font-semibold shrink-0" style={{ color: income ? 'var(--income)' : 'var(--expense)' }}>{income ? '+' : '−'}₹{fmt(tx.amount)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Budgets */}
@@ -396,37 +421,6 @@ export default function DashboardClient({
               </div>
             )}
           </div>
-        </div>
-
-        {/* ── Recent transactions ────────────────────────────────────────── */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
-          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
-            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Recent transactions</p>
-            <Link href="/transactions" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>View all</Link>
-          </div>
-          {txSlice.length === 0 ? (
-            <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No transactions yet</p>
-          ) : (
-            <div className="grid sm:grid-cols-2">
-              {txSlice.map((tx, i) => {
-                const acct = tx.account as { name?: string } | undefined
-                const cat = tx.category as { name?: string; icon?: string } | undefined
-                const income = tx.type === 'income'
-                return (
-                  <div key={tx.id} className="flex items-center justify-between gap-3 px-5 py-3" style={{ borderTop: i >= 2 ? '1px solid var(--border)' : 'none' }}>
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-base shrink-0">{tx.type === 'transfer' ? '↔️' : getCategoryEmoji(cat?.icon)}</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{tx.name || cat?.name || 'Uncategorised'}</p>
-                        <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{acct?.name ?? ''}{acct?.name ? ' · ' : ''}{getRelativeDate(tx.date)}</p>
-                      </div>
-                    </div>
-                    <p className="text-sm font-semibold shrink-0" style={{ color: income ? 'var(--income)' : 'var(--expense)' }}>{income ? '+' : '−'}₹{fmt(tx.amount)}</p>
-                  </div>
-                )
-              })}
-            </div>
-          )}
         </div>
 
       </div>
