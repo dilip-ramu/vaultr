@@ -164,7 +164,7 @@ export default function ImportStatementModal({ accountId, accountName, earliestE
 
               {/* Errors / warnings */}
               {error && (
-                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{error}</span>
                 </div>

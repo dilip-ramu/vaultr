@@ -23,10 +23,10 @@ import { notify } from '@/components/shared/Toast'
 const fmt = (n: number) => formatCurrency(n)
 
 const FLAG_LABEL: Record<string, { text: string; color: string }> = {
-  foreign:          { text: 'foreign currency', color: '#b45309' },
-  future:           { text: 'future-dated',     color: '#dc2626' },
+  foreign:          { text: 'foreign currency', color: 'var(--amber)' },
+  future:           { text: 'future-dated',     color: 'var(--expense)' },
   'dup?':           { text: 'possible duplicate', color: '#9333ea' },
-  'cross-currency': { text: 'cross-currency transfer', color: '#dc2626' },
+  'cross-currency': { text: 'cross-currency transfer', color: 'var(--expense)' },
 }
 
 export interface ReconcileAccountLite {
@@ -210,12 +210,12 @@ export default function AccountReconcilePanel({
           </button>
         )}
         {accountIsForeign(account.currency) && (
-          <span className="text-[10px] flex items-center gap-1" style={{ color: '#b45309' }}>
+          <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--amber)' }}>
             <AlertTriangle className="w-3 h-3" /> {account.currency} account — computed balance is in INR
           </span>
         )}
         {anomalyCount > 0 && (
-          <span className="text-[10px] flex items-center gap-1" style={{ color: '#b45309' }}>
+          <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--amber)' }}>
             <AlertTriangle className="w-3 h-3" /> {anomalyCount} flagged row{anomalyCount === 1 ? '' : 's'}
           </span>
         )}
@@ -245,7 +245,7 @@ export default function AccountReconcilePanel({
                 <td className="px-4 py-2" style={{ color: 'var(--text)' }}>
                   {r.txn.name ?? <span className="capitalize">{r.txn.type}</span>}
                   {r.flags.map(f => (
-                    <span key={f} className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: FLAG_LABEL[f]?.color ?? '#b45309' }}>
+                    <span key={f} className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: FLAG_LABEL[f]?.color ?? 'var(--amber)' }}>
                       {FLAG_LABEL[f]?.text ?? f}
                     </span>
                   ))}

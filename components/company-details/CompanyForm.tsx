@@ -389,7 +389,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
           </div>
 
           {error && (
-            <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>{error}</div>
+            <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>{error}</div>
           )}
         </div>
 

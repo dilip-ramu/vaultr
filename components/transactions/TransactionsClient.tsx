@@ -539,7 +539,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
                 onClick={handleBulkDelete}
                 disabled={deleting}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.25)' }}
+                style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.25)' }}
               >
                 <Trash2 className="w-3.5 h-3.5" /> {deleting ? 'Deleting…' : `Delete ${selected.size}`}
               </button>

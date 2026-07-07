@@ -105,7 +105,7 @@ export default function SupplierLedgerClient({
           {[
             { label: 'Pending', value: pendingAmount, color: 'var(--brand)' },
             { label: 'Billed',  value: billedAmount,  color: 'var(--text)' },
-            { label: 'Paid',    value: paidAmount,    color: 'var(--income, #22c55e)' },
+            { label: 'Paid',    value: paidAmount,    color: 'var(--income, var(--income))' },
           ].map(stat => (
             <div key={stat.label}>
               <p className="text-base font-bold" style={{ color: stat.color }}>

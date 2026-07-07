@@ -110,7 +110,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>TDS Tracker</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>TDS</h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Tax deducted at source — amounts claimable as credit
             </p>
@@ -141,20 +141,20 @@ export default function TDSClient({ entries: initialEntries }: Props) {
             <div className="grid grid-cols-2 gap-3 mb-5">
               <div
                 className="rounded-xl p-4"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid #D97706' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid var(--amber)' }}
               >
                 <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Pending TDS</p>
-                <p className="text-xl font-bold" style={{ color: '#D97706' }}>{fmt(pendingTDS)}</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--amber)' }}>{fmt(pendingTDS)}</p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {pending.length} entr{pending.length === 1 ? 'y' : 'ies'} · claimable
                 </p>
               </div>
               <div
                 className="rounded-xl p-4"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid #16a34a' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid var(--income)' }}
               >
                 <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Settled TDS</p>
-                <p className="text-xl font-bold" style={{ color: '#16a34a' }}>{fmt(settledTDS)}</p>
+                <p className="text-xl font-bold" style={{ color: 'var(--income)' }}>{fmt(settledTDS)}</p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                   {settled.length} entr{settled.length === 1 ? 'y' : 'ies'} · filed
                 </p>
@@ -168,10 +168,10 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                 style={{ background: 'rgba(217,119,6,0.07)', border: '1px solid rgba(217,119,6,0.25)' }}
               >
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--amber)' }}>
                     {pending.length} pending · {fmt(pendingTDS + pendingAdj)} total
                   </p>
-                  <p className="text-xs mt-0.5" style={{ color: '#b45309' }}>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--amber)' }}>
                     Mark all as settled after filing your annual TDS return.
                   </p>
                 </div>
@@ -179,7 +179,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                   onClick={settleAll}
                   disabled={settlingAll}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap disabled:opacity-50"
-                  style={{ background: '#D97706', color: '#fff' }}
+                  style={{ background: 'var(--amber)', color: '#fff' }}
                 >
                   {settlingAll ? 'Settling…' : 'Settle All'}
                 </button>
@@ -208,7 +208,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
             </div>
 
             {error && (
-              <p className="text-xs font-medium mb-3 px-1" style={{ color: '#ef4444' }}>{error}</p>
+              <p className="text-xs font-medium mb-3 px-1" style={{ color: 'var(--expense)' }}>{error}</p>
             )}
 
             {/* Entries */}
@@ -231,7 +231,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                       <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>{customer}</p>
                       <div className="flex items-center gap-3 text-xs font-semibold">
                         {group.tds > 0 && (
-                          <span style={{ color: '#D97706' }}>TDS {fmt(group.tds)}</span>
+                          <span style={{ color: 'var(--amber)' }}>TDS {fmt(group.tds)}</span>
                         )}
                         {group.adj > 0 && (
                           <span style={{ color: 'var(--brand)' }}>Adj {fmt(group.adj)}</span>
@@ -272,7 +272,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                                 className="text-xs px-1.5 py-0.5 rounded-full"
                                 style={{
                                   background: entry.settled ? 'rgba(22,163,74,0.1)' : 'rgba(217,119,6,0.1)',
-                                  color:      entry.settled ? '#16a34a' : '#D97706',
+                                  color:      entry.settled ? 'var(--income)' : 'var(--amber)',
                                 }}
                               >
                                 {entry.settled ? '✓ Settled' : 'Pending'}
@@ -285,7 +285,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                               style={
                                 entry.settled
                                   ? { background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }
-                                  : { background: 'rgba(22,163,74,0.1)', color: '#16a34a', border: '1px solid rgba(22,163,74,0.25)' }
+                                  : { background: 'rgba(22,163,74,0.1)', color: 'var(--income)', border: '1px solid rgba(22,163,74,0.25)' }
                               }
                             >
                               {settling === entry.id
@@ -312,19 +312,19 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                             </div>
                             <div>
                               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Received</p>
-                              <p className="text-sm font-semibold" style={{ color: '#16a34a' }}>{fmt(entry.paid_amount)}</p>
+                              <p className="text-sm font-semibold" style={{ color: 'var(--income)' }}>{fmt(entry.paid_amount)}</p>
                             </div>
                             {entry.tds_amount > 0 && (
                               <div>
                                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                   TDS Deducted
                                   {entry.invoice_total > 0 && (
-                                    <span style={{ color: '#D97706' }}>
+                                    <span style={{ color: 'var(--amber)' }}>
                                       {' '}({((entry.tds_amount / entry.invoice_total) * 100).toFixed(1)}%)
                                     </span>
                                   )}
                                 </p>
-                                <p className="text-sm font-bold" style={{ color: '#D97706' }}>{fmt(entry.tds_amount)}</p>
+                                <p className="text-sm font-bold" style={{ color: 'var(--amber)' }}>{fmt(entry.tds_amount)}</p>
                               </div>
                             )}
                             {entry.adjustment_amount > 0 && (

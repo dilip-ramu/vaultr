@@ -146,7 +146,7 @@ export default function EmailSetupClient({ initialIntegration, initialSenders, a
             </div>
           )}
           {intError && (
-            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
               <AlertTriangle className="w-4 h-4" /> {intError}
             </div>
           )}
@@ -158,7 +158,7 @@ export default function EmailSetupClient({ initialIntegration, initialSenders, a
                   {integration.last_checked_at ? `Last checked ${format(parseISO(integration.last_checked_at), 'dd MMM, HH:mm')}` : 'Never checked'}
                 </p>
               </div>
-              <button onClick={handleDisconnect} disabled={intPending} className="px-3 py-2 rounded-xl text-sm font-semibold border" style={{ borderColor: 'rgba(239,68,68,0.25)', color: '#dc2626' }}>
+              <button onClick={handleDisconnect} disabled={intPending} className="px-3 py-2 rounded-xl text-sm font-semibold border" style={{ borderColor: 'rgba(239,68,68,0.25)', color: 'var(--expense)' }}>
                 Disconnect
               </button>
             </div>
@@ -216,7 +216,7 @@ export default function EmailSetupClient({ initialIntegration, initialSenders, a
             </button>
           </div>
           {addError && (
-            <p className="text-xs" style={{ color: '#dc2626' }}>{addError}</p>
+            <p className="text-xs" style={{ color: 'var(--expense)' }}>{addError}</p>
           )}
         </div>
 

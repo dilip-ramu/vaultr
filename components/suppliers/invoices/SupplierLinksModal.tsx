@@ -41,8 +41,8 @@ function fmtDate(d: string | null | undefined) {
 const STATUS_STYLE: Record<string, { bg: string; text: string; label: string }> = {
   draft:     { bg: 'rgba(107,114,128,0.1)', text: '#6b7280',        label: 'Draft' },
   sent:      { bg: 'rgba(42,122,80,0.1)',   text: 'var(--brand)',   label: 'Sent' },
-  overdue:   { bg: 'rgba(239,68,68,0.1)',   text: '#dc2626',        label: 'Overdue' },
-  paid:      { bg: 'rgba(34,197,94,0.1)',   text: '#16a34a',        label: 'Paid' },
+  overdue:   { bg: 'rgba(239,68,68,0.1)',   text: 'var(--expense)',        label: 'Overdue' },
+  paid:      { bg: 'rgba(34,197,94,0.1)',   text: 'var(--income)',        label: 'Paid' },
   cancelled: { bg: 'rgba(107,114,128,0.1)', text: '#6b7280',        label: 'Cancelled' },
 }
 
@@ -144,7 +144,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                           onClick={() => removeLink(link.id)}
                           disabled={removing === link.id}
                           className="w-8 h-8 flex items-center justify-center rounded-lg disabled:opacity-40"
-                          style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}
+                          style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -155,7 +155,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                       <span className="font-medium" style={{ color: 'var(--text)' }}>{ri.customer_name}</span>
                       <span>{fmtDate(ri.invoice_date)}</span>
                       {ri.paid_at && (
-                        <span className="flex items-center gap-0.5" style={{ color: '#16a34a' }}>
+                        <span className="flex items-center gap-0.5" style={{ color: 'var(--income)' }}>
                           <CheckCircle2 className="w-3 h-3" /> Paid {fmtDate(ri.paid_at)}
                         </span>
                       )}
@@ -197,7 +197,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
           >
             <div>
               <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Supplier Cost</p>
-              <p className="text-sm font-bold" style={{ color: '#dc2626' }}>{fmt(supplierTotal)}</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--expense)' }}>{fmt(supplierTotal)}</p>
             </div>
             <div>
               <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Billed Out</p>
@@ -209,11 +209,11 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
               </p>
               <div className="flex items-center justify-center gap-1">
                 {unbilled > 0 ? <TrendingDown className="w-3.5 h-3.5 " />
-                  : unbilled < 0 ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
+                  : unbilled < 0 ? <TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--income)' }} />
                   : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                 }
                 <p className="text-sm font-bold" style={{
-                  color: unbilled > 0 ? '#dc2626' : unbilled < 0 ? '#16a34a' : 'var(--text-muted)'
+                  color: unbilled > 0 ? 'var(--expense)' : unbilled < 0 ? 'var(--income)' : 'var(--text-muted)'
                 }}>
                   {fmt(Math.abs(unbilled))}
                 </p>

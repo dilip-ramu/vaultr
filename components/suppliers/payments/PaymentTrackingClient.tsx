@@ -74,7 +74,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
             <CheckCircle2 className="w-4 h-4 text-[var(--income)]" />
             <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Paid</span>
           </div>
-          <p className="text-xl font-bold" style={{ color: '#16a34a' }}>₹{fmtAmt(stats.totalPaid)}</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--income)' }}>₹{fmtAmt(stats.totalPaid)}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{stats.paidCount} invoices</p>
         </div>
         <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
@@ -87,7 +87,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
         </div>
         <div
           className="rounded-xl border p-4"
-          style={{ backgroundColor: 'var(--surface)', borderColor: stats.overdueCount > 0 ? '#ef4444' : 'var(--border)', borderWidth: stats.overdueCount > 0 ? 2 : 1 }}
+          style={{ backgroundColor: 'var(--surface)', borderColor: stats.overdueCount > 0 ? 'var(--expense)' : 'var(--border)', borderWidth: stats.overdueCount > 0 ? 2 : 1 }}
         >
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="w-4 h-4 text-[var(--expense)]" />
@@ -169,7 +169,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{inv.invoice_number ?? '—'}</td>
                         <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text)' }}>₹{fmtAmt(Number(inv.amount))}</td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{fmtDate(inv.invoice_date)}</td>
-                        <td className="px-4 py-3 text-xs" style={{ color: isOverdue ? '#dc2626' : 'var(--text-muted)' }}>
+                        <td className="px-4 py-3 text-xs" style={{ color: isOverdue ? 'var(--expense)' : 'var(--text-muted)' }}>
                           {inv.due_date ? fmtDate(inv.due_date) : '—'}
                         </td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -182,9 +182,9 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
                           <span
                             className="px-2 py-1 rounded-full text-xs font-medium"
                             style={inv.is_paid
-                              ? { backgroundColor: 'rgba(34,197,94,0.1)', color: '#16a34a' }
+                              ? { backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--income)' }
                               : isOverdue
-                                ? { backgroundColor: 'rgba(239,68,68,0.1)', color: '#dc2626' }
+                                ? { backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--expense)' }
                                 : { backgroundColor: 'rgba(42,122,80,0.08)', color: 'var(--brand)' }
                             }
                           >
@@ -245,7 +245,7 @@ export default function PaymentTrackingClient({ initialInvoices, initialBatches,
                     <tr key={batch.id} className="hover:bg-[var(--surface-2)] transition-colors" style={{ backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                       <td className="px-4 py-3 font-medium font-mono text-xs" style={{ color: 'var(--text)' }}>{batch.batch_reference}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{fmtDate(batch.payment_date)}</td>
-                      <td className="px-4 py-3 font-semibold" style={{ color: '#16a34a' }}>₹{fmtAmt(Number(batch.total_amount))}</td>
+                      <td className="px-4 py-3 font-semibold" style={{ color: 'var(--income)' }}>₹{fmtAmt(Number(batch.total_amount))}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{batch.invoice_count} invoices</td>
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>{batch.bank_reference ?? '—'}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{batch.notes ?? '—'}</td>

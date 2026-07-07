@@ -128,7 +128,7 @@ export default function ImportPageClient({ onImported }: { onImported?: () => vo
       {stage === 'done' && (
         <div className="space-y-4">
           <div className="card text-center py-10 space-y-4">
-            <CheckCircle className="w-12 h-12 mx-auto" style={{ color: 'var(--income, #22c55e)' }} />
+            <CheckCircle className="w-12 h-12 mx-auto" style={{ color: 'var(--income, var(--income))' }} />
             <div>
               <p className="font-semibold text-lg" style={{ color: 'var(--text)' }}>Import complete</p>
               <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
@@ -160,18 +160,18 @@ export default function ImportPageClient({ onImported }: { onImported?: () => vo
               className="card flex items-start gap-3 p-4"
               style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a' }}
             >
-              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#d97706' }} />
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--amber)' }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold" style={{ color: '#92400e' }}>
+                <p className="text-sm font-semibold" style={{ color: 'var(--amber)' }}>
                   {unmatchedCustomers.length} customer column{unmatchedCustomers.length > 1 ? 's' : ''} not matched
                 </p>
-                <p className="text-xs mt-0.5" style={{ color: '#b45309' }}>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--amber)' }}>
                   {unmatchedCustomers.join(', ')}. Add them in Customers and set their CSV Alias to match.
                 </p>
                 <Link
                   href="/customers"
                   className="inline-block mt-2 text-xs font-semibold underline"
-                  style={{ color: '#d97706' }}
+                  style={{ color: 'var(--amber)' }}
                 >
                   Go to Customers →
                 </Link>

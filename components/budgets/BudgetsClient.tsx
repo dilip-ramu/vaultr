@@ -155,7 +155,7 @@ export default function BudgetsClient({
     }, 0) / budgets.length) * 100
   )
 
-  const healthColor = healthScore > 70 ? 'var(--income)' : healthScore >= 40 ? '#F59E0B' : 'var(--expense)'
+  const healthColor = healthScore > 70 ? 'var(--income)' : healthScore >= 40 ? 'var(--amber)' : 'var(--expense)'
 
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -284,7 +284,7 @@ export default function BudgetsClient({
             <div className="mx-5 my-3 h-1.5 rounded-full overflow-hidden shrink-0" style={{ backgroundColor: 'var(--surface-2)' }}>
               {(() => {
                 const pct = detailBudget.percentage ?? 0
-                const bar = pct < 70 ? 'var(--income)' : pct < 90 ? '#F59E0B' : 'var(--expense)'
+                const bar = pct < 70 ? 'var(--income)' : pct < 90 ? 'var(--amber)' : 'var(--expense)'
                 return <div className="h-1.5 rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: bar }} />
               })()}
             </div>
@@ -367,7 +367,7 @@ function BudgetCard({ budget: b, onEdit, onDelete, onOpen }: {
   const pct = b.percentage ?? 0
   const overspent = pct > 100
 
-  const barColor = pct < 70 ? 'var(--income)' : pct < 90 ? '#F59E0B' : 'var(--expense)'
+  const barColor = pct < 70 ? 'var(--income)' : pct < 90 ? 'var(--amber)' : 'var(--expense)'
   const emoji = getCategoryEmoji(b.category?.icon)
 
   return (

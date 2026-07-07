@@ -20,7 +20,7 @@ export default function CustomerBalances({ balances, currency }: CustomerBalance
   if (balances.length === 0) {
     return (
       <div className="card flex flex-col items-center justify-center py-10 gap-3">
-        <CheckCircle className="w-8 h-8" style={{ color: 'var(--income, #22c55e)' }} />
+        <CheckCircle className="w-8 h-8" style={{ color: 'var(--income, var(--income))' }} />
         <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>All caught up</p>
       </div>
     )

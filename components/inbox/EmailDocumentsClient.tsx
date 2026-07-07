@@ -946,7 +946,7 @@ export default function EmailDocumentsClient({
               This will reset the document to <strong>New</strong> so you can re-process it.
             </p>
             {confirmRedoDoc.supplier_invoice_id && (
-              <p className="text-sm font-medium mt-2 mb-4" style={{ color: '#dc2626' }}>
+              <p className="text-sm font-medium mt-2 mb-4" style={{ color: 'var(--expense)' }}>
                 The linked supplier invoice will also be permanently deleted.
               </p>
             )}
@@ -962,7 +962,7 @@ export default function EmailDocumentsClient({
                 onClick={handleConfirmRedo}
                 disabled={redoing}
                 className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-                style={{ background: '#dc2626' }}
+                style={{ background: 'var(--expense)' }}
               >
                 {redoing ? 'Resetting…' : 'Yes, Reset'}
               </button>

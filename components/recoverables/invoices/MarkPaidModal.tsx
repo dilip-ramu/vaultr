@@ -249,12 +249,12 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
           >
             <div className="flex justify-between">
               <span style={{ color: 'var(--text-muted)' }}>Received in bank</span>
-              <span style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paid)}</span>
+              <span style={{ color: 'var(--income)', fontWeight: 600 }}>{fmt(paid)}</span>
             </div>
             {tds > 0 && (
               <div className="flex justify-between">
                 <span style={{ color: 'var(--text-muted)' }}>TDS (auto-calculated)</span>
-                <span style={{ color: '#D97706', fontWeight: 600 }}>{fmt(tds)}</span>
+                <span style={{ color: 'var(--amber)', fontWeight: 600 }}>{fmt(tds)}</span>
               </div>
             )}
             {adj > 0 && (
@@ -269,7 +269,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
               className="flex justify-between pt-2 font-bold text-base"
               style={{
                 borderTop: '1px solid var(--border)',
-                color: overPaid ? '#ef4444' : mode === 'full' ? '#16a34a' : '#D97706',
+                color: overPaid ? 'var(--expense)' : mode === 'full' ? 'var(--income)' : 'var(--amber)',
               }}
             >
               {mode === 'full' ? (
@@ -281,7 +281,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
           </div>
 
           {error && (
-            <p className="text-xs font-medium px-1" style={{ color: '#ef4444' }}>{error}</p>
+            <p className="text-xs font-medium px-1" style={{ color: 'var(--expense)' }}>{error}</p>
           )}
         </div>
 
@@ -298,7 +298,7 @@ export default function MarkPaidModal({ invoice, onClose, onSaved }: Props) {
             onClick={handleSubmit}
             disabled={loading || overPaid}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-40"
-            style={{ background: '#16a34a', color: '#fff' }}
+            style={{ background: 'var(--income)', color: '#fff' }}
           >
             {loading ? 'Saving…' : mode === 'full' ? '✓ Mark as Paid' : 'Record Partial Payment'}
           </button>

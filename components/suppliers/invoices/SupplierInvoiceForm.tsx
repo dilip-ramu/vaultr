@@ -400,7 +400,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
               <div
                 onClick={() => set('is_paid', !form.is_paid)}
                 className="relative w-11 h-6 rounded-full transition-colors cursor-pointer"
-                style={{ backgroundColor: form.is_paid ? '#16a34a' : 'var(--border)' }}
+                style={{ backgroundColor: form.is_paid ? 'var(--income)' : 'var(--border)' }}
               >
                 <span
                   className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-[var(--surface)] shadow transition-transform"

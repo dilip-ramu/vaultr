@@ -191,7 +191,7 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
         <FilterPill active={filterType === 'reimbursement'} onClick={() => setFilterType('reimbursement')} label="Reimbursement" hue="#2A7A50" />
         <span className="mx-1" style={{ color: 'var(--border)' }}>·</span>
         <FilterPill active={filterStatus === 'all'}  onClick={() => setFilterStatus('all')}  label="All statuses" />
-        <FilterPill active={filterStatus === 'open'} onClick={() => setFilterStatus('open')} label="Open" hue="#B45309" />
+        <FilterPill active={filterStatus === 'open'} onClick={() => setFilterStatus('open')} label="Open" hue="var(--amber)" />
         <FilterPill active={filterStatus === 'paid'} onClick={() => setFilterStatus('paid')} label="Paid" hue="#059669" />
         <span className="ml-auto text-xs" style={{ color: 'var(--text-muted)' }}>
           {totals.count} invoice{totals.count === 1 ? '' : 's'}
@@ -347,7 +347,7 @@ function InvoiceRow({
           title="Delete invoice"
         >
           {deleting
-            ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#dc2626' }} />
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--expense)' }} />
             : <Trash2 className="w-3.5 h-3.5 " />}
         </button>
       </div>
@@ -358,10 +358,10 @@ function InvoiceRow({
 function StatusChip({ status }: { status: Invoice['status'] }) {
   const map: Record<Invoice['status'], { bg: string; fg: string; label: string; icon: React.ReactNode }> = {
     draft:      { bg: 'rgba(107,114,128,0.15)', fg: '#6B7280',  label: 'Draft',      icon: <Clock       className="w-3 h-3" /> },
-    sent:      { bg: 'rgba(180,83,9,0.15)',    fg: '#B45309', label: 'Sent',       icon: <Clock       className="w-3 h-3" /> },
+    sent:      { bg: 'rgba(180,83,9,0.15)',    fg: 'var(--amber)', label: 'Sent',       icon: <Clock       className="w-3 h-3" /> },
     finalized:  { bg: 'rgba(34,197,94,0.15)',   fg: '#16A34A', label: 'Finalized',  icon: <CheckCircle2 className="w-3 h-3" /> },
     paid:       { bg: 'rgba(16,185,129,0.15)',  fg: '#059669', label: 'Paid',       icon: <DollarSign  className="w-3 h-3" /> },
-    overdue:    { bg: 'rgba(239,68,68,0.15)',   fg: '#DC2626', label: 'Overdue',    icon: <Clock       className="w-3 h-3" /> },
+    overdue:    { bg: 'rgba(239,68,68,0.15)',   fg: 'var(--expense)', label: 'Overdue',    icon: <Clock       className="w-3 h-3" /> },
     cancelled:  { bg: 'rgba(107,114,128,0.15)', fg: '#6B7280', label: 'Cancelled',  icon: <Clock       className="w-3 h-3" /> },
   }
   const s = map[status] ?? map.draft

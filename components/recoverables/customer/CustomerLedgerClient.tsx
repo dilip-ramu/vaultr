@@ -116,8 +116,8 @@ export default function CustomerLedgerClient({
           {[
             { label: 'Unbilled',  value: unbilled,  color: 'var(--brand)' },
             { label: 'Billed',    value: billed,    color: 'var(--text)' },
-            { label: 'Overdue',   value: overdue,   color: '#b45309' },
-            { label: 'Settled',   value: settled,   color: 'var(--income, #16a34a)' },
+            { label: 'Overdue',   value: overdue,   color: 'var(--amber)' },
+            { label: 'Settled',   value: settled,   color: 'var(--income, var(--income))' },
           ].map(c => (
             <div
               key={c.label}
@@ -142,7 +142,7 @@ export default function CustomerLedgerClient({
               <p className="text-xs font-semibold uppercase tracking-wide mb-0.5" style={{ color: 'var(--text-muted)' }}>
                 Profitability
               </p>
-              <p className="text-sm font-bold" style={{ color: profit >= 0 ? 'var(--income, #16a34a)' : '#b91c1c' }}>
+              <p className="text-sm font-bold" style={{ color: profit >= 0 ? 'var(--income, var(--income))' : '#b91c1c' }}>
                 {fmtInr(profit)} profit
                 {margin !== null && (
                   <span className="ml-1 font-normal text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -218,7 +218,7 @@ export default function CustomerLedgerClient({
                         {fmtInr(inv.total)}
                       </td>
                       <td className="py-3 px-3"><StatusBadge status={rs} /></td>
-                      <td className="py-3 px-3 text-xs" style={{ color: rs === 'overdue' ? '#b45309' : 'var(--text-muted)' }}>
+                      <td className="py-3 px-3 text-xs" style={{ color: rs === 'overdue' ? 'var(--amber)' : 'var(--text-muted)' }}>
                         {fmtDate(inv.due_date)}
                         {rs === 'overdue' && daysOverdue > 0 && (
                           <div className="text-xs font-medium" style={{ color: '#b91c1c' }}>

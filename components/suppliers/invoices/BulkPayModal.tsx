@@ -190,7 +190,7 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
           <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>
             {invoiceIds.length} invoice{invoiceIds.length !== 1 ? 's' : ''} marked paid
           </p>
-          <p className="text-2xl font-bold mt-2 mb-6" style={{ color: '#16a34a' }}>₹{fmt(grandTotal)}</p>
+          <p className="text-2xl font-bold mt-2 mb-6" style={{ color: 'var(--income)' }}>₹{fmt(grandTotal)}</p>
           <button onClick={onDone} className="w-full py-3 rounded-xl font-semibold text-white" style={{ backgroundColor: 'var(--brand)' }}>
             Done
           </button>
@@ -417,7 +417,7 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
               type="submit"
               disabled={saving || !accountId}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
-              style={{ backgroundColor: '#16a34a' }}
+              style={{ backgroundColor: 'var(--income)' }}
             >
               {saving ? 'Processing…' : `Confirm · ₹${fmt(grandTotal)}`}
             </button>

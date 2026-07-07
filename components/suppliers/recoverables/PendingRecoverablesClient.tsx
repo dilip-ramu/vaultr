@@ -21,9 +21,9 @@ function daysSince(d: string) {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  pending_billing:  { bg: 'rgba(245,158,11,0.12)', text: '#b45309' },
+  pending_billing:  { bg: 'rgba(245,158,11,0.12)', text: 'var(--amber)' },
   billed:           { bg: 'rgba(42,122,80,0.1)',  text: 'var(--brand)' },
-  recovered:        { bg: 'rgba(34,197,94,0.1)',   text: '#16a34a' },
+  recovered:        { bg: 'rgba(34,197,94,0.1)',   text: 'var(--income)' },
   partial_recovery: { bg: 'rgba(168,85,247,0.1)',  text: '#9333ea' },
   written_off:      { bg: 'rgba(107,114,128,0.1)', text: '#4b5563' },
 }
@@ -107,9 +107,9 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--surface)', borderColor: '#f59e0b', borderWidth: 2 }}>
-          <p className="text-xs font-medium" style={{ color: '#b45309' }}>Pending Billing</p>
-          <p className="text-2xl font-bold mt-1" style={{ color: '#b45309' }}>₹{fmtAmt(totalPending)}</p>
+        <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--amber)', borderWidth: 2 }}>
+          <p className="text-xs font-medium" style={{ color: 'var(--amber)' }}>Pending Billing</p>
+          <p className="text-2xl font-bold mt-1" style={{ color: 'var(--amber)' }}>₹{fmtAmt(totalPending)}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{filtered.filter(i => i.recoverable_status === 'pending_billing').length} items</p>
         </div>
         <div className="rounded-xl border p-4" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
@@ -165,7 +165,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold" style={{ color: '#b45309' }}>₹{fmtAmt(total)}</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--amber)' }}>₹{fmtAmt(total)}</p>
                   </div>
                 </div>
 
@@ -221,7 +221,7 @@ export default function PendingRecoverablesClient({ initialInvoices }: Props) {
                               onClick={() => handleUpdateStatus(inv.id, 'recovered')}
                               disabled={updating === inv.id}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                              style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#16a34a' }}
+                              style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--income)' }}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               {updating === inv.id ? 'Updating…' : 'Mark Recovered'}

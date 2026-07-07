@@ -251,7 +251,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
               onClick={() => setShowPayModal(true)}
               disabled={busy}
               className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-              style={{ background: 'var(--income, #16a34a)', color: '#fff' }}
+              style={{ background: 'var(--income, var(--income))', color: '#fff' }}
             >
               ✓ Record Payment
             </button>
@@ -261,7 +261,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
               onClick={handleRevert}
               disabled={busy}
               className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50"
-              style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}
+              style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.25)' }}
             >
               {busy ? 'Reverting…' : '↩ Mark as Unpaid'}
             </button>
@@ -423,7 +423,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             <>
               <Row
                 label="Amount Paid"
-                value={<span style={{ color: 'var(--income, #16a34a)' }}>{fmt(invoice.paid_amount)}</span>}
+                value={<span style={{ color: 'var(--income, var(--income))' }}>{fmt(invoice.paid_amount)}</span>}
               />
               <div className="flex justify-between gap-4 pt-1">
                 <span className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Balance Due</span>
@@ -560,7 +560,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                             {link.allocated_amount === null && <span className="text-xs font-normal ml-1" style={{ color: 'var(--text-muted)' }}>(full)</span>}
                           </td>
                           <td className="px-3 py-2.5">
-                            <button onClick={() => removeLink(link.id)} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+                            <button onClick={() => removeLink(link.id)} className="w-8 h-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
                               <X className="w-4 h-4" />
                             </button>
                           </td>
@@ -587,7 +587,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                           <span style={{ color: 'var(--text-muted)' }}>Share: <strong style={{ color: 'var(--brand)' }}>₹{share.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong></span>
                         </div>
                       </div>
-                      <button onClick={() => removeLink(link.id)} className="w-9 h-9 flex items-center justify-center rounded-lg shrink-0" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+                      <button onClick={() => removeLink(link.id)} className="w-9 h-9 flex items-center justify-center rounded-lg shrink-0" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -605,7 +605,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             >
               <div>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Supplier Cost</p>
-                <p className="text-sm font-bold mt-0.5" style={{ color: '#dc2626' }}>
+                <p className="text-sm font-bold mt-0.5" style={{ color: 'var(--expense)' }}>
                   ₹{supplierCostTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </p>
               </div>
@@ -619,14 +619,14 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Margin</p>
                 <div className="flex items-center justify-center gap-1 mt-0.5">
                   {margin > 0
-                    ? <TrendingUp className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
+                    ? <TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--income)' }} />
                     : margin < 0
                       ? <TrendingDown className="w-3.5 h-3.5 " />
                       : <Minus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
                   }
                   <p
                     className="text-sm font-bold"
-                    style={{ color: margin > 0 ? '#16a34a' : margin < 0 ? '#dc2626' : 'var(--text-muted)' }}
+                    style={{ color: margin > 0 ? 'var(--income)' : margin < 0 ? 'var(--expense)' : 'var(--text-muted)' }}
                   >
                     ₹{Math.abs(margin).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     {marginPct !== null && (

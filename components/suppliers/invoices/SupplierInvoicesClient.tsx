@@ -397,7 +397,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
               {enriched.length} item{enriched.length !== 1 ? 's' : ''}
               {summary.overdueCount > 0 && (
-                <span className="ml-2 font-medium" style={{ color: '#dc2626' }}>
+                <span className="ml-2 font-medium" style={{ color: 'var(--expense)' }}>
                   · {summary.overdueCount} overdue
                 </span>
               )}
@@ -407,7 +407,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             {enriched.length} item{enriched.length !== 1 ? 's' : ''}
             {summary.overdueCount > 0 && (
-              <span className="ml-2 font-medium" style={{ color: '#dc2626' }}>
+              <span className="ml-2 font-medium" style={{ color: 'var(--expense)' }}>
                 · {summary.overdueCount} overdue
               </span>
             )}
@@ -443,12 +443,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           className="rounded-2xl p-4 text-left transition-all"
           style={{
             background: summary.overdueCount > 0 ? 'rgba(239,68,68,0.04)' : 'var(--surface)',
-            border: `1px solid ${statusTab === 'overdue' ? '#ef4444' : summary.overdueCount > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+            border: `1px solid ${statusTab === 'overdue' ? 'var(--expense)' : summary.overdueCount > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
             borderLeftWidth: statusTab === 'overdue' ? 3 : 1,
           }}
         >
           <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Overdue</p>
-          <p className="text-xl font-bold" style={{ color: summary.overdueCount > 0 ? '#dc2626' : 'var(--text-muted)' }}>
+          <p className="text-xl font-bold" style={{ color: summary.overdueCount > 0 ? 'var(--expense)' : 'var(--text-muted)' }}>
             ₹{fmt(summary.overdue)}
           </p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-faint, var(--text-muted))' }}>
@@ -464,12 +464,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           className="rounded-2xl p-4 text-left transition-all"
           style={{
             background: 'var(--surface)',
-            border: `1px solid ${filterRecoverable === 'yes' && !filterRecStatus ? '#f59e0b' : 'var(--border)'}`,
+            border: `1px solid ${filterRecoverable === 'yes' && !filterRecStatus ? 'var(--amber)' : 'var(--border)'}`,
             borderLeftWidth: filterRecoverable === 'yes' && !filterRecStatus ? 3 : 1,
           }}
         >
           <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Recoverable</p>
-          <p className="text-xl font-bold" style={{ color: '#f59e0b' }}>₹{fmt(summary.recoverable)}</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--amber)' }}>₹{fmt(summary.recoverable)}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-faint, var(--text-muted))' }}>
             {summary.recoverableCount} invoice{summary.recoverableCount !== 1 ? 's' : ''}
           </p>
@@ -483,12 +483,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           className="rounded-2xl p-4 text-left transition-all"
           style={{
             background: 'var(--surface)',
-            border: `1px solid ${filterRecoverable === 'yes' && filterRecStatus === 'pending_billing' ? '#f59e0b' : 'var(--border)'}`,
+            border: `1px solid ${filterRecoverable === 'yes' && filterRecStatus === 'pending_billing' ? 'var(--amber)' : 'var(--border)'}`,
             borderLeftWidth: filterRecoverable === 'yes' && filterRecStatus === 'pending_billing' ? 3 : 1,
           }}
         >
           <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Pending Billing</p>
-          <p className="text-xl font-bold" style={{ color: '#b45309' }}>₹{fmt(summary.pendingBilling)}</p>
+          <p className="text-xl font-bold" style={{ color: 'var(--amber)' }}>₹{fmt(summary.pendingBilling)}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-faint, var(--text-muted))' }}>
             {summary.pendingBillingCount} to bill
           </p>
@@ -629,7 +629,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                   setShowBulkPay(true)
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
-                style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.25)' }}
+                style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--income)', border: '1px solid rgba(34,197,94,0.25)' }}
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Mark Paid ({selUnpaidCount})
@@ -639,7 +639,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               <button
                 onClick={handleBulkUnpay}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}
+                style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
               >
                 <XCircle className="w-3.5 h-3.5" />
                 Mark Unpaid ({selPaidCount})
@@ -649,7 +649,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
               <button
                 onClick={handleBulkBill}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.25)' }}
+                style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.25)' }}
               >
                 Mark Billed ({selPendingBillingCount})
               </button>
@@ -696,7 +696,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
             <button
               onClick={handleBulkDelete}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap"
-              style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.25)' }}
+              style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.25)' }}
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete ({selected.size})
@@ -748,7 +748,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       style={{
                         background: isOverdue ? 'rgba(239,68,68,0.02)' : 'var(--surface)',
                         borderBottom: '1px solid var(--border)',
-                        borderLeft: isOverdue ? '3px solid #ef4444' : '3px solid transparent',
+                        borderLeft: isOverdue ? '3px solid var(--expense)' : '3px solid transparent',
                       }}
                     >
                       {/* Checkbox */}
@@ -808,7 +808,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         )}
                         {inv.is_recurring && inv.auto_pay_account_id && (
                           <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold"
-                            style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a' }}>
+                            style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--income)' }}>
                             ⚡ Auto-pay{inv.skip_next_autopay ? ' (skip)' : ''}
                           </span>
                         )}
@@ -819,7 +819,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmtDate(inv.invoice_date)}</p>
                         {inv.due_date && (
                           <p className="text-xs mt-0.5 font-medium" style={{
-                            color: isOverdue ? '#dc2626' : inv.status === 'due' ? '#b45309' : 'var(--text-muted)',
+                            color: isOverdue ? 'var(--expense)' : inv.status === 'due' ? 'var(--amber)' : 'var(--text-muted)',
                           }}>
                             {isOverdue
                               ? `${daysOverdue(inv.due_date)}d overdue`
@@ -916,7 +916,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                   className="p-4 space-y-3"
                   style={{
                     background: isOverdue ? 'rgba(239,68,68,0.02)' : 'var(--surface)',
-                    borderLeft: isOverdue ? '3px solid #ef4444' : '3px solid transparent',
+                    borderLeft: isOverdue ? '3px solid var(--expense)' : '3px solid transparent',
                   }}
                 >
                   {/* Top row */}
@@ -957,7 +957,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     <span>{fmtDate(inv.invoice_date)}</span>
                     {inv.due_date && (
-                      <span style={{ color: isOverdue ? '#dc2626' : inv.status === 'due' ? '#b45309' : 'var(--text-muted)' }}>
+                      <span style={{ color: isOverdue ? 'var(--expense)' : inv.status === 'due' ? 'var(--amber)' : 'var(--text-muted)' }}>
                         {isOverdue ? `${daysOverdue(inv.due_date)}d overdue` : `Due ${fmtDate(inv.due_date)}`}
                       </span>
                     )}
@@ -994,7 +994,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <button
                         onClick={() => handleQuickPay(inv)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                        style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', border: '1px solid rgba(34,197,94,0.2)' }}
+                        style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--income)', border: '1px solid rgba(34,197,94,0.2)' }}
                       >
                         Mark Paid
                       </button>
@@ -1003,7 +1003,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <button
                         onClick={() => handleQuickUnpay(inv)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                        style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}
+                        style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
                       >
                         Mark Unpaid
                       </button>
@@ -1013,7 +1013,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <button
                         onClick={() => handleQuickMarkBilled(inv)}
                         className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                        style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.2)' }}
+                        style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.2)' }}
                       >
                         Mark Billed
                       </button>
@@ -1065,7 +1065,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                     <button
                       onClick={() => handleDelete(inv.id)}
                       className="px-3 py-1.5 rounded-xl text-xs font-medium"
-                      style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.2)' }}
+                      style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
                     >
                       Delete
                     </button>

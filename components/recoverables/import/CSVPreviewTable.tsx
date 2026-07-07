@@ -42,7 +42,7 @@ export default function CSVPreviewTable({ rows, supplierColumns, errors }: CSVPr
                 key={row.rowIndex}
                 style={{
                   borderBottom: '1px solid var(--border)',
-                  borderLeft: hasError ? '3px solid var(--expense, #ef4444)' : '3px solid transparent',
+                  borderLeft: hasError ? '3px solid var(--expense, var(--expense))' : '3px solid transparent',
                 }}
               >
                 <td

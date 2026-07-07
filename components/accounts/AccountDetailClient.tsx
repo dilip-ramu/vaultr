@@ -203,7 +203,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
                     <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
                       <div className="h-full rounded-full" style={{
                         width: `${Math.min((m.utilisation ?? 0) * 100, 100)}%`,
-                        background: (m.utilisation ?? 0) >= 0.9 ? 'var(--expense)' : (m.utilisation ?? 0) >= 0.5 ? '#F59E0B' : 'var(--income)',
+                        background: (m.utilisation ?? 0) >= 0.9 ? 'var(--expense)' : (m.utilisation ?? 0) >= 0.5 ? 'var(--amber)' : 'var(--income)',
                       }} />
                     </div>
                   </>

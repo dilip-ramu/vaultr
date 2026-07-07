@@ -418,7 +418,7 @@ function InvoiceRow({
         className="w-7 h-7 flex items-center justify-center rounded-lg  disabled:opacity-50 shrink-0 transition-colors"
       >
         {deleting
-          ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#dc2626' }} />
+          ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--expense)' }} />
           : <Trash2 className="w-3.5 h-3.5 " />}
       </button>
     </div>

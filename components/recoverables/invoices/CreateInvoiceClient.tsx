@@ -387,7 +387,7 @@ export default function CreateInvoiceClient({
                     className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                     style={{
                       backgroundColor: step > s.n
-                        ? 'var(--income, #22c55e)'
+                        ? 'var(--income, var(--income))'
                         : step === s.n
                         ? 'var(--brand)'
                         : 'var(--surface-2)',

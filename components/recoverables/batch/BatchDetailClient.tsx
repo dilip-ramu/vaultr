@@ -123,7 +123,7 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
           <button
             onClick={() => setShowDeleteModal(true)}
             className="p-2 rounded-lg transition-colors"
-            style={{ color: 'var(--expense, #ef4444)' }}
+            style={{ color: 'var(--expense, var(--expense))' }}
             title="Delete batch"
           >
             <Trash2 className="w-4 h-4" />
@@ -297,7 +297,7 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
                 onClick={handleDelete}
                 disabled={deleting}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white"
-                style={{ backgroundColor: 'var(--expense, #ef4444)', opacity: deleting ? 0.6 : 1 }}
+                style={{ backgroundColor: 'var(--expense, var(--expense))', opacity: deleting ? 0.6 : 1 }}
               >
                 {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
               </button>

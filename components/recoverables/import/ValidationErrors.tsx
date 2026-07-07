@@ -16,11 +16,11 @@ export default function ValidationErrors({ errors, maxShow = 5 }: ValidationErro
       className="rounded-xl p-4 space-y-1.5"
       style={{ backgroundColor: 'var(--status-cancelled-bg, #fef2f2)', border: '1px solid var(--status-cancelled-border, #fecaca)' }}
     >
-      <p className="text-xs font-semibold mb-2" style={{ color: 'var(--expense, #ef4444)' }}>
+      <p className="text-xs font-semibold mb-2" style={{ color: 'var(--expense, var(--expense))' }}>
         {errors.length} validation {errors.length === 1 ? 'error' : 'errors'} found
       </p>
       {shown.map((err, i) => (
-        <p key={i} className="text-xs" style={{ color: 'var(--expense, #dc2626)' }}>
+        <p key={i} className="text-xs" style={{ color: 'var(--expense, var(--expense))' }}>
           {err.message}
         </p>
       ))}

@@ -446,7 +446,7 @@ function SubRow({
   const dueBadgeColor = daysUntil < 0
     ? 'var(--expense)'
     : daysUntil <= 3
-    ? '#F59E0B'
+    ? 'var(--amber)'
     : 'var(--text-faint)'
 
   const dueLabel = daysUntil < 0
@@ -534,7 +534,7 @@ function SubRow({
                 <button
                   onClick={() => { setShowMenu(false); onMarkUnpaid(b) }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-sm"
-                  style={{ color: '#F59E0B' }}
+                  style={{ color: 'var(--amber)' }}
                 >
                   <RotateCcw className="w-3.5 h-3.5" /> Mark Unpaid
                 </button>

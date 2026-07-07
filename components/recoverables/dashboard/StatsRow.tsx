@@ -24,7 +24,7 @@ export default function StatsRow({ stats }: StatsRowProps) {
     {
       value:    fmt(stats.totalPaid, stats.currency),
       label:    'Total Paid',
-      color:    'var(--income, #22c55e)',
+      color:    'var(--income, var(--income))',
     },
     {
       value:    String(stats.batchCount),

@@ -206,7 +206,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                   onClick={handleBulkCancel}
                   disabled={cancelling}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                  style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626', border: '1px solid rgba(239,68,68,0.25)' }}
+                  style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.25)' }}
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   {cancelling ? 'Cancelling…' : `Cancel ${selected.size}`}
@@ -228,10 +228,10 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
             </div>
             <div
               className="rounded-xl p-3.5"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid #F59E0B' }}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderLeft: '4px solid var(--amber)' }}
             >
               <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Pending</p>
-              <p className="text-base font-bold" style={{ color: '#D97706' }}>{fmt(pendingTotal)}</p>
+              <p className="text-base font-bold" style={{ color: 'var(--amber)' }}>{fmt(pendingTotal)}</p>
             </div>
           </div>
         )}
@@ -323,9 +323,9 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                         {fmt(inv.total)}
                       </p>
                       {inv.resolvedStatus === 'paid' ? (
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--income, #16a34a)' }}>Paid</p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--income, var(--income))' }}>Paid</p>
                       ) : (
-                        <p className="text-xs mt-0.5" style={{ color: inv.resolvedStatus === 'overdue' ? '#b45309' : 'var(--text-muted)' }}>
+                        <p className="text-xs mt-0.5" style={{ color: inv.resolvedStatus === 'overdue' ? 'var(--amber)' : 'var(--text-muted)' }}>
                           Due {inv.due_date ? fmtDate(inv.due_date) : '—'}
                         </p>
                       )}
@@ -351,7 +351,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                         onClick={e => handleRevert(e, inv.id)}
                         disabled={revertingId === inv.id}
                         className="w-full py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                        style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
+                        style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)', border: '1px solid rgba(239,68,68,0.2)' }}
                       >
                         {revertingId === inv.id ? 'Reverting…' : '↩ Mark as Unpaid'}
                       </button>
@@ -359,7 +359,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                       <button
                         onClick={e => { e.stopPropagation(); setModalInvoice(inv) }}
                         className="w-full py-1.5 rounded-lg text-xs font-semibold"
-                        style={{ background: 'rgba(22,163,74,0.1)', color: '#16a34a', border: '1px solid rgba(22,163,74,0.2)' }}
+                        style={{ background: 'rgba(22,163,74,0.1)', color: 'var(--income)', border: '1px solid rgba(22,163,74,0.2)' }}
                       >
                         ✓ Record Payment
                       </button>

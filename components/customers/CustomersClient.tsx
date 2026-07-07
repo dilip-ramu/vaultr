@@ -136,7 +136,7 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
             {customers.length} customer{customers.length !== 1 ? 's' : ''}
             {grandOutstanding > 0 && <> · ₹{fmtAmt(grandOutstanding)} outstanding</>}
-            {grandOverdue > 0 && <> · <span style={{ color: '#dc2626' }}>₹{fmtAmt(grandOverdue)} overdue</span></>}
+            {grandOverdue > 0 && <> · <span style={{ color: 'var(--expense)' }}>₹{fmtAmt(grandOverdue)} overdue</span></>}
           </p>
         </div>
         <button
@@ -222,7 +222,7 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
                       <td className="px-4 py-3 tabular-nums" style={{ color: 'var(--text)' }}>
                         {outstandingByCustomer[c.id]?.outstanding ? `₹${fmtAmt(outstandingByCustomer[c.id].outstanding)}` : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </td>
-                      <td className="px-4 py-3 tabular-nums" style={{ color: (outstandingByCustomer[c.id]?.overdue ?? 0) > 0 ? '#dc2626' : 'var(--text-muted)' }}>
+                      <td className="px-4 py-3 tabular-nums" style={{ color: (outstandingByCustomer[c.id]?.overdue ?? 0) > 0 ? 'var(--expense)' : 'var(--text-muted)' }}>
                         {outstandingByCustomer[c.id]?.overdue ? `₹${fmtAmt(outstandingByCustomer[c.id].overdue)}` : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -340,7 +340,7 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
                     ) : null}
                     {outstandingByCustomer[c.id]?.overdue ? (
                       <span style={{ color: 'var(--text-muted)' }}>
-                        Overdue <span className="font-semibold" style={{ color: '#dc2626' }}>₹{fmtAmt(outstandingByCustomer[c.id].overdue)}</span>
+                        Overdue <span className="font-semibold" style={{ color: 'var(--expense)' }}>₹{fmtAmt(outstandingByCustomer[c.id].overdue)}</span>
                       </span>
                     ) : null}
                   </div>

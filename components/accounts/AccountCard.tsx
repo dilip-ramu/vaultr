@@ -62,7 +62,7 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
     const days = Math.floor((Date.now() - ts) / 86400000)
     const when = days < 1 ? 'today' : days === 1 ? 'yesterday' : `${days}d ago`
     if (days <= 7)  return { key: 'fresh', label: `Reconciled ${when}`, color: 'var(--income)',  bg: 'rgba(34,197,94,0.10)',  tick: true  }
-    if (days <= 30) return { key: 'stale', label: `Reconciled ${when}`, color: '#b45309',        bg: 'rgba(245,158,11,0.10)', tick: true  }
+    if (days <= 30) return { key: 'stale', label: `Reconciled ${when}`, color: 'var(--amber)',        bg: 'rgba(245,158,11,0.10)', tick: true  }
     return             { key: 'old',   label: `Reconciled ${when}`, color: 'var(--expense)', bg: 'rgba(239,68,68,0.10)',  tick: false }
   })()
 
@@ -259,7 +259,7 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
             <div className="h-full rounded-full transition-all" style={{
               width: `${Math.min((cm.utilisation ?? 0) * 100, 100)}%`,
-              background: (cm.utilisation ?? 0) >= 0.9 ? 'var(--expense)' : (cm.utilisation ?? 0) >= 0.5 ? '#F59E0B' : 'var(--income)',
+              background: (cm.utilisation ?? 0) >= 0.9 ? 'var(--expense)' : (cm.utilisation ?? 0) >= 0.5 ? 'var(--amber)' : 'var(--income)',
             }} />
           </div>
           {account.interest_rate != null && (

@@ -138,7 +138,7 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
             {suppliers.filter(s => s.is_active).length} active suppliers
             {grandOutstanding > 0 && <> · ₹{fmtAmt(grandOutstanding)} outstanding</>}
-            {grandOverdue > 0 && <> · <span style={{ color: '#dc2626' }}>₹{fmtAmt(grandOverdue)} overdue</span></>}
+            {grandOverdue > 0 && <> · <span style={{ color: 'var(--expense)' }}>₹{fmtAmt(grandOverdue)} overdue</span></>}
           </p>
         </div>
         <button
@@ -223,7 +223,7 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
                       <td className="px-4 py-3 tabular-nums" style={{ color: 'var(--text)' }}>
                         {outstandingBySupplier[s.id]?.outstanding ? `₹${fmtAmt(outstandingBySupplier[s.id].outstanding)}` : <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </td>
-                      <td className="px-4 py-3 tabular-nums" style={{ color: (outstandingBySupplier[s.id]?.overdue ?? 0) > 0 ? '#dc2626' : 'var(--text-muted)' }}>
+                      <td className="px-4 py-3 tabular-nums" style={{ color: (outstandingBySupplier[s.id]?.overdue ?? 0) > 0 ? 'var(--expense)' : 'var(--text-muted)' }}>
                         {outstandingBySupplier[s.id]?.overdue ? `₹${fmtAmt(outstandingBySupplier[s.id].overdue)}` : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -337,7 +337,7 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
                     </span>
                   )}
                   <span className="px-2 py-0.5 rounded-md font-medium" style={{ backgroundColor: 'var(--brand-light)', color: 'var(--brand)' }}>{s.currency}</span>
-                  <span className="px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: s.is_active ? '#dcfce7' : '#f3f4f6', color: s.is_active ? '#16a34a' : '#6b7280' }}>
+                  <span className="px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: s.is_active ? '#dcfce7' : '#f3f4f6', color: s.is_active ? 'var(--income)' : '#6b7280' }}>
                     {s.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
@@ -350,7 +350,7 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
                     ) : null}
                     {outstandingBySupplier[s.id]?.overdue ? (
                       <span style={{ color: 'var(--text-muted)' }}>
-                        Overdue <span className="font-semibold" style={{ color: '#dc2626' }}>₹{fmtAmt(outstandingBySupplier[s.id].overdue)}</span>
+                        Overdue <span className="font-semibold" style={{ color: 'var(--expense)' }}>₹{fmtAmt(outstandingBySupplier[s.id].overdue)}</span>
                       </span>
                     ) : null}
                   </div>

@@ -14,7 +14,7 @@ function fmtDate(d: string) { return new Date(d).toLocaleDateString('en-IN', { d
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   billed:           { bg: 'rgba(42,122,80,0.1)',  text: 'var(--brand)' },
-  recovered:        { bg: 'rgba(34,197,94,0.1)',   text: '#16a34a' },
+  recovered:        { bg: 'rgba(34,197,94,0.1)',   text: 'var(--income)' },
   partial_recovery: { bg: 'rgba(168,85,247,0.1)',  text: '#9333ea' },
   written_off:      { bg: 'rgba(107,114,128,0.1)', text: '#4b5563' },
 }
@@ -79,7 +79,7 @@ export default function BilledRecoverablesClient({ initialInvoices }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { key: 'billed',           label: 'Billed',           color: 'var(--brand)' },
-          { key: 'recovered',        label: 'Recovered',        color: '#16a34a' },
+          { key: 'recovered',        label: 'Recovered',        color: 'var(--income)' },
           { key: 'partial_recovery', label: 'Partial Recovery', color: '#9333ea' },
           { key: 'written_off',      label: 'Written Off',      color: '#6b7280' },
         ].map(s => (
@@ -158,7 +158,7 @@ export default function BilledRecoverablesClient({ initialInvoices }: Props) {
                             onClick={() => handleUpdateStatus(inv.id, 'recovered')}
                             disabled={updating === inv.id}
                             className="px-2.5 py-1 rounded-lg text-xs font-medium"
-                            style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#16a34a' }}
+                            style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--income)' }}
                           >
                             {updating === inv.id ? '…' : 'Recovered'}
                           </button>
@@ -205,7 +205,7 @@ export default function BilledRecoverablesClient({ initialInvoices }: Props) {
                   <div className="flex gap-2">
                     <button onClick={() => handleUpdateStatus(inv.id, 'recovered')}
                       className="flex-1 py-1.5 rounded-lg text-xs font-medium"
-                      style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#16a34a' }}>
+                      style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--income)' }}>
                       Recovered
                     </button>
                     <button onClick={() => handleUpdateStatus(inv.id, 'written_off')}

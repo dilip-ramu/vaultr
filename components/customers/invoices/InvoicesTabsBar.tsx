@@ -28,7 +28,7 @@ const TABS = [
 
 // Deterministic chip tint per customer name so badges stay stable across
 // reloads. Matches the palette used elsewhere in the app.
-const CHIP_HUES = ['#2A7A50', '#3B4AC7', '#B4530F', '#B45309', '#9333EA', '#0891B2', '#DC2626', '#EA580C']
+const CHIP_HUES = ['#2A7A50', '#3B4AC7', '#B4530F', 'var(--amber)', '#9333EA', '#0891B2', 'var(--expense)', '#EA580C']
 function hueFor(name: string): string {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0

@@ -40,7 +40,7 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
     onClose()
   }
 
-  const amountColor  = tx.type === 'income' ? '#16a34a' : tx.type === 'expense' ? '#dc2626' : '#3b82f6'
+  const amountColor  = tx.type === 'income' ? 'var(--income)' : tx.type === 'expense' ? 'var(--expense)' : '#3b82f6'
   const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔'
 
   return (
@@ -152,7 +152,7 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
               onClick={handleDelete}
               disabled={deleting}
               className="w-full py-3 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
-              style={{ color: '#dc2626', background: 'rgba(239,68,68,0.06)' }}
+              style={{ color: 'var(--expense)', background: 'rgba(239,68,68,0.06)' }}
             >
               {deleting ? 'Deleting…' : 'Delete Transaction'}
             </button>

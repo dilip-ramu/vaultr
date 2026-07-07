@@ -21,7 +21,7 @@ interface Props {
 
 const TYPE_STYLE: Record<Insight['type'], { bg: string; border: string; dot: string }> = {
   positive: { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)', dot: 'var(--income)' },
-  warning:  { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', dot: '#F59E0B' },
+  warning:  { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', dot: 'var(--amber)' },
   info:     { bg: 'rgba(99,102,241,0.06)', border: 'rgba(99,102,241,0.15)', dot: 'var(--brand)' },
   alert:    { bg: 'rgba(239,68,68,0.07)',  border: 'rgba(239,68,68,0.2)',   dot: 'var(--expense)' },
 }

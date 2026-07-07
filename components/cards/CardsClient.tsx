@@ -390,7 +390,7 @@ export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onS
 
                 <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
                   {payError && (
-                    <div className="text-sm px-4 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+                    <div className="text-sm px-4 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--expense)' }}>
                       {payError}
                     </div>
                   )}
