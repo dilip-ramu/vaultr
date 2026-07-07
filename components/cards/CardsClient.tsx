@@ -10,7 +10,7 @@ import AccountChipPicker, { type PickerAccount } from '@/components/shared/Accou
 import { Avatar } from '@/components/AppShell'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
-interface CardAccount {
+export interface CardAccount {
   id: string
   name: string
   color: string | null
@@ -21,7 +21,7 @@ interface CardAccount {
   credit_limit: number | null
 }
 
-interface StatementRow {
+export interface StatementRow {
   account_id: string
   statement_date: string
   bank_amount: number | null
@@ -67,7 +67,7 @@ function HiddenChargeBadge({ value }: { value: number | null }) {
   )
 }
 
-function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }: {
+export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onSaved }: {
   card: CardAccount
   txns: CardTxn[]
   bankAmounts: Record<string, number>

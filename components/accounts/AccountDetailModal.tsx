@@ -2,11 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Pencil, ArrowLeftRight, Scale, CreditCard, ExternalLink } from 'lucide-react'
+import { X, Pencil, ArrowLeftRight, Scale, CreditCard } from 'lucide-react'
 import type { Account } from '@/lib/types'
 import { formatCurrency, getRelativeDate } from '@/lib/utils'
 import type { ReconTxn } from '@/lib/reconcile'
+import type { CardTxn } from '@/lib/cards'
 import AccountReconcilePanel from './AccountReconcilePanel'
+import { SingleCard, type StatementRow } from '../cards/CardsClient'
+import type { PickerAccount } from '../shared/AccountChipPicker'
 
 type Tab = 'transactions' | 'reconcile' | 'charges'
 
@@ -17,13 +20,18 @@ function signedForAccount(t: ReconTxn, accountId: string): number {
 }
 
 export default function AccountDetailModal({
-  account, txns, currencyById, today, onReconciled, onEdit, onClose,
+  account, txns, currencyById, today, onReconciled,
+  cardTxns = [], cardStatements = [], payAccounts = [],
+  onEdit, onClose,
 }: {
   account: Account
   txns: ReconTxn[]
   currencyById: Record<string, string>
   today: string
   onReconciled?: (accountId: string, atIso: string, balance: number) => void
+  cardTxns?: CardTxn[]
+  cardStatements?: StatementRow[]
+  payAccounts?: PickerAccount[]
   onEdit: (a: Account) => void
   onClose: () => void
 }) {
@@ -98,20 +106,30 @@ export default function AccountDetailModal({
             />
           )}
 
-          {tab === 'charges' && (
-            <div className="text-center py-8 px-4">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--accent-light)' }}>
-                <CreditCard className="w-6 h-6" style={{ color: 'var(--accent)' }} />
-              </div>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Statement cycle &amp; hidden charges</p>
-              <p className="text-xs mt-1 mb-4 max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
-                Track statement amounts, compare the bank&apos;s figure to your transactions to catch hidden interest &amp; fees, and record payments.
-              </p>
-              <button onClick={() => router.push('/cards')} className="inline-flex items-center gap-1.5 text-white text-sm font-bold rounded-xl px-4 py-2.5" style={{ background: 'var(--brand)' }}>
-                Open statement &amp; charges <ExternalLink className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+          {tab === 'charges' && (() => {
+            const cardAccount = {
+              id: account.id, name: account.name, color: account.color, avatar_url: account.avatar_url,
+              initial_balance: account.initial_balance, statement_day: account.statement_day,
+              statement_due_day: account.statement_due_day, credit_limit: account.credit_limit,
+            }
+            const myTxns = cardTxns.filter(t => t.account_id === account.id || t.to_account_id === account.id)
+            const stmtRows: Record<string, StatementRow> = {}
+            const bankAmounts: Record<string, number> = {}
+            for (const s of cardStatements.filter(s => s.account_id === account.id)) {
+              stmtRows[s.statement_date] = s
+              if (s.bank_amount !== null) bankAmounts[s.statement_date] = Number(s.bank_amount)
+            }
+            return (
+              <SingleCard
+                card={cardAccount}
+                txns={myTxns}
+                bankAmounts={bankAmounts}
+                stmtRows={stmtRows}
+                payAccounts={payAccounts}
+                onSaved={() => router.refresh()}
+              />
+            )
+          })()}
         </div>
       </div>
     </div>
