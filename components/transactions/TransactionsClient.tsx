@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Search, ArrowLeftRight, TrendingUp, TrendingDown, Filter, X, CheckSquare, Square, Trash2, Download, ChevronDown, SlidersHorizontal, FileText, ExternalLink, Pencil, ArrowRight } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, Filter, X, CheckSquare, Square, Trash2, Download, FileText, ExternalLink, Pencil, Paperclip } from 'lucide-react'
 import type { Transaction, Account, Category, Payee } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
@@ -234,6 +234,16 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     return { monthNet: net, sparkPoints: poly, monthLabel: now.toLocaleDateString('en-IN', { month: 'long' }).toUpperCase() }
   }, [transactions])
 
+  // Open an attachment in a new tab. The transactions query doesn't include a
+  // ready URL, so mint a short-lived signed URL from the storage bucket.
+  const openAttachment = async (att: { file_path: string; url?: string }) => {
+    if (att.url) { window.open(att.url, '_blank', 'noopener'); return }
+    const s = createClient()
+    const { data } = await s.storage.from('vaultr-attachments').createSignedUrl(att.file_path, 3600)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener')
+    else notify('Could not open attachment', 'error')
+  }
+
   // Shared detail-panel content, reused in the desktop rail + mobile sheet
   const renderDetail = (tx: Transaction) => {
     const acct = tx.account as Account | undefined
@@ -242,7 +252,6 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     const transfer = tx.type === 'transfer'
     const color = income ? 'var(--income)' : transfer ? 'var(--transfer)' : 'var(--expense)'
     const usedFor = companies.find(c => c.id === tx.used_for_company_id)?.name
-    const att = tx.attachments?.[0]
     return (
       <>
         <div className="flex items-center justify-between mb-4">
@@ -276,14 +285,16 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
             </div>
           ))}
         </div>
-        {att && (
-          <div className="py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-            <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--text-muted)' }}>ATTACHMENT</p>
-            <a href={att.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-              <FileText className="w-[18px] h-[18px]" style={{ color: 'var(--brand)' }} />
-              <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{att.file_name}</span>
-              <ExternalLink className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />
-            </a>
+        {(tx.attachments?.length ?? 0) > 0 && (
+          <div className="py-4 space-y-2" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>ATTACHMENT{(tx.attachments?.length ?? 0) > 1 ? 'S' : ''}</p>
+            {(tx.attachments ?? []).map(a => (
+              <button key={a.id} onClick={() => openAttachment(a)} className="w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                <FileText className="w-[18px] h-[18px] shrink-0" style={{ color: 'var(--brand)' }} />
+                <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{a.file_name}</span>
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-faint)' }} />
+              </button>
+            ))}
           </div>
         )}
         <div className="flex gap-2 mt-4">
@@ -586,6 +597,9 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
                                 {transfer ? `${acct?.name ?? ''} → ${(tx.to_account as Account | undefined)?.name ?? ''}` : `${cat?.name ?? (income ? 'Income' : 'Expense')} · ${acct?.name ?? ''}`}
                               </p>
                             </div>
+                            {(tx.attachments?.length ?? 0) > 0 && (
+                              <Paperclip className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--text-faint)' }} />
+                            )}
                             <span className="text-[14.5px] font-bold shrink-0" style={{ color, fontVariantNumeric: 'tabular-nums' }}>
                               {income ? '+' : transfer ? '' : '−'}{formatCurrency(tx.amount)}
                             </span>

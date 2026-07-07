@@ -17,6 +17,7 @@ import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
 import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip } from 'recharts'
 import TransactionItem from '../transactions/TransactionItem'
 import PayeeSpendRings, { type PayeeRing } from './PayeeSpendRings'
+import TopSpendCard from './TopSpendCard'
 import MarkCardPaidModal from './MarkCardPaidModal'
 
 const TransactionForm = dynamic(() => import('../transactions/TransactionForm'), { ssr: false })
@@ -209,6 +210,17 @@ export default function DashboardClient({
   const now2 = new Date()
   const monthLabel = `${MONTHS[now2.getMonth()]} ${now2.getFullYear()}`
 
+  // Compact ₹ (₹48.2L / ₹1.42Cr / ₹7.85L) for the pulse band
+  const fmtC = (n: number) => {
+    const abs = Math.abs(n)
+    const sign = n < 0 ? '−' : ''
+    if (abs >= 1e7) return `${sign}₹${(abs / 1e7).toFixed(2).replace(/\.?0+$/, '')}Cr`
+    if (abs >= 1e5) return `${sign}₹${(abs / 1e5).toFixed(2).replace(/\.?0+$/, '')}L`
+    if (abs >= 1e3) return `${sign}₹${(abs / 1e3).toFixed(1).replace(/\.?0+$/, '')}K`
+    return `${sign}₹${abs.toFixed(0)}`
+  }
+  const profitMtdVal = profitMTD ? profitMTD.actualNet : null
+
   return (
     <div className="min-h-full" style={{ background: 'var(--bg)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -230,26 +242,48 @@ export default function DashboardClient({
           </button>
         </div>
 
-        {/* ── Pulse band: Net Worth · Income · Expenses · Leftover · Profit ── */}
+        {/* ── Pulse band: Net Worth · Income/Expenses · Leftover/Profit ────── */}
         <div
-          className="rounded-3xl p-5 md:p-6"
+          className="rounded-3xl p-6 md:p-7"
           style={{ background: 'linear-gradient(135deg, var(--brand-deep) 0%, var(--brand-dark) 100%)', boxShadow: 'var(--shadow-lg)' }}
         >
-          <div className="grid grid-cols-2 md:grid-cols-5">
+          <div className="grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr] gap-y-6 gap-x-4 md:gap-x-8">
             {/* Net Worth — prominent */}
-            <div className="col-span-2 md:col-span-1 pb-4 md:pb-0 md:pr-5">
+            <div className="col-span-2 md:col-span-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Net Worth</p>
-              <p className="text-3xl font-extrabold text-white tracking-tight" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {netWorth >= 0 ? '₹' : '−₹'}{fmt(netWorth)}
-              </p>
-              <p className="text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                assets ₹{fmt(totalAssets)}{totalLiabilities > 0 ? ` · debt ₹${fmt(totalLiabilities)}` : ''}
+              <div className="flex items-end gap-2 mt-1">
+                <p className="text-4xl font-extrabold text-white tracking-tight leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtC(netWorth)}</p>
+              </div>
+              <p className="text-[11px] mt-2.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                Assets <span className="font-bold text-white">{fmtC(totalAssets)}</span>
+                <span className="mx-2" style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
+                Debt <span className="font-bold" style={{ color: '#FCA5A5' }}>{fmtC(totalLiabilities)}</span>
               </p>
             </div>
-            <PulseSeg label="Income" value={`₹${fmt(monthlyIncome)}`} tint="#86EFAC" />
-            <PulseSeg label="Expenses" value={`₹${fmt(monthlyExpense)}`} tint="#FCA5A5" />
-            <PulseSeg label="Leftover" value={`${leftover >= 0 ? '₹' : '−₹'}${fmt(leftover)}`} tint={leftover >= 0 ? '#86EFAC' : '#FCA5A5'} />
-            <PulseSeg label="Profit · MTD" value={profitMTD ? `${profitMTD.actualNet < 0 ? '−₹' : '₹'}${fmt(profitMTD.actualNet)}` : '—'} tint={profitMTD && profitMTD.actualNet < 0 ? '#FCA5A5' : '#F6D08A'} />
+
+            {/* Income / Expenses */}
+            <div className="flex flex-col gap-4 md:pl-8" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Income</p>
+                <p className="text-2xl font-extrabold text-white tracking-tight mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtC(monthlyIncome)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Expenses</p>
+                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{fmtC(monthlyExpense)}</p>
+              </div>
+            </div>
+
+            {/* Leftover / Profit MTD */}
+            <div className="flex flex-col gap-4 md:pl-8">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Leftover</p>
+                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: leftover >= 0 ? '#7FD9A4' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{leftover >= 0 ? '+' : '−'}{fmtC(Math.abs(leftover))}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Profit MTD</p>
+                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: profitMtdVal != null && profitMtdVal < 0 ? '#FCA5A5' : '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{profitMtdVal != null ? fmtC(profitMtdVal) : '—'}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -358,36 +392,8 @@ export default function DashboardClient({
             ) : <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No credit cards</p>}
           </div>
 
-          {/* Recent transactions (compact) */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
-            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
-              <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Recent transactions</p>
-              <Link href="/transactions" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>View all</Link>
-            </div>
-            {txSlice.length === 0 ? (
-              <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No transactions yet</p>
-            ) : (
-              <div>
-                {txSlice.slice(0, 5).map((tx, i) => {
-                  const acct = tx.account as { name?: string } | undefined
-                  const cat = tx.category as { name?: string; icon?: string } | undefined
-                  const income = tx.type === 'income'
-                  return (
-                    <div key={tx.id} className="flex items-center justify-between gap-3 px-5 py-2.5" style={{ borderTop: i > 0 ? '1px solid var(--border-2)' : 'none' }}>
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-base shrink-0">{tx.type === 'transfer' ? '↔️' : getCategoryEmoji(cat?.icon)}</span>
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text)' }}>{tx.name || cat?.name || 'Uncategorised'}</p>
-                          <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{acct?.name ?? ''}{acct?.name ? ' · ' : ''}{getRelativeDate(tx.date)}</p>
-                        </div>
-                      </div>
-                      <p className="text-[13px] font-semibold shrink-0" style={{ color: income ? 'var(--income)' : 'var(--expense)' }}>{income ? '+' : '−'}₹{fmt(tx.amount)}</p>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+          {/* Top spend — single ring with payee picker */}
+          <TopSpendCard rings={payeeRings} />
 
           {/* Budgets */}
           <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
@@ -421,6 +427,37 @@ export default function DashboardClient({
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── Recent transactions (full width) ────────────────────────────── */}
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Recent transactions</p>
+            <Link href="/transactions" className="text-xs font-medium" style={{ color: 'var(--brand)' }}>View all</Link>
+          </div>
+          {txSlice.length === 0 ? (
+            <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No transactions yet</p>
+          ) : (
+            <div className="grid sm:grid-cols-2">
+              {txSlice.map((tx, i) => {
+                const acct = tx.account as { name?: string } | undefined
+                const cat = tx.category as { name?: string; icon?: string } | undefined
+                const income = tx.type === 'income'
+                return (
+                  <div key={tx.id} className="flex items-center justify-between gap-3 px-5 py-3" style={{ borderTop: i >= 2 ? '1px solid var(--border)' : 'none' }}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-base shrink-0">{tx.type === 'transfer' ? '↔️' : getCategoryEmoji(cat?.icon)}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>{tx.name || cat?.name || 'Uncategorised'}</p>
+                        <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{acct?.name ?? ''}{acct?.name ? ' · ' : ''}{getRelativeDate(tx.date)}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm font-semibold shrink-0" style={{ color: income ? 'var(--income)' : 'var(--expense)' }}>{income ? '+' : '−'}₹{fmt(tx.amount)}</p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
       </div>
