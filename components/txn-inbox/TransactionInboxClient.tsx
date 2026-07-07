@@ -256,7 +256,7 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
                 <option value="">Auto (by last-4)</option>
                 {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
-              <button onClick={() => removeSender(s.id)} className="p-1.5 rounded-lg hover:bg-red-50"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+              <button onClick={() => removeSender(s.id)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]"><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
             </div>
           ))}
           <div className="flex gap-2">

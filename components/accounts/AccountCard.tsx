@@ -105,7 +105,7 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
 
   return (
     <div
-      className={`bg-white rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md ${deleting ? 'opacity-50' : ''}`}
+      className={`bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm transition-all hover:shadow-md ${deleting ? 'opacity-50' : ''}`}
       style={{ borderLeftWidth: '3px', borderLeftColor: account.color || typeColor }}
     >
      <Link
@@ -129,10 +129,10 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 text-sm truncate">{account.name}</p>
-        <p className="text-xs text-gray-400">{typeLabel}</p>
+        <p className="font-semibold text-[var(--text)] text-sm truncate">{account.name}</p>
+        <p className="text-xs text-[var(--text-faint)]">{typeLabel}</p>
         {txCount !== null && txCount > 0 && (
-          <p className="text-[10px] text-gray-300">{txCount} transaction{txCount > 1 ? 's' : ''}</p>
+          <p className="text-[10px] text-[var(--text-faint)]">{txCount} transaction{txCount > 1 ? 's' : ''}</p>
         )}
         {canReconcile && (
           <span
@@ -159,22 +159,22 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
             <p className="font-bold text-sm" style={{ color: cm.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>
               {cm.outstanding > 0 ? fmt(cm.outstanding) : (cm.creditBalance > 0 ? `+${fmt(cm.creditBalance)}` : fmt(0))}
             </p>
-            <p className="text-[10px] text-gray-400">{cm.outstanding > 0 ? 'outstanding' : 'no dues'}</p>
+            <p className="text-[10px] text-[var(--text-faint)]">{cm.outstanding > 0 ? 'outstanding' : 'no dues'}</p>
           </>
         ) : loan && lm ? (
           <>
             <p className="font-bold text-sm" style={{ color: lm.outstanding > 0 ? 'var(--expense)' : 'var(--income)' }}>
               {fmt(lm.outstanding)}
             </p>
-            <p className="text-[10px] text-gray-400">remaining</p>
+            <p className="text-[10px] text-[var(--text-faint)]">remaining</p>
           </>
         ) : (
           <>
-            <p className={`font-bold text-sm ${balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>
+            <p className={`font-bold text-sm ${balance < 0 ? 'text-[var(--expense)]' : 'text-[var(--text)]'}`}>
               {formatCurrency(balance)}
             </p>
             {!account.include_in_net_worth && (
-              <p className="text-[10px] text-gray-400">Excluded</p>
+              <p className="text-[10px] text-[var(--text-faint)]">Excluded</p>
             )}
           </>
         )}
@@ -201,7 +201,7 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
       <div className="relative shrink-0" onClick={e => e.preventDefault()}>
         <button
           onClick={e => { e.preventDefault(); setShowMenu(!showMenu) }}
-          className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all"
+          className="w-8 h-8 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-lg transition-all"
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>
@@ -209,32 +209,32 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
         {showMenu && (
           <>
             <div className="fixed inset-0 z-10" onClick={e => { e.preventDefault(); setShowMenu(false) }} />
-            <div className="absolute right-0 top-9 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 min-w-44">
+            <div className="absolute right-0 top-9 bg-[var(--surface)] rounded-xl shadow-lg border border-[var(--border)] py-1 z-20 min-w-44">
               <button
                 onClick={() => { setShowMenu(false); onEdit(account) }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface-2)]"
               >
                 <Pencil className="w-3.5 h-3.5" /> Edit Account
               </button>
               <Link
                 href={`/accounts/${account.id}`}
                 onClick={() => setShowMenu(false)}
-                className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface-2)]"
               >
                 <Info className="w-3.5 h-3.5" /> Account Details
               </Link>
               <Link
                 href={`/transactions?account=${account.id}`}
                 onClick={() => setShowMenu(false)}
-                className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface-2)]"
               >
                 <ExternalLink className="w-3.5 h-3.5" /> View Transactions
               </Link>
-              <div className="my-1 border-t border-gray-100" />
+              <div className="my-1 border-t border-[var(--border)]" />
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 disabled:opacity-50"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--expense)] hover:bg-[var(--surface-2)] disabled:opacity-50"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 {deleting ? 'Archiving…' : 'Delete Account'}

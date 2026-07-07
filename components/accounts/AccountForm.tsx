@@ -171,18 +171,18 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-bold text-gray-900">{isEdit ? 'Edit Account' : 'New Account'}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">
+        <div className="sticky top-0 bg-[var(--surface)] border-b border-[var(--border)] px-6 py-4 flex items-center justify-between z-10">
+          <h2 className="text-lg font-bold text-[var(--text)]">{isEdit ? 'Edit Account' : 'New Account'}</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-          {error && <div className="bg-red-50 text-red-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+          {error && <div className="bg-[var(--surface-2)] text-[var(--expense)] text-sm rounded-xl px-4 py-3">{error}</div>}
 
           {/* Avatar */}
           <div className="flex items-center gap-4">
@@ -192,7 +192,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={avatarUploading}
-                className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-500 rounded-full flex items-center justify-center shadow-md"
+                className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--brand)] rounded-full flex items-center justify-center shadow-md"
               >
                 {avatarUploading
                   ? <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
@@ -201,21 +201,21 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
               <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Account Name</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-1.5">Account Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="e.g. HDFC Savings"
                 required
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-4 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm"
               />
             </div>
           </div>
 
           {/* Account Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+            <label className="block text-sm font-medium text-[var(--text)] mb-2">Account Type</label>
             <div className="grid grid-cols-3 gap-2">
               {(Object.entries(ACCOUNT_TYPE_CONFIG) as [AccountType, typeof ACCOUNT_TYPE_CONFIG[AccountType]][]).map(([t, config]) => (
                 <button
@@ -223,7 +223,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                   type="button"
                   onClick={() => { setType(t); setCustomTypeId('') }}
                   className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center ${
-                    type === t && !customTypeId ? 'text-white shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    type === t && !customTypeId ? 'text-white shadow-sm' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--surface-2)]'
                   }`}
                   style={type === t && !customTypeId ? { backgroundColor: config.color } : {}}
                 >
@@ -236,7 +236,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                   type="button"
                   onClick={() => { setType('other'); setCustomTypeId(ct.id) }}
                   className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center ${
-                    customTypeId === ct.id ? 'text-white shadow-sm' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                    customTypeId === ct.id ? 'text-white shadow-sm' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--surface-2)]'
                   }`}
                   style={customTypeId === ct.id ? { backgroundColor: ct.color } : {}}
                 >
@@ -249,7 +249,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
           {/* Balance & Currency */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              <label className="block text-sm font-medium text-[var(--text)] mb-1.5">
                 {type === 'credit' ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
                   : isLoan(type) ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
                   : (isEdit ? 'Initial Balance' : 'Opening Balance')}
@@ -262,20 +262,20 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                 inputMode="decimal"
                 autoComplete="off"
                 enterKeyHint="done"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-4 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm"
               />
               {(type === 'credit' || isLoan(type)) && (
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-[var(--text-faint)] mt-1">
                   Amount owed — enter as a negative number (e.g. −8400). Repayments you log later will reduce it.
                 </p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Currency</label>
+              <label className="block text-sm font-medium text-[var(--text)] mb-1.5">Currency</label>
               <select
                 value={currency}
                 onChange={e => setCurrency(e.target.value)}
-                className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                className="w-full px-3 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm"
               >
                 <option value="INR">₹ INR</option>
                 <option value="USD">$ USD</option>
@@ -292,45 +292,45 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
             <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Credit limit</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Credit limit</label>
                   <input type="number" inputMode="decimal" value={creditLimit}
                     onChange={e => setCreditLimit(e.target.value)} placeholder="e.g. 200000"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Interest rate (APR %)</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Interest rate (APR %)</label>
                   <input type="number" inputMode="decimal" value={interestRate}
                     onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 42"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Statement day</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Statement day</label>
                   <input type="number" min="1" max="31" value={statementDay}
                     onChange={e => setStatementDay(e.target.value)} placeholder="closes on"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Payment due day</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Payment due day</label>
                   <input type="number" min="1" max="31" value={statementDueDay}
                     onChange={e => setStatementDueDay(e.target.value)} placeholder="due on"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Card network</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Card network</label>
                   <input type="text" value={cardNetwork} onChange={e => setCardNetwork(e.target.value)} placeholder="Visa / Mastercard / RuPay"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Expiry (MM / YYYY)</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Expiry (MM / YYYY)</label>
                   <div className="flex gap-2">
                     <input type="number" min="1" max="12" value={cardExpiryMonth} onChange={e => setCardExpiryMonth(e.target.value)} placeholder="MM"
-                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                      className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                     <input type="number" min="2000" max="2099" value={cardExpiryYear} onChange={e => setCardExpiryYear(e.target.value)} placeholder="YYYY"
-                      className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                      className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                   </div>
                 </div>
               </div>
-              <p className="text-[11px] text-gray-400">Card number goes in Account Number below. We never store CVV. Limit enables utilisation tracking; statement days feed the Cards view and forecast.</p>
+              <p className="text-[11px] text-[var(--text-faint)]">Card number goes in Account Number below. We never store CVV. Limit enables utilisation tracking; statement days feed the Cards view and forecast.</p>
             </div>
           )}
 
@@ -339,31 +339,31 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
             <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Original loan amount</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Original loan amount</label>
                   <input type="number" inputMode="decimal" value={loanPrincipal}
                     onChange={e => setLoanPrincipal(e.target.value)} placeholder="e.g. 500000"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Interest rate (%)</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Interest rate (%)</label>
                   <input type="number" inputMode="decimal" value={interestRate}
                     onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 9.5"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">EMI / monthly payment</label>
+                  <label className="block text-xs font-medium text-[var(--text)] mb-1">EMI / monthly payment</label>
                   <input type="number" inputMode="decimal" value={emiAmount}
                     onChange={e => setEmiAmount(e.target.value)} placeholder="e.g. 12000"
-                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
                 </div>
               </div>
-              <p className="text-[11px] text-gray-400">Original amount enables a paid-vs-remaining progress view.</p>
+              <p className="text-[11px] text-[var(--text-faint)]">Original amount enables a paid-vs-remaining progress view.</p>
             </div>
           )}
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
+            <label className="block text-sm font-medium text-[var(--text)] mb-2">Color</label>
             <div className="flex gap-2 flex-wrap">
               {ACCOUNT_COLORS.map(c => (
                 <button
@@ -383,73 +383,73 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
           <label className="flex items-center gap-3 cursor-pointer">
             <div
               onClick={() => setIncludeNetWorth(!includeNetWorth)}
-              className={`w-10 h-6 rounded-full transition-colors relative ${includeNetWorth ? 'bg-brand-500' : 'bg-gray-200'}`}
+              className={`w-10 h-6 rounded-full transition-colors relative ${includeNetWorth ? 'bg-[var(--brand)]' : 'bg-[var(--border)]'}`}
             >
-              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${includeNetWorth ? 'translate-x-5' : 'translate-x-1'}`} />
+              <div className={`absolute top-1 w-4 h-4 bg-[var(--surface)] rounded-full shadow transition-transform ${includeNetWorth ? 'translate-x-5' : 'translate-x-1'}`} />
             </div>
-            <span className="text-sm text-gray-700">Include in Net Worth</span>
+            <span className="text-sm text-[var(--text)]">Include in Net Worth</span>
           </label>
 
           {/* Extended Details (collapsible) */}
-          <div className="border border-gray-100 rounded-xl overflow-hidden">
+          <div className="border border-[var(--border)] rounded-xl overflow-hidden">
             <button
               type="button"
               onClick={() => setShowDetails(!showDetails)}
-              className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-2)]"
             >
-              <span>Bank Details <span className="text-gray-400 font-normal">(optional)</span></span>
-              {showDetails ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              <span>Bank Details <span className="text-[var(--text-faint)] font-normal">(optional)</span></span>
+              {showDetails ? <ChevronUp className="w-4 h-4 text-[var(--text-faint)]" /> : <ChevronDown className="w-4 h-4 text-[var(--text-faint)]" />}
             </button>
 
             {showDetails && (
-              <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
+              <div className="px-4 pb-4 space-y-3 border-t border-[var(--border)]">
                 <div className="grid grid-cols-2 gap-3 pt-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">{type === 'credit' ? 'Card Number' : 'Account Number'}</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{type === 'credit' ? 'Card Number' : 'Account Number'}</label>
                     <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}
                       placeholder="XXXX XXXX XXXX"
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">{type === 'credit' ? 'Cardholder Name' : 'Account Holder'}</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{type === 'credit' ? 'Cardholder Name' : 'Account Holder'}</label>
                     <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)}
                       placeholder="e.g. Dilip T R"
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Branch</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Branch</label>
                     <input type="text" value={branch} onChange={e => setBranch(e.target.value)}
                       placeholder="e.g. Koramangala"
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">IFSC Code</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">IFSC Code</label>
                     <input type="text" value={ifscCode} onChange={e => setIfscCode(e.target.value.toUpperCase())}
                       placeholder="HDFC0001234"
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">SWIFT Code</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">SWIFT Code</label>
                     <input type="text" value={swiftCode} onChange={e => setSwiftCode(e.target.value.toUpperCase())}
                       placeholder="HDFCINBB"
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono" />
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Account Opened</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Account Opened</label>
                     <input type="date" value={openDate} onChange={e => setOpenDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Closing Date</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Closing Date</label>
                     <input type="date" value={closingDate} onChange={e => setClosingDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Bank Address</label>
+                  <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Bank Address</label>
                   <textarea value={bankAddress} onChange={e => setBankAddress(e.target.value)}
                     rows={2} placeholder="Branch address..."
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none" />
+                    className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm resize-none" />
                 </div>
               </div>
             )}
@@ -457,30 +457,30 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
 
           {/* Debit cards — linkable to funding (non-credit/loan) accounts */}
           {type !== 'credit' && !isLoan(type) && (
-            <div className="border border-gray-100 rounded-xl p-4 space-y-3">
+            <div className="border border-[var(--border)] rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-gray-500" />
-                <p className="text-sm font-medium text-gray-700">Debit cards <span className="text-gray-400 font-normal">(optional)</span></p>
+                <CreditCard className="w-4 h-4 text-[var(--text-muted)]" />
+                <p className="text-sm font-medium text-[var(--text)]">Debit cards <span className="text-[var(--text-faint)] font-normal">(optional)</span></p>
               </div>
               {!isEdit ? (
-                <p className="text-xs text-gray-400">Save the account first, then reopen it to link debit cards.</p>
+                <p className="text-xs text-[var(--text-faint)]">Save the account first, then reopen it to link debit cards.</p>
               ) : (
                 <>
                   {dcList.map(dc => (
-                    <div key={dc.id} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
-                      <span className="font-medium text-gray-700 truncate flex-1">{dc.label || dc.card_network || 'Debit card'}{dc.card_number ? ` ···· ${dc.card_number.replace(/\s+/g, '').slice(-4)}` : ''}</span>
-                      <button type="button" onClick={() => removeDebitCard(dc.id)} className="text-red-400 hover:text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <div key={dc.id} className="flex items-center gap-2 text-sm bg-[var(--surface-2)] rounded-lg px-3 py-2">
+                      <span className="font-medium text-[var(--text)] truncate flex-1">{dc.label || dc.card_network || 'Debit card'}{dc.card_number ? ` ···· ${dc.card_number.replace(/\s+/g, '').slice(-4)}` : ''}</span>
+                      <button type="button" onClick={() => removeDebitCard(dc.id)} className="text-[var(--expense)] hover:text-[var(--expense)]"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
                   <div className="grid grid-cols-2 gap-2">
-                    <input value={dcDraft.label} onChange={e => setDcDraft({ ...dcDraft, label: e.target.value })} placeholder="Label (e.g. Platinum)" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-                    <input value={dcDraft.card_network} onChange={e => setDcDraft({ ...dcDraft, card_network: e.target.value })} placeholder="Network" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-                    <input value={dcDraft.card_number} onChange={e => setDcDraft({ ...dcDraft, card_number: e.target.value })} placeholder="Card number" className="col-span-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono" />
-                    <input value={dcDraft.expiry_month} onChange={e => setDcDraft({ ...dcDraft, expiry_month: e.target.value })} placeholder="Exp MM" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
-                    <input value={dcDraft.expiry_year} onChange={e => setDcDraft({ ...dcDraft, expiry_year: e.target.value })} placeholder="Exp YYYY" className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+                    <input value={dcDraft.label} onChange={e => setDcDraft({ ...dcDraft, label: e.target.value })} placeholder="Label (e.g. Platinum)" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                    <input value={dcDraft.card_network} onChange={e => setDcDraft({ ...dcDraft, card_network: e.target.value })} placeholder="Network" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                    <input value={dcDraft.card_number} onChange={e => setDcDraft({ ...dcDraft, card_number: e.target.value })} placeholder="Card number" className="col-span-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm font-mono" />
+                    <input value={dcDraft.expiry_month} onChange={e => setDcDraft({ ...dcDraft, expiry_month: e.target.value })} placeholder="Exp MM" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                    <input value={dcDraft.expiry_year} onChange={e => setDcDraft({ ...dcDraft, expiry_year: e.target.value })} placeholder="Exp YYYY" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
                   </div>
-                  <button type="button" onClick={addDebitCard} className="flex items-center gap-1.5 text-sm font-medium text-brand-600"><Plus className="w-4 h-4" /> Add debit card</button>
-                  <p className="text-[11px] text-gray-400">CVV is never stored.</p>
+                  <button type="button" onClick={addDebitCard} className="flex items-center gap-1.5 text-sm font-medium text-[var(--brand)]"><Plus className="w-4 h-4" /> Add debit card</button>
+                  <p className="text-[11px] text-[var(--text-faint)]">CVV is never stored.</p>
                 </>
               )}
             </div>
@@ -489,7 +489,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60"
+            className="w-full bg-[var(--brand)] hover:opacity-90 text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60"
           >
             {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Account'}
           </button>
