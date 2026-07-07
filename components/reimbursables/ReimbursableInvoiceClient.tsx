@@ -849,11 +849,11 @@ export default function ReimbursableInvoiceClient({
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Description</label>
-                <input type="text" value={newDedDesc} onChange={e => setNewDedDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="e.g. Advance adjustment" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-[var(--border)] disabled:opacity-50" />
+                <input type="text" value={newDedDesc} onChange={e => setNewDedDesc(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="e.g. Advance adjustment" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] focus:border-[var(--border)] disabled:opacity-50" />
               </div>
               <div className="w-36">
                 <label className="block text-xs text-[var(--text-muted)] mb-1">Amount ({billingCurrency})</label>
-                <input type="number" value={newDedAmount} onChange={e => setNewDedAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-[var(--border)] disabled:opacity-50" />
+                <input type="number" value={newDedAmount} onChange={e => setNewDedAmount(e.target.value)} onKeyDown={e => e.key === 'Enter' && addDeduction()} placeholder="0.00" min="0" step="0.01" disabled={isFinalized} className="w-full px-3 py-2 text-sm border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--border)] focus:border-[var(--border)] disabled:opacity-50" />
               </div>
               <button onClick={addDeduction} disabled={!newDedDesc.trim() || !newDedAmount || parseFloat(newDedAmount) <= 0 || isFinalized} className="flex items-center gap-1 px-4 py-2 bg-[var(--expense)] hover:bg-[var(--expense)] text-white rounded-xl text-sm font-medium transition-all disabled:opacity-40">
                 <Plus className="w-4 h-4" /> Add
