@@ -25,7 +25,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, ChevronDown, ChevronRight, UploadCloud, X, Layers, List, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Plus, ChevronDown, ChevronRight, UploadCloud, X, Layers, List, Pencil, Trash2, Loader2, Paperclip } from 'lucide-react'
 import type { RecoverableInvoice, ImportBatch, RecoverableAllocation } from '@/lib/recoverables/types'
 import InvoiceListClient from './InvoiceListClient'
 import ImportPageClient from '../import/ImportPageClient'
@@ -402,6 +402,16 @@ function InvoiceRow({
           Mark paid
         </button>
       )}
+      {/* View PDF — opens the print/PDF view directly, no need to open Edit. */}
+      <a
+        href={`/recoverables/invoices/${invoice.id}/print`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="View PDF"
+        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--surface)] shrink-0 transition-colors"
+      >
+        <Paperclip className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+      </a>
       {/* Edit — courier invoices have a full detail/edit page. */}
       <Link
         href={`/recoverables/invoices/${invoice.id}`}
