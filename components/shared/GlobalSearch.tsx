@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, X, ArrowLeftRight, FileText, Truck, Building2, Users, UserSquare, Loader2 } from 'lucide-react'
+import { Search, X, ArrowLeftRight, FileText, Truck, Building2, Users, UserSquare, Loader2, CornerDownLeft } from 'lucide-react'
 import type { SearchHit } from '@/app/api/search/route'
 
 const TYPE_ICON: Record<SearchHit['type'], React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
@@ -12,6 +12,17 @@ const TYPE_ICON: Record<SearchHit['type'], React.ComponentType<{ className?: str
   supplier: Building2,
   customer: Users,
   employee: UserSquare,
+}
+
+// Frame 18f — results are grouped under section labels, in this order.
+const TYPE_ORDER: SearchHit['type'][] = ['customer', 'customer_invoice', 'supplier', 'supplier_invoice', 'employee', 'transaction']
+const TYPE_LABEL: Record<SearchHit['type'], string> = {
+  customer: 'Customers',
+  customer_invoice: 'Customer invoices',
+  supplier: 'Suppliers',
+  supplier_invoice: 'Supplier invoices',
+  employee: 'Staff',
+  transaction: 'Transactions',
 }
 
 export default function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -74,28 +85,38 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
           <Search className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
         </div>
 
-        {/* Results */}
+        {/* Results — grouped by type under section labels (18f) */}
         {(q.trim().length >= 2 || hits.length > 0) && (
-          <div className="max-h-[60vh] overflow-y-auto py-1">
+          <div className="max-h-[60vh] overflow-y-auto p-2">
             {!loading && hits.length === 0 && q.trim().length >= 2 && (
               <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>
                 No matches for “{q}”
               </p>
             )}
-            {hits.map((h, i) => {
-              const Icon = TYPE_ICON[h.type]
+            {TYPE_ORDER.filter(t => hits.some(h => h.type === t)).map(type => {
+              const Icon = TYPE_ICON[type]
               return (
-                <button
-                  key={i}
-                  onClick={() => go(h.href)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--surface-2)]"
-                >
-                  <Icon className="w-4 h-4 shrink-0" style={{ color: 'var(--text-faint)' }} />
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-sm truncate" style={{ color: 'var(--text)' }}>{h.label}</span>
-                    {h.sub && <span className="block text-xs truncate" style={{ color: 'var(--text-muted)' }}>{h.sub}</span>}
-                  </span>
-                </button>
+                <div key={type}>
+                  <p className="px-[10px] pt-2 pb-[5px] text-[10px] font-extrabold tracking-[0.1em]" style={{ color: 'var(--text-faint)' }}>
+                    {TYPE_LABEL[type].toUpperCase()}
+                  </p>
+                  {hits.filter(h => h.type === type).map((h, i) => (
+                    <button
+                      key={i}
+                      onClick={() => go(h.href)}
+                      className="group w-full flex items-center gap-[11px] px-[10px] py-[9px] rounded-[10px] text-left transition-colors hover:bg-[var(--surface-2)]"
+                    >
+                      <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}>
+                        <Icon className="w-[15px] h-[15px]" style={{ color: 'var(--text-muted)' }} />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-medium truncate" style={{ color: 'var(--text)' }}>{h.label}</span>
+                      </span>
+                      {h.sub && <span className="text-[11px] shrink-0" style={{ color: 'var(--text-faint)' }}>{h.sub}</span>}
+                      <CornerDownLeft className="w-[14px] h-[14px] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--brand)' }} />
+                    </button>
+                  ))}
+                </div>
               )
             })}
           </div>

@@ -382,13 +382,23 @@ export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onS
           {/* Pay modal */}
           {payOpen && latest && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-              <div className="rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] flex flex-col" style={{ background: 'var(--surface)' }}>
-                <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-                  <h3 className="text-heading" style={{ color: 'var(--text)' }}>Pay {card.name} statement</h3>
-                  <button onClick={() => setPayOpen(false)} style={{ color: 'var(--text-muted)' }}><X className="w-4 h-4" /></button>
+              <div className="rounded-[20px] w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
+                <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <div className="flex items-center gap-[9px]">
+                    <div className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>Pay {card.name}</h3>
+                  </div>
+                  <button onClick={() => setPayOpen(false)} className="w-[30px] h-[30px] rounded-[9px] flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><X className="w-[15px] h-[15px]" /></button>
                 </div>
 
-                <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+                <div className="px-5 py-5 space-y-4 overflow-y-auto flex-1">
+                  {/* Statement-due hero */}
+                  <div className="rounded-[14px] p-4" style={{ background: 'linear-gradient(135deg, var(--brand-deep), color-mix(in srgb, var(--brand-deep) 76%, #000))' }}>
+                    <p className="text-[10px] font-bold tracking-[0.1em]" style={{ color: 'rgba(255,255,255,.6)' }}>STATEMENT DUE</p>
+                    <p className="text-[26px] font-extrabold text-white mt-[3px]" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(statementAmount || latest.calculatedAmount)}</p>
+                  </div>
                   {payError && (
                     <div className="text-sm px-4 py-2 rounded-lg" style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)' }}>
                       {payError}
