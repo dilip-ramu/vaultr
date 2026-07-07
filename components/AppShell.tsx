@@ -202,19 +202,8 @@ function SidebarSection({
                   collapsed={collapsed}
                   onClick={onItemClick}
                 />
-                {/* Sub-items — always shown when section is open and sidebar is expanded */}
-                {!collapsed && item.subItems?.map(sub => (
-                  <NavLink
-                    key={sub.href}
-                    href={sub.href}
-                    label={sub.label}
-                    icon={sub.icon}
-                    isActive={pathname === sub.href || pathname.startsWith(sub.href + '/')}
-                    indent
-                    collapsed={false}
-                    onClick={onItemClick}
-                  />
-                ))}
+                {/* Minimal sidebar — top-level destinations only. Sub-pages
+                    are reached via the in-page hub tabs, matching the design. */}
               </div>
             )
           })}
@@ -619,14 +608,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
                             collapsed={false}
                             onClick={() => setMobileSidebarOpen(false)}
                           />
-                          {item.subItems?.map(sub => (
-                            <NavLink
-                              key={sub.href} href={sub.href} label={sub.label} icon={sub.icon}
-                              isActive={pathname === sub.href || pathname.startsWith(sub.href + '/')}
-                              indent collapsed={false}
-                              onClick={() => setMobileSidebarOpen(false)}
-                            />
-                          ))}
                         </div>
                       )
                     })}
