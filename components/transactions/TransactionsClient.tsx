@@ -202,49 +202,55 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
       <div className="flex items-center justify-between mb-5">
         {!hideHeader ? (
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Transactions</h1>
-            <p className="text-sm text-gray-500">{filtered.length} records</p>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text)' }}>Transactions</h1>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{filtered.length} records</p>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">{filtered.length} records</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{filtered.length} records</p>
         )}
         <button
           onClick={() => { setEditTx(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 bg-brand-500 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm hover:bg-brand-600 transition-all"
+          className="flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+          style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
         >
           <Plus className="w-4 h-4" />
           Add
         </button>
       </div>
 
-      {/* Summary chips — all-time totals across every transaction */}
-      <div className="flex gap-3 mb-4">
-        <div className="flex-1 bg-green-50 rounded-xl px-3 py-2.5 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-green-500 shrink-0" />
-          <div>
-            <p className="text-[10px] text-green-600">Credits</p>
-            <p className="text-sm font-bold text-green-700">{formatCurrency(totalCredits)}</p>
+      {/* Summary strip — all-time totals across every transaction */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--income)' }} />
+            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Money in</p>
           </div>
+          <p className="text-base font-bold tracking-tight" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalCredits)}</p>
         </div>
-        <div className="flex-1 bg-red-50 rounded-xl px-3 py-2.5 flex items-center gap-2">
-          <TrendingDown className="w-4 h-4 text-red-500 shrink-0" />
-          <div>
-            <p className="text-[10px] text-red-600">Debits</p>
-            <p className="text-sm font-bold text-red-700">{formatCurrency(totalDebits)}</p>
+        <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <TrendingDown className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--expense)' }} />
+            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Money out</p>
           </div>
+          <p className="text-base font-bold tracking-tight" style={{ color: 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalDebits)}</p>
+        </div>
+        <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-0.5" style={{ color: 'var(--text-muted)' }}>Net</p>
+          <p className="text-base font-bold tracking-tight" style={{ color: totalCredits - totalDebits >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalCredits - totalDebits)}</p>
         </div>
       </div>
 
       {/* Search + Filter + Select */}
       <div className="flex gap-2 mb-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-faint)' }} />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search transactions..."
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
           />
         </div>
         <button
@@ -279,14 +285,10 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-              filter === f
-                ? f === 'expense' ? 'bg-red-500 text-white'
-                  : f === 'income' ? 'bg-green-500 text-white'
-                  : f === 'transfer' ? 'bg-blue-500 text-white'
-                  : 'bg-brand-500 text-white'
-                : 'bg-white border border-gray-200 text-gray-600'
-            }`}
+            className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border"
+            style={filter === f
+              ? { background: f === 'expense' ? 'var(--expense)' : f === 'income' ? 'var(--income)' : f === 'transfer' ? '#3B82F6' : 'var(--brand)', borderColor: 'transparent', color: '#fff' }
+              : { background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text-muted)' }}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
@@ -294,7 +296,8 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         <select
           value={accountFilter}
           onChange={e => setAccountFilter(e.target.value)}
-          className="px-3 py-1.5 rounded-xl text-xs font-medium bg-white border border-gray-200 text-gray-600"
+          className="px-3 py-1.5 rounded-xl text-xs font-medium outline-none"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
         >
           <option value="all">All Accounts</option>
           {[...accounts].sort((a, b) =>
@@ -396,11 +399,11 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
       {/* Transaction List */}
       {grouped.length === 0 ? (
         <div className="text-center py-16">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <ArrowLeftRight className="w-7 h-7 text-gray-400" />
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--surface-2)' }}>
+            <ArrowLeftRight className="w-7 h-7" style={{ color: 'var(--text-faint)' }} />
           </div>
-          <p className="text-gray-500 font-medium">No transactions found</p>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="font-medium" style={{ color: 'var(--text-muted)' }}>No transactions found</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>
             {search || filter !== 'all' ? 'Try changing your filters' : 'Add your first transaction'}
           </p>
         </div>
@@ -409,21 +412,21 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
           {grouped.map(([date, txs]) => (
             <div key={date}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-gray-500">{getRelativeDate(date)}</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>{getRelativeDate(date)}</p>
+                <p className="text-xs">
                   {txs.filter(t => t.type === 'income').length > 0 && (
-                    <span className="text-green-500 mr-2">
+                    <span className="mr-2" style={{ color: 'var(--income)' }}>
                       +{formatCurrency(txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0))}
                     </span>
                   )}
                   {txs.filter(t => t.type === 'expense').length > 0 && (
-                    <span className="text-red-500">
+                    <span style={{ color: 'var(--expense)' }}>
                       -{formatCurrency(txs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0))}
                     </span>
                   )}
                 </p>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
                 {txs.map((tx, i) => (
                   selectMode ? (
                     <div key={tx.id} className="flex items-stretch">
