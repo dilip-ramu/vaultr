@@ -258,73 +258,54 @@ export default function StaffClient({ employees: initialEmployees, customers = [
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
+              <thead style={{ borderBottom: '1px solid var(--border-2)' }}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Employee</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Designation</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Bank</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">PAN</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Joined</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Actions</th>
+                  {['Employee', 'Designation', 'Bank', 'Salary / mo', ''].map((h, i) => (
+                    <th key={i} className={`px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider ${i >= 3 ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--border-2)]">
-                {filtered.map(emp => (
-                  <tr key={emp.id} className={`hover:bg-[var(--surface-2)] transition-colors ${!emp.is_active ? 'opacity-50' : ''}`}>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-[var(--text)]">{emp.name}</div>
-                      <div className="text-xs text-[var(--text-faint)]">{emp.employee_id}</div>
-                    </td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">{emp.designation ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      {emp.bank_name ? (
-                        <div>
-                          <div className="text-[var(--text)]">{emp.bank_name}</div>
-                          <div className="text-xs text-[var(--text-faint)]">{emp.account_number ?? ''} {emp.ifsc ? `· ${emp.ifsc}` : ''}</div>
+              <tbody>
+                {filtered.map(emp => {
+                  const last4 = emp.account_number ? String(emp.account_number).replace(/\s/g, '').slice(-4) : ''
+                  const salary = emp.salary_currency && emp.salary_currency !== 'INR'
+                    ? `${emp.salary_currency} ${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
+                    : `₹${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
+                  return (
+                    <tr key={emp.id} className={`hover:bg-[var(--surface-2)] transition-colors ${!emp.is_active ? 'opacity-50' : ''}`} style={{ borderTop: '1px solid var(--border-2)' }}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{emp.name.slice(0, 2).toUpperCase()}</span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-[var(--text)] truncate">{emp.name}</div>
+                            <div className="text-[11px] text-[var(--text-faint)]">{emp.employee_id}</div>
+                          </div>
                         </div>
-                      ) : <span className="text-[var(--text-faint)]">—</span>}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">{emp.pan_number ?? '—'}</td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">{fmtDate(emp.joining_date)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                        emp.is_active ? 'bg-[var(--brand-light)] text-[var(--income)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)]'
-                      }`}>
-                        {emp.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleGenerateContract(emp)}
-                          disabled={generatingId === emp.id}
-                          className="text-xs font-medium disabled:opacity-50"
-                          style={{ color: 'var(--brand)' }}
-                          title="Generate this employee's contract from the matching template"
-                        >
-                          {generatingId === emp.id ? 'Generating…' : 'Contract'}
-                        </button>
-                        <button
-                          onClick={() => openEdit(emp)}
-                          className="text-[var(--transfer)] hover:text-[var(--transfer)] text-xs font-medium"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeactivate(emp)}
-                          className={`text-xs font-medium ${
-                            emp.is_active
-                              ? 'text-[var(--expense)] hover:text-[var(--expense)]'
-                              : 'text-[var(--income)] hover:text-[var(--income)]'
-                          }`}
-                        >
-                          {emp.is_active ? 'Deactivate' : 'Reactivate'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--text-muted)]">{emp.designation ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        {emp.bank_name ? (
+                          <div>
+                            <div className="text-[13px] text-[var(--text)]">{emp.bank_name}{last4 ? ` •••• ${last4}` : ''}</div>
+                            {emp.ifsc && <div className="text-[11px] font-mono text-[var(--text-faint)]">{emp.ifsc}</div>}
+                          </div>
+                        ) : <span className="text-[var(--text-faint)]">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-[var(--text)] tabular-nums">{salary}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2.5">
+                          <button onClick={() => handleGenerateContract(emp)} disabled={generatingId === emp.id} className="text-xs font-semibold disabled:opacity-50" style={{ color: 'var(--brand)' }} title="Generate contract">
+                            {generatingId === emp.id ? 'Generating…' : 'Contract'}
+                          </button>
+                          <button onClick={() => openEdit(emp)} className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Edit</button>
+                          <button onClick={() => handleDeactivate(emp)} className="text-xs font-semibold" style={{ color: emp.is_active ? 'var(--expense)' : 'var(--income)' }}>
+                            {emp.is_active ? 'Deactivate' : 'Reactivate'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
