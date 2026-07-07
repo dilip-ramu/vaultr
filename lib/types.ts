@@ -47,6 +47,7 @@ export interface Account {
   custom_type_avatar_url?: string | null
   // Extended details
   account_number: string | null
+  account_holder: string | null
   branch: string | null
   ifsc_code: string | null
   swift_code: string | null
@@ -57,6 +58,9 @@ export interface Account {
   statement_day: number | null
   // Credit cards & loans
   credit_limit: number | null
+  card_network: string | null
+  card_expiry_month: number | null
+  card_expiry_year: number | null
   loan_principal: number | null
   interest_rate: number | null
   emi_amount: number | null
@@ -70,6 +74,21 @@ export interface Account {
   created_at: string
   balance?: number
   transaction_count?: number
+}
+
+// v73 — a debit card linked to a funding account. CVV is never stored.
+export interface DebitCard {
+  id: string
+  user_id: string
+  account_id: string
+  label: string | null
+  card_number: string | null
+  card_network: string | null
+  card_holder: string | null
+  expiry_month: number | null
+  expiry_year: number | null
+  color: string | null
+  created_at: string
 }
 
 export interface Category {
@@ -333,6 +352,28 @@ export function resolveAccountTypeDisplay(
     return { label: override.name, color: override.color, bgColor: `${override.color}18`, icon: override.icon }
   }
   return ACCOUNT_TYPE_CONFIG[type]
+}
+
+// v73 — default "card face" base colour per account type for the unified
+// Accounts+Cards page (savings→green, credit→red, cash→amber, …). A per-account
+// `color` value always overrides this.
+const ACCOUNT_FACE_COLOR: Partial<Record<AccountType, string>> = {
+  savings:       '#1F9E54',
+  checking:      '#2A7A50',
+  credit:        '#C8372A',
+  cash:          '#C08A3E',
+  investment:    '#7C3AED',
+  loan:          '#6B7280',
+  auto_loan:     '#6B7280',
+  home_loan:     '#6B7280',
+  business_loan: '#6B7280',
+  chit:          '#14B8A6',
+  other:         '#6B7280',
+}
+
+export function accountFaceColor(type: AccountType, override?: string | null): string {
+  if (override && override.trim()) return override
+  return ACCOUNT_FACE_COLOR[type] ?? '#2A7A50'
 }
 
 export const PAYMENT_TERMS_LABELS: Record<PaymentTerms, string> = {
