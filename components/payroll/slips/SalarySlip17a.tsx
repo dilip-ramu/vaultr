@@ -1,6 +1,7 @@
 'use client'
 
 import type { SalarySlipDocData } from '@/components/templates/SalarySlipRenderer'
+import { amountToWords } from '@/lib/recoverables/invoices/words'
 
 /**
  * Salary slip — Claude design (frame 17a). Layout schema is from the Claude
@@ -47,7 +48,6 @@ export default function SalarySlip17a({
   const gross = earnings.reduce((s, [, v]) => s + v, 0)
   const totalDed = deductions.reduce((s, [, v]) => s + v, 0)
   const net = num(entry.final_payable)
-  const acctLast4 = (employee.account_number ?? '').replace(/\s/g, '').slice(-4)
 
   const LBL: React.CSSProperties = { fontSize: '9px', fontWeight: 800, letterSpacing: '.1em', color: '#aaa', margin: '0 0 5px' }
   const numSt: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' }
@@ -92,13 +92,15 @@ export default function SalarySlip17a({
             <p style={{ fontSize: '10.5px', color: '#888', marginTop: '2px', lineHeight: 1.5 }}>
               {employee.designation ?? '—'} · {employee.employee_id}
               {employee.pan_number && <><br />PAN {employee.pan_number}</>}
+              {employee.joining_date && <><br />Joined {fmtDate(employee.joining_date)}</>}
             </p>
           </div>
           <div>
             <p style={LBL}>PAID TO</p>
             <p style={{ fontSize: '11px', color: '#333', lineHeight: 1.6, margin: 0, ...numSt }}>
-              {employee.bank_name ?? '—'}{acctLast4 && ` •••• ${acctLast4}`}
-              {employee.ifsc && <><br />{employee.ifsc}</>}
+              {employee.bank_name ?? '—'}
+              {employee.account_number && <><br />A/C {employee.account_number}</>}
+              {employee.ifsc && <><br />IFSC {employee.ifsc}</>}
             </p>
             <p style={{ ...LBL, margin: '10px 0 5px' }}>PAID ON</p>
             <p style={{ fontSize: '11px', color: '#333', margin: 0 }}>{fmtDate(month.payment_date)}</p>
@@ -129,6 +131,9 @@ export default function SalarySlip17a({
             <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '.06em', color: '#111' }}>NET PAY</span>
             <span style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '-.02em', color: accent, ...numSt }}>₹{fmtInr(net)}</span>
           </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '7px' }}>
+          <p style={{ width: '280px', fontSize: '10px', color: '#888', textAlign: 'right', margin: 0 }}>{amountToWords(net, 'INR')}</p>
         </div>
 
         {/* Footer — source salary + FX rate (existing fields) */}
