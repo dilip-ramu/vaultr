@@ -119,10 +119,36 @@ export default function ImportPageClient({ onImported }: { onImported?: () => vo
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Import CSV</h1>
+          <h1 className="text-lg font-bold" style={{ color: 'var(--text)' }}>Import courier batch</h1>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Upload a courier shipment CSV to create allocations</p>
         </div>
       </div>
+
+      {/* Stepper — Upload → Review → Import (20b) */}
+      {(() => {
+        const active = stage === 'done' ? 2 : (stage === 'importing' ? 2 : preview ? 1 : 0)
+        const steps = ['Upload', 'Review', 'Import']
+        return (
+          <div className="flex items-center">
+            {steps.map((label, i) => {
+              const done = i < active
+              const isOn = i === active
+              return (
+                <div key={label} className="flex items-center" style={{ flex: i < steps.length - 1 ? 1 : '0 0 auto' }}>
+                  <div className="flex items-center gap-[9px]">
+                    <div className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-[12px] font-extrabold"
+                      style={done || isOn ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-faint)' }}>
+                      {done ? <CheckCircle className="w-[14px] h-[14px]" /> : i + 1}
+                    </div>
+                    <span className="text-[12.5px]" style={{ fontWeight: done || isOn ? 700 : 600, color: done || isOn ? 'var(--text)' : 'var(--text-muted)' }}>{label}</span>
+                  </div>
+                  {i < steps.length - 1 && <div className="h-[2px] mx-3 flex-1" style={{ background: i < active ? 'var(--brand)' : 'var(--border)' }} />}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
 
       {/* Done state */}
       {stage === 'done' && (
@@ -264,30 +290,19 @@ export default function ImportPageClient({ onImported }: { onImported?: () => vo
                 <ValidationErrors errors={preview.errors} maxShow={5} />
               )}
 
-              {/* Summary stats (valid only) */}
+              {/* Summary stat tiles (valid only) — 20b */}
               {preview.isValid && preview.summary && (
-                <div
-                  className="rounded-xl p-4 grid grid-cols-3 gap-4 text-center"
-                  style={{ backgroundColor: 'var(--brand-light)' }}
-                >
-                  <div>
-                    <p className="text-lg font-bold" style={{ color: 'var(--brand)' }}>
-                      {preview.summary.referenceCount}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>References</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold" style={{ color: 'var(--brand)' }}>
-                      {preview.summary.supplierCount}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Customers</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold" style={{ color: 'var(--brand)' }}>
-                      ₹{preview.summary.totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Total Cost</p>
-                  </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    ['REFERENCES', String(preview.summary.referenceCount)],
+                    ['CUSTOMERS', String(preview.summary.supplierCount)],
+                    ['TOTAL COST', `₹${preview.summary.totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`],
+                  ] as const).map(([label, value]) => (
+                    <div key={label} className="rounded-[13px] px-4 py-[14px]" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                      <p className="text-[9.5px] font-extrabold tracking-[.06em]" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                      <p className="text-[20px] font-extrabold mt-[2px]" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+                    </div>
+                  ))}
                 </div>
               )}
 
