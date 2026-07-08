@@ -42,7 +42,7 @@ export default function MarketTab({ rates }: Props) {
   return (
     <div className="max-w-[820px]">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Fetched automatically once a day (first time you open Assets), like exchange rates. Live valuations use the latest stored rate.</p>
+        <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Fetched automatically once a day from GoodReturns (Tirupur), like exchange rates. Live valuations use the latest stored rate.</p>
         <button onClick={refresh} disabled={refreshing} className="flex items-center gap-1.5 text-[12px] font-bold px-3 py-1.5 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
         </button>
