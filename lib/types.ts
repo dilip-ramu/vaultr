@@ -51,6 +51,8 @@ export interface Account {
   branch: string | null
   ifsc_code: string | null
   swift_code: string | null
+  /** Bank's own Customer ID / CIF for this account. Free text, optional. */
+  bank_customer_id: string | null
   bank_address: string | null
   open_date: string | null
   closing_date: string | null
@@ -87,6 +89,8 @@ export interface DebitCard {
   card_holder: string | null
   expiry_month: number | null
   expiry_year: number | null
+  /** Bank's own Customer ID / CIF for this card. Free text, optional. */
+  bank_customer_id: string | null
   color: string | null
   created_at: string
 }

@@ -42,6 +42,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
   const [branch, setBranch] = useState(account?.branch ?? '')
   const [ifscCode, setIfscCode] = useState(account?.ifsc_code ?? '')
   const [swiftCode, setSwiftCode] = useState(account?.swift_code ?? '')
+  const [bankCustomerId, setBankCustomerId] = useState(account?.bank_customer_id ?? '')
   const [bankAddress, setBankAddress] = useState(account?.bank_address ?? '')
   const [openDate, setOpenDate] = useState(account?.open_date ?? '')
   const [closingDate, setClosingDate] = useState(account?.closing_date ?? '')
@@ -56,7 +57,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
 
   // v73 — debit cards linked to this account (edit mode only)
   const [dcList, setDcList] = useState<DebitCard[]>([])
-  const emptyDC = { label: '', card_number: '', card_network: '', card_holder: '', expiry_month: '', expiry_year: '' }
+  const emptyDC = { label: '', card_number: '', card_network: '', card_holder: '', expiry_month: '', expiry_year: '', bank_customer_id: '' }
   const [dcDraft, setDcDraft] = useState(emptyDC)
 
   useEffect(() => {
@@ -87,6 +88,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       card_holder: dcDraft.card_holder.trim() || null,
       expiry_month: dcDraft.expiry_month ? parseInt(dcDraft.expiry_month) : null,
       expiry_year: dcDraft.expiry_year ? parseInt(dcDraft.expiry_year) : null,
+      bank_customer_id: dcDraft.bank_customer_id.trim() || null,
     }).select().single()
     if (e) { setError(e.message); return }
     if (data) { setDcList(prev => [...prev, data as DebitCard]); setDcDraft(emptyDC) }
@@ -137,6 +139,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
       branch: branch.trim() || null,
       ifsc_code: ifscCode.trim() || null,
       swift_code: swiftCode.trim() || null,
+      bank_customer_id: bankCustomerId.trim() || null,
       bank_address: bankAddress.trim() || null,
       open_date: openDate || null,
       closing_date: closingDate || null,
@@ -435,6 +438,12 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                       className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Customer ID</label>
+                    <input type="text" value={bankCustomerId} onChange={e => setBankCustomerId(e.target.value)}
+                      placeholder="Bank Customer ID / CIF"
+                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Account Opened</label>
                     <input type="date" value={openDate} onChange={e => setOpenDate(e.target.value)}
                       className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
@@ -478,6 +487,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                     <input value={dcDraft.card_number} onChange={e => setDcDraft({ ...dcDraft, card_number: e.target.value })} placeholder="Card number" className="col-span-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm font-mono" />
                     <input value={dcDraft.expiry_month} onChange={e => setDcDraft({ ...dcDraft, expiry_month: e.target.value })} placeholder="Exp MM" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
                     <input value={dcDraft.expiry_year} onChange={e => setDcDraft({ ...dcDraft, expiry_year: e.target.value })} placeholder="Exp YYYY" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                    <input value={dcDraft.bank_customer_id} onChange={e => setDcDraft({ ...dcDraft, bank_customer_id: e.target.value })} placeholder="Customer ID (CIF)" className="col-span-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
                   </div>
                   <button type="button" onClick={addDebitCard} className="flex items-center gap-1.5 text-sm font-medium text-[var(--brand)]"><Plus className="w-4 h-4" /> Add debit card</button>
                   <p className="text-[11px] text-[var(--text-faint)]">CVV is never stored.</p>
