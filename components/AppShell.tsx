@@ -119,6 +119,7 @@ const navSections: NavSection[] = [
           { href: '/downloads', label: 'Downloads', icon: Archive },
         ],
       },
+      { href: '/guide', label: 'Guide', icon: BookOpen },
     ],
   },
 ]
