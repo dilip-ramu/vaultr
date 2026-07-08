@@ -90,7 +90,9 @@ export default function AccountDetailModal({
           </div>
         </div>
 
-        {/* Tabs */}
+        {isCredit ? (
+        <>
+        {/* Tabs (credit cards keep Transactions / Reconcile / Charges) */}
         <div className="flex gap-0.5 p-1 m-4 mb-0 rounded-xl shrink-0" style={{ background: 'var(--surface-2)' }}>
           {tabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} className="flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-bold py-2 rounded-lg transition-colors" style={tab === t.key ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: 'var(--shadow)' } : { color: 'var(--text-muted)' }}>
@@ -157,6 +159,20 @@ export default function AccountDetailModal({
             )
           })()}
         </div>
+        </>
+        ) : (
+          /* Bank account: one merged view — app vs bank balance, difference,
+             mark reconciled, and the statement/ledger below (no tabs). */
+          <div className="overflow-y-auto flex-1">
+            <AccountReconcilePanel
+              account={{ id: account.id, name: account.name, currency: account.currency, initial_balance: account.initial_balance, balance: account.balance ?? null }}
+              txns={txns}
+              currencyById={currencyById}
+              today={today}
+              onReconciled={onReconciled}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

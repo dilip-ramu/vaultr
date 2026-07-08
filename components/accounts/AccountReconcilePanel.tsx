@@ -151,120 +151,105 @@ export default function AccountReconcilePanel({
   // interactive — stop clicks from bubbling up to that Link and navigating away.
   const swallow = (e: React.MouseEvent | React.KeyboardEvent) => e.stopPropagation()
 
+  // Difference-card theming (20a): neutral until a bank balance is entered,
+  // green when it matches, red when it's off.
+  const matched = diff !== null && Math.abs(diff) < 0.01
+  const diffHue = diff === null ? null : matched ? 'var(--income)' : 'var(--expense)'
+  const diffCardStyle: React.CSSProperties = {
+    flex: 1, borderRadius: '13px', padding: '14px 16px',
+    background: diffHue ? `color-mix(in srgb, ${diffHue} 9%, var(--surface))` : 'var(--surface)',
+    border: `1px solid ${diffHue ? `color-mix(in srgb, ${diffHue} 28%, transparent)` : 'var(--border)'}`,
+  }
+  const diffText = diff === null ? '—' : matched ? '₹0' : `${diff > 0 ? '−' : '+'}${fmt(Math.abs(diff))}`
+
   return (
     <div
       onClick={swallow}
       onMouseDown={swallow}
-      className="border-t"
-      style={{ borderColor: 'var(--border)' }}
+      className="border-t p-5"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
     >
-      {/* Actual-balance checker */}
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3" style={{ background: 'var(--surface-2)' }}>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          What does the bank/statement actually say?
-        </span>
-        <input
-          type="number"
-          value={actual}
-          onChange={e => setActual(e.target.value)}
-          onClick={swallow}
-          placeholder="Real balance"
-          className="px-2 py-1 rounded-lg text-sm w-32"
-          style={{ background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
-        />
-        {diff !== null && Math.abs(diff) >= 0.01 && (
-          <span className="text-sm font-medium" style={{ color: 'var(--expense)' }}>
-            off by {fmt(Math.abs(diff))} (app is {diff > 0 ? 'higher' : 'lower'})
-          </span>
-        )}
-        {diff !== null && Math.abs(diff) < 0.01 && (
-          <button
-            onClick={e => { e.preventDefault(); e.stopPropagation(); markReconciled() }}
-            disabled={marking}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
-            style={{ background: 'var(--income)', color: '#fff' }}
-            title="Balances match — stamp this account as reconciled so you can see it at a glance on the Accounts page."
-          >
-            {marking
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Check className="w-3.5 h-3.5" />
-            }
-            {marking ? 'Marking…' : '✓ Matches — Mark as reconciled'}
+      {/* App vs bank vs difference (20a) */}
+      <div className="flex gap-3 mb-4">
+        <div className="flex-1 rounded-[13px] px-4 py-[14px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="text-[10px] font-extrabold tracking-[.06em]" style={{ color: 'var(--text-muted)' }}>APP BALANCE</p>
+          <p className="text-[20px] font-extrabold mt-[3px]" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(viewBalance)}</p>
+        </div>
+        <div className="flex-1 rounded-[13px] px-4 py-[14px]" style={{ background: 'var(--surface)', border: '1.5px solid var(--brand)' }}>
+          <p className="text-[10px] font-extrabold tracking-[.06em]" style={{ color: 'var(--brand)' }}>ACTUAL BANK BALANCE</p>
+          <input
+            type="number" value={actual} onChange={e => setActual(e.target.value)} onClick={swallow}
+            placeholder="Enter…"
+            className="w-full bg-transparent outline-none text-[20px] font-extrabold mt-[3px] p-0 border-0"
+            style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums', boxShadow: 'none' }}
+          />
+        </div>
+        <div style={diffCardStyle}>
+          <p className="text-[10px] font-extrabold tracking-[.06em]" style={{ color: diffHue ?? 'var(--text-muted)' }}>DIFFERENCE</p>
+          <p className="text-[20px] font-extrabold mt-[3px]" style={{ color: diffHue ?? 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{diffText}</p>
+        </div>
+      </div>
+
+      {/* Ledger — recent activity with running balance, newest first */}
+      <div className="rounded-[13px] overflow-hidden mb-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="grid px-[15px] py-[9px]" style={{ gridTemplateColumns: '1.6fr 1fr 1fr', borderBottom: '1px solid var(--border)' }}>
+          <span className="text-[9.5px] font-extrabold tracking-[.06em]" style={{ color: 'var(--text-muted)' }}>RECENT ACTIVITY</span>
+          <span className="text-[9.5px] font-extrabold tracking-[.06em] text-right" style={{ color: 'var(--text-muted)' }}>AMOUNT</span>
+          <span className="text-[9.5px] font-extrabold tracking-[.06em] text-right" style={{ color: 'var(--text-muted)' }}>RUNNING</span>
+        </div>
+        {[...rows].reverse().slice(0, 60).map((r, i, arr) => (
+          <div key={r.txn.id} className="grid px-[15px] py-[9px] items-center" style={{ gridTemplateColumns: '1.6fr 1fr 1fr', borderBottom: i < arr.length - 1 ? '1px solid var(--border-2)' : 'none', background: r.flags.length ? 'color-mix(in srgb, var(--amber) 6%, transparent)' : undefined }}>
+            <span className="text-[12px] truncate pr-2" style={{ color: 'var(--text)' }}>
+              {r.txn.name ?? <span className="capitalize">{r.txn.type}</span>}
+              <span style={{ color: 'var(--text-faint)' }}> · {formatDate(r.txn.date)}</span>
+            </span>
+            <span className="text-[12px] text-right" style={{ color: r.effect >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{r.effect >= 0 ? '+' : '−'}{fmt(Math.abs(r.effect))}</span>
+            <span className="text-[12px] text-right" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmt(r.running)}</span>
+          </div>
+        ))}
+        {rows.length === 0 && <div className="px-4 py-6 text-center text-[12px]" style={{ color: 'var(--text-faint)' }}>No transactions yet.</div>}
+      </div>
+
+      {/* Action row */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 flex items-center gap-[10px] rounded-[11px] px-[14px] py-[11px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Actual bank balance</span>
+          <span className="text-[14px] font-bold ml-auto" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{actual ? fmt(actualNum) : '—'}</span>
+        </div>
+        {diff !== null && Math.abs(diff) < 0.01 ? (
+          <button onClick={e => { e.preventDefault(); e.stopPropagation(); markReconciled() }} disabled={marking}
+            className="inline-flex items-center gap-[7px] rounded-[11px] px-[18px] py-[11px] text-[13px] font-bold text-white disabled:opacity-50 whitespace-nowrap" style={{ background: 'var(--brand)' }}>
+            {marking ? <Loader2 className="w-[15px] h-[15px] animate-spin" /> : <Check className="w-[15px] h-[15px]" />}
+            Matches — Mark reconciled
           </button>
-        )}
-        {diff !== null && Math.abs(diff) >= 0.01 && (
-          <button
-            onClick={e => { e.preventDefault(); e.stopPropagation(); logReconciliationEntry(Math.abs(diff), diff > 0 ? 'expense' : 'income') }}
-            disabled={reconciling}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
-            style={{ background: 'var(--brand)', color: '#fff' }}
-            title={diff > 0
-              ? `App shows more than bank — log an expense of ${fmt(Math.abs(diff))} named "Reconciliation" to match.`
-              : `Bank shows more than app — log an income of ${fmt(Math.abs(diff))} named "Reconciliation" to match.`}
-          >
-            {reconciling
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              : <Scale className="w-3.5 h-3.5" />
-            }
-            Log Reconciliation ({diff > 0 ? '−' : '+'}{fmt(Math.abs(diff))})
+        ) : diff !== null ? (
+          <button onClick={e => { e.preventDefault(); e.stopPropagation(); logReconciliationEntry(Math.abs(diff), diff > 0 ? 'expense' : 'income') }} disabled={reconciling}
+            className="inline-flex items-center gap-[7px] rounded-[11px] px-[18px] py-[11px] text-[13px] font-bold text-white disabled:opacity-50 whitespace-nowrap" style={{ background: 'var(--brand)' }}>
+            {reconciling ? <Loader2 className="w-[15px] h-[15px] animate-spin" /> : <Scale className="w-[15px] h-[15px]" />}
+            Log difference ({diff > 0 ? '−' : '+'}{fmt(Math.abs(diff))})
           </button>
-        )}
-        {accountIsForeign(account.currency) && (
-          <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--amber)' }}>
-            <AlertTriangle className="w-3 h-3" /> {account.currency} account — computed balance is in INR
-          </span>
-        )}
-        {anomalyCount > 0 && (
-          <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--amber)' }}>
-            <AlertTriangle className="w-3 h-3" /> {anomalyCount} flagged row{anomalyCount === 1 ? '' : 's'}
-          </span>
+        ) : (
+          <button disabled className="rounded-[11px] px-[18px] py-[11px] text-[13px] font-bold whitespace-nowrap opacity-60" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+            Enter balance
+          </button>
         )}
       </div>
 
-      {/* Running-balance ledger */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[600px]">
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              <th className="text-left  px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Date</th>
-              <th className="text-left  px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Description</th>
-              <th className="text-right px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Effect</th>
-              <th className="text-right px-4 py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Running</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Newest first: reverse the chronological ledger for display; each
-                row still shows the running balance as of that transaction. The
-                opening balance sits at the bottom (the oldest point). */}
-            {[...rows].reverse().map(r => (
-              <tr key={r.txn.id} style={{ borderBottom: '1px solid var(--border-2)', background: r.flags.length ? 'color-mix(in srgb, var(--amber) 6%, transparent)' : undefined }}>
-                <td className="px-4 py-2 whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatDate(r.txn.date)}</td>
-                <td className="px-4 py-2" style={{ color: 'var(--text)' }}>
-                  {r.txn.name ?? <span className="capitalize">{r.txn.type}</span>}
-                  {r.flags.map(f => (
-                    <span key={f} className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--amber) 15%, transparent)', color: FLAG_LABEL[f]?.color ?? 'var(--amber)' }}>
-                      {FLAG_LABEL[f]?.text ?? f}
-                    </span>
-                  ))}
-                </td>
-                <td className="px-4 py-2 text-right" style={{ color: r.effect >= 0 ? 'var(--income)' : 'var(--expense)' }}>
-                  {r.effect >= 0 ? '+' : '−'}{fmt(Math.abs(r.effect))}
-                </td>
-                <td className="px-4 py-2 text-right font-medium" style={{ color: 'var(--text)' }}>{fmt(r.running)}</td>
-              </tr>
-            ))}
-            <tr style={{ borderBottom: '1px solid var(--border-2)' }}>
-              <td className="px-4 py-2" style={{ color: 'var(--text-muted)' }}>—</td>
-              <td className="px-4 py-2 italic" style={{ color: 'var(--text-muted)' }}>Opening balance</td>
-              <td className="px-4 py-2 text-right" style={{ color: 'var(--text-faint)' }}>—</td>
-              <td className="px-4 py-2 text-right font-medium" style={{ color: 'var(--text)' }}>{fmt(Number(account.initial_balance) || 0)}</td>
-            </tr>
-            {rows.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-6 text-center" style={{ color: 'var(--text-faint)' }}>No transactions.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Warnings */}
+      {(accountIsForeign(account.currency) || anomalyCount > 0) && (
+        <div className="flex flex-wrap gap-3 mt-3">
+          {accountIsForeign(account.currency) && (
+            <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--amber)' }}>
+              <AlertTriangle className="w-3 h-3" /> {account.currency} account — computed balance is in INR
+            </span>
+          )}
+          {anomalyCount > 0 && (
+            <span className="text-[10px] flex items-center gap-1" style={{ color: 'var(--amber)' }}>
+              <AlertTriangle className="w-3 h-3" /> {anomalyCount} flagged row{anomalyCount === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
