@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Pencil, Trash2 } from 'lucide-react'
+import { X, Pencil, Trash2, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { Asset, MarketRate } from '@/lib/assets/types'
@@ -58,9 +58,14 @@ export default function AssetDetail({ asset, valuation, onEdit, onDeleted, onClo
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-[var(--surface)] w-full md:max-w-lg rounded-t-3xl md:rounded-3xl shadow-2xl slide-up max-h-[92vh] overflow-hidden flex flex-col">
         {/* photo header */}
-        <div className="relative shrink-0 flex items-center justify-center" style={{ height: 220, background: isMarket ? GOLD_GRAD : 'linear-gradient(150deg,var(--brand-deep,#14432D),color-mix(in srgb,var(--brand-deep,#14432D) 70%,#000))' }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 30%,rgba(255,255,255,.16),transparent 60%)' }} />
-          <span style={{ fontSize: 76, filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.3))' }}>{emoji}</span>
+        <div className="relative shrink-0 flex items-center justify-center overflow-hidden" style={{ height: 220, background: isMarket ? GOLD_GRAD : 'linear-gradient(150deg,var(--brand-deep,#14432D),color-mix(in srgb,var(--brand-deep,#14432D) 70%,#000))' }}>
+          {asset.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={asset.photo_url} alt={asset.name} className="absolute inset-0 w-full h-full object-cover" />
+          ) : <>
+            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 30%,rgba(255,255,255,.16),transparent 60%)' }} />
+            <span style={{ fontSize: 76, filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.3))' }}>{emoji}</span>
+          </>}
           <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,.18)' }}><X className="w-4 h-4 text-white" /></button>
           <div className="absolute left-0 right-0 bottom-0 px-6 py-4" style={{ background: 'linear-gradient(0deg,rgba(0,0,0,.55),transparent)' }}>
             <div className="flex items-end justify-between">
@@ -113,6 +118,12 @@ export default function AssetDetail({ asset, valuation, onEdit, onDeleted, onClo
               </div>
             ))}
           </div>
+
+          {(asset.details as { invoice_url?: string }).invoice_url && (
+            <a href={(asset.details as { invoice_url?: string }).invoice_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 mt-4 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>
+              <FileText className="w-4 h-4" /> View invoice
+            </a>
+          )}
 
           <div className="flex gap-2 mt-6">
             <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1.5 text-white rounded-[11px] py-2.5 text-[12.5px] font-bold" style={{ background: 'var(--brand)' }}><Pencil className="w-3.5 h-3.5" /> Edit asset</button>

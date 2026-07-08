@@ -25,22 +25,33 @@ export function yearsSince(dateStr: string | null | undefined): number {
 }
 
 // ── Cost formulas per category ────────────────────────────────────────────
+// Jewellery / precious-metal cost sheet (mirrors the Precious Metals board):
+//   metal + valueAddition% + making/g + certification + diamond + otherStones
+//   − discount, then × (1 + tax%).
 export function goldCost(d: Asset['details']): { cost: number; lines: CostLine[] } {
-  const w = n(d.weight_g), ppg = n(d.price_per_gram)
+  const w = n(d.weight_g)                 // net metal weight
+  const ppg = n(d.price_per_gram)         // metal cost / gram (at purchase)
   const metal = w * ppg
-  const wastage = metal * (n(d.wastage_pct) / 100)
-  const making = n(d.making_charge)
-  const gst = (metal + wastage + making) * (n(d.gst_pct) / 100)
-  const cost = metal + wastage + making + gst
-  return {
-    cost,
-    lines: [
-      { label: `Metal · ${w || 0}g × ₹${ppg.toLocaleString('en-IN')}`, amount: metal },
-      { label: `Wastage · ${n(d.wastage_pct)}%`, amount: wastage },
-      { label: 'Making charge', amount: making },
-      { label: `GST · ${n(d.gst_pct)}%`, amount: gst },
-    ],
-  }
+  const vaPct = n(d.value_addition_pct) || n(d.wastage_pct)      // back-compat
+  const va = metal * (vaPct / 100)
+  const making = n(d.making_per_gram) * w + n(d.making_charge)   // per-gram + flat
+  const cert = n(d.certification)
+  const disc = n(d.discount)
+  const diamond = n(d.diamond_carats) * n(d.diamond_cost_per_carat)
+  const other = n(d.other_carats) * n(d.other_cost_per_carat)
+  const subtotal = metal + va + making + cert + diamond + other - disc
+  const taxPct = n(d.tax_pct) || n(d.gst_pct)
+  const tax = subtotal * (taxPct / 100)
+  const cost = subtotal + tax
+  const lines: CostLine[] = [{ label: `Metal · ${w || 0}g × ₹${ppg.toLocaleString('en-IN')}`, amount: metal }]
+  if (va) lines.push({ label: `Value addition · ${vaPct}%`, amount: va })
+  if (making) lines.push({ label: 'Making charges', amount: making })
+  if (diamond) lines.push({ label: `Diamond · ${n(d.diamond_carats)}ct`, amount: diamond })
+  if (other) lines.push({ label: `Other stones · ${n(d.other_carats)}ct`, amount: other })
+  if (cert) lines.push({ label: 'Certification', amount: cert })
+  if (disc) lines.push({ label: 'Discount', amount: -disc })
+  if (tax) lines.push({ label: `Tax · ${taxPct}%`, amount: tax })
+  return { cost, lines }
 }
 
 export function landCost(d: Asset['details']): { cost: number; lines: CostLine[] } {
@@ -136,9 +147,13 @@ export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRat
   } else if (asset.valuation_type === 'market') {
     const g = n(asset.quantity_g)
     const rate = perGramRate(asset.metal, asset.metal_purity, rates)
+    const d = asset.details
+    const stones = n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
     if (rate != null) {
-      current = g * rate
-      note = `${g}g × ₹${Math.round(rate).toLocaleString('en-IN')} (${asset.metal_purity ?? 'fine'} today)`
+      current = g * rate + stones
+      note = `${g}g × ₹${Math.round(rate).toLocaleString('en-IN')} (${asset.metal_purity ?? 'fine'})${stones ? ' + stones' : ''}`
+    } else if (stones) {
+      current = stones
     }
   } else if (asset.valuation_type === 'building') {
     const d = asset.details

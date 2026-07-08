@@ -3,12 +3,27 @@
 export type ValuationType = 'market' | 'rate' | 'depreciate' | 'building'
 
 export interface GoldDetails {
-  weight_g?: number
-  purity?: string          // 22K / 24K
-  price_per_gram?: number   // at purchase
-  wastage_pct?: number
-  making_charge?: number
-  gst_pct?: number
+  weight_g?: number          // net metal weight
+  gross_weight_g?: number
+  purity?: string            // 22K / 24K / 12.5K / 92.5% …
+  price_per_gram?: number    // metal cost/gram at purchase
+  value_addition_pct?: number
+  wastage_pct?: number       // legacy alias for value addition
+  making_per_gram?: number
+  making_charge?: number     // flat making (legacy)
+  certification?: number
+  discount?: number
+  tax_pct?: number
+  gst_pct?: number           // legacy alias for tax
+  // stones — cost + independently-tracked present value per carat
+  diamond_carats?: number
+  diamond_cost_per_carat?: number
+  diamond_present_per_carat?: number
+  other_carats?: number
+  other_cost_per_carat?: number
+  other_present_per_carat?: number
+  // attachments
+  invoice_url?: string
 }
 export interface LandDetails {
   area_cent?: number
