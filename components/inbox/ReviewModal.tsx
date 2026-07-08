@@ -143,20 +143,33 @@ export default function ReviewModal({ doc, onClose, onApproved }: Props) {
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', height: 'min(560px, 92vh)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* ── Left: document preview ─────────────────────────────────────── */}
-        <div className="hidden md:flex w-[360px] shrink-0 flex-col p-6" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--border)' }}>
-          <div className="flex items-center gap-2 mb-[14px]">
-            <Paperclip className="w-[14px] h-[14px] shrink-0" style={{ color: 'var(--text-muted)' }} />
-            <span className="text-[12px] font-semibold truncate" style={{ color: 'var(--text-muted)' }}>{doc.attachment_name ?? 'Attached document'}</span>
+        {/* ── Left: the email exactly, attachment as a clickable paperclip ── */}
+        <div className="hidden md:flex w-[360px] shrink-0 flex-col p-5 overflow-y-auto" style={{ background: 'var(--surface-2)', borderRight: '1px solid var(--border)' }}>
+          {/* Email meta */}
+          <div className="space-y-1 text-[12px]">
+            <p><span className="font-semibold" style={{ color: 'var(--text-muted)' }}>From: </span><span style={{ color: 'var(--text)' }}>{doc.sender_name ? `${doc.sender_name} <${doc.sender_email}>` : doc.sender_email}</span></p>
+            {doc.email_subject && <p><span className="font-semibold" style={{ color: 'var(--text-muted)' }}>Subject: </span><span style={{ color: 'var(--text)' }}>{doc.email_subject}</span></p>}
+            {doc.received_at && <p><span className="font-semibold" style={{ color: 'var(--text-muted)' }}>Received: </span><span style={{ color: 'var(--text)' }}>{new Date(doc.received_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></p>}
           </div>
-          <div className="flex-1 rounded-lg overflow-hidden" style={{ background: '#fff', boxShadow: '0 6px 20px rgba(0,0,0,.1)' }}>
-            {doc.attachment_url ? (
-              <iframe src={doc.attachment_url} title="attachment" className="w-full h-full" style={{ border: 'none' }} />
-            ) : (
-              <div className="w-full h-full p-5 overflow-y-auto">
-                <pre className="text-[11px] whitespace-pre-wrap leading-relaxed" style={{ color: '#333', fontFamily: 'inherit' }}>{doc.email_body ?? 'No preview available for this email.'}</pre>
-              </div>
-            )}
+
+          {/* Attachment — paperclip chip, opens on click */}
+          {doc.attachment_url && (
+            <a
+              href={doc.attachment_url} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 mt-3 rounded-[10px] px-3 py-2 transition-colors hover:brightness-[0.98]"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            >
+              <Paperclip className="w-[14px] h-[14px] shrink-0" style={{ color: 'var(--brand)' }} />
+              <span className="flex-1 text-[12px] font-medium truncate" style={{ color: 'var(--text)' }}>{doc.attachment_name ?? 'Open attachment'}</span>
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--brand)' }}>Open</span>
+            </a>
+          )}
+
+          {/* Email body */}
+          <div className="mt-4 pt-4 flex-1" style={{ borderTop: '1px solid var(--border)' }}>
+            {doc.email_body
+              ? <pre className="text-[12.5px] whitespace-pre-wrap font-sans leading-relaxed" style={{ color: 'var(--text)' }}>{doc.email_body}</pre>
+              : <p className="text-[12px]" style={{ color: 'var(--text-faint)' }}>No email body stored{doc.attachment_url ? ' — open the attachment above.' : '.'}</p>}
           </div>
         </div>
 
