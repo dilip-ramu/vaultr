@@ -210,8 +210,16 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           <button onClick={() => setShowForm(true)} className="mt-4 text-sm font-medium" style={{ color: 'var(--brand)' }}>+ Add Account</button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {(typeFilter === 'all' ? accountGroups : accountGroups.filter(g => g.key === typeFilter)).flatMap(g => g.accounts).map(account => {
+        <div className="space-y-7">
+          {(typeFilter === 'all' ? accountGroups : accountGroups.filter(g => g.key === typeFilter)).map(group => (
+            <div key={group.key}>
+              <div className="flex items-center gap-2 mb-3 px-0.5">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: group.color }} />
+                <h2 className="text-sm font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>{group.label}</h2>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>· {group.accounts.length}</span>
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {group.accounts.map(account => {
             const face = accountFaceColor(account.type, account.color)
             const disp = resolveAccountTypeDisplay(account.type, builtinOverrides)
             const isCredit = account.type === 'credit'
@@ -231,7 +239,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                     {account.avatar_url
                       ? <div className="rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.4)' }}><Avatar url={account.avatar_url} initials={(account.account_holder || account.name).slice(0, 2).toUpperCase()} size="lg" /></div>
                       : (isCredit ? <CreditCard className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} /> : <Wallet className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} />)}
-                    <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>{account.card_network || disp.label}</span>
+                    <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>{account.card_network || (account.custom_type_id ? group.label : disp.label)}</span>
                   </div>
                   <div>
                     <p className="text-[8.5px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.5)' }}>{isCredit ? 'Card number' : 'Account number'}</p>
@@ -304,6 +312,9 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
               </div>
             )
           })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
