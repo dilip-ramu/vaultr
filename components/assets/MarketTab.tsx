@@ -9,6 +9,7 @@ interface Props { rates: MarketRate[] }
 const SERIES = [
   { metal: 'gold', purity: '24K', label: 'Gold', sub: '24K', emoji: '🥇' },
   { metal: 'gold', purity: '22K', label: 'Gold', sub: '22K', emoji: '🥇' },
+  { metal: 'gold', purity: '18K', label: 'Gold', sub: '18K', emoji: '🥇' },
   { metal: 'silver', purity: null as string | null, label: 'Silver', sub: 'per gram', emoji: '🥈' },
 ]
 
@@ -50,7 +51,7 @@ export default function MarketTab({ rates }: Props) {
       {msg && <p className="text-[12px] mb-3" style={{ color: 'var(--brand)' }}>{msg}</p>}
 
       {/* rate cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {SERIES.map(s => {
           const l = latest(s.metal, s.purity)
           const delta = l ? (() => { const p = prev(s.metal, s.purity, l.d); return p == null ? null : l.v - p })() : null
@@ -67,14 +68,15 @@ export default function MarketTab({ rates }: Props) {
       {/* history table */}
       {dates.length > 0 && (
         <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-          <div className="grid px-4 py-2.5" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr', background: 'var(--surface-2)', fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', color: 'var(--text-faint)' }}>
-            <span>DATE</span><span className="text-right">GOLD 24K</span><span className="text-right">GOLD 22K</span><span className="text-right">SILVER</span>
+          <div className="grid px-4 py-2.5" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', background: 'var(--surface-2)', fontSize: 9.5, fontWeight: 800, letterSpacing: '.06em', color: 'var(--text-faint)' }}>
+            <span>DATE</span><span className="text-right">GOLD 24K</span><span className="text-right">GOLD 22K</span><span className="text-right">GOLD 18K</span><span className="text-right">SILVER</span>
           </div>
           {dates.slice(0, 12).map((d, i) => (
-            <div key={d} className="grid px-4 py-2.5 items-center" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+            <div key={d} className="grid px-4 py-2.5 items-center" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr', borderTop: i ? '1px solid var(--border)' : 'none' }}>
               <span className="text-[12px]" style={{ color: 'var(--text)' }}>{new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
               <span className="text-[12px] text-right" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmt(rateAt('gold', '24K', d))}</span>
               <span className="text-[12px] text-right" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmt(rateAt('gold', '22K', d))}</span>
+              <span className="text-[12px] text-right" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmt(rateAt('gold', '18K', d))}</span>
               <span className="text-[12px] text-right" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmt(rateAt('silver', null, d))}</span>
             </div>
           ))}

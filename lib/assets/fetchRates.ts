@@ -34,8 +34,10 @@ export async function fetchAndStoreMetalRates(): Promise<{ ok: boolean; stored: 
       const t = stripTags(await res.text())
       const g24 = numBefore(t, /([\d,]+)\s*per gram for 24/i)
       const g22 = numBefore(t, /([\d,]+)\s*per gram for 22/i)
+      const g18 = numBefore(t, /([\d,]+)\s*per gram for 18/i)
       if (g24) rows.push({ rate_date: today, metal: 'gold', purity: '24K', rate_per_gram: g24, source: 'goodreturns/tirupur' })
       if (g22) rows.push({ rate_date: today, metal: 'gold', purity: '22K', rate_per_gram: g22, source: 'goodreturns/tirupur' })
+      if (g18) rows.push({ rate_date: today, metal: 'gold', purity: '18K', rate_per_gram: g18, source: 'goodreturns/tirupur' })
     }
   } catch { /* ignore */ }
 
