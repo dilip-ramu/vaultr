@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Plus, Gem, Percent, TrendingUp, Map as MapIcon, Home } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Gem, Percent, TrendingUp, Map as MapIcon, Home, Upload } from 'lucide-react'
 import type { Asset, MarketRate, AssetRateDefault } from '@/lib/assets/types'
 import { ASSET_CATEGORIES, categoryDef } from '@/lib/assets/types'
 import { valueAsset, inrCompact, inr, pctStr, type Valuation } from '@/lib/assets/valuation'
@@ -98,9 +99,14 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
           </p>
         </div>
         {tab === 'assets' && (
-          <button onClick={() => setShowPicker(true)} className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl" style={{ background: 'var(--brand)' }}>
-            <Plus className="w-4 h-4" /> Add asset
-          </button>
+          <div className="flex items-center gap-2">
+            <Link href="/assets/import" className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl" style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <Upload className="w-4 h-4" /> Import
+            </Link>
+            <button onClick={() => setShowPicker(true)} className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl" style={{ background: 'var(--brand)' }}>
+              <Plus className="w-4 h-4" /> Add asset
+            </button>
+          </div>
         )}
       </div>
 
@@ -122,7 +128,10 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
           <p className="text-4xl mb-2">💎</p>
           <p className="font-semibold" style={{ color: 'var(--text)' }}>No assets yet</p>
           <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>Add real estate, gold, electronics and more to complete your net worth.</p>
-          <button onClick={() => setShowPicker(true)} className="mt-4 text-sm font-bold" style={{ color: 'var(--brand)' }}>+ Add your first asset</button>
+          <div className="mt-4 flex items-center justify-center gap-4">
+            <button onClick={() => setShowPicker(true)} className="text-sm font-bold" style={{ color: 'var(--brand)' }}>+ Add your first asset</button>
+            <Link href="/assets/import" className="text-sm font-bold" style={{ color: 'var(--brand)' }}>Import a spreadsheet</Link>
+          </div>
         </div>
       ) : (
         <>
