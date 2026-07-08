@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { X, Check, Camera, ChevronDown, ChevronUp, CreditCard, Trash2, Plus } from 'lucide-react'
-import type { Account, AccountType, CustomAccountType, DebitCard } from '@/lib/types'
+import type { Account, AccountType, CustomAccountType, DebitCard, BuiltinTypeOverride } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS, resolveAccountTypeDisplay } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
@@ -56,6 +56,8 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
   const [cardExpiryYear, setCardExpiryYear] = useState(account?.card_expiry_year?.toString() ?? '')
 
   const [customTypes, setCustomTypes] = useState<CustomAccountType[]>([])
+  const [overrides, setOverrides] = useState<BuiltinTypeOverride[]>([])
+  const typeDisp = (t: AccountType) => resolveAccountTypeDisplay(t, overrides)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
@@ -91,6 +93,9 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
     const supabase = createClient()
     supabase.from('custom_account_types').select('*').then(({ data }) => {
       if (data) setCustomTypes(data)
+    })
+    supabase.from('builtin_account_type_overrides').select('*').then(({ data }) => {
+      if (data) setOverrides(data as BuiltinTypeOverride[])
     })
   }, [])
 
@@ -213,8 +218,8 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
 
   // ── Live preview values ──────────────────────────────────────────────────
   const activeCustom = customTypes.find(c => c.id === customTypeId)
-  const previewFace = customTypeId ? (activeCustom?.color ?? '#2A7A50') : resolveAccountTypeDisplay(type).color
-  const previewTypeLabel = customTypeId ? (activeCustom?.name ?? 'Custom') : resolveAccountTypeDisplay(type).label
+  const previewFace = customTypeId ? (activeCustom?.color ?? '#2A7A50') : typeDisp(type).color
+  const previewTypeLabel = customTypeId ? (activeCustom?.name ?? 'Custom') : typeDisp(type).label
   const balNum = parseFloat(balance)
   const previewBalance = (CURRENCY_SYMBOL[currency] ?? '') + (isNaN(balNum) ? '0' : Math.abs(balNum).toLocaleString('en-IN', { maximumFractionDigits: 2 }))
   const last4 = accountNumber.replace(/\s+/g, '').slice(-4)
@@ -264,24 +269,26 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
                 <div className="flex flex-wrap gap-2">
                   {HEADLINE.map(t => {
                     const active = type === t && !customTypeId
+                    const d = typeDisp(t)
                     return (
                       <button key={t} type="button" onClick={() => { setType(t); setCustomTypeId('') }}
                         className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-                        style={active ? { background: ACCOUNT_TYPE_CONFIG[t].color, color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                        {ACCOUNT_TYPE_CONFIG[t].label}
+                        style={active ? { background: d.color, color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                        {d.label}
                       </button>
                     )
                   })}
                   {/* remaining built-in types + custom types */}
-                  {(Object.entries(ACCOUNT_TYPE_CONFIG) as [AccountType, typeof ACCOUNT_TYPE_CONFIG[AccountType]][])
-                    .filter(([t]) => !HEADLINE.includes(t))
-                    .map(([t, config]) => {
+                  {(Object.keys(ACCOUNT_TYPE_CONFIG) as AccountType[])
+                    .filter(t => !HEADLINE.includes(t))
+                    .map(t => {
                       const active = type === t && !customTypeId
+                      const d = typeDisp(t)
                       return (
                         <button key={t} type="button" onClick={() => { setType(t); setCustomTypeId('') }}
                           className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-                          style={active ? { background: config.color, color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                          {config.label}
+                          style={active ? { background: d.color, color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                          {d.label}
                         </button>
                       )
                     })}
@@ -304,13 +311,20 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateType() } }}
                       placeholder="e.g. PPF, NPS, Gold, Crypto"
                       className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
                       {ACCOUNT_COLORS.map(c => (
                         <button key={c} type="button" onClick={() => setNewTypeColor(c)}
                           className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110" style={{ backgroundColor: c }}>
                           {newTypeColor === c && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
                         </button>
                       ))}
+                      {/* custom colour — any value */}
+                      <label className="w-7 h-7 rounded-full relative cursor-pointer flex items-center justify-center overflow-hidden"
+                        style={{ background: ACCOUNT_COLORS.includes(newTypeColor) ? 'conic-gradient(from 0deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)' : newTypeColor, boxShadow: '0 0 0 1px var(--border)' }}
+                        title="Custom colour">
+                        <input type="color" value={newTypeColor} onChange={e => setNewTypeColor(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                        {!ACCOUNT_COLORS.includes(newTypeColor) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                      </label>
                     </div>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => { setShowNewType(false); setNewTypeName('') }}

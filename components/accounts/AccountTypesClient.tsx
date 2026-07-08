@@ -338,7 +338,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
 
             <div>
               <label className="block text-sm font-medium text-[var(--text)] mb-2">Color</label>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-center">
                 {ACCOUNT_COLORS.map(c => (
                   <button key={c} type="button" onClick={() => setColor(c)}
                     className="w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110"
@@ -346,7 +346,15 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
                     {color === c && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
                   </button>
                 ))}
+                {/* custom colour — any value */}
+                <label className="w-8 h-8 rounded-full relative cursor-pointer flex items-center justify-center overflow-hidden"
+                  style={{ background: ACCOUNT_COLORS.includes(color) ? 'conic-gradient(from 0deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)' : color, boxShadow: '0 0 0 1px var(--border)' }}
+                  title="Custom colour">
+                  <input type="color" value={color} onChange={e => setColor(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  {!ACCOUNT_COLORS.includes(color) && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
+                </label>
               </div>
+              <p className="text-xs text-[var(--text-faint)] mt-1.5">Pick a preset or tap the last swatch for any custom colour.</p>
             </div>
 
             {/* Preview */}
