@@ -5,7 +5,7 @@ import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import dynamic from 'next/dynamic'
 import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check } from 'lucide-react'
 import type { Account, BuiltinTypeOverride, DebitCard } from '@/lib/types'
-import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, accountFaceColor, getCategoryEmoji } from '@/lib/types'
+import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, getCategoryEmoji } from '@/lib/types'
 import { accountGroupRank } from '@/lib/utils'
 import { creditSummary, isLiability } from '@/lib/account-metrics'
 import type { ReconTxn } from '@/lib/reconcile'
@@ -220,7 +220,10 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {group.accounts.map(account => {
-            const face = accountFaceColor(account.type, account.color)
+            // Card face follows the account TYPE's colour (built-in overrides and
+            // custom-type colours included), so changing a type's colour updates
+            // every card in that group.
+            const face = group.color
             const disp = resolveAccountTypeDisplay(account.type, builtinOverrides)
             const isCredit = account.type === 'credit'
             const liability = isLiability(account.type)
