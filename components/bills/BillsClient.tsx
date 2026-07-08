@@ -120,7 +120,7 @@ export default function BillsClient({ initialBills, accounts, categories, custom
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Bills</h1>
-          <p className="text-sm text-[var(--text-muted)]">{directionBills.length} total</p>
+          <p className="text-sm text-[var(--text-muted)]">Everything due, on one timeline</p>
         </div>
         <button
           onClick={() => { setEditBill(null); setShowForm(true) }}
@@ -146,67 +146,71 @@ export default function BillsClient({ initialBills, accounts, categories, custom
         </button>
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-3.5 shadow-sm">
-          <p className="text-[10px] text-[var(--text-faint)] font-medium uppercase tracking-wide mb-1">Pending</p>
-          <p className="text-base font-bold text-[var(--text)]">{formatCurrency(totalPending)}</p>
-          <p className="text-[10px] text-[var(--text-faint)] mt-0.5">{directionBills.filter(b => b.status === 'pending').length} bills</p>
-        </div>
-        <div className={`rounded-2xl border p-3.5 ${dueThisWeek.length > 0 ? 'bg-[var(--accent-light)] border-[var(--border)]' : 'bg-[var(--surface)] border-[var(--border)]'}`}>
-          <p className="text-[10px] text-[var(--amber)] font-medium uppercase tracking-wide mb-1">Due Soon</p>
-          <p className="text-base font-bold text-[var(--amber)]">{dueThisWeek.length}</p>
-          <p className="text-[10px] text-[var(--amber)] mt-0.5">within 7 days</p>
-        </div>
-        <div className={`rounded-2xl border p-3.5 ${overdue.length > 0 ? 'bg-[var(--surface-2)] border-[var(--border)]' : 'bg-[var(--surface)] border-[var(--border)]'}`}>
-          <p className="text-[10px] text-[var(--expense)] font-medium uppercase tracking-wide mb-1">Overdue</p>
-          <p className="text-base font-bold text-[var(--expense)]">{overdue.length}</p>
-          <p className="text-[10px] text-[var(--expense)] mt-0.5">{formatCurrency(overdue.reduce((s, b) => s + b.amount, 0))}</p>
-        </div>
-      </div>
-
-      {/* Status filter */}
-      <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
-        {(['all', 'pending', 'overdue', 'paid'] as const).map(f => (
-          <button key={f} onClick={() => setStatusFilter(f)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all ${
-              statusFilter === f ? 'bg-[var(--brand)] text-white' : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)]'
-            }`}
-          >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {/* Bills list */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="w-16 h-16 bg-[var(--surface-2)] rounded-2xl flex items-center justify-center mx-auto mb-4">
-            {direction === 'sent' ? <Send className="w-7 h-7 text-[var(--text-faint)]" /> : <Receipt className="w-7 h-7 text-[var(--text-faint)]" />}
+      {/* Hero band (20d) — due this month · overdue · this week */}
+      {(() => {
+        const nowMonth = new Date().toISOString().slice(0, 7)
+        const dueThisMonthAmt = directionBills.filter(b => b.status !== 'paid' && (b.due_date ?? '').slice(0, 7) === nowMonth).reduce((s, b) => s + b.amount, 0)
+        const overdueAmt = overdue.reduce((s, b) => s + b.amount, 0)
+        const thisWeekAmt = dueThisWeek.reduce((s, b) => s + b.amount, 0)
+        return (
+          <div className="rounded-[18px] px-6 py-5 flex items-center mb-5" style={{ background: 'linear-gradient(135deg, var(--brand-deep), color-mix(in srgb, var(--brand-deep) 74%, #000))' }}>
+            <div className="flex-1">
+              <p className="text-[10.5px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.6)' }}>DUE THIS MONTH</p>
+              <p className="text-[28px] font-extrabold text-white mt-[3px]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(dueThisMonthAmt)}</p>
+            </div>
+            <div className="flex-1 pl-5">
+              <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>OVERDUE</p>
+              <p className="text-[18px] font-extrabold mt-[2px]" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(overdueAmt)}</p>
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>THIS WEEK</p>
+              <p className="text-[18px] font-extrabold text-white mt-[2px]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(thisWeekAmt)}</p>
+            </div>
           </div>
-          <p className="text-[var(--text-muted)] font-medium">
-            No {direction === 'sent' ? 'outgoing' : 'incoming'} bills {statusFilter !== 'all' ? `(${statusFilter})` : ''}
-          </p>
-          {statusFilter === 'all' && (
-            <button onClick={() => setShowForm(true)} className="mt-3 text-[var(--brand)] text-sm font-medium">
-              + Add first bill
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(bill => (
-            <BillCard
-              key={bill.id}
-              bill={bill}
-              onMarkPaid={handleMarkPaidClick}
-              onMarkUnpaid={handleMarkUnpaid}
-              onEdit={b => { setEditBill(b); setShowForm(true) }}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      )}
+        )
+      })()}
+
+      {/* Timeline grouped by due window */}
+      {(() => {
+        const later = directionBills.filter(b => b.status === 'pending' && getDaysUntil(b.due_date) > 7)
+        const paid = directionBills.filter(b => b.status === 'paid')
+        const sections: { label: string; color: string; border?: string; bills: Bill[] }[] = [
+          { label: 'OVERDUE',    color: 'var(--expense)', border: 'color-mix(in srgb, var(--expense) 28%, transparent)', bills: overdue },
+          { label: 'THIS WEEK',  color: 'var(--amber)',   bills: dueThisWeek },
+          { label: 'LATER',      color: 'var(--text-muted)', bills: later },
+          { label: 'PAID',       color: 'var(--income)',  bills: paid },
+        ].filter(s => s.bills.length > 0)
+
+        if (sections.length === 0) {
+          return (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 bg-[var(--surface-2)] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                {direction === 'sent' ? <Send className="w-7 h-7 text-[var(--text-faint)]" /> : <Receipt className="w-7 h-7 text-[var(--text-faint)]" />}
+              </div>
+              <p className="text-[var(--text-muted)] font-medium">No {direction === 'sent' ? 'outgoing' : 'incoming'} bills</p>
+              <button onClick={() => setShowForm(true)} className="mt-3 text-[var(--brand)] text-sm font-medium">+ Add first bill</button>
+            </div>
+          )
+        }
+        return sections.map(sec => (
+          <div key={sec.label} className="mb-5">
+            <p className="text-[11px] font-extrabold tracking-[.1em] mb-[10px]" style={{ color: sec.color }}>{sec.label}</p>
+            <div className="rounded-[14px] overflow-hidden" style={{ background: 'var(--surface)', border: `1px solid ${sec.border ?? 'var(--border)'}` }}>
+              {sec.bills.map((bill, i) => (
+                <div key={bill.id} style={{ borderTop: i > 0 ? '1px solid var(--border-2)' : 'none' }}>
+                  <BillCard
+                    bill={bill}
+                    onMarkPaid={handleMarkPaidClick}
+                    onMarkUnpaid={handleMarkUnpaid}
+                    onEdit={b => { setEditBill(b); setShowForm(true) }}
+                    onDelete={handleDelete}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      })()}
 
       {showForm && (
         <BillForm
