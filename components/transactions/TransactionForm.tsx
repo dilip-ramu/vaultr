@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown, ChevronLeft, CheckCircle } from 'lucide-react'
 import type { Transaction, Account, Category, TransactionType, Payee } from '@/lib/types'
-import { getCategoryEmoji } from '@/lib/types'
+import { getCategoryEmoji, ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
-import { getTodayString } from '@/lib/utils'
+import { getTodayString, accountGroupRank } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import { parseAmount, dateError } from '@/lib/validation'
 import FileUpload from '../shared/FileUpload'
@@ -239,6 +239,31 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const fmtInr = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 2 })
   const accountName = (id: string) => accounts.find(a => a.id === id)?.name ?? '—'
 
+  // Group the account picker by type, exactly like the Accounts page:
+  // built-in types (in config order), then custom types, ranked the same way.
+  const accountGroups = useMemo(() => {
+    const groups: { key: string; label: string; color: string; type?: string; accounts: Account[] }[] = []
+    for (const [type] of Object.entries(ACCOUNT_TYPE_CONFIG)) {
+      const typeAccounts = accounts.filter(a => a.type === type && !a.custom_type_id)
+      if (typeAccounts.length === 0) continue
+      const display = resolveAccountTypeDisplay(type as keyof typeof ACCOUNT_TYPE_CONFIG)
+      groups.push({ key: type, label: display.label, color: display.color, type, accounts: typeAccounts })
+    }
+    const customTypeMap = new Map<string, { name: string; color: string; accounts: Account[] }>()
+    for (const a of accounts.filter(a => a.custom_type_id)) {
+      const key = a.custom_type_id!
+      if (!customTypeMap.has(key)) customTypeMap.set(key, { name: a.custom_type_name ?? 'Custom', color: a.custom_type_color ?? '#6B7280', accounts: [] })
+      customTypeMap.get(key)!.accounts.push(a)
+    }
+    customTypeMap.forEach((v, k) => groups.push({ key: k, label: v.name, color: v.color, accounts: v.accounts }))
+    return groups.sort((a, b) => {
+      const ra = accountGroupRank(a.type, a.label)
+      const rb = accountGroupRank(b.type, b.label)
+      if (ra !== rb) return ra - rb
+      return a.label.localeCompare(b.label)
+    })
+  }, [accounts])
+
   // Advance to the next step, validating the current one first.
   function goNext() {
     setError('')
@@ -381,29 +406,39 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
           {/* Accounts — from/to step (stepped list, for both new and edit) */}
           {showAccounts && (
-            <div className="flex flex-col gap-[9px]">
-              {accounts
-                .filter(a => (step === 'to' && type === 'transfer') ? a.id !== accountId : true)
-                .map(a => {
-                  const selected = accountStepSelected === a.id
-                  return (
-                    <button key={a.id} type="button" onClick={() => setAccountStep(a.id)}
-                      className="flex items-center gap-3 p-[14px] rounded-[14px] text-left transition-colors"
-                      style={{ background: selected ? 'var(--brand-light)' : 'var(--surface-2)', border: `1.5px solid ${selected ? 'var(--brand)' : 'transparent'}` }}>
-                      {a.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={a.avatar_url} alt="" className="w-10 h-10 rounded-[11px] object-cover shrink-0" />
-                      ) : (
-                        <span className="w-10 h-10 rounded-[11px] flex items-center justify-center text-white text-[15px] font-bold shrink-0" style={{ background: a.color || 'var(--brand)' }}>{a.name.charAt(0)}</span>
-                      )}
-                      <span className="flex-1 min-w-0">
-                        <span className="block text-[13.5px] font-bold truncate" style={{ color: 'var(--text)' }}>{a.name}</span>
-                        {a.balance != null && <span className="block text-[11px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmtInr(Number(a.balance))} available</span>}
-                      </span>
-                      {selected && <CheckCircle className="w-[18px] h-[18px] shrink-0" style={{ color: 'var(--brand)' }} />}
-                    </button>
-                  )
-                })}
+            <div className="flex flex-col gap-4">
+              {accountGroups.map(group => {
+                const groupAccounts = group.accounts.filter(a => (step === 'to' && type === 'transfer') ? a.id !== accountId : true)
+                if (groupAccounts.length === 0) return null
+                return (
+                  <div key={group.key} className="flex flex-col gap-[9px]">
+                    <div className="flex items-center gap-2 px-0.5">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: group.color }} />
+                      <span className="text-[11px] font-extrabold uppercase tracking-[.08em]" style={{ color: 'var(--text-muted)' }}>{group.label}</span>
+                    </div>
+                    {groupAccounts.map(a => {
+                      const selected = accountStepSelected === a.id
+                      return (
+                        <button key={a.id} type="button" onClick={() => setAccountStep(a.id)}
+                          className="flex items-center gap-3 p-[14px] rounded-[14px] text-left transition-colors"
+                          style={{ background: selected ? 'var(--brand-light)' : 'var(--surface-2)', border: `1.5px solid ${selected ? 'var(--brand)' : 'transparent'}` }}>
+                          {a.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={a.avatar_url} alt="" className="w-10 h-10 rounded-[11px] object-cover shrink-0" />
+                          ) : (
+                            <span className="w-10 h-10 rounded-[11px] flex items-center justify-center text-white text-[15px] font-bold shrink-0" style={{ background: a.color || 'var(--brand)' }}>{a.name.charAt(0)}</span>
+                          )}
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-[13.5px] font-bold truncate" style={{ color: 'var(--text)' }}>{a.name}</span>
+                            {a.balance != null && <span className="block text-[11px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmtInr(Number(a.balance))} available</span>}
+                          </span>
+                          {selected && <CheckCircle className="w-[18px] h-[18px] shrink-0" style={{ color: 'var(--brand)' }} />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })}
             </div>
           )}
 
