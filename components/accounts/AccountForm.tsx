@@ -55,6 +55,28 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Inline "new account type" quick-create
+  const [showNewType, setShowNewType] = useState(false)
+  const [newTypeName, setNewTypeName] = useState('')
+  const [newTypeColor, setNewTypeColor] = useState(ACCOUNT_COLORS[0])
+  const [creatingType, setCreatingType] = useState(false)
+
+  const handleCreateType = async () => {
+    if (!newTypeName.trim()) return
+    setCreatingType(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error: err } = await supabase
+      .from('custom_account_types')
+      .insert({ name: newTypeName.trim(), color: newTypeColor, icon: 'wallet', user_id: user!.id })
+      .select().single()
+    setCreatingType(false)
+    if (err || !data) { setError(err?.message ?? 'Could not create type'); return }
+    setCustomTypes(prev => [...prev, data])
+    setType('other'); setCustomTypeId(data.id)
+    setShowNewType(false); setNewTypeName(''); setNewTypeColor(ACCOUNT_COLORS[0])
+  }
+
   // v73 — debit cards linked to this account (edit mode only)
   const [dcList, setDcList] = useState<DebitCard[]>([])
   const emptyDC = { label: '', card_number: '', card_network: '', card_holder: '', expiry_month: '', expiry_year: '', bank_customer_id: '' }
@@ -246,7 +268,48 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
                   {ct.name}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setShowNewType(v => !v)}
+                className="px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center flex items-center justify-center gap-1 border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-2)]"
+              >
+                <Plus className="w-3.5 h-3.5" /> New type
+              </button>
             </div>
+
+            {showNewType && (
+              <div className="mt-2 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] space-y-2.5">
+                <input
+                  type="text"
+                  autoFocus
+                  value={newTypeName}
+                  onChange={e => setNewTypeName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateType() } }}
+                  placeholder="e.g. PPF, NPS, Gold, Crypto"
+                  className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm"
+                />
+                <div className="flex gap-2 flex-wrap">
+                  {ACCOUNT_COLORS.map(c => (
+                    <button key={c} type="button" onClick={() => setNewTypeColor(c)}
+                      className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
+                      style={{ backgroundColor: c }}>
+                      {newTypeColor === c && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => { setShowNewType(false); setNewTypeName('') }}
+                    className="flex-1 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)] hover:bg-[var(--surface)]">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleCreateType} disabled={creatingType || !newTypeName.trim()}
+                    className="flex-1 py-2 rounded-lg bg-[var(--brand)] text-white text-xs font-semibold disabled:opacity-60">
+                    {creatingType ? 'Adding…' : 'Add & select'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-[var(--text-faint)]">Icons and renaming live on the Account Types page.</p>
+              </div>
+            )}
           </div>
 
           {/* Balance & Currency */}
