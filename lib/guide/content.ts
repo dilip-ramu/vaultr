@@ -209,7 +209,17 @@ export const GUIDE: Topic[] = [
             blocks: [
               { t: 'lead', text: 'Press ⌘K (Ctrl+K on Windows) from any screen to open the command palette.' },
               { t: 'p', text: 'Start typing a page name to jump to it, or an action like "Add transaction" or "New invoice" to run it without navigating first.' },
-              { t: 'figure', fig: { kind: 'modal', title: 'Command palette', rows: ['Go to Accounts', 'Add transaction', 'New invoice', 'Run payroll'], highlight: 'Add transaction', caption: '⌘K — search screens and actions.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/dashboard', nav: 'Home',
+                header: { title: 'Press ⌘K anywhere' },
+                items: [
+                  { type: 'field', label: 'Command palette', value: 'add transaction', pin: { n: 1, label: 'Type a page name or an action' } },
+                  { type: 'row', cells: ['Add transaction', 'Action', ''], strongFirst: true, pin: { n: 2, label: 'Press Enter to run it' } },
+                  { type: 'row', cells: ['Go to Accounts', 'Page', ''], strongFirst: true },
+                  { type: 'row', cells: ['New invoice', 'Action', ''], strongFirst: true },
+                ],
+                caption: '⌘K (Ctrl+K on Windows) opens the command palette from any screen.',
+              } },
             ],
           },
           {
@@ -347,7 +357,16 @@ export const GUIDE: Topic[] = [
                 { title: 'Review the drafts', detail: 'Each parsed alert becomes a draft with amount, date and a guessed account.' },
                 { title: 'Approve or edit', detail: 'Confirm the ones you want; they post to the ledger.' },
               ] },
-              { t: 'figure', fig: { kind: 'listPage', title: 'Fetch', rows: ['HDFC — debit ₹1,200', 'ICICI — credit ₹45,000', 'Amex — debit ₹3,410'], highlight: 'HDFC — debit ₹1,200', caption: 'Parsed alerts arrive as drafts to approve.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/transactions/fetch', nav: 'Transactions',
+                header: { title: 'Fetch — drafts to review' },
+                items: [
+                  { type: 'row', cells: ['HDFC — debit', 'Today', '₹1,200'], strongFirst: true, pin: { n: 1, label: 'Open a draft to check it' } },
+                  { type: 'row', cells: ['ICICI — credit', 'Today', '₹45,000'], strongFirst: true },
+                  { type: 'button', label: 'Approve', primary: true, pin: { n: 2, label: 'Approve to post it to the ledger' } },
+                ],
+                caption: 'Parsed bank alerts arrive as drafts. Approve, edit or dismiss each one.',
+              } },
             ],
           },
           {
@@ -390,7 +409,26 @@ export const GUIDE: Topic[] = [
                 'Filter by type (income / expense / transfer), account or category.',
                 'Set a date range to focus on a period; the top band totals update to match.',
               ] },
-              { t: 'figure', fig: { kind: 'table', title: 'Transactions', tabs: ['All', 'Income', 'Expense', 'Transfers'], rows: ['DESCRIPTION', 'DATE', 'AMOUNT', ''], caption: 'Summary band on top; filterable ledger below.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/transactions', nav: 'Transactions',
+                header: { title: 'Transactions' },
+                band: [
+                  { label: 'In', value: '₹3,10,000' },
+                  { label: 'Out', value: '₹1,86,000' },
+                  { label: 'Net', value: '+₹1,24,000', pin: { n: 3, label: 'Totals follow your filters' } },
+                ],
+                chips: [
+                  { label: 'All', active: true },
+                  { label: 'Income', pin: { n: 1, label: 'Filter by type, account or category' } },
+                  { label: 'Expense' }, { label: 'Transfers' },
+                ],
+                tableHead: ['DESCRIPTION', 'DATE', 'AMOUNT'],
+                items: [
+                  { type: 'row', cells: ['Adobe Creative Cloud', '07 Jul', '– ₹4,230'], strongFirst: true },
+                  { type: 'row', cells: ['Client payment — Acme', '06 Jul', '+ ₹1,20,000'], strongFirst: true, pin: { n: 2, label: 'Tap a row to open or edit it' } },
+                ],
+                caption: 'Summary band on top; searchable, filterable ledger below.',
+              } },
               { t: 'callout', variant: 'info', text: 'Only the totals in the top band are hidden by the eye toggle — individual lines stay readable.' },
             ],
           },
@@ -452,7 +490,26 @@ export const GUIDE: Topic[] = [
             blocks: [
               { t: 'lead', text: 'Accounts are split into groups by type, each under its own heading with a colour dot and count.' },
               { t: 'p', text: 'Use the type chips at the top to filter to a single group, or "All" to see everything. A Net Worth band summarises assets, liabilities and available credit.' },
-              { t: 'figure', fig: { kind: 'listPage', title: 'Accounts', rows: ['Checking', 'Savings', 'Credit'], caption: 'Grouped by type with a net-worth band on top.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/accounts', nav: 'Accounts',
+                header: { title: 'Accounts' },
+                band: [
+                  { label: 'Net worth', value: '₹12,40,000' },
+                  { label: 'Assets', value: '₹15,00,000' },
+                  { label: 'Liabilities', value: '₹2,60,000' },
+                ],
+                chips: [
+                  { label: 'All', active: true, pin: { n: 1, label: 'Filter to a single type' } },
+                  { label: 'Checking' }, { label: 'Credit' },
+                ],
+                items: [
+                  { type: 'groupLabel', text: 'Checking' },
+                  { type: 'card', title: 'HDFC Current', sub: '••2841', tag: 'Checking', color: '#2F6FED', emoji: '🏦' },
+                  { type: 'groupLabel', text: 'Credit' },
+                  { type: 'card', title: 'Amex Platinum', sub: '••1007', tag: 'Credit', color: '#7C3AED', emoji: '💳' },
+                ],
+                caption: 'Accounts group under their type, with a net-worth band on top.',
+              } },
             ],
           },
           {
@@ -466,7 +523,17 @@ export const GUIDE: Topic[] = [
                 { title: 'Enter your real (actual) balance', detail: 'Vaultr shows App balance, Actual and the Difference side by side.' },
                 { title: 'Resolve the difference', detail: 'Add any missing transactions; the difference goes to zero.' },
               ] },
-              { t: 'figure', fig: { kind: 'detail', title: 'Reconcile', rows: ['App balance', 'Actual', 'Difference'], caption: 'App vs Actual vs Difference, with the ledger below.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/accounts', nav: 'Accounts',
+                header: { title: 'HDFC Current — Reconcile' },
+                band: [
+                  { label: 'App balance', value: '₹2,84,000' },
+                  { label: 'Actual', value: '₹2,84,000', pin: { n: 1, label: 'Type your real bank balance' } },
+                  { label: 'Difference', value: '₹0', pin: { n: 2, label: 'Add missing transactions until this is zero' } },
+                ],
+                items: [ { type: 'note', text: 'The account ledger sits below, newest first, so you can spot what’s missing.' } ],
+                caption: 'Reconcile compares App vs Actual and shows the Difference inline.',
+              } },
             ],
           },
           {
@@ -557,7 +624,20 @@ export const GUIDE: Topic[] = [
             title: 'The Home dashboard',
             blocks: [
               { t: 'lead', text: 'Home is your command centre: net worth, money in and out this month, and shortcuts to recent activity.' },
-              { t: 'figure', fig: { kind: 'dashboard', title: 'Home', rows: ['Net worth', 'Money in', 'Money out'], caption: 'Top tiles summarise the month; cards below show recent activity.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/dashboard', nav: 'Home',
+                header: { title: 'Home' },
+                band: [
+                  { label: 'Net worth', value: '₹12,40,000' },
+                  { label: 'Money in', value: '₹3,10,000' },
+                  { label: 'Money out', value: '₹1,86,000' },
+                ],
+                items: [
+                  { type: 'groupLabel', text: 'Recent activity' },
+                  { type: 'row', cells: ['Adobe Creative Cloud', 'Today', '– ₹4,230'], strongFirst: true },
+                ],
+                caption: 'Top tiles summarise the month; cards below show recent activity.',
+              } },
               { t: 'callout', variant: 'info', text: 'The eye toggle hides the tile figures for privacy.' },
             ],
           },
@@ -572,7 +652,16 @@ export const GUIDE: Topic[] = [
                 { title: 'Set a budget per category', detail: 'Enter a monthly limit for the categories you care about.' },
                 { title: 'Track progress', detail: 'Each budget shows spent vs limit; overspend is flagged.' },
               ] },
-              { t: 'figure', fig: { kind: 'listPage', title: 'Insights', rows: ['Groceries — ₹28k / ₹30k', 'Marketing — ₹1.6L / ₹1.5L', 'Software — ₹29k / ₹40k'], caption: 'Budgets show spent against limit per category.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/budget-insights', nav: 'Insights',
+                header: { title: 'Insights & budgets' },
+                items: [
+                  { type: 'card', title: 'Groceries', sub: '₹28k of ₹30k', tag: '93%', color: '#16A34A', emoji: '🛒', pin: { n: 1, label: 'Spent vs your monthly limit' } },
+                  { type: 'card', title: 'Marketing', sub: '₹1.64L of ₹1.5L', tag: 'Over', color: '#DC2626', emoji: '🎯', pin: { n: 2, label: 'Overspend is flagged in red' } },
+                  { type: 'card', title: 'Software', sub: '₹29k of ₹40k', tag: '73%', color: '#2563EB', emoji: '☁️' },
+                ],
+                caption: 'Each budget shows spend against its limit; overspend is flagged.',
+              } },
             ],
           },
           {
@@ -622,7 +711,18 @@ export const GUIDE: Topic[] = [
             title: 'Customers overview',
             blocks: [
               { t: 'lead', text: 'The Customers hub gathers everything about who you sell to: invoices, incoming payments, TDS and a directory.' },
-              { t: 'figure', fig: { kind: 'listPage', title: 'Customers', tabs: ['Overview', 'Invoices', 'Incoming', 'TDS'], caption: 'Side tabs move between customer sub-screens.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/customers', nav: 'Customers',
+                header: { title: 'Customers' },
+                tabs: [
+                  { label: 'Overview', active: true },
+                  { label: 'Invoices', pin: { n: 1, label: 'Raise & track invoices' } },
+                  { label: 'Incoming', pin: { n: 2, label: 'Money owed & received' } },
+                  { label: 'TDS', pin: { n: 3, label: 'Tax deducted at source' } },
+                ],
+                items: [ { type: 'card', title: 'Acme Retail LLP', sub: '₹1,20,000 outstanding', emoji: '🧾' } ],
+                caption: 'Side tabs move between the customer sub-screens.',
+              } },
             ],
           },
           {
@@ -757,7 +857,18 @@ export const GUIDE: Topic[] = [
             title: 'Suppliers overview',
             blocks: [
               { t: 'lead', text: 'The Suppliers hub covers invoices you receive, payments you make, what’s been billed, and a directory.' },
-              { t: 'figure', fig: { kind: 'listPage', title: 'Suppliers', tabs: ['Overview', 'Invoices', 'Payments', 'Billed'], caption: 'Side tabs move between supplier sub-screens.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/suppliers', nav: 'Suppliers',
+                header: { title: 'Suppliers' },
+                tabs: [
+                  { label: 'Overview', active: true },
+                  { label: 'Invoices', pin: { n: 1, label: 'Bills you receive' } },
+                  { label: 'Payments', pin: { n: 2, label: 'What you paid' } },
+                  { label: 'Billed', pin: { n: 3, label: 'Everything billed to you' } },
+                ],
+                items: [ { type: 'card', title: 'CloudHost Pvt Ltd', sub: '₹29,000 due', emoji: '🏢' } ],
+                caption: 'Side tabs move between the supplier sub-screens.',
+              } },
             ],
           },
           {
@@ -806,7 +917,17 @@ export const GUIDE: Topic[] = [
                 { title: 'Open an item', detail: 'The email is shown exactly, with attachments as paperclips you can open on the left if needed.' },
                 { title: 'Confirm as a bill' },
               ] },
-              { t: 'figure', fig: { kind: 'detail', title: 'Inbox review', rows: ['From', 'Subject', 'Amount'], caption: 'The email as-received, with attachments as paperclips.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/suppliers/invoices/fetch', nav: 'Suppliers',
+                header: { title: 'Inbox review' },
+                items: [
+                  { type: 'field', label: 'From', value: 'billing@cloudhost.com' },
+                  { type: 'field', label: 'Subject', value: 'Invoice #4471 — ₹29,000' },
+                  { type: 'row', cells: ['📎 invoice-4471.pdf', 'Attachment', ''], strongFirst: true, pin: { n: 1, label: 'Open the attachment on the left if needed' } },
+                  { type: 'button', label: 'Save as bill', primary: true, pin: { n: 2, label: 'Confirm it as a supplier bill' } },
+                ],
+                caption: 'The email is shown exactly as received; attachments appear as paperclips.',
+              } },
             ],
           },
           {
@@ -829,7 +950,16 @@ export const GUIDE: Topic[] = [
             title: 'Bills timeline',
             blocks: [
               { t: 'lead', text: 'The Bills timeline lays out upcoming and overdue bills by date so nothing slips.' },
-              { t: 'figure', fig: { kind: 'table', title: 'Bills', rows: ['BILL', 'DUE', 'AMOUNT', ''], caption: 'Upcoming and overdue bills, sorted by due date.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/bills', nav: 'Suppliers',
+                header: { title: 'Bills' },
+                tableHead: ['BILL', 'DUE', 'AMOUNT'],
+                items: [
+                  { type: 'row', cells: ['CloudHost', 'Overdue', '₹29,000'], strongFirst: true, pin: { n: 1, label: 'Overdue bills surface first' } },
+                  { type: 'row', cells: ['Office rent', 'In 3 days', '₹85,000'], strongFirst: true },
+                ],
+                caption: 'Upcoming and overdue bills, sorted by due date.',
+              } },
             ],
           },
         ],
@@ -857,7 +987,17 @@ export const GUIDE: Topic[] = [
                 { title: 'Review each employee', detail: 'Basic, allowances, overtime, incentives, deductions and advances.' },
                 { title: 'Mark paid', detail: 'Record the payment date; slips become available.' },
               ] },
-              { t: 'figure', fig: { kind: 'table', title: 'Payroll · processing', rows: ['EMPLOYEE', 'GROSS', 'NET', ''], caption: 'One row per employee for the month.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/payroll/processing', nav: 'Payroll',
+                header: { title: 'Payroll · July 2026' },
+                tableHead: ['EMPLOYEE', 'GROSS', 'NET'],
+                items: [
+                  { type: 'row', cells: ['Priya Sharma', '₹80,000', '₹72,400'], strongFirst: true, pin: { n: 1, label: 'Review each employee’s earnings & deductions' } },
+                  { type: 'row', cells: ['Rahul Verma', '₹65,000', '₹60,100'], strongFirst: true },
+                  { type: 'button', label: 'Mark month paid', primary: true, pin: { n: 2, label: 'Records payment; slips become available' } },
+                ],
+                caption: 'One row per employee for the month; mark the month paid when done.',
+              } },
             ],
           },
           {
@@ -945,7 +1085,17 @@ export const GUIDE: Topic[] = [
             title: 'Templates hub',
             blocks: [
               { t: 'lead', text: 'The Templates hub is where you design and assign the look of every document type.' },
-              { t: 'figure', fig: { kind: 'listPage', title: 'Templates', tabs: ['Invoices', 'Salary slips', 'Contracts'], caption: 'One place for all document designs.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/templates', nav: 'Organization',
+                header: { title: 'Templates' },
+                tabs: [
+                  { label: 'Invoices', active: true, pin: { n: 1, label: 'Invoice layouts & accent colour' } },
+                  { label: 'Salary slips', pin: { n: 2, label: 'Slip designs' } },
+                  { label: 'Contracts', pin: { n: 3, label: 'Contract & JD templates' } },
+                ],
+                items: [ { type: 'card', title: 'Classic — Emerald', sub: 'Assigned to Northstar', emoji: '🧾' } ],
+                caption: 'One place for all document designs, assignable per company.',
+              } },
             ],
           },
           {
@@ -1019,7 +1169,20 @@ export const GUIDE: Topic[] = [
             title: 'Company',
             blocks: [
               { t: 'lead', text: 'Your company profile: legal name, address, GSTIN, contact details, logo, signature, bank details and terms.' },
-              { t: 'figure', fig: { kind: 'setup', title: 'Company', rows: ['Company', 'Email', 'Categories', 'Account types', 'Currencies'], highlight: 'Company', caption: 'Setup uses a two-pane layout; Company is the first section.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/setup', nav: 'Setup',
+                header: { title: 'Setup' },
+                tabs: [
+                  { label: 'Company', active: true, pin: { n: 1, label: 'The first section' } },
+                  { label: 'Email' }, { label: 'Categories' }, { label: 'Account types' }, { label: 'Currencies' },
+                ],
+                items: [
+                  { type: 'field', label: 'Company name', value: 'Northstar Trading Pvt Ltd' },
+                  { type: 'field', label: 'Bank details', value: 'HDFC •• 2841 · IFSC HDFC0000123', pin: { n: 2, label: 'Flows onto every invoice' } },
+                  { type: 'field', label: 'Terms & Conditions', value: 'Payment due within 15 days…', pin: { n: 3, label: 'Also shown on invoices' } },
+                ],
+                caption: 'Setup uses a two-pane layout; Company is the first section.',
+              } },
             ],
           },
           {
@@ -1044,7 +1207,22 @@ export const GUIDE: Topic[] = [
                 { title: 'Add a category', detail: 'Give it a name, colour and emoji.', action: '+ New category' },
                 { title: 'Reorder by dragging' },
               ] },
-              { t: 'figure', fig: { kind: 'setup', title: 'Categories', rows: ['Company', 'Email', 'Categories', 'Account types', 'Currencies'], highlight: 'Categories', caption: 'Category cards with colour and emoji, grouped by income/expense.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/setup', nav: 'Setup',
+                header: { title: 'Setup', button: { label: '+ New category', pin: { n: 2, label: 'Add a category' } } },
+                tabs: [
+                  { label: 'Company' }, { label: 'Email' },
+                  { label: 'Categories', active: true, pin: { n: 1, label: 'Open Categories' } },
+                  { label: 'Account types' }, { label: 'Currencies' },
+                ],
+                chips: [ { label: 'Expense', active: true }, { label: 'Income' } ],
+                columns: 2,
+                items: [
+                  { type: 'card', title: 'Groceries', sub: '₹28k this month', color: '#DC2626', emoji: '🛒' },
+                  { type: 'card', title: 'Marketing', sub: '₹1.64L this month', color: '#D97706', emoji: '🎯' },
+                ],
+                caption: 'Category cards with colour and emoji, grouped by income/expense.',
+              } },
             ],
           },
           {
