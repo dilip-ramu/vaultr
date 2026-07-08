@@ -313,38 +313,39 @@ export default function ImportPageClient({ onImported }: { onImported?: () => vo
                 errors={preview.errors}
               />
 
-              {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                {preview.isValid ? (
+              {/* Footer bar (20b) — ready count + Back / Import */}
+              <div className="flex items-center justify-between rounded-[13px] px-5 py-4" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                  {preview.isValid
+                    ? `${preview.summary?.referenceCount ?? 0} references ready`
+                    : `${preview.errors.length} row${preview.errors.length === 1 ? '' : 's'} need fixing`}
+                </span>
+                <div className="flex gap-2">
                   <button
-                    onClick={handleImport}
-                    disabled={stage === 'importing' || !batchName.trim()}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all"
-                    style={{ backgroundColor: 'var(--brand)', opacity: (stage === 'importing' || !batchName.trim()) ? 0.6 : 1 }}
+                    onClick={handleCancel}
+                    disabled={stage === 'importing'}
+                    className="rounded-[10px] px-4 py-[10px] text-[12.5px] font-bold"
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
                   >
-                    {stage === 'importing' ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</>
-                    ) : (
-                      'Import'
-                    )}
+                    Back
                   </button>
-                ) : (
-                  <button
-                    disabled
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white"
-                    style={{ backgroundColor: 'var(--text-faint)', cursor: 'not-allowed' }}
-                  >
-                    Fix your CSV and re-upload
-                  </button>
-                )}
-                <button
-                  onClick={handleCancel}
-                  disabled={stage === 'importing'}
-                  className="flex-1 py-3 rounded-xl text-sm font-medium border transition-all"
-                  style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}
-                >
-                  Cancel
-                </button>
+                  {preview.isValid ? (
+                    <button
+                      onClick={handleImport}
+                      disabled={stage === 'importing' || !batchName.trim()}
+                      className="inline-flex items-center gap-2 rounded-[10px] px-[18px] py-[10px] text-[12.5px] font-bold text-white disabled:opacity-60"
+                      style={{ background: 'var(--brand)' }}
+                    >
+                      {stage === 'importing'
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing…</>
+                        : `Import ${preview.summary?.referenceCount ?? ''} shipments`}
+                    </button>
+                  ) : (
+                    <button disabled className="rounded-[10px] px-[18px] py-[10px] text-[12.5px] font-bold text-white" style={{ background: 'var(--text-faint)', cursor: 'not-allowed' }}>
+                      Fix CSV & re-upload
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
