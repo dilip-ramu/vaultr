@@ -280,7 +280,7 @@ export default function ImportPageClient({ onImported }: { onImported?: () => vo
                     <p className="text-lg font-bold" style={{ color: 'var(--brand)' }}>
                       {preview.summary.supplierCount}
                     </p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Suppliers</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Customers</p>
                   </div>
                   <div>
                     <p className="text-lg font-bold" style={{ color: 'var(--brand)' }}>

@@ -8,7 +8,7 @@ export default function SupplierColumnBadges({ suppliers }: SupplierColumnBadges
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-        Detected suppliers:
+        Detected customers:
       </span>
       {suppliers.map(name => (
         <span

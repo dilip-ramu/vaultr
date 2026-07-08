@@ -190,28 +190,8 @@ export default function AccountReconcilePanel({
         </div>
       </div>
 
-      {/* Ledger — recent activity with running balance, newest first */}
-      <div className="rounded-[13px] overflow-hidden mb-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-        <div className="grid px-[15px] py-[9px]" style={{ gridTemplateColumns: '1.6fr 1fr 1fr', borderBottom: '1px solid var(--border)' }}>
-          <span className="text-[9.5px] font-extrabold tracking-[.06em]" style={{ color: 'var(--text-muted)' }}>RECENT ACTIVITY</span>
-          <span className="text-[9.5px] font-extrabold tracking-[.06em] text-right" style={{ color: 'var(--text-muted)' }}>AMOUNT</span>
-          <span className="text-[9.5px] font-extrabold tracking-[.06em] text-right" style={{ color: 'var(--text-muted)' }}>RUNNING</span>
-        </div>
-        {[...rows].reverse().slice(0, 60).map((r, i, arr) => (
-          <div key={r.txn.id} className="grid px-[15px] py-[9px] items-center" style={{ gridTemplateColumns: '1.6fr 1fr 1fr', borderBottom: i < arr.length - 1 ? '1px solid var(--border-2)' : 'none', background: r.flags.length ? 'color-mix(in srgb, var(--amber) 6%, transparent)' : undefined }}>
-            <span className="text-[12px] truncate pr-2" style={{ color: 'var(--text)' }}>
-              {r.txn.name ?? <span className="capitalize">{r.txn.type}</span>}
-              <span style={{ color: 'var(--text-faint)' }}> · {formatDate(r.txn.date)}</span>
-            </span>
-            <span className="text-[12px] text-right" style={{ color: r.effect >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{r.effect >= 0 ? '+' : '−'}{fmt(Math.abs(r.effect))}</span>
-            <span className="text-[12px] text-right" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmt(r.running)}</span>
-          </div>
-        ))}
-        {rows.length === 0 && <div className="px-4 py-6 text-center text-[12px]" style={{ color: 'var(--text-faint)' }}>No transactions yet.</div>}
-      </div>
-
-      {/* Action row */}
-      <div className="flex items-center gap-3">
+      {/* Action row — sits above the statement so reconciling is the first thing */}
+      <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 flex items-center gap-[10px] rounded-[11px] px-[14px] py-[11px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Actual bank balance</span>
           <span className="text-[14px] font-bold ml-auto" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{actual ? fmt(actualNum) : '—'}</span>
@@ -233,6 +213,25 @@ export default function AccountReconcilePanel({
             Enter balance
           </button>
         )}
+      </div>
+
+      {/* Statement ledger — Date · Description · Amount · Running (newest first) */}
+      <div className="rounded-[13px] overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="grid px-[15px] py-[9px] gap-2" style={{ gridTemplateColumns: '84px 1.4fr 1fr 1fr', borderBottom: '1px solid var(--border)' }}>
+          <span className="text-[9.5px] font-extrabold tracking-[.06em]" style={{ color: 'var(--text-muted)' }}>DATE</span>
+          <span className="text-[9.5px] font-extrabold tracking-[.06em]" style={{ color: 'var(--text-muted)' }}>DESCRIPTION</span>
+          <span className="text-[9.5px] font-extrabold tracking-[.06em] text-right" style={{ color: 'var(--text-muted)' }}>AMOUNT</span>
+          <span className="text-[9.5px] font-extrabold tracking-[.06em] text-right" style={{ color: 'var(--text-muted)' }}>RUNNING</span>
+        </div>
+        {[...rows].reverse().slice(0, 60).map((r, i, arr) => (
+          <div key={r.txn.id} className="grid px-[15px] py-[9px] gap-2 items-center" style={{ gridTemplateColumns: '84px 1.4fr 1fr 1fr', borderBottom: i < arr.length - 1 ? '1px solid var(--border-2)' : 'none', background: r.flags.length ? 'color-mix(in srgb, var(--amber) 6%, transparent)' : undefined }}>
+            <span className="text-[11.5px] whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{formatDate(r.txn.date)}</span>
+            <span className="text-[12px] truncate pr-2" style={{ color: 'var(--text)' }}>{r.txn.name ?? <span className="capitalize">{r.txn.type}</span>}</span>
+            <span className="text-[12px] text-right" style={{ color: r.effect >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{r.effect >= 0 ? '+' : '−'}{fmt(Math.abs(r.effect))}</span>
+            <span className="text-[12px] text-right" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmt(r.running)}</span>
+          </div>
+        ))}
+        {rows.length === 0 && <div className="px-4 py-6 text-center text-[12px]" style={{ color: 'var(--text-faint)' }}>No transactions yet.</div>}
       </div>
 
       {/* Warnings */}
