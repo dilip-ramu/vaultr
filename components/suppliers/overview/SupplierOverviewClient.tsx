@@ -1,4 +1,5 @@
 'use client'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 
 import { useMemo } from 'react'
 import Link from 'next/link'
@@ -27,6 +28,7 @@ function fmtDate(d: string) {
 }
 
 export default function SupplierOverviewClient({ invoices, suppliers }: Props) {
+  const { mask } = useBalanceVisibility()
   const enriched = useMemo(() =>
     invoices.map(inv => ({
       ...inv,
@@ -123,9 +125,9 @@ export default function SupplierOverviewClient({ invoices, suppliers }: Props) {
 
       {/* Band tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Tile label="TO PAY" value={`₹${fmtAmt(stats.totalOutstanding)}`} sub="outstanding" color="var(--expense)" />
-        <Tile label="DUE THIS WEEK" value={`₹${fmtAmt(dueThisWeek.amt)}`} sub={`${dueThisWeek.count} bill${dueThisWeek.count !== 1 ? 's' : ''}`} color="var(--amber)" />
-        <Tile label="OVERDUE" value={`₹${fmtAmt(stats.overdueAmount)}`} sub={`${stats.overdueCount} invoice${stats.overdueCount !== 1 ? 's' : ''}`} color="var(--expense)" />
+        <Tile label="TO PAY" value={mask(`₹${fmtAmt(stats.totalOutstanding)}`)} sub="outstanding" color="var(--expense)" />
+        <Tile label="DUE THIS WEEK" value={mask(`₹${fmtAmt(dueThisWeek.amt)}`)} sub={`${dueThisWeek.count} bill${dueThisWeek.count !== 1 ? 's' : ''}`} color="var(--amber)" />
+        <Tile label="OVERDUE" value={mask(`₹${fmtAmt(stats.overdueAmount)}`)} sub={`${stats.overdueCount} invoice${stats.overdueCount !== 1 ? 's' : ''}`} color="var(--expense)" />
         <Tile label="ACTIVE" value={`${suppliers.length}`} sub="suppliers" color="var(--text)" />
       </div>
 
@@ -148,7 +150,7 @@ export default function SupplierOverviewClient({ invoices, suppliers }: Props) {
                 <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{s.name}</p>
               </div>
               <span className="text-[13px] font-semibold text-right tabular-nums" style={{ color: s.overdue > 0 ? 'var(--expense)' : 'var(--text-faint)' }}>{s.overdue > 0 ? `₹${fmtAmt(s.overdue)}` : '—'}</span>
-              <span className="text-[13px] font-bold text-right tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(s.outstanding)}</span>
+              <span className="text-[13px] font-bold text-right tabular-nums" style={{ color: 'var(--text)' }}>{mask(`₹${fmtAmt(s.outstanding)}`)}</span>
             </div>
           ))}
         </div>

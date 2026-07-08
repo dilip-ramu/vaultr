@@ -11,6 +11,7 @@ import TransactionItem from './TransactionItem'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 
 const TransactionForm = dynamic(() => import('./TransactionForm'), { ssr: false })
 
@@ -247,6 +248,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   }, [])
 
   const netPosition = totalCredits - totalDebits
+  const { mask } = useBalanceVisibility()
 
   // This-month net flow + a small cumulative sparkline
   const { monthNet, sparkPoints, monthLabel } = useMemo(() => {
@@ -405,20 +407,20 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
       <div className="grid grid-cols-2 md:grid-cols-[1fr_1fr_1fr_1.4fr] gap-3 mb-4">
         <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
           <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>CREDITS · ALL TIME</p>
-          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{fmtCompact(totalCredits)}</p>
+          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{mask(fmtCompact(totalCredits))}</p>
         </div>
         <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
           <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>DEBITS · ALL TIME</p>
-          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{fmtCompact(totalDebits)}</p>
+          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{mask(fmtCompact(totalDebits))}</p>
         </div>
         <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
           <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>NET POSITION</p>
-          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{netPosition >= 0 ? '+' : ''}{fmtCompact(netPosition)}</p>
+          <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{mask(`${netPosition >= 0 ? '+' : ''}${fmtCompact(netPosition)}`)}</p>
         </div>
         <div className="rounded-2xl px-4 py-3 flex items-center justify-between gap-2" style={{ background: 'linear-gradient(135deg, var(--brand-deep), var(--brand-dark))' }}>
           <div>
             <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'rgba(255,255,255,0.6)' }}>{monthLabel} NET FLOW</p>
-            <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{monthNet >= 0 ? '+' : '−'}{fmtCompact(Math.abs(monthNet))}</p>
+            <p className="text-lg font-extrabold tracking-tight mt-1" style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{mask(`${monthNet >= 0 ? '+' : '−'}${fmtCompact(Math.abs(monthNet))}`)}</p>
           </div>
           {sparkPoints && (
             <svg viewBox="0 0 90 34" preserveAspectRatio="none" className="w-[90px] h-[30px] shrink-0">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import {
   Plus, Receipt, CheckCircle2, Clock, AlertCircle,
   RefreshCw, Send, Inbox, Calendar, ChevronDown, X, RotateCcw,
@@ -34,6 +35,7 @@ function nextDueDate(date: string, interval: string): string {
 }
 
 export default function BillsClient({ initialBills, accounts, categories, customers }: Props) {
+  const { mask } = useBalanceVisibility()
   const [bills, setBills] = useState<Bill[]>(initialBills)
   const [direction, setDirection] = useState<BillDirection>('received')
   const [showForm, setShowForm] = useState(false)
@@ -199,15 +201,15 @@ export default function BillsClient({ initialBills, accounts, categories, custom
           <div className="rounded-[18px] px-6 py-5 flex items-center mb-5" style={{ background: 'linear-gradient(135deg, var(--brand-deep), color-mix(in srgb, var(--brand-deep) 74%, #000))' }}>
             <div className="flex-1">
               <p className="text-[10.5px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.6)' }}>DUE THIS MONTH</p>
-              <p className="text-[28px] font-extrabold text-white mt-[3px]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(dueThisMonthAmt)}</p>
+              <p className="text-[28px] font-extrabold text-white mt-[3px]" style={{ fontVariantNumeric: 'tabular-nums' }}>{mask(formatCurrency(dueThisMonthAmt))}</p>
             </div>
             <div className="flex-1 pl-5">
               <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>OVERDUE</p>
-              <p className="text-[18px] font-extrabold mt-[2px]" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(overdueAmt)}</p>
+              <p className="text-[18px] font-extrabold mt-[2px]" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{mask(formatCurrency(overdueAmt))}</p>
             </div>
             <div className="flex-1">
               <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>THIS WEEK</p>
-              <p className="text-[18px] font-extrabold text-white mt-[2px]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(thisWeekAmt)}</p>
+              <p className="text-[18px] font-extrabold text-white mt-[2px]" style={{ fontVariantNumeric: 'tabular-nums' }}>{mask(formatCurrency(thisWeekAmt))}</p>
             </div>
           </div>
         )

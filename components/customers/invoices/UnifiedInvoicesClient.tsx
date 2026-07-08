@@ -16,6 +16,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle2, DollarSign, Clock, Loader2, Truck, FileText, Filter, Pencil, Trash2, Plus } from 'lucide-react'
@@ -65,6 +66,7 @@ function fmtCur(n: number, cur: string): string {
 }
 
 export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerIds }: Props) {
+  const { mask } = useBalanceVisibility()
   const router = useRouter()
   const params = useSearchParams()
   const reimbursableSet = useMemo(() => new Set(reimbursableCustomerIds), [reimbursableCustomerIds])
@@ -229,7 +231,7 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
         <FilterPill active={filterStatus === 'paid'} onClick={() => setFilterStatus('paid')} label="Paid" hue="#059669" />
         <span className="ml-auto text-xs" style={{ color: 'var(--text-muted)' }}>
           {totals.count} invoice{totals.count === 1 ? '' : 's'}
-          {totals.outstanding > 0 && ` · ₹${Math.round(totals.outstanding).toLocaleString('en-IN')} outstanding`}
+          {totals.outstanding > 0 && ` · ${mask(`₹${Math.round(totals.outstanding).toLocaleString('en-IN')}`)} outstanding`}
         </span>
       </div>
 

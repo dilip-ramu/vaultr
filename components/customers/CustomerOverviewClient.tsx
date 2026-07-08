@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import Link from 'next/link'
 import {
   ArrowRight, Plus,
@@ -41,6 +42,7 @@ function fmtDate(d: string) {
 }
 
 export default function CustomerOverviewClient({ orders, styles, customers, receivables }: Props) {
+  const { mask } = useBalanceVisibility()
   const orderById = useMemo(() => new Map(orders.map(o => [o.id, o])), [orders])
   const customerById = useMemo(() => new Map(customers.map(c => [c.id, c.name])), [customers])
 
@@ -142,9 +144,9 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
 
       {/* Band tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Tile label="TO COLLECT" value={`₹${fmtAmt(stats.receivablesAmt)}`} sub={`${stats.receivablesCount} open invoice${stats.receivablesCount !== 1 ? 's' : ''}`} color="var(--income)" />
-        <Tile label="OVERDUE" value={`₹${fmtAmt(stats.overdueAmt)}`} sub={`${stats.overdueCount} past due`} color="var(--expense)" />
-        <Tile label="PIPELINE / UNBILLED" value={`₹${fmtAmt(stats.pendingAmt)}`} sub={`${stats.pendingCount} style${stats.pendingCount !== 1 ? 's' : ''}`} color="var(--amber)" />
+        <Tile label="TO COLLECT" value={mask(`₹${fmtAmt(stats.receivablesAmt)}`)} sub={`${stats.receivablesCount} open invoice${stats.receivablesCount !== 1 ? 's' : ''}`} color="var(--income)" />
+        <Tile label="OVERDUE" value={mask(`₹${fmtAmt(stats.overdueAmt)}`)} sub={`${stats.overdueCount} past due`} color="var(--expense)" />
+        <Tile label="PIPELINE / UNBILLED" value={mask(`₹${fmtAmt(stats.pendingAmt)}`)} sub={`${stats.pendingCount} style${stats.pendingCount !== 1 ? 's' : ''}`} color="var(--amber)" />
         <Tile label="ACTIVE" value={`${customers.length}`} sub="customers" color="var(--text)" />
       </div>
 
@@ -168,8 +170,8 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
                   <span className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{c.name.slice(0, 2).toUpperCase()}</span>
                   <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{c.name}</p>
                 </div>
-                <span className="text-[13px] font-bold text-right tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(c.total)}</span>
-                <span className="text-[13px] font-semibold text-right tabular-nums" style={{ color: c.overdue > 0 ? 'var(--expense)' : 'var(--text-faint)' }}>{c.overdue > 0 ? `₹${fmtAmt(c.overdue)}` : '—'}</span>
+                <span className="text-[13px] font-bold text-right tabular-nums" style={{ color: 'var(--text)' }}>{mask(`₹${fmtAmt(c.total)}`)}</span>
+                <span className="text-[13px] font-semibold text-right tabular-nums" style={{ color: c.overdue > 0 ? 'var(--expense)' : 'var(--text-faint)' }}>{c.overdue > 0 ? mask(`₹${fmtAmt(c.overdue)}`) : '—'}</span>
                 <span className="text-[10.5px] font-bold text-right px-2 py-0.5 rounded-full justify-self-end" style={{ color: status.color, background: `color-mix(in srgb, ${status.color} 12%, transparent)` }}>{status.label}</span>
               </div>
             )
@@ -184,7 +186,7 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
               {([['Not due', ageing.notDue, 'var(--income)'], ['1–30 days', ageing.d30, 'var(--amber)'], ['31–60 days', ageing.d60, '#E8863B'], ['60+ days', ageing.d60plus, 'var(--expense)']] as const).map(([label, val, col]) => (
                 <div key={label} className="flex items-center justify-between text-[13px]">
                   <span className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}><span className="w-2 h-2 rounded-full" style={{ background: col }} />{label}</span>
-                  <span className="font-bold tabular-nums" style={{ color: 'var(--text)' }}>₹{fmtAmt(val)}</span>
+                  <span className="font-bold tabular-nums" style={{ color: 'var(--text)' }}>{mask(`₹${fmtAmt(val)}`)}</span>
                 </div>
               ))}
             </div>
