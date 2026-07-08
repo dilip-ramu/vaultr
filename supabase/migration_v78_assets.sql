@@ -74,3 +74,8 @@ create policy asset_rate_defaults_all on asset_rate_defaults for all
 grant select, insert, update, delete on public.assets to authenticated;
 grant select, insert, update, delete on public.asset_rate_defaults to authenticated;
 grant select on public.market_rates to authenticated;
+-- service_role bypasses RLS but still needs table privileges. The daily
+-- metal-rate fetch writes market_rates as service_role.
+grant all on public.assets to service_role;
+grant all on public.asset_rate_defaults to service_role;
+grant all on public.market_rates to service_role;
