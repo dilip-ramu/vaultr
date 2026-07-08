@@ -342,6 +342,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           account={editAccount}
           onSaved={handleSaved}
           onClose={() => { setShowForm(false); setEditAccount(null) }}
+          onDeleted={handleDelete}
         />
       )}
     </div>

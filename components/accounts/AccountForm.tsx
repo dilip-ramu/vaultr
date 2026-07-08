@@ -3,21 +3,25 @@
 import { useState, useRef, useEffect } from 'react'
 import { X, Check, Camera, ChevronDown, ChevronUp, CreditCard, Trash2, Plus } from 'lucide-react'
 import type { Account, AccountType, CustomAccountType, DebitCard } from '@/lib/types'
-import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS } from '@/lib/types'
+import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS, resolveAccountTypeDisplay } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '../AppShell'
 import { isLoan } from '@/lib/account-metrics'
+import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface AccountFormProps {
   account: Account | null
   onSaved: (account: Account) => void
   onClose: () => void
+  onDeleted?: (id: string) => void
 }
 
-export default function AccountForm({ account, onSaved, onClose }: AccountFormProps) {
+const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SGD: 'S$' }
+
+export default function AccountForm({ account, onSaved, onClose, onDeleted }: AccountFormProps) {
   const isEdit = !!account
   const avatarInputRef = useRef<HTMLInputElement>(null)
-  const [showDetails, setShowDetails] = useState(false)
+  const [showDetails, setShowDetails] = useState(isEdit)
 
   const [name, setName] = useState(account?.name ?? '')
   const [type, setType] = useState<AccountType>(account?.type ?? 'checking')
@@ -53,6 +57,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
 
   const [customTypes, setCustomTypes] = useState<CustomAccountType[]>([])
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
   // Inline "new account type" quick-create
@@ -140,7 +145,7 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim()) { setError('Account name is required'); return }
     setSaving(true)
     setError('')
 
@@ -191,382 +196,361 @@ export default function AccountForm({ account, onSaved, onClose }: AccountFormPr
     onSaved(accountWithBalance ?? data)
   }
 
-  const initials = name.slice(0, 2).toUpperCase() || '??'
+  const handleDelete = async () => {
+    if (!account) return
+    if (!await confirmDialog(`Delete “${account.name}”? This can’t be undone.`)) return
+    setDeleting(true)
+    setError('')
+    const supabase = createClient()
+    const { error: e } = await supabase.from('accounts').delete().eq('id', account.id)
+    if (e) { setError(e.message); setDeleting(false); return }
+    onDeleted?.(account.id)
+    onClose()
+  }
+
+  const initials = (name || '?').slice(0, 2).toUpperCase()
+  const isCredit = type === 'credit'
+
+  // ── Live preview values ──────────────────────────────────────────────────
+  const activeCustom = customTypes.find(c => c.id === customTypeId)
+  const previewFace = customTypeId ? (activeCustom?.color ?? '#2A7A50') : resolveAccountTypeDisplay(type).color
+  const previewTypeLabel = customTypeId ? (activeCustom?.name ?? 'Custom') : resolveAccountTypeDisplay(type).label
+  const balNum = parseFloat(balance)
+  const previewBalance = (CURRENCY_SYMBOL[currency] ?? '') + (isNaN(balNum) ? '0' : Math.abs(balNum).toLocaleString('en-IN', { maximumFractionDigits: 2 }))
+  const last4 = accountNumber.replace(/\s+/g, '').slice(-4)
+
+  // Only show the three headline types as quick pills; the rest live in "More".
+  const HEADLINE: AccountType[] = ['checking', 'savings', 'credit']
+
+  const inputCls = 'w-full px-4 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm'
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-xl slide-up max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-[var(--surface)] w-full md:max-w-4xl rounded-t-3xl md:rounded-3xl shadow-2xl slide-up max-h-[92vh] overflow-hidden flex flex-col md:flex-row">
 
-        {/* Header */}
-        <div className="sticky top-0 bg-[var(--surface)] border-b border-[var(--border)] px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-bold text-[var(--text)]">{isEdit ? 'Edit Account' : 'New Account'}</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-muted)] hover:bg-[var(--surface-2)] rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-          {error && <div className="bg-[var(--surface-2)] text-[var(--expense)] text-sm rounded-xl px-4 py-3">{error}</div>}
-
-          {/* Avatar */}
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Avatar url={avatarUrl} initials={initials} size="lg" />
-              <button
-                type="button"
-                onClick={() => avatarInputRef.current?.click()}
-                disabled={avatarUploading}
-                className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--brand)] rounded-full flex items-center justify-center shadow-md"
-              >
-                {avatarUploading
-                  ? <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                  : <Camera className="w-3 h-3 text-white" />}
-              </button>
-              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+        {/* ── LEFT: form column ── */}
+        <div className="flex flex-col flex-1 min-w-0 max-h-[92vh]">
+          {/* Header */}
+          <div className="shrink-0 px-6 py-4 flex items-center justify-between border-b border-[var(--border)]">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative shrink-0">
+                <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: `color-mix(in srgb, ${previewFace} 16%, transparent)` }}>
+                  {avatarUrl
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                    : <span className="text-[17px]">🏦</span>}
+                </div>
+                <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading}
+                  className="absolute -bottom-1 -right-1 w-5 h-5 bg-[var(--brand)] rounded-full flex items-center justify-center shadow-md">
+                  {avatarUploading ? <span className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin" /> : <Camera className="w-2.5 h-2.5 text-white" />}
+                </button>
+                <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+              </div>
+              <h2 className="text-lg font-extrabold text-[var(--text)] truncate">{isEdit ? `Edit · ${account?.name ?? ''}` : 'New account'}</h2>
             </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-[var(--text)] mb-1.5">Account Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="e.g. HDFC Savings"
-                required
-                className="w-full px-4 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm"
-              />
-            </div>
+            <button onClick={onClose} className="w-9 h-9 shrink-0 flex items-center justify-center text-[var(--text-faint)] hover:text-[var(--text-muted)] bg-[var(--surface-2)] rounded-xl">
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Account Type */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text)] mb-2">Account Type</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.entries(ACCOUNT_TYPE_CONFIG) as [AccountType, typeof ACCOUNT_TYPE_CONFIG[AccountType]][]).map(([t, config]) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => { setType(t); setCustomTypeId('') }}
-                  className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center ${
-                    type === t && !customTypeId ? 'text-white shadow-sm' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--surface-2)]'
-                  }`}
-                  style={type === t && !customTypeId ? { backgroundColor: config.color } : {}}
-                >
-                  {config.label}
-                </button>
-              ))}
-              {customTypes.map(ct => (
-                <button
-                  key={ct.id}
-                  type="button"
-                  onClick={() => { setType('other'); setCustomTypeId(ct.id) }}
-                  className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center ${
-                    customTypeId === ct.id ? 'text-white shadow-sm' : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--surface-2)]'
-                  }`}
-                  style={customTypeId === ct.id ? { backgroundColor: ct.color } : {}}
-                >
-                  {ct.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setShowNewType(v => !v)}
-                className="px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center flex items-center justify-center gap-1 border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-2)]"
-              >
-                <Plus className="w-3.5 h-3.5" /> New type
-              </button>
-            </div>
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              {error && <div className="bg-[color-mix(in_srgb,var(--expense)_10%,transparent)] text-[var(--expense)] text-sm rounded-xl px-4 py-3">{error}</div>}
 
-            {showNewType && (
-              <div className="mt-2 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] space-y-2.5">
-                <input
-                  type="text"
-                  autoFocus
-                  value={newTypeName}
-                  onChange={e => setNewTypeName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateType() } }}
-                  placeholder="e.g. PPF, NPS, Gold, Crypto"
-                  className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm"
-                />
-                <div className="flex gap-2 flex-wrap">
-                  {ACCOUNT_COLORS.map(c => (
-                    <button key={c} type="button" onClick={() => setNewTypeColor(c)}
-                      className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
-                      style={{ backgroundColor: c }}>
-                      {newTypeColor === c && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+              {/* Account Type — pills */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--text-muted)] mb-2">Account type</label>
+                <div className="flex flex-wrap gap-2">
+                  {HEADLINE.map(t => {
+                    const active = type === t && !customTypeId
+                    return (
+                      <button key={t} type="button" onClick={() => { setType(t); setCustomTypeId('') }}
+                        className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                        style={active ? { background: ACCOUNT_TYPE_CONFIG[t].color, color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                        {ACCOUNT_TYPE_CONFIG[t].label}
+                      </button>
+                    )
+                  })}
+                  {/* remaining built-in types + custom types */}
+                  {(Object.entries(ACCOUNT_TYPE_CONFIG) as [AccountType, typeof ACCOUNT_TYPE_CONFIG[AccountType]][])
+                    .filter(([t]) => !HEADLINE.includes(t))
+                    .map(([t, config]) => {
+                      const active = type === t && !customTypeId
+                      return (
+                        <button key={t} type="button" onClick={() => { setType(t); setCustomTypeId('') }}
+                          className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                          style={active ? { background: config.color, color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                          {config.label}
+                        </button>
+                      )
+                    })}
+                  {customTypes.map(ct => (
+                    <button key={ct.id} type="button" onClick={() => { setType('other'); setCustomTypeId(ct.id) }}
+                      className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                      style={customTypeId === ct.id ? { background: ct.color, color: '#fff' } : { background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                      {ct.name}
                     </button>
                   ))}
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => { setShowNewType(false); setNewTypeName('') }}
-                    className="flex-1 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)] hover:bg-[var(--surface)]">
-                    Cancel
-                  </button>
-                  <button type="button" onClick={handleCreateType} disabled={creatingType || !newTypeName.trim()}
-                    className="flex-1 py-2 rounded-lg bg-[var(--brand)] text-white text-xs font-semibold disabled:opacity-60">
-                    {creatingType ? 'Adding…' : 'Add & select'}
+                  <button type="button" onClick={() => setShowNewType(v => !v)}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1 border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-2)]">
+                    <Plus className="w-3.5 h-3.5" /> New type
                   </button>
                 </div>
-                <p className="text-[11px] text-[var(--text-faint)]">Icons and renaming live on the Account Types page.</p>
-              </div>
-            )}
-          </div>
 
-          {/* Balance & Currency */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-[var(--text)] mb-1.5">
-                {type === 'credit' ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
-                  : isLoan(type) ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
-                  : (isEdit ? 'Initial Balance' : 'Opening Balance')}
-              </label>
-              <input
-                type="number"
-                value={balance}
-                onChange={e => setBalance(e.target.value)}
-                step="0.01"
-                inputMode="decimal"
-                autoComplete="off"
-                enterKeyHint="done"
-                className="w-full px-4 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm"
-              />
-              {(type === 'credit' || isLoan(type)) && (
-                <p className="text-[11px] text-[var(--text-faint)] mt-1">
-                  Amount owed — enter as a negative number (e.g. −8400). Repayments you log later will reduce it.
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--text)] mb-1.5">Currency</label>
-              <select
-                value={currency}
-                onChange={e => setCurrency(e.target.value)}
-                className="w-full px-3 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm"
-              >
-                <option value="INR">₹ INR</option>
-                <option value="USD">$ USD</option>
-                <option value="EUR">€ EUR</option>
-                <option value="GBP">£ GBP</option>
-                <option value="AED">د.إ AED</option>
-                <option value="SGD">S$ SGD</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Credit card details */}
-          {type === 'credit' && (
-            <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Credit limit</label>
-                  <input type="number" inputMode="decimal" value={creditLimit}
-                    onChange={e => setCreditLimit(e.target.value)} placeholder="e.g. 200000"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Interest rate (APR %)</label>
-                  <input type="number" inputMode="decimal" value={interestRate}
-                    onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 42"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Statement day</label>
-                  <input type="number" min="1" max="31" value={statementDay}
-                    onChange={e => setStatementDay(e.target.value)} placeholder="closes on"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Payment due day</label>
-                  <input type="number" min="1" max="31" value={statementDueDay}
-                    onChange={e => setStatementDueDay(e.target.value)} placeholder="due on"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Card network</label>
-                  <input type="text" value={cardNetwork} onChange={e => setCardNetwork(e.target.value)} placeholder="Visa / Mastercard / RuPay"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Expiry (MM / YYYY)</label>
-                  <div className="flex gap-2">
-                    <input type="number" min="1" max="12" value={cardExpiryMonth} onChange={e => setCardExpiryMonth(e.target.value)} placeholder="MM"
+                {showNewType && (
+                  <div className="mt-2 p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] space-y-2.5">
+                    <input type="text" autoFocus value={newTypeName} onChange={e => setNewTypeName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateType() } }}
+                      placeholder="e.g. PPF, NPS, Gold, Crypto"
                       className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                    <input type="number" min="2000" max="2099" value={cardExpiryYear} onChange={e => setCardExpiryYear(e.target.value)} placeholder="YYYY"
-                      className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                  </div>
-                </div>
-              </div>
-              <p className="text-[11px] text-[var(--text-faint)]">Card number goes in Account Number below. We never store CVV. Limit enables utilisation tracking; statement days feed the Cards view and forecast.</p>
-            </div>
-          )}
-
-          {/* Loan details */}
-          {isLoan(type) && (
-            <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Original loan amount</label>
-                  <input type="number" inputMode="decimal" value={loanPrincipal}
-                    onChange={e => setLoanPrincipal(e.target.value)} placeholder="e.g. 500000"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">Interest rate (%)</label>
-                  <input type="number" inputMode="decimal" value={interestRate}
-                    onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 9.5"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-[var(--text)] mb-1">EMI / monthly payment</label>
-                  <input type="number" inputMode="decimal" value={emiAmount}
-                    onChange={e => setEmiAmount(e.target.value)} placeholder="e.g. 12000"
-                    className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
-                </div>
-              </div>
-              <p className="text-[11px] text-[var(--text-faint)]">Original amount enables a paid-vs-remaining progress view.</p>
-            </div>
-          )}
-
-          {/* Color */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text)] mb-2">Color</label>
-            <div className="flex gap-2 flex-wrap">
-              {ACCOUNT_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110"
-                  style={{ backgroundColor: c }}
-                >
-                  {color === c && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Include in Net Worth */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              onClick={() => setIncludeNetWorth(!includeNetWorth)}
-              className={`w-10 h-6 rounded-full transition-colors relative ${includeNetWorth ? 'bg-[var(--brand)]' : 'bg-[var(--border)]'}`}
-            >
-              <div className={`absolute top-1 w-4 h-4 bg-[var(--surface)] rounded-full shadow transition-transform ${includeNetWorth ? 'translate-x-5' : 'translate-x-1'}`} />
-            </div>
-            <span className="text-sm text-[var(--text)]">Include in Net Worth</span>
-          </label>
-
-          {/* Extended Details (collapsible) */}
-          <div className="border border-[var(--border)] rounded-xl overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setShowDetails(!showDetails)}
-              className="w-full px-4 py-3 flex items-center justify-between text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-2)]"
-            >
-              <span>Bank Details <span className="text-[var(--text-faint)] font-normal">(optional)</span></span>
-              {showDetails ? <ChevronUp className="w-4 h-4 text-[var(--text-faint)]" /> : <ChevronDown className="w-4 h-4 text-[var(--text-faint)]" />}
-            </button>
-
-            {showDetails && (
-              <div className="px-4 pb-4 space-y-3 border-t border-[var(--border)]">
-                <div className="grid grid-cols-2 gap-3 pt-3">
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{type === 'credit' ? 'Card Number' : 'Account Number'}</label>
-                    <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}
-                      placeholder="XXXX XXXX XXXX"
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{type === 'credit' ? 'Cardholder Name' : 'Account Holder'}</label>
-                    <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)}
-                      placeholder="e.g. Dilip T R"
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Branch</label>
-                    <input type="text" value={branch} onChange={e => setBranch(e.target.value)}
-                      placeholder="e.g. Koramangala"
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">IFSC Code</label>
-                    <input type="text" value={ifscCode} onChange={e => setIfscCode(e.target.value.toUpperCase())}
-                      placeholder="HDFC0001234"
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">SWIFT Code</label>
-                    <input type="text" value={swiftCode} onChange={e => setSwiftCode(e.target.value.toUpperCase())}
-                      placeholder="HDFCINBB"
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Customer ID</label>
-                    <input type="text" value={bankCustomerId} onChange={e => setBankCustomerId(e.target.value)}
-                      placeholder="Bank Customer ID / CIF"
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Account Opened</label>
-                    <input type="date" value={openDate} onChange={e => setOpenDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Closing Date</label>
-                    <input type="date" value={closingDate} onChange={e => setClosingDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Bank Address</label>
-                  <textarea value={bankAddress} onChange={e => setBankAddress(e.target.value)}
-                    rows={2} placeholder="Branch address..."
-                    className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm resize-none" />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Debit cards — linkable to funding (non-credit/loan) accounts */}
-          {type !== 'credit' && !isLoan(type) && (
-            <div className="border border-[var(--border)] rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-[var(--text-muted)]" />
-                <p className="text-sm font-medium text-[var(--text)]">Debit cards <span className="text-[var(--text-faint)] font-normal">(optional)</span></p>
-              </div>
-              {!isEdit ? (
-                <p className="text-xs text-[var(--text-faint)]">Save the account first, then reopen it to link debit cards.</p>
-              ) : (
-                <>
-                  {dcList.map(dc => (
-                    <div key={dc.id} className="flex items-center gap-2 text-sm bg-[var(--surface-2)] rounded-lg px-3 py-2">
-                      <span className="font-medium text-[var(--text)] truncate flex-1">{dc.label || dc.card_network || 'Debit card'}{dc.card_number ? ` ···· ${dc.card_number.replace(/\s+/g, '').slice(-4)}` : ''}</span>
-                      <button type="button" onClick={() => removeDebitCard(dc.id)} className="text-[var(--expense)] hover:text-[var(--expense)]"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <div className="flex gap-2 flex-wrap">
+                      {ACCOUNT_COLORS.map(c => (
+                        <button key={c} type="button" onClick={() => setNewTypeColor(c)}
+                          className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110" style={{ backgroundColor: c }}>
+                          {newTypeColor === c && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                  <div className="grid grid-cols-2 gap-2">
-                    <input value={dcDraft.label} onChange={e => setDcDraft({ ...dcDraft, label: e.target.value })} placeholder="Label (e.g. Platinum)" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
-                    <input value={dcDraft.card_network} onChange={e => setDcDraft({ ...dcDraft, card_network: e.target.value })} placeholder="Network" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
-                    <input value={dcDraft.card_number} onChange={e => setDcDraft({ ...dcDraft, card_number: e.target.value })} placeholder="Card number" className="col-span-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm font-mono" />
-                    <input value={dcDraft.expiry_month} onChange={e => setDcDraft({ ...dcDraft, expiry_month: e.target.value })} placeholder="Exp MM" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
-                    <input value={dcDraft.expiry_year} onChange={e => setDcDraft({ ...dcDraft, expiry_year: e.target.value })} placeholder="Exp YYYY" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
-                    <input value={dcDraft.bank_customer_id} onChange={e => setDcDraft({ ...dcDraft, bank_customer_id: e.target.value })} placeholder="Customer ID (CIF)" className="col-span-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => { setShowNewType(false); setNewTypeName('') }}
+                        className="flex-1 py-2 rounded-lg border border-[var(--border)] text-xs font-medium text-[var(--text)] hover:bg-[var(--surface)]">Cancel</button>
+                      <button type="button" onClick={handleCreateType} disabled={creatingType || !newTypeName.trim()}
+                        className="flex-1 py-2 rounded-lg bg-[var(--brand)] text-white text-xs font-semibold disabled:opacity-60">
+                        {creatingType ? 'Adding…' : 'Add & select'}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-[var(--text-faint)]">Icons and renaming live on the Account Types page.</p>
                   </div>
-                  <button type="button" onClick={addDebitCard} className="flex items-center gap-1.5 text-sm font-medium text-[var(--brand)]"><Plus className="w-4 h-4" /> Add debit card</button>
-                  <p className="text-[11px] text-[var(--text-faint)]">CVV is never stored.</p>
-                </>
-              )}
-            </div>
-          )}
+                )}
+              </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full bg-[var(--brand)] hover:opacity-90 text-white font-semibold py-3.5 rounded-xl transition-all disabled:opacity-60"
-          >
-            {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Account'}
-          </button>
-        </form>
+              {/* Account name */}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Account name</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. HDFC Savings" required className={inputCls} />
+              </div>
+
+              {/* Balance + Currency */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">
+                    {isCredit ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
+                      : isLoan(type) ? (isEdit ? 'Opening outstanding' : 'Current outstanding')
+                      : (isEdit ? 'Initial balance' : 'Opening balance')}
+                  </label>
+                  <input type="number" value={balance} onChange={e => setBalance(e.target.value)} step="0.01" inputMode="decimal" autoComplete="off" enterKeyHint="done" className={inputCls} />
+                  {(isCredit || isLoan(type)) && (
+                    <p className="text-[11px] text-[var(--text-faint)] mt-1">Amount owed — enter as a negative number (e.g. −8400). Repayments you log later will reduce it.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--text-muted)] mb-1.5">Currency</label>
+                  <select value={currency} onChange={e => setCurrency(e.target.value)} className="w-full px-3 py-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm">
+                    <option value="INR">₹ INR</option>
+                    <option value="USD">$ USD</option>
+                    <option value="EUR">€ EUR</option>
+                    <option value="GBP">£ GBP</option>
+                    <option value="AED">د.إ AED</option>
+                    <option value="SGD">S$ SGD</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Credit card details */}
+              {isCredit && (
+                <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Credit limit</label>
+                      <input type="number" inputMode="decimal" value={creditLimit} onChange={e => setCreditLimit(e.target.value)} placeholder="e.g. 200000" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Interest rate (APR %)</label>
+                      <input type="number" inputMode="decimal" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 42" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Statement day</label>
+                      <input type="number" min="1" max="31" value={statementDay} onChange={e => setStatementDay(e.target.value)} placeholder="closes on" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Payment due day</label>
+                      <input type="number" min="1" max="31" value={statementDueDay} onChange={e => setStatementDueDay(e.target.value)} placeholder="due on" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Card network</label>
+                      <input type="text" value={cardNetwork} onChange={e => setCardNetwork(e.target.value)} placeholder="Visa / Mastercard / RuPay" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Expiry (MM / YYYY)</label>
+                      <div className="flex gap-2">
+                        <input type="number" min="1" max="12" value={cardExpiryMonth} onChange={e => setCardExpiryMonth(e.target.value)} placeholder="MM" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                        <input type="number" min="2000" max="2099" value={cardExpiryYear} onChange={e => setCardExpiryYear(e.target.value)} placeholder="YYYY" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-faint)]">Card number goes in Account Number below. We never store CVV. Limit enables utilisation tracking; statement days feed the Cards view and forecast.</p>
+                </div>
+              )}
+
+              {/* Loan details */}
+              {isLoan(type) && (
+                <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Original loan amount</label>
+                      <input type="number" inputMode="decimal" value={loanPrincipal} onChange={e => setLoanPrincipal(e.target.value)} placeholder="e.g. 500000" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">Interest rate (%)</label>
+                      <input type="number" inputMode="decimal" value={interestRate} onChange={e => setInterestRate(e.target.value)} placeholder="e.g. 9.5" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-[var(--text)] mb-1">EMI / monthly payment</label>
+                      <input type="number" inputMode="decimal" value={emiAmount} onChange={e => setEmiAmount(e.target.value)} placeholder="e.g. 12000" className="w-full px-3 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-sm" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-[var(--text-faint)]">Original amount enables a paid-vs-remaining progress view.</p>
+                </div>
+              )}
+
+              {/* Bank details (collapsible) */}
+              <div className="border rounded-xl overflow-hidden" style={{ borderColor: showDetails ? previewFace : 'var(--border)' }}>
+                <button type="button" onClick={() => setShowDetails(!showDetails)}
+                  className="w-full px-4 py-3 flex items-center justify-between text-sm font-semibold"
+                  style={{ color: showDetails ? previewFace : 'var(--text)', background: showDetails ? `color-mix(in srgb, ${previewFace} 8%, transparent)` : 'transparent' }}>
+                  <span>Bank details <span className="text-[var(--text-faint)] font-normal">(optional)</span></span>
+                  {showDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4 text-[var(--text-faint)]" />}
+                </button>
+
+                {showDetails && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-[var(--border)]">
+                    <div className="grid grid-cols-2 gap-3 pt-3">
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{isCredit ? 'Card number' : 'Account number'}</label>
+                        <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="XXXX XXXX XXXX" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{isCredit ? 'Cardholder name' : 'Holder'}</label>
+                        <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} placeholder="e.g. Dilip T R" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Branch</label>
+                        <input type="text" value={branch} onChange={e => setBranch(e.target.value)} placeholder="e.g. Koramangala" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">IFSC code</label>
+                        <input type="text" value={ifscCode} onChange={e => setIfscCode(e.target.value.toUpperCase())} placeholder="HDFC0001234" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">SWIFT code</label>
+                        <input type="text" value={swiftCode} onChange={e => setSwiftCode(e.target.value.toUpperCase())} placeholder="HDFCINBB" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Customer ID</label>
+                        <input type="text" value={bankCustomerId} onChange={e => setBankCustomerId(e.target.value)} placeholder="Bank Customer ID / CIF" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Account opened</label>
+                        <input type="date" value={openDate} onChange={e => setOpenDate(e.target.value)} className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Closing date</label>
+                        <input type="date" value={closingDate} onChange={e => setClosingDate(e.target.value)} className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Bank address</label>
+                      <textarea value={bankAddress} onChange={e => setBankAddress(e.target.value)} rows={2} placeholder="Branch address..." className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm resize-none" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Debit cards */}
+              {type !== 'credit' && !isLoan(type) && (
+                <div className="border border-[var(--border)] rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-[var(--text-muted)]" />
+                    <p className="text-sm font-semibold text-[var(--text)]">Debit cards <span className="text-[var(--text-faint)] font-normal">(optional)</span></p>
+                  </div>
+                  {!isEdit ? (
+                    <p className="text-xs text-[var(--text-faint)]">Save the account first, then reopen it to link debit cards.</p>
+                  ) : (
+                    <>
+                      {dcList.map(dc => (
+                        <div key={dc.id} className="flex items-center gap-2 text-sm bg-[var(--surface-2)] rounded-lg px-3 py-2">
+                          <span className="font-medium text-[var(--text)] truncate flex-1">{dc.label || dc.card_network || 'Debit card'}{dc.card_number ? ` ···· ${dc.card_number.replace(/\s+/g, '').slice(-4)}` : ''}</span>
+                          <button type="button" onClick={() => removeDebitCard(dc.id)} className="text-[var(--expense)]"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={dcDraft.label} onChange={e => setDcDraft({ ...dcDraft, label: e.target.value })} placeholder="Label (e.g. Platinum)" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                        <input value={dcDraft.card_network} onChange={e => setDcDraft({ ...dcDraft, card_network: e.target.value })} placeholder="Network" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                        <input value={dcDraft.card_number} onChange={e => setDcDraft({ ...dcDraft, card_number: e.target.value })} placeholder="Card number" className="col-span-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm font-mono" />
+                        <input value={dcDraft.expiry_month} onChange={e => setDcDraft({ ...dcDraft, expiry_month: e.target.value })} placeholder="Exp MM" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                        <input value={dcDraft.expiry_year} onChange={e => setDcDraft({ ...dcDraft, expiry_year: e.target.value })} placeholder="Exp YYYY" className="px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                        <input value={dcDraft.bank_customer_id} onChange={e => setDcDraft({ ...dcDraft, bank_customer_id: e.target.value })} placeholder="Customer ID (CIF)" className="col-span-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-sm" />
+                      </div>
+                      <button type="button" onClick={addDebitCard} className="flex items-center gap-1.5 text-sm font-medium text-[var(--brand)]"><Plus className="w-4 h-4" /> Add debit card</button>
+                      <p className="text-[11px] text-[var(--text-faint)]">CVV is never stored.</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Colour + net worth */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div onClick={() => setIncludeNetWorth(!includeNetWorth)}
+                    className={`w-10 h-6 rounded-full transition-colors relative ${includeNetWorth ? 'bg-[var(--brand)]' : 'bg-[var(--border)]'}`}>
+                    <div className={`absolute top-1 w-4 h-4 bg-[var(--surface)] rounded-full shadow transition-transform ${includeNetWorth ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </div>
+                  <span className="text-sm text-[var(--text)]">Include in Net Worth</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 px-6 py-4 border-t border-[var(--border)] flex items-center gap-3">
+              {isEdit && onDeleted && (
+                <button type="button" onClick={handleDelete} disabled={deleting}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-[var(--expense)] disabled:opacity-60">
+                  <Trash2 className="w-4 h-4" /> {deleting ? 'Deleting…' : 'Delete'}
+                </button>
+              )}
+              <div className="flex items-center gap-3 ml-auto">
+                <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl border border-[var(--border)] text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface-2)]">Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2.5 rounded-xl bg-[var(--brand)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60">
+                  {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add account'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* ── RIGHT: live preview ── */}
+        <div className="hidden md:flex md:w-[380px] shrink-0 flex-col justify-center px-8" style={{ background: 'color-mix(in srgb, var(--surface-2) 60%, var(--surface))', borderLeft: '1px solid var(--border)' }}>
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-faint)] mb-3">Preview</p>
+          <div className="rounded-2xl p-5 shadow-lg" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${previewFace} 52%, #000), ${previewFace})`, color: '#fff', minHeight: 150 }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[17px] font-bold truncate">{name || 'Account name'}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>{previewTypeLabel}</p>
+              </div>
+              {avatarUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.4)' }} />
+                : <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{initials}</span>}
+            </div>
+            <p className="text-[28px] font-extrabold tracking-tight mt-4" style={{ fontVariantNumeric: 'tabular-nums' }}>{previewBalance}</p>
+            <div className="flex items-end justify-between gap-3 mt-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>···· {last4 || '0000'}</span>
+              {ifscCode && <span>IFSC {ifscCode}</span>}
+            </div>
+          </div>
+          <p className="text-xs text-[var(--text-faint)] text-center mt-4">Live — updates as you edit.</p>
+        </div>
       </div>
     </div>
   )
