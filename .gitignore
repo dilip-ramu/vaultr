@@ -33,3 +33,9 @@ next-env.d.ts
 # Design handoff (reference only — not part of the app)
 redesign.zip
 design_handoff_vaultr_redesign/
+
+# design handoffs (not shipped)
+redesign 1.html
+app/redesign 1.html
+screenshots.zip
+*.zip
