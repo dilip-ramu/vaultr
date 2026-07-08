@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { GUIDE, type Topic, type Article, type Block } from '@/lib/guide/content'
 import GuideFigure from './GuideFigure'
+import GuideShot from './GuideShot'
 
 const ICONS: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   rocket: Rocket, 'arrow-left-right': ArrowLeftRight, wallet: Wallet, 'bar-chart-3': BarChart3,
@@ -89,6 +90,8 @@ function BlockView({ block }: { block: Block }) {
     }
     case 'figure':
       return <GuideFigure spec={block.fig} />
+    case 'shot':
+      return <GuideShot spec={block.shot} />
     case 'faq':
       return (
         <div style={{ margin: '16px 0 0', maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 10 }}>

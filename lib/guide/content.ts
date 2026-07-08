@@ -1,4 +1,5 @@
 import type { FigureSpec } from '@/components/guide/GuideFigure'
+import type { ScreenSpec } from '@/components/guide/GuideShot'
 
 /**
  * The whole in-app Guide, as data. Rendered by components/guide/GuideClient.tsx
@@ -16,6 +17,7 @@ export type Block =
   | { t: 'steps'; items: { title: string; detail?: string; action?: string }[] }
   | { t: 'callout'; variant: 'tip' | 'info' | 'warn'; title?: string; text: string }
   | { t: 'figure'; fig: FigureSpec }
+  | { t: 'shot'; shot: ScreenSpec }
   | { t: 'list'; items: string[] }
   | { t: 'faq'; items: { q: string; a: string }[] }
 
@@ -50,7 +52,21 @@ export const GUIDE: Topic[] = [
               ] },
               { t: 'h', id: 'tour', text: 'A quick tour' },
               { t: 'p', text: 'The sidebar groups everything into four areas — your money (Home, Transactions, Accounts, Insights), Sales & Purchases, Team, and System. Press ⌘K anywhere to jump to a screen or run an action.' },
-              { t: 'figure', fig: { kind: 'dashboard', title: 'Home', rows: ['Net worth', 'This month in', 'This month out'], caption: 'The Home dashboard — your money at a glance.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/dashboard', nav: 'Home',
+                header: { title: 'Home', subtitle: 'Your money at a glance' },
+                band: [
+                  { label: 'Net worth', value: '₹ 12,40,000', pin: { n: 1, label: 'Net worth — everything you own minus what you owe' } },
+                  { label: 'Money in', value: '₹ 3,10,000', pin: { n: 2, label: 'Money in this month' } },
+                  { label: 'Money out', value: '₹ 1,86,000', pin: { n: 3, label: 'Money out this month' } },
+                ],
+                items: [
+                  { type: 'groupLabel', text: 'Recent activity' },
+                  { type: 'row', cells: ['Adobe Creative Cloud', 'Today', '– ₹4,230'], strongFirst: true },
+                  { type: 'row', cells: ['Client payment — Acme', 'Yesterday', '+ ₹1,20,000'], strongFirst: true },
+                ],
+                caption: 'The Home dashboard. The sidebar on the left is how you move around the whole app.',
+              } },
             ],
           },
           {
@@ -65,7 +81,21 @@ export const GUIDE: Topic[] = [
                 { title: 'Upload a logo & signature', detail: 'These render at the top of documents and above the signature line.' },
                 { title: 'Set your invoice prefix & numbering', detail: 'e.g. INV-2026-. New invoices auto-number from here.' },
               ] },
-              { t: 'figure', fig: { kind: 'setup', title: 'Company', rows: ['Company', 'Email', 'Categories', 'Account types', 'Currencies'], highlight: 'Company', caption: 'Setup is a two-pane screen — sections on the left, the form on the right.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/setup', nav: 'Setup',
+                header: { title: 'Setup' },
+                tabs: [
+                  { label: 'Company', active: true, pin: { n: 1, label: 'Open the Company section' } },
+                  { label: 'Email' }, { label: 'Categories' }, { label: 'Account types' }, { label: 'Currencies' },
+                ],
+                items: [
+                  { type: 'field', label: 'Company name', value: 'Northstar Trading Pvt Ltd', pin: { n: 2, label: 'Legal name (shown on documents)' } },
+                  { type: 'field', label: 'GSTIN', value: '29ABCDE1234F1Z5', pin: { n: 3, label: 'Your GSTIN' } },
+                  { type: 'field', label: 'Invoice prefix', value: 'INV-2026-', pin: { n: 4, label: 'Prefix + starting number for invoices' } },
+                  { type: 'button', label: 'Save company', primary: true, pin: { n: 5, label: 'Save' } },
+                ],
+                caption: 'Setup is a two-pane screen — sections along the top, the form below. Fill Company first.',
+              } },
               { t: 'callout', variant: 'info', text: 'Running more than one company? Each can carry its own logo, accent colour and bank details — see Documents & templates → Company branding.' },
             ],
           },
@@ -82,7 +112,17 @@ export const GUIDE: Topic[] = [
                 { title: 'Enter the opening balance', detail: 'Type the balance as it stands today; Vaultr tracks changes from here.' },
                 { title: 'Add bank details (optional)', detail: 'Account number, IFSC, SWIFT and Customer ID (CIF) live in the Bank Details tab.' },
               ] },
-              { t: 'figure', fig: { kind: 'listPage', title: 'Accounts', button: '+ Add Account', highlight: '+ Add Account', rows: ['HDFC Current', 'ICICI Savings', 'Amex Platinum'], caption: 'Add accounts from the top-right button. They then group by type.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/accounts', nav: 'Accounts',
+                header: { title: 'Accounts', subtitle: '3 accounts across 2 types', button: { label: '+ Add Account', pin: { n: 1, label: 'Click + Add Account (top-right)' } } },
+                items: [
+                  { type: 'groupLabel', text: 'Checking' },
+                  { type: 'card', title: 'HDFC Current', sub: '••2841', tag: 'Checking', color: '#2F6FED', emoji: '🏦' },
+                  { type: 'groupLabel', text: 'Credit' },
+                  { type: 'card', title: 'Amex Platinum', sub: '••1007', tag: 'Credit', color: '#7C3AED', emoji: '💳' },
+                ],
+                caption: 'The Accounts page. New accounts are added from the top-right button and then group under their type.',
+              } },
               { t: 'callout', variant: 'tip', text: 'You can create a new account type on the spot from the account form — tap + New type, name it (e.g. PPF, Gold), pick a colour, and it is saved and selected.' },
             ],
           },
@@ -99,7 +139,20 @@ export const GUIDE: Topic[] = [
                 { title: 'Pick the account', detail: 'Choose which account these rows belong to.' },
                 { title: 'Review & import', detail: 'Duplicates are flagged; confirm to add the rest.' },
               ] },
-              { t: 'figure', fig: { kind: 'wizard', title: 'Import statement', tabs: ['Upload', 'Map columns', 'Review'], highlight: 'Map columns', caption: 'The import wizard maps CSV columns to transaction fields.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/transactions/fetch', nav: 'Transactions',
+                header: { title: 'Fetch → Import statement' },
+                tabs: [
+                  { label: 'Upload', active: true, pin: { n: 1, label: 'Upload your CSV' } },
+                  { label: 'Map columns', pin: { n: 2, label: 'Match Date / Description / Amount' } },
+                  { label: 'Review', pin: { n: 3, label: 'Review & confirm' } },
+                ],
+                items: [
+                  { type: 'field', label: 'Account for these rows', value: 'HDFC Current', pin: { n: 4, label: 'Pick the destination account' } },
+                  { type: 'button', label: 'Import 128 rows', primary: true, pin: { n: 5, label: 'Import' } },
+                ],
+                caption: 'The import wizard walks upload → map → review. Duplicates are flagged before import.',
+              } },
             ],
           },
           {
@@ -115,6 +168,17 @@ export const GUIDE: Topic[] = [
                 { title: 'Add line items', detail: 'Description, quantity, rate and GST rate per line.' },
                 { title: 'Review & save', detail: 'Vaultr shows a live preview, then generates the PDF.' },
               ] },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/customers/invoices/new', nav: 'Customers',
+                header: { title: 'New invoice' },
+                items: [
+                  { type: 'field', label: 'Company (branding)', value: 'Northstar Trading Pvt Ltd', pin: { n: 1, label: 'Choose the billing company' } },
+                  { type: 'field', label: 'Bill to (customer)', value: 'Acme Retail LLP', pin: { n: 2, label: 'Choose the customer' } },
+                  { type: 'row', cells: ['Consulting — HSN 9983', '10 × ₹5,000', '₹50,000'], strongFirst: true, pin: { n: 3, label: 'Add line items (qty, rate, GST%)' } },
+                  { type: 'button', label: 'Save & generate PDF', primary: true, pin: { n: 4, label: 'Save' } },
+                ],
+                caption: 'Creating an invoice. A live preview updates as you type.',
+              } },
               { t: 'callout', variant: 'info', text: 'Invoices are covered in depth under Customers & sales → Invoicing customers.' },
             ],
           },
@@ -201,7 +265,21 @@ export const GUIDE: Topic[] = [
                 { title: 'Pick account, category & date', detail: 'The account picker shows each account’s avatar or initial.' },
                 { title: 'Review & save', detail: 'The final step summarises everything before you commit.' },
               ] },
-              { t: 'figure', fig: { kind: 'wizard', title: 'Add transaction', tabs: ['Type', 'Amount', 'Details', 'Review'], highlight: 'Amount', caption: 'Every step of the dialog is the same size, so it never jumps around.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/transactions', nav: 'Transactions',
+                header: { title: 'Add transaction' },
+                tabs: [
+                  { label: '① Type', active: true, pin: { n: 1, label: 'Income · Expense · Transfer' } },
+                  { label: '② Amount', pin: { n: 2, label: 'Enter the amount (calculator keypad)' } },
+                  { label: '③ Details', pin: { n: 3, label: 'Account · category · date' } },
+                  { label: '④ Review' },
+                ],
+                items: [
+                  { type: 'field', label: 'Amount', value: '₹ 4,230', pin: { n: 4, label: 'Type a number — or a sum like 200+50' } },
+                  { type: 'button', label: 'Next', primary: true, pin: { n: 5, label: 'Move to the next step' } },
+                ],
+                caption: 'The stepped Add-transaction dialog. Every step is the same size, so it never jumps around.',
+              } },
               { t: 'callout', variant: 'tip', text: 'The amount field has a built-in calculator keypad — tap the keys or type an expression and Vaultr works out the total.' },
             ],
           },
@@ -341,7 +419,18 @@ export const GUIDE: Topic[] = [
                 { title: 'Set the opening balance', detail: 'The balance as it stands today.' },
                 { title: 'Add bank details', detail: 'Account number, holder, IFSC, SWIFT and Customer ID in the Bank Details tab.' },
               ] },
-              { t: 'figure', fig: { kind: 'form', title: 'New account', rows: ['Name', 'Account type', 'Opening balance', 'Account number'], highlight: 'Account type', button: 'Save', caption: 'The account form. Type sets the card colour and grouping.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/accounts', nav: 'Accounts',
+                header: { title: 'New account' },
+                items: [
+                  { type: 'field', label: 'Account name', value: 'HDFC Current', pin: { n: 1, label: 'Name it' } },
+                  { type: 'field', label: 'Account type', value: 'Checking', pin: { n: 2, label: 'Pick a type (or + New type)' } },
+                  { type: 'field', label: 'Opening balance', value: '₹ 2,84,000', pin: { n: 3, label: 'Balance as it stands today' } },
+                  { type: 'field', label: 'Account number', value: '•••• 2841', pin: { n: 4, label: 'Bank details (optional)' } },
+                  { type: 'button', label: 'Save account', primary: true, pin: { n: 5, label: 'Save' } },
+                ],
+                caption: 'The account form. Type sets the card colour and which group it appears under.',
+              } },
             ],
           },
           {
@@ -564,7 +653,17 @@ export const GUIDE: Topic[] = [
                 { title: 'Check the live preview', detail: 'The document updates as you type.' },
                 { title: 'Save & generate PDF' },
               ] },
-              { t: 'figure', fig: { kind: 'wizard', title: 'New invoice', tabs: ['Parties', 'Line items', 'Review'], highlight: 'Line items', caption: 'Per-line HSN/SAC and GST are editable.' } },
+              { t: 'shot', shot: {
+                chrome: 'browser', url: '/customers/invoices/new', nav: 'Customers',
+                header: { title: 'New invoice' },
+                items: [
+                  { type: 'field', label: 'Company', value: 'Northstar Trading Pvt Ltd', pin: { n: 1, label: 'Sets branding, GSTIN & bank details' } },
+                  { type: 'field', label: 'Customer', value: 'Acme Retail LLP', pin: { n: 2, label: 'Who is billed (address + GSTIN)' } },
+                  { type: 'row', cells: ['Consulting — HSN 9983 · 18%', '10 × ₹5,000', '₹50,000'], strongFirst: true, pin: { n: 3, label: 'Per line: description, HSN/SAC, qty, rate, GST%' } },
+                  { type: 'button', label: 'Save & generate PDF', primary: true, pin: { n: 4, label: 'Save' } },
+                ],
+                caption: 'Per-line HSN/SAC and GST rates are editable; the document preview updates live.',
+              } },
             ],
           },
           {
