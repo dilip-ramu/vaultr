@@ -191,11 +191,7 @@ export default function AccountReconcilePanel({
       </div>
 
       {/* Action row — sits above the statement so reconciling is the first thing */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex-1 flex items-center gap-[10px] rounded-[11px] px-[14px] py-[11px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Actual bank balance</span>
-          <span className="text-[14px] font-bold ml-auto" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{actual ? fmt(actualNum) : '—'}</span>
-        </div>
+      <div className="flex items-center justify-end gap-3 mb-4">
         {diff !== null && Math.abs(diff) < 0.01 ? (
           <button onClick={e => { e.preventDefault(); e.stopPropagation(); markReconciled() }} disabled={marking}
             className="inline-flex items-center gap-[7px] rounded-[11px] px-[18px] py-[11px] text-[13px] font-bold text-white disabled:opacity-50 whitespace-nowrap" style={{ background: 'var(--brand)' }}>

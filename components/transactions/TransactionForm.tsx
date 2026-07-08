@@ -11,7 +11,6 @@ import { parseAmount, dateError } from '@/lib/validation'
 import FileUpload from '../shared/FileUpload'
 import BottomSheet from '../shared/BottomSheet'
 import AmountField from '../shared/AmountField'
-import AccountChipPicker from '../shared/AccountChipPicker'
 
 interface Props {
   transaction?: Transaction | null
@@ -74,7 +73,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
     type === 'transfer' ? ['amount', 'from', 'to', 'details']
     : type === 'income' ? ['amount', 'to', 'details']
     : ['amount', 'from', 'details']
-  const [stepIdx, setStepIdx] = useState(isEdit ? 99 : 0)
+  const [stepIdx, setStepIdx] = useState(0)
   // Clamp to the current path length (type can change on the amount step).
   const idx = Math.min(stepIdx, stepsForType.length - 1)
   const step: Step = stepsForType[idx]
@@ -269,16 +268,16 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
     `${activeType.label} · ${fmtInr(inrAmount ?? (parseFloat(originalAmount) || 0))}`
   const stepTitle = step === 'from' ? 'From account' : step === 'to' ? 'To account' : 'Details'
 
-  // Edit mode shows everything on one screen; new mode reveals per step.
-  const showAmount   = isEdit || step === 'amount'
-  const showAccounts = isEdit || step === 'from' || step === 'to'
-  const showDetails  = isEdit || step === 'details'
+  // Both new and edit use the stepped flow (edit just starts pre-filled).
+  const showAmount   = step === 'amount'
+  const showAccounts = step === 'from' || step === 'to'
+  const showDetails  = step === 'details'
 
   return (
     <BottomSheet isOpen onClose={onClose}>
 
         {/* Stepped header (19a-c) */}
-        {step === 'amount' || isEdit ? (
+        {step === 'amount' ? (
           <div className="px-5 pt-4 pb-2">
             <div className="flex items-center justify-between mb-3">
               <p className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>{isEdit ? 'Edit transaction' : 'New transaction'}</p>
@@ -378,21 +377,8 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           </div>
           )}
 
-          {/* Accounts — from/to steps (new) or both pickers (edit) */}
-          {isEdit ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium  mb-1.5">{type === 'transfer' ? 'From Account' : 'Account'}</label>
-                <AccountChipPicker accounts={accounts} selectedId={accountId} onSelect={setAccountId} />
-              </div>
-              {type === 'transfer' && (
-                <div>
-                  <label className="block text-sm font-medium  mb-1.5">To Account</label>
-                  <AccountChipPicker accounts={accounts.filter(a => a.id !== accountId)} selectedId={toAccountId} onSelect={setToAccountId} />
-                </div>
-              )}
-            </>
-          ) : showAccounts && (
+          {/* Accounts — from/to step (stepped list, for both new and edit) */}
+          {showAccounts && (
             <div className="flex flex-col gap-[9px]">
               {accounts
                 .filter(a => (step === 'to' && type === 'transfer') ? a.id !== accountId : true)
@@ -617,7 +603,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
         {/* Footer — Continue through the steps, Save on the last */}
         <div className="shrink-0 px-6 pb-6 pt-3" style={{ borderTop: '1px solid var(--border-2)' }}>
-          {isEdit || isLast ? (
+          {isLast ? (
             <button type="submit" disabled={saving}
               className="w-full text-white font-bold py-3.5 rounded-xl transition-opacity hover:opacity-90 disabled:opacity-60"
               style={{ background: typeAccent }}>

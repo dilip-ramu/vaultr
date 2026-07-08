@@ -20,6 +20,19 @@ interface Props {
   customers: Customer[]
 }
 
+/** Advance a due date by one recurrence interval. */
+function nextDueDate(date: string, interval: string): string {
+  const d = new Date(date)
+  switch (interval) {
+    case 'daily':   d.setDate(d.getDate() + 1); break
+    case 'weekly':  d.setDate(d.getDate() + 7); break
+    case 'monthly': d.setMonth(d.getMonth() + 1); break
+    case 'yearly':  d.setFullYear(d.getFullYear() + 1); break
+    default:        d.setMonth(d.getMonth() + 1)
+  }
+  return d.toISOString().split('T')[0]
+}
+
 export default function BillsClient({ initialBills, accounts, categories, customers }: Props) {
   const [bills, setBills] = useState<Bill[]>(initialBills)
   const [direction, setDirection] = useState<BillDirection>('received')
@@ -87,6 +100,36 @@ export default function BillsClient({ initialBills, accounts, categories, custom
           })
         }
       }
+
+      // Recurring: spawn the next occurrence so the next bill shows up (e.g.
+      // paying the 3 Jun bill creates the 3 Jul one), unless the series ended.
+      if (payBill.is_recurring && payBill.recurrence_interval) {
+        const nd = nextDueDate(payBill.due_date, payBill.recurrence_interval)
+        const ended = payBill.recurrence_end_date && nd > payBill.recurrence_end_date
+        if (!ended) {
+          const { data: nextBill } = await supabase.from('bills').insert({
+            user_id:             user.id,
+            account_id:          payBill.account_id,
+            category_id:         payBill.category_id,
+            customer_id:         payBill.customer_id,
+            name:                payBill.name,
+            amount:              payBill.amount,
+            original_currency:   payBill.original_currency,
+            due_date:            nd,
+            direction:           payBill.direction,
+            payment_terms:       payBill.payment_terms,
+            is_recurring:        true,
+            recurrence_interval: payBill.recurrence_interval,
+            recurrence_end_date: payBill.recurrence_end_date,
+            status:              'pending',
+            notes:               payBill.notes,
+          }).select('*').single()
+          if (nextBill) {
+            setBills(prev => [...prev, nextBill as Bill].sort((a, b) => a.due_date.localeCompare(b.due_date)))
+          }
+        }
+      }
+
       setPayBill(null)
     } finally {
       setPayingSaving(false)
