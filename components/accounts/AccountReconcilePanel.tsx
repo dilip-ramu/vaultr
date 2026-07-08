@@ -153,10 +153,11 @@ export default function AccountReconcilePanel({
   // interactive — stop clicks from bubbling up to that Link and navigating away.
   const swallow = (e: React.MouseEvent | React.KeyboardEvent) => e.stopPropagation()
 
-  // Difference-card theming (20a): neutral until a bank balance is entered,
-  // green when it matches, red when it's off.
+  // Difference-card theming (20a): neutral until a bank balance is entered.
+  // diff = app − bank, so diff < 0 means the bank shows MORE than the app
+  // (surplus → green); diff > 0 means the bank shows LESS (shortfall → red).
   const matched = diff !== null && Math.abs(diff) < 0.01
-  const diffHue = diff === null ? null : matched ? 'var(--income)' : 'var(--expense)'
+  const diffHue = diff === null ? null : (matched || diff < 0) ? 'var(--income)' : 'var(--expense)'
   const diffCardStyle: React.CSSProperties = {
     flex: 1, borderRadius: '13px', padding: '14px 16px',
     background: diffHue ? `color-mix(in srgb, ${diffHue} 9%, var(--surface))` : 'var(--surface)',
