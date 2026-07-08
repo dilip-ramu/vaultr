@@ -390,7 +390,12 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
                     <button key={a.id} type="button" onClick={() => setAccountStep(a.id)}
                       className="flex items-center gap-3 p-[14px] rounded-[14px] text-left transition-colors"
                       style={{ background: selected ? 'var(--brand-light)' : 'var(--surface-2)', border: `1.5px solid ${selected ? 'var(--brand)' : 'transparent'}` }}>
-                      <span className="w-10 h-10 rounded-[11px] flex items-center justify-center text-white text-[15px] font-bold shrink-0" style={{ background: a.color || 'var(--brand)' }}>{a.name.charAt(0)}</span>
+                      {a.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={a.avatar_url} alt="" className="w-10 h-10 rounded-[11px] object-cover shrink-0" />
+                      ) : (
+                        <span className="w-10 h-10 rounded-[11px] flex items-center justify-center text-white text-[15px] font-bold shrink-0" style={{ background: a.color || 'var(--brand)' }}>{a.name.charAt(0)}</span>
+                      )}
                       <span className="flex-1 min-w-0">
                         <span className="block text-[13.5px] font-bold truncate" style={{ color: 'var(--text)' }}>{a.name}</span>
                         {a.balance != null && <span className="block text-[11px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{fmtInr(Number(a.balance))} available</span>}
