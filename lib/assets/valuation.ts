@@ -86,10 +86,33 @@ export function computeCost(category: string, valuation: string, details: Asset[
 /** Latest per-gram rate for a metal + purity from a rate list (newest first not required). */
 export function latestRate(rates: MarketRate[], metal: string | null, purity: string | null): number | null {
   if (!metal) return null
-  const matches = rates.filter(r => r.metal === metal && (purity ? r.purity === purity : true))
+  const matches = rates.filter(r => r.metal === metal && (purity ? r.purity === purity : r.purity == null))
   if (matches.length === 0) return null
   matches.sort((a, b) => (a.rate_date < b.rate_date ? 1 : -1))
   return matches[0].rate_per_gram
+}
+
+/**
+ * Purity as a fraction of the pure baseline. We only store the pure rate
+ * (gold 24K, silver .999) and derive every other purity from it:
+ *   gold: karat / 24   → 22K = 0.917, 18K = 0.75, 14K = 0.583
+ *   silver: fineness/1000 → 925 (sterling) = 0.925, 999 = 0.999, 900 = 0.900
+ */
+export function purityFraction(metal: string | null, purity: string | null): number {
+  if (!purity) return 1
+  const m = purity.match(/[\d.]+/)
+  if (!m) return 1
+  const v = parseFloat(m[0])
+  if (metal === 'gold') return Math.min(1, v / 24)
+  if (v >= 100) return v / 1000        // 999, 925, 900
+  return Math.min(1, v / 100)          // 92.5, 90
+}
+
+/** The purity-adjusted per-gram rate for an asset's metal, derived from the pure baseline. */
+export function perGramRate(metal: string | null, purity: string | null, rates: MarketRate[]): number | null {
+  const base = latestRate(rates, metal, metal === 'gold' ? '24K' : null)
+  if (base == null) return null
+  return base * purityFraction(metal, purity)
 }
 
 // ── Effective rate resolution (asset override → subcategory → category default) ──
@@ -112,10 +135,10 @@ export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRat
     current = asset.manual_value
   } else if (asset.valuation_type === 'market') {
     const g = n(asset.quantity_g)
-    const rate = latestRate(rates, asset.metal, asset.metal_purity)
+    const rate = perGramRate(asset.metal, asset.metal_purity, rates)
     if (rate != null) {
       current = g * rate
-      note = `${g}g × ₹${rate.toLocaleString('en-IN')}${asset.metal_purity ? ` (${asset.metal_purity} today)` : ''}`
+      note = `${g}g × ₹${Math.round(rate).toLocaleString('en-IN')} (${asset.metal_purity ?? 'fine'} today)`
     }
   } else if (asset.valuation_type === 'building') {
     const d = asset.details

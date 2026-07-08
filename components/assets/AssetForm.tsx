@@ -5,7 +5,7 @@ import { X, TrendingUp, TrendingDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType } from '@/lib/assets/types'
 import { categoryDef } from '@/lib/assets/types'
-import { computeCost, latestRate, effectiveRatePct, valueAsset, inr } from '@/lib/assets/valuation'
+import { computeCost, perGramRate, valueAsset, inr } from '@/lib/assets/valuation'
 
 interface Props {
   asset: Asset | null
@@ -38,7 +38,10 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
 
   // gold/silver
   const [weight, setWeight] = useState(d0.weight_g?.toString() ?? asset?.quantity_g?.toString() ?? '')
-  const [purity, setPurity] = useState(d0.purity ?? asset?.metal_purity ?? (category === 'gold' ? '22K' : ''))
+  const purityUnit = category === 'gold' ? 'K' : '%'
+  const initPurity = d0.purity ?? asset?.metal_purity ?? (category === 'gold' ? '22K' : '99.9%')
+  const [purityVal, setPurityVal] = useState(initPurity.match(/[\d.]+/)?.[0] ?? (category === 'gold' ? '22' : '99.9'))
+  const purity = purityVal ? `${purityVal}${purityUnit}` : ''
   const [ppg, setPpg] = useState(d0.price_per_gram?.toString() ?? '')
   const [wastage, setWastage] = useState(d0.wastage_pct?.toString() ?? '')
   const [making, setMaking] = useState(d0.making_charge?.toString() ?? '')
@@ -86,7 +89,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
     return valueAsset(a, marketRates, defaults)
   }, [asset, name, category, subcategory, valuation, purchaseDate, cost, details, isMarket, purity, weight, appMode, overrideRate, manualValue, isDeprec, deprecPct, marketRates, defaults])
 
-  const todayRate = isMarket ? latestRate(marketRates, category, purity || null) : null
+  const todayRate = isMarket ? perGramRate(category, purity || null, marketRates) : null
 
   const handleSave = async () => {
     if (!name.trim()) { setError('Name is required'); return }
@@ -134,21 +137,33 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
             {isMarket && <>
               <div className="grid grid-cols-2 gap-2.5">
                 <div><label className={lbl}>Weight (g)</label><input className={fld} inputMode="decimal" value={weight} onChange={e => setWeight(e.target.value)} /></div>
-                <div><label className={lbl}>Purity</label>
-                  <select className={fld} value={purity} onChange={e => setPurity(e.target.value)}>
-                    {(category === 'gold' ? ['24K', '22K', '18K'] : ['999', '925']).map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                <div><label className={lbl}>Price / gram (at purchase)</label><input className={fld} inputMode="decimal" value={ppg} onChange={e => setPpg(e.target.value)} /></div>
+              </div>
+              {/* Purity — presets + any custom value (e.g. 12.5K gold, 92.5% silver) */}
+              <div>
+                <label className={lbl}>Purity ({category === 'gold' ? 'karat' : 'fineness %'})</label>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  {(category === 'gold'
+                    ? [['24', '24K'], ['22', '22K'], ['18', '18K'], ['14', '14K']]
+                    : [['99.9', 'Fine 99.9%'], ['92.5', 'Sterling 92.5%'], ['90', 'Coin 90%']]
+                  ).map(([v, l]) => (
+                    <button key={v} type="button" onClick={() => setPurityVal(v)} className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg"
+                      style={purityVal === v ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{l}</button>
+                  ))}
+                  <div className="flex items-center gap-1 rounded-lg px-2.5 py-1.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                    <input className="num w-12 bg-transparent text-[12px] outline-none" inputMode="decimal" value={purityVal} onChange={e => setPurityVal(e.target.value)} placeholder="custom" style={{ color: 'var(--text)' }} />
+                    <span className="text-[12px] font-bold" style={{ color: 'var(--text-muted)' }}>{purityUnit}</span>
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2.5">
-                <div><label className={lbl}>Price / gram (at purchase)</label><input className={fld} inputMode="decimal" value={ppg} onChange={e => setPpg(e.target.value)} /></div>
                 <div><label className={lbl}>Wastage %</label><input className={fld} inputMode="decimal" value={wastage} onChange={e => setWastage(e.target.value)} /></div>
+                <div><label className={lbl}>GST %</label><input className={fld} inputMode="decimal" value={gst} onChange={e => setGst(e.target.value)} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 <div><label className={lbl}>Making charge</label><input className={fld} inputMode="decimal" value={making} onChange={e => setMaking(e.target.value)} /></div>
-                <div><label className={lbl}>GST %</label><input className={fld} inputMode="decimal" value={gst} onChange={e => setGst(e.target.value)} /></div>
+                <div><label className={lbl}>Purchased</label><input type="date" className={fld} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} /></div>
               </div>
-              <div><label className={lbl}>Purchased</label><input type="date" className={fld} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} /></div>
             </>}
 
             {isLand && <>

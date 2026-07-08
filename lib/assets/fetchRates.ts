@@ -27,21 +27,19 @@ export async function fetchAndStoreMetalRates(): Promise<{ ok: boolean; stored: 
   const today = new Date().toISOString().slice(0, 10)
   const rows: { rate_date: string; metal: string; purity: string | null; rate_per_gram: number; source: string }[] = []
 
-  // Gold — "₹14,946 per gram for 24 karat gold … ₹13,700 per gram for 22 karat …"
+  // Gold — store only the pure 24K baseline. Every other karat (22K, 18K, 14K…)
+  // is derived natively in the app from karat/24, so any purity is supported.
   try {
     const res = await fetch(GOLD_URL, { headers: { 'User-Agent': UA }, cache: 'no-store' })
     if (res.ok) {
       const t = stripTags(await res.text())
       const g24 = numBefore(t, /([\d,]+)\s*per gram for 24/i)
-      const g22 = numBefore(t, /([\d,]+)\s*per gram for 22/i)
-      const g18 = numBefore(t, /([\d,]+)\s*per gram for 18/i)
       if (g24) rows.push({ rate_date: today, metal: 'gold', purity: '24K', rate_per_gram: g24, source: 'goodreturns/tirupur' })
-      if (g22) rows.push({ rate_date: today, metal: 'gold', purity: '22K', rate_per_gram: g22, source: 'goodreturns/tirupur' })
-      if (g18) rows.push({ rate_date: today, metal: 'gold', purity: '18K', rate_per_gram: g18, source: 'goodreturns/tirupur' })
     }
   } catch { /* ignore */ }
 
-  // Silver — "The price of silver in Tirupur today is ₹245 per gram and ₹2,45,000 per kilogram."
+  // Silver — store the pure (.999) per-gram rate. Sterling (925), coin (900),
+  // etc. are derived from fineness/1000 in the app.
   try {
     const res = await fetch(SILVER_URL, { headers: { 'User-Agent': UA }, cache: 'no-store' })
     if (res.ok) {
