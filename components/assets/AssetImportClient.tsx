@@ -38,7 +38,7 @@ export default function AssetImportClient() {
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [done, setDone] = useState<{ ok: number; skip: number } | null>(null)
+  const [done, setDone] = useState<{ ok: number; skip: number; fail: number; err?: string } | null>(null)
 
   const parseFile = async (file: File) => {
     setError(''); setRows([]); setDone(null)
@@ -91,9 +91,15 @@ export default function AssetImportClient() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setError('Not signed in.'); setImporting(false); return }
     // existing import names to skip
-    const { data: existing } = await supabase.from('assets').select('details').eq('user_id', user.id)
+    const { data: existing, error: exErr } = await supabase.from('assets').select('details').eq('user_id', user.id)
+    if (exErr) {
+      const hint = /relation .*assets.* does not exist|could not find the table/i.test(exErr.message)
+        ? 'The "assets" table does not exist yet — run migration v78 in Supabase (SQL editor), then try again.'
+        : exErr.message
+      setImporting(false); setDone({ ok: 0, skip: 0, fail: rows.length, err: hint }); return
+    }
     const seen = new Set((existing ?? []).map(a => (a.details as { import_name?: string })?.import_name).filter(Boolean))
-    let ok = 0, skip = 0
+    let ok = 0, skip = 0, fail = 0, firstErr = ''
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]
       if (seen.has(r.name)) { skip++; setProgress(i + 1); continue }
@@ -103,10 +109,10 @@ export default function AssetImportClient() {
         metal: r.metal, metal_purity: r.metal_purity, quantity_g: r.net ?? null,
         include_in_net_worth: r.include, photo_url: null, notes: (r.raw.remarks as string) || null,
       })
-      if (!e) ok++
+      if (e) { fail++; if (!firstErr) firstErr = e.message } else ok++
       setProgress(i + 1)
     }
-    setImporting(false); setDone({ ok, skip })
+    setImporting(false); setDone({ ok, skip, fail, err: firstErr || undefined })
   }
 
   const catCounts = rows.reduce<Record<string, number>>((m, r) => { m[r.category] = (m[r.category] ?? 0) + 1; return m }, {})
@@ -160,10 +166,19 @@ export default function AssetImportClient() {
 
       {done && (
         <div className="rounded-2xl p-6 text-center mt-4" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-          <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'color-mix(in srgb, var(--income) 14%, transparent)' }}><Check className="w-6 h-6" style={{ color: 'var(--income)' }} /></div>
+          {done.fail > 0 && done.ok === 0 ? (
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'color-mix(in srgb, var(--expense) 14%, transparent)' }}><AlertTriangle className="w-6 h-6" style={{ color: 'var(--expense)' }} /></div>
+          ) : (
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'color-mix(in srgb, var(--income) 14%, transparent)' }}><Check className="w-6 h-6" style={{ color: 'var(--income)' }} /></div>
+          )}
           <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Imported {done.ok} asset{done.ok !== 1 ? 's' : ''}</p>
           {done.skip > 0 && <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{done.skip} already existed and were skipped.</p>}
-          <button onClick={() => router.push('/assets')} className="mt-4 text-white text-sm font-bold px-5 py-2.5 rounded-xl" style={{ background: 'var(--brand)' }}>Go to Assets</button>
+          {done.fail > 0 && <p className="text-sm mt-1 font-semibold" style={{ color: 'var(--expense)' }}>{done.fail} failed.</p>}
+          {done.err && <p className="text-[12.5px] mt-2 rounded-lg px-3 py-2 text-left" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>{done.err}</p>}
+          <div className="mt-4 flex items-center justify-center gap-3">
+            {done.fail > 0 && <button onClick={() => setDone(null)} className="text-sm font-semibold px-4 py-2.5 rounded-xl" style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>Back</button>}
+            <button onClick={() => router.push('/assets')} className="text-white text-sm font-bold px-5 py-2.5 rounded-xl" style={{ background: 'var(--brand)' }}>Go to Assets</button>
+          </div>
         </div>
       )}
     </div>
