@@ -12,6 +12,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Check, Loader2, Scale } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -50,6 +51,7 @@ export default function AccountReconcilePanel({
   onReconciled?: (accountId: string, atIso: string, balance: number) => void
 }) {
   const router = useRouter()
+  const { mask } = useBalanceVisibility()
   const [actual, setActual] = useState('')
   const [reconciling, setReconciling] = useState(false)
   const [marking, setMarking] = useState(false)
@@ -173,7 +175,7 @@ export default function AccountReconcilePanel({
       <div className="flex gap-3 mb-4">
         <div className="flex-1 rounded-[13px] px-4 py-[14px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <p className="text-[10px] font-extrabold tracking-[.06em]" style={{ color: 'var(--text-muted)' }}>APP BALANCE</p>
-          <p className="text-[20px] font-extrabold mt-[3px]" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(viewBalance)}</p>
+          <p className="text-[20px] font-extrabold mt-[3px]" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{mask(fmt(viewBalance))}</p>
         </div>
         <div className="flex-1 rounded-[13px] px-4 py-[14px]" style={{ background: 'var(--surface)', border: '1.5px solid var(--brand)' }}>
           <p className="text-[10px] font-extrabold tracking-[.06em]" style={{ color: 'var(--brand)' }}>ACTUAL BANK BALANCE</p>
@@ -186,7 +188,7 @@ export default function AccountReconcilePanel({
         </div>
         <div style={diffCardStyle}>
           <p className="text-[10px] font-extrabold tracking-[.06em]" style={{ color: diffHue ?? 'var(--text-muted)' }}>DIFFERENCE</p>
-          <p className="text-[20px] font-extrabold mt-[3px]" style={{ color: diffHue ?? 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{diffText}</p>
+          <p className="text-[20px] font-extrabold mt-[3px]" style={{ color: diffHue ?? 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{mask(diffText)}</p>
         </div>
       </div>
 

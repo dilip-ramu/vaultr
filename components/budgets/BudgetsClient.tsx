@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import dynamic from 'next/dynamic'
 import { Plus, Target, AlertTriangle, RotateCcw, Pencil, Trash2, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import type { Budget, Category } from '@/lib/types'
@@ -64,6 +65,7 @@ export default function BudgetsClient({
   budgets: initial, expenseCategories, currentMonth, currentYear, contrastPayeeIds = [], hideHeader = false, periodLabel,
 }: Props) {
   const billablePayeeSet = useMemo(() => new Set(contrastPayeeIds), [contrastPayeeIds])
+  const { mask } = useBalanceVisibility()
   const [budgets, setBudgets] = useState<Budget[]>(initial)
   const [showForm, setShowForm] = useState(false)
   const [editBudget, setEditBudget] = useState<Budget | undefined>()
@@ -208,8 +210,8 @@ export default function BudgetsClient({
         const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <BTile label="SPENT OF BUDGET" value={`${inr(totalSpent)} / ${inr(totalBudget)}`} color="var(--text)" />
-            <BTile label="REMAINING" value={inr(Math.max(remaining, 0))} color={remaining >= 0 ? 'var(--income)' : 'var(--expense)'} />
+            <BTile label="SPENT OF BUDGET" value={mask(`${inr(totalSpent)} / ${inr(totalBudget)}`)} color="var(--text)" />
+            <BTile label="REMAINING" value={mask(inr(Math.max(remaining, 0)))} color={remaining >= 0 ? 'var(--income)' : 'var(--expense)'} />
             <BTile label="ON TRACK" value={`${budgets.length - overCount} of ${budgets.length}`} color="var(--brand)" />
             <BTile label="OVER BUDGET" value={`${overCount} ${overCount === 1 ? 'category' : 'categories'}`} color={overCount > 0 ? 'var(--expense)' : 'var(--text-muted)'} />
           </div>
@@ -275,8 +277,8 @@ export default function BudgetsClient({
                 <p className="text-xs capitalize" style={{ color: 'var(--text-muted)' }}>{detailBudget.period} transactions</p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>{formatCurrency(detailBudget.spent ?? 0)}</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>of {formatCurrency(detailBudget.amount)}</p>
+                <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>{mask(formatCurrency(detailBudget.spent ?? 0))}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>of {mask(formatCurrency(detailBudget.amount))}</p>
               </div>
             </div>
 

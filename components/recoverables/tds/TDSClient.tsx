@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import Link from 'next/link'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
@@ -39,6 +40,7 @@ function fmtDate(d: string) {
 type Tab = 'pending' | 'settled'
 
 export default function TDSClient({ entries: initialEntries }: Props) {
+  const { mask } = useBalanceVisibility()
   const [entries, setEntries] = useState(initialEntries)
   const [tab, setTab]         = useState<Tab>('pending')
   const [settling, setSettling] = useState<string | null>(null)  // entry id being toggled
@@ -141,17 +143,17 @@ export default function TDSClient({ entries: initialEntries }: Props) {
             <div className="grid grid-cols-3 gap-3 mb-5">
               <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
                 <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>PENDING TDS</p>
-                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--amber)', fontVariantNumeric: 'tabular-nums' }}>{fmt(pendingTDS)}</p>
+                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--amber)', fontVariantNumeric: 'tabular-nums' }}>{mask(fmt(pendingTDS))}</p>
                 <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{pending.length} entr{pending.length === 1 ? 'y' : 'ies'} · claimable</p>
               </div>
               <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
                 <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>ADJUSTMENTS</p>
-                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{fmt(pendingAdj)}</p>
+                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{mask(fmt(pendingAdj))}</p>
                 <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>debit notes</p>
               </div>
               <div className="rounded-2xl p-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
                 <p className="text-[10px] font-bold tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>SETTLED · FY</p>
-                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{fmt(settledTDS)}</p>
+                <p className="text-[20px] font-extrabold tracking-tight mt-1" style={{ color: 'var(--income)', fontVariantNumeric: 'tabular-nums' }}>{mask(fmt(settledTDS))}</p>
                 <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{settled.length} entr{settled.length === 1 ? 'y' : 'ies'} · filed</p>
               </div>
             </div>
@@ -164,7 +166,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
               >
                 <div>
                   <p className="text-sm font-semibold" style={{ color: 'var(--amber)' }}>
-                    {pending.length} pending · {fmt(pendingTDS + pendingAdj)} total
+                    {pending.length} pending · {mask(fmt(pendingTDS + pendingAdj))} total
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--amber)' }}>
                     Mark all as settled after filing your annual TDS return.
