@@ -81,7 +81,6 @@ export default function InvoiceDocument({
     const pill = isPaid
       ? { text: 'PAID', color: '#14532D', bg: '#DCFCE7' }
       : { text: `DUE · ${termsLabel.toUpperCase()}`, color: '#B4530F', bg: '#FBEEDD' }
-    const acctLast4 = (settings?.bank_account_number ?? '').replace(/\s/g, '').slice(-4)
     const LBL: React.CSSProperties = { fontSize: '9px', fontWeight: 800, letterSpacing: '.1em', color: '#aaa', margin: '0 0 5px' }
     const numSt: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' }
     const totRow = (label: string, val: string) => (
@@ -107,10 +106,12 @@ export default function InvoiceDocument({
                 <span style={{ fontWeight: 700, color: '#333' }}>{companyName}</span>
                 {settings?.company_address && <><br />{settings.company_address}</>}
                 {settings?.company_gstin && <><br />GSTIN {settings.company_gstin}</>}
+                {settings?.company_phone && <><br />{settings.company_phone}</>}
+                {settings?.company_email && <><br />{settings.company_email}</>}
               </p>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-.02em', color: '#111', margin: 0 }}>Invoice</p>
+              <p style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-.02em', color: '#111', margin: 0 }}>Tax Invoice</p>
               <p style={{ fontSize: '12px', color: '#888', marginTop: '2px', ...numSt }}>{invoice.invoice_number}</p>
               <span style={{ display: 'inline-block', marginTop: '12px', fontSize: '10px', fontWeight: 700, color: pill.color, background: pill.bg, padding: '4px 11px', borderRadius: '20px' }}>{pill.text}</span>
             </div>
@@ -135,13 +136,26 @@ export default function InvoiceDocument({
               <p style={{ fontSize: '12px', color: '#333', margin: 0 }}>{fmtDateLong(invoice.due_date)}</p>
             </div>
           </div>
+          {/* Place of supply / ship-to */}
+          {(invoice.customer_gstin || stateDisplay) && (
+            <div style={{ display: 'flex', gap: '28px', fontSize: '10px', color: '#888', marginBottom: '14px' }}>
+              {invoice.customer_gstin && <span>Ship-to GSTIN: <span style={{ color: '#333' }}>{invoice.customer_gstin}</span></span>}
+              {stateDisplay && <span>Place of Supply: <span style={{ color: '#333' }}>{stateDisplay}</span></span>}
+            </div>
+          )}
           {/* Line table */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0 18px', fontSize: '9px', fontWeight: 800, letterSpacing: '.08em', color: '#aaa', paddingBottom: '8px', borderBottom: '1px solid #eee' }}>
             <span>DESCRIPTION</span><span style={{ textAlign: 'right' }}>QTY</span><span style={{ textAlign: 'right' }}>RATE</span><span style={{ textAlign: 'right' }}>AMOUNT</span>
           </div>
           {lines.map(l => (
             <div key={l.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '0 18px', fontSize: '11.5px', color: '#222', padding: '12px 0', borderBottom: '1px solid #f2f2f2' }}>
-              <span>{l.description || l.awb}</span>
+              <span>
+                {l.description || l.awb}
+                <span style={{ display: 'block', fontSize: '9px', color: '#aaa', marginTop: '2px' }}>
+                  HSN/SAC {l.hsn_sac ?? settings?.hsn_sac ?? '996812'}
+                  {(l.cgst_rate > 0 || l.sgst_rate > 0) && ` · CGST ${l.cgst_rate}% · SGST ${l.sgst_rate}%`}
+                </span>
+              </span>
               <span style={{ textAlign: 'right', ...numSt }}>{l.qty || ''}</span>
               <span style={{ textAlign: 'right', ...numSt }}>{l.rate ? fmtInr(l.rate, 2) : ''}</span>
               <span style={{ textAlign: 'right', fontWeight: 600, ...numSt }}>{fmtInr(l.amount)}</span>
@@ -153,19 +167,49 @@ export default function InvoiceDocument({
               {totRow('Subtotal', `₹${fmtInr(invoice.subtotal)}`)}
               {invoice.cgst_amount > 0 && totRow(`CGST${uniformCgst ? ` ${lines[0].cgst_rate}%` : ''}`, `₹${fmtInr(invoice.cgst_amount)}`)}
               {invoice.sgst_amount > 0 && totRow(`SGST${uniformSgst ? ` ${lines[0].sgst_rate}%` : ''}`, `₹${fmtInr(invoice.sgst_amount)}`)}
+              {totRow('Total', `₹${fmtInr(invoice.total)}`)}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '14px 0 0', marginTop: '8px', borderTop: '2px solid #111' }}>
                 <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '.06em', color: '#111' }}>BALANCE DUE</span>
                 <span style={{ fontSize: '26px', fontWeight: 800, letterSpacing: '-.02em', color: accent, ...numSt }}>₹{fmtInr(balanceDue)}</span>
               </div>
             </div>
           </div>
-          {/* Footer */}
-          <div style={{ marginTop: '40px', paddingTop: '16px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between' }}>
-            <p style={{ fontSize: '9.5px', color: '#aaa', lineHeight: 1.6, margin: 0 }}>
-              {settings?.bank_name && <>{settings.bank_name}{acctLast4 && ` •••• ${acctLast4}`}<br /></>}
-              {settings?.bank_ifsc && <>IFSC {settings.bank_ifsc}</>}
-            </p>
-            <p style={{ fontSize: '9.5px', color: '#aaa', textAlign: 'right', margin: 0 }}>Thank you<br />for your business</p>
+          {/* Amount in words */}
+          <div style={{ marginTop: '18px', fontSize: '10.5px', color: '#666' }}>
+            Total in words: <span style={{ color: '#111', fontWeight: 600 }}>{amountToWords(invoice.total, invoice.currency ?? 'INR')}</span>
+          </div>
+          {/* Bank details + Terms */}
+          {(settings?.bank_account_number || settings?.terms_conditions) && (
+            <div style={{ display: 'flex', gap: '40px', marginTop: '22px', paddingTop: '18px', borderTop: '1px solid #eee' }}>
+              {settings?.bank_account_number && (
+                <div style={{ flex: 1 }}>
+                  <p style={LBL}>BANK DETAILS</p>
+                  <p style={{ fontSize: '10.5px', color: '#444', lineHeight: 1.7, margin: 0 }}>
+                    {settings.bank_account_name && <>{settings.bank_account_name}<br /></>}
+                    A/C {settings.bank_account_number}<br />
+                    {settings.bank_ifsc && <>IFSC {settings.bank_ifsc}<br /></>}
+                    {settings.swift_code && <>SWIFT {settings.swift_code}<br /></>}
+                    {settings.bank_name && <>{settings.bank_name}</>}
+                  </p>
+                </div>
+              )}
+              {settings?.terms_conditions && (
+                <div style={{ flex: 1 }}>
+                  <p style={LBL}>TERMS &amp; CONDITIONS</p>
+                  <p style={{ fontSize: '10px', color: '#666', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{settings.terms_conditions}</p>
+                </div>
+              )}
+            </div>
+          )}
+          {/* Authorised signature */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '30px' }}>
+            <div style={{ textAlign: 'right' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {signatureUrl
+                ? <img src={signatureUrl} alt="Authorised Signature" style={{ height: '2.4cm', width: 'auto', display: 'block', marginLeft: 'auto' }} />
+                : <div style={{ height: '2.2cm', width: '4.5cm', borderBottom: '1px solid #ccc', marginLeft: 'auto' }} />}
+              <p style={{ fontSize: '10px', color: '#888', margin: '5px 0 0' }}>Authorised Signature<br /><span style={{ color: '#bbb' }}>for {companyName}</span></p>
+            </div>
           </div>
         </div>
       </div>
