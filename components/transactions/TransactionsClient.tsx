@@ -79,6 +79,42 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     )
   }, [initialTransactions])
 
+  // ── Additive "Load older" pagination ──────────────────────────────────────
+  // The page loads the newest 1,000 rows. This appends older batches on demand
+  // (dedup by id) without changing the initial load or client-side search.
+  const PAGE = 1000
+  const [serverLoaded, setServerLoaded] = useState(initialTransactions.length)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [reachedEnd, setReachedEnd] = useState(initialTransactions.length < PAGE)
+  useEffect(() => { setServerLoaded(initialTransactions.length); setReachedEnd(initialTransactions.length < PAGE) }, [initialTransactions])
+
+  const loadOlder = useCallback(async () => {
+    setLoadingMore(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const SEL = `*, account:accounts!account_id(id,name,color,type,custom_type_id), to_account:accounts!to_account_id(id,name,color), category:categories(id,name,icon,color,type,avatar_url), payee:payees(id,name), attachments(*)`
+      const { data } = await supabase
+        .from('transactions').select(SEL)
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(serverLoaded, serverLoaded + PAGE - 1)
+      const rows = (data ?? []) as unknown as Transaction[]
+      setServerLoaded(c => c + rows.length)
+      if (rows.length < PAGE) setReachedEnd(true)
+      if (rows.length) {
+        setTransactions(prev => {
+          const ids = new Set(prev.map(t => t.id))
+          return [...prev, ...rows.filter(r => !ids.has(r.id))]
+        })
+      }
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [serverLoaded])
+
   const filtered = useMemo(() => {
     return transactions.filter(tx => {
       if (filter !== 'all' && tx.type !== filter) return false
@@ -634,6 +670,18 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
                   </div>
                 )
               })}
+            </div>
+          )}
+          {!reachedEnd && (
+            <div className="flex justify-center py-4">
+              <button
+                onClick={loadOlder}
+                disabled={loadingMore}
+                className="px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+              >
+                {loadingMore ? 'Loading…' : 'Load older transactions'}
+              </button>
             </div>
           )}
         </div>
