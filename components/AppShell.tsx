@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight, ChevronDown,
   X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign, Search,
-  Moon, Sun, Target, RefreshCw, Lightbulb, FileText,
+  Moon, Sun, Eye, EyeOff, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
   Building2, BookOpen, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
@@ -23,6 +23,7 @@ import { ConfirmProvider } from '@/components/shared/ConfirmDialog'
 import PageViewTracker from '@/components/shared/PageViewTracker'
 import ServiceWorkerRegistrar from '@/components/shared/ServiceWorkerRegistrar'
 import GlobalSearch from '@/components/shared/GlobalSearch'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 
 const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), { ssr: false })
 
@@ -351,6 +352,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
   }
 
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
+  const { hidden: balancesHidden, toggle: toggleBalances } = useBalanceVisibility()
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -446,8 +448,17 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
           {sidebarNav()}
 
-          {/* Dark mode + Add Transaction */}
+          {/* Hide balances + Dark mode + Add Transaction */}
           <div className={`px-2 pb-2 space-y-1.5 ${collapsed ? 'flex flex-col items-center' : ''}`}>
+            <button
+              onClick={toggleBalances}
+              title={balancesHidden ? 'Show balances' : 'Hide balances'}
+              className={`rounded-xl transition-all flex items-center justify-center gap-2 text-sm font-medium border ${collapsed ? 'w-10 h-10' : 'w-full py-2.5'}`}
+              style={{ color: 'var(--text-muted)', borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)' }}
+            >
+              {balancesHidden ? <EyeOff className="w-4 h-4 shrink-0" /> : <Eye className="w-4 h-4 shrink-0" />}
+              {!collapsed && (balancesHidden ? 'Show Balances' : 'Hide Balances')}
+            </button>
             <button
               onClick={toggleTheme}
               title="Toggle dark mode"
@@ -616,6 +627,14 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
             </nav>
 
             <div className="px-3 py-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <button
+                onClick={toggleBalances}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium border transition-all"
+                style={{ color: 'var(--text-muted)', borderColor: 'var(--border)', backgroundColor: 'var(--surface-2)' }}
+              >
+                {balancesHidden ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
+                {balancesHidden ? 'Show Balances' : 'Hide Balances'}
+              </button>
               <button
                 onClick={toggleTheme}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium border transition-all"

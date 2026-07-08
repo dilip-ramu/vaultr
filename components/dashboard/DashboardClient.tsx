@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronRight, Plus, Eye, EyeOff,
+  ChevronRight, Plus,
   ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale, CreditCard,
 } from 'lucide-react'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
@@ -234,8 +234,9 @@ export default function DashboardClient({
     if (abs >= 1e3) return `${sign}₹${(abs / 1e3).toFixed(1).replace(/\.?0+$/, '')}K`
     return `${sign}₹${abs.toFixed(0)}`
   }
-  // App-wide hide-balances toggle; mc() masks the pulse-band figures.
-  const { hidden: hideBalances, toggle: toggleBalances } = useBalanceVisibility()
+  // App-wide hide-balances state (toggle lives in the sidebar). mc() masks the
+  // pulse-band totals.
+  const { hidden: hideBalances } = useBalanceVisibility()
   const mc = (n: number) => (hideBalances ? '••••••' : fmtC(n))
   const profitMtdVal = profitMTD ? profitMTD.actualNet : null
 
@@ -259,15 +260,6 @@ export default function DashboardClient({
               ))}
               <button onClick={() => setShowCustom(s => !s)} className="text-[12.5px] font-bold px-3 py-1.5 rounded-lg transition-colors" style={period === 'custom' ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: 'var(--shadow)' } : { color: 'var(--text-muted)' }}>Custom</button>
             </div>
-            <button
-              onClick={toggleBalances}
-              title={hideBalances ? 'Show balances' : 'Hide balances'}
-              aria-label={hideBalances ? 'Show balances' : 'Hide balances'}
-              className="w-9 h-9 flex items-center justify-center rounded-xl shrink-0"
-              style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
-            >
-              {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
             <button
               onClick={() => setShowAddTx(true)}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shrink-0 transition-opacity hover:opacity-90"

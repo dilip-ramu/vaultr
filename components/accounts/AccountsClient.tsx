@@ -54,8 +54,8 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
     setRevealed(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
   }, [])
 
-  // App-wide hide-balances toggle (shared across all pages).
-  const { hidden: hideBalances, toggle: toggleHideBalances, money } = useBalanceVisibility()
+  // App-wide hide-balances state (toggle lives in the sidebar).
+  const { money } = useBalanceVisibility()
   const debitByAccount = useMemo(() => {
     const m: Record<string, DebitCard[]> = {}
     for (const d of debitCards) { (m[d.account_id] ??= []).push(d) }
@@ -152,25 +152,14 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Accounts</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''} across {accountGroups.length} type{accountGroups.length !== 1 ? 's' : ''}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={toggleHideBalances}
-            title={hideBalances ? 'Show balances' : 'Hide balances'}
-            aria-label={hideBalances ? 'Show balances' : 'Hide balances'}
-            className="w-9 h-9 flex items-center justify-center rounded-xl"
-            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
-          >
-            {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-          <button
-            onClick={() => { setEditAccount(null); setShowForm(true) }}
-            className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
-            style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
-          >
-            <Plus className="w-4 h-4" />
-            Add account
-          </button>
-        </div>
+        <button
+          onClick={() => { setEditAccount(null); setShowForm(true) }}
+          className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all shrink-0"
+          style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
+        >
+          <Plus className="w-4 h-4" />
+          Add account
+        </button>
       </div>
 
       {/* Net Worth band */}
