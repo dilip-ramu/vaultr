@@ -5,9 +5,10 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronRight, Plus,
+  ChevronRight, Plus, Eye, EyeOff,
   ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale, CreditCard,
 } from 'lucide-react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import type { ProfitSummary } from '@/lib/profitability'
 import type { CardDue } from '@/app/(app)/dashboard/page'
 import { creditSummary, isLiability } from '@/lib/account-metrics'
@@ -233,6 +234,9 @@ export default function DashboardClient({
     if (abs >= 1e3) return `${sign}₹${(abs / 1e3).toFixed(1).replace(/\.?0+$/, '')}K`
     return `${sign}₹${abs.toFixed(0)}`
   }
+  // App-wide hide-balances toggle; mc() masks the pulse-band figures.
+  const { hidden: hideBalances, toggle: toggleBalances } = useBalanceVisibility()
+  const mc = (n: number) => (hideBalances ? '••••••' : fmtC(n))
   const profitMtdVal = profitMTD ? profitMTD.actualNet : null
 
   return (
@@ -255,6 +259,15 @@ export default function DashboardClient({
               ))}
               <button onClick={() => setShowCustom(s => !s)} className="text-[12.5px] font-bold px-3 py-1.5 rounded-lg transition-colors" style={period === 'custom' ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: 'var(--shadow)' } : { color: 'var(--text-muted)' }}>Custom</button>
             </div>
+            <button
+              onClick={toggleBalances}
+              title={hideBalances ? 'Show balances' : 'Hide balances'}
+              aria-label={hideBalances ? 'Show balances' : 'Hide balances'}
+              className="w-9 h-9 flex items-center justify-center rounded-xl shrink-0"
+              style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+            >
+              {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
             <button
               onClick={() => setShowAddTx(true)}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shrink-0 transition-opacity hover:opacity-90"
@@ -288,12 +301,12 @@ export default function DashboardClient({
             <div className="col-span-2 md:col-span-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Net Worth</p>
               <div className="flex items-end gap-2 mt-1">
-                <p className="text-4xl font-extrabold text-white tracking-tight leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtC(netWorth)}</p>
+                <p className="text-4xl font-extrabold text-white tracking-tight leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>{mc(netWorth)}</p>
               </div>
               <p className="text-[11px] mt-2.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                Assets <span className="font-bold text-white">{fmtC(totalAssets)}</span>
+                Assets <span className="font-bold text-white">{mc(totalAssets)}</span>
                 <span className="mx-2" style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
-                Debt <span className="font-bold" style={{ color: '#FCA5A5' }}>{fmtC(totalLiabilities)}</span>
+                Debt <span className="font-bold" style={{ color: '#FCA5A5' }}>{mc(totalLiabilities)}</span>
               </p>
             </div>
 
@@ -301,11 +314,11 @@ export default function DashboardClient({
             <div className="flex flex-col gap-4 md:pl-8" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Income</p>
-                <p className="text-2xl font-extrabold text-white tracking-tight mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtC(monthlyIncome)}</p>
+                <p className="text-2xl font-extrabold text-white tracking-tight mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>{mc(monthlyIncome)}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Expenses</p>
-                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{fmtC(monthlyExpense)}</p>
+                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{mc(monthlyExpense)}</p>
               </div>
             </div>
 
@@ -313,11 +326,11 @@ export default function DashboardClient({
             <div className="flex flex-col gap-4 md:pl-8">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Leftover</p>
-                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: leftover >= 0 ? '#7FD9A4' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{leftover >= 0 ? '+' : '−'}{fmtC(Math.abs(leftover))}</p>
+                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: leftover >= 0 ? '#7FD9A4' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{leftover >= 0 ? '+' : '−'}{mc(Math.abs(leftover))}</p>
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Profit MTD</p>
-                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: profitMtdVal != null && profitMtdVal < 0 ? '#FCA5A5' : '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{profitMtdVal != null ? fmtC(profitMtdVal) : '—'}</p>
+                <p className="text-2xl font-extrabold tracking-tight mt-1" style={{ color: profitMtdVal != null && profitMtdVal < 0 ? '#FCA5A5' : '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{profitMtdVal != null ? mc(profitMtdVal) : '—'}</p>
               </div>
             </div>
           </div>

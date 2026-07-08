@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import dynamic from 'next/dynamic'
 import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check } from 'lucide-react'
 import type { Account, BuiltinTypeOverride, DebitCard } from '@/lib/types'
@@ -53,13 +54,8 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
     setRevealed(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
   }, [])
 
-  // Hide-balances privacy toggle (persisted). money() masks any amount when on.
-  const [hideBalances, setHideBalances] = useState(false)
-  useEffect(() => { setHideBalances(localStorage.getItem('inex-hide-balances') === '1') }, [])
-  const toggleHideBalances = useCallback(() => {
-    setHideBalances(prev => { const next = !prev; localStorage.setItem('inex-hide-balances', next ? '1' : '0'); return next })
-  }, [])
-  const money = useCallback((n: number) => (hideBalances ? '••••••' : formatCurrency(n)), [hideBalances])
+  // App-wide hide-balances toggle (shared across all pages).
+  const { hidden: hideBalances, toggle: toggleHideBalances, money } = useBalanceVisibility()
   const debitByAccount = useMemo(() => {
     const m: Record<string, DebitCard[]> = {}
     for (const d of debitCards) { (m[d.account_id] ??= []).push(d) }
