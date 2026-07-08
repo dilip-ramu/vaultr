@@ -13,7 +13,7 @@ import {
   Banknote, UserSquare, CalendarClock, History,
   Building2, BookOpen, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
-  CalendarRange, CreditCard, Wrench, Gem,
+  CalendarRange, CreditCard, Gem,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -115,7 +115,7 @@ const navSections: NavSection[] = [
     label: 'System',
     items: [
       {
-        href: '/setup', label: 'Setup', icon: Wrench,
+        href: '/setup', label: 'Settings', icon: Settings,
         subItems: [
           { href: '/downloads', label: 'Downloads', icon: Archive },
         ],
@@ -380,17 +380,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
         />
       ))}
 
-      {/* Settings — always at bottom of nav */}
-      <div className={collapsed ? '' : 'pt-1'}>
-        <NavLink
-          href="/setup/settings"
-          label="Settings"
-          icon={Settings}
-          isActive={pathname.startsWith('/setup/settings')}
-          collapsed={collapsed}
-          onClick={onItemClick}
-        />
-      </div>
     </nav>
   )
 
@@ -625,7 +614,6 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
                   </div>
                 </div>
               ))}
-              <NavLink href="/setup/settings" label="Settings" icon={Settings} isActive={pathname.startsWith('/setup/settings')} collapsed={false} onClick={() => setMobileSidebarOpen(false)} />
             </nav>
 
             <div className="px-3 py-3 border-t space-y-2" style={{ borderColor: 'var(--border)' }}>
