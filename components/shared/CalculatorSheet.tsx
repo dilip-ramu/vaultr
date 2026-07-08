@@ -72,11 +72,11 @@ export default function CalculatorSheet({ initial, title = 'Amount', onDone, onC
   const bigValue = showExpr ? total.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : expr
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div
-        className="relative w-full sm:max-w-sm"
-        style={{ backgroundColor: 'var(--surface)', borderRadius: '24px 24px 0 0', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}
+        className="relative w-full sm:max-w-sm rounded-t-[24px] sm:rounded-[24px] sm:shadow-2xl"
+        style={{ backgroundColor: 'var(--surface)', paddingBottom: 'env(safe-area-inset-bottom, 16px)' }}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-1">
           <span className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>{title}</span>

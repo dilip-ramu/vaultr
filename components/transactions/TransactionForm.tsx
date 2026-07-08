@@ -187,6 +187,10 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    // Only actually save on the final (details) step. Submitting from an earlier
+    // step (e.g. pressing Enter on the amount/account step) just advances, so the
+    // details step — category, payee, name, date — is always reached first.
+    if (!isLast) { goNext(); return }
     if (!originalAmount || !accountId) { setError('Amount and account are required'); return }
     if (type === 'transfer' && !toAccountId) { setError('Select destination account'); return }
     if (currency !== 'INR' && !inrAmount) { setError('Could not get exchange rate for ' + currency); return }
