@@ -51,7 +51,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // Exclude /api so route handlers (crons, exchange-rates, webhooks) run
+  // without a user session and aren't redirected to /login. Also skip static.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
