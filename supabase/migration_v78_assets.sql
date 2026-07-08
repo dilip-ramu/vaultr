@@ -69,3 +69,8 @@ alter table asset_rate_defaults enable row level security;
 drop policy if exists asset_rate_defaults_all on asset_rate_defaults;
 create policy asset_rate_defaults_all on asset_rate_defaults for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ── Table-level grants (RLS still governs rows; the role needs base access) ──
+grant select, insert, update, delete on public.assets to authenticated;
+grant select, insert, update, delete on public.asset_rate_defaults to authenticated;
+grant select on public.market_rates to authenticated;
