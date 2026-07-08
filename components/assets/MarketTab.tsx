@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 import type { MarketRate } from '@/lib/assets/types'
 
@@ -37,12 +38,19 @@ export default function MarketTab({ rates }: Props) {
     return null
   }
 
+  const router = useRouter()
   const refresh = async () => {
     setRefreshing(true); setMsg('')
     try {
       const res = await fetch('/api/assets/refresh-rates', { method: 'POST' })
-      if (res.ok) { setMsg('Requested — reload to see today’s rates.') } else { setMsg('Could not refresh right now.') }
-    } catch { setMsg('Could not refresh right now.') }
+      const j = await res.json().catch(() => ({} as { ok?: boolean; stored?: number; reason?: string }))
+      if (res.ok && j.ok) {
+        setMsg(`Fetched ${j.stored ?? 0} rate${j.stored === 1 ? '' : 's'}.`)
+        router.refresh()
+      } else {
+        setMsg(j.reason ? `Couldn’t fetch: ${j.reason}` : `Couldn’t fetch (HTTP ${res.status}).`)
+      }
+    } catch (e) { setMsg(`Couldn’t fetch: ${e instanceof Error ? e.message : 'network error'}`) }
     setRefreshing(false)
   }
 
