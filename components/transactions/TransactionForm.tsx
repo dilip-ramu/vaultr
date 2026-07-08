@@ -314,7 +314,9 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+        {/* Fixed-height body so every step is the same size (short steps get
+            whitespace, long steps scroll) instead of the sheet resizing. */}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ height: 'min(58dvh, 460px)' }}>
           {error && <div className="text-[13px] rounded-xl px-4 py-2" style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }}>{error}</div>}
 
           {/* Name — details step */}
