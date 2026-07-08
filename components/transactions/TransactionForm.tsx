@@ -185,12 +185,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
     setShowPayeeDropdown(false)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    // Only actually save on the final (details) step. Submitting from an earlier
-    // step (e.g. pressing Enter on the amount/account step) just advances, so the
-    // details step — category, payee, name, date — is always reached first.
-    if (!isLast) { goNext(); return }
+  const handleSave = async () => {
     if (!originalAmount || !accountId) { setError('Amount and account are required'); return }
     if (type === 'transfer' && !toAccountId) { setError('Select destination account'); return }
     if (currency !== 'INR' && !inrAmount) { setError('Could not get exchange rate for ' + currency); return }
@@ -284,6 +279,10 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
     setStepIdx(idx + 1)
   }
   const goBack = () => { setError(''); setStepIdx(Math.max(0, idx - 1)) }
+  // Single controlled action for the footer button and Enter key: advance until
+  // the final step, and only actually save there. The footer button is always
+  // type="button" so landing on the last step can never auto-submit the form.
+  const submitOrAdvance = () => { if (isLast) handleSave(); else goNext() }
 
   // Which account the current account-step edits, and its picker.
   const accountStepSelected = (step === 'to' && type === 'income') ? accountId : step === 'to' ? toAccountId : accountId
@@ -342,7 +341,7 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <form onSubmit={e => { e.preventDefault(); submitOrAdvance() }} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {/* Fixed-height body so every step is the same size (short steps get
             whitespace, long steps scroll) instead of the sheet resizing. */}
         <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ height: 'min(58dvh, 460px)' }}>
@@ -649,19 +648,11 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
 
         {/* Footer — Continue through the steps, Save on the last */}
         <div className="shrink-0 px-6 pb-6 pt-3" style={{ borderTop: '1px solid var(--border-2)' }}>
-          {isLast ? (
-            <button type="submit" disabled={saving}
-              className="w-full text-white font-bold py-3.5 rounded-xl transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ background: typeAccent }}>
-              {saving ? 'Saving…' : isEdit ? 'Save changes' : `Add ${activeType.label}`}
-            </button>
-          ) : (
-            <button type="button" onClick={goNext}
-              className="w-full text-white font-bold py-3.5 rounded-xl transition-opacity hover:opacity-90"
-              style={{ background: typeAccent }}>
-              Continue
-            </button>
-          )}
+          <button type="button" onClick={submitOrAdvance} disabled={saving}
+            className="w-full text-white font-bold py-3.5 rounded-xl transition-opacity hover:opacity-90 disabled:opacity-60"
+            style={{ background: typeAccent }}>
+            {isLast ? (saving ? 'Saving…' : isEdit ? 'Save changes' : `Add ${activeType.label}`) : 'Continue'}
+          </button>
         </div>
         </form>
 
