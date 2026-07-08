@@ -14,9 +14,11 @@ function adminClient() {
 // GET /api/cron/fetch-bank-alerts — Vercel cron every 6h. Fetches bank-alert
 // emails into each user's Transaction Inbox.
 export async function GET(req: NextRequest) {
+  // Fail closed: require CRON_SECRET to be set AND matched. Without this, an
+  // unset secret would leave this endpoint (which writes to the inbox) open.
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

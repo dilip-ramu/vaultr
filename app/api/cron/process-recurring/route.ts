@@ -23,10 +23,12 @@ function nextDate(date: string, interval: string): string {
 
 // GET /api/cron/process-recurring — called by Vercel cron at 3am UTC (8:30am IST) daily
 export async function GET(req: NextRequest) {
-  // Verify this is called by Vercel cron or with the correct secret
+  // Fail closed: require CRON_SECRET to be set AND matched. Without this, an
+  // unset secret would leave this endpoint (which creates transactions and
+  // auto-pays) publicly callable.
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
