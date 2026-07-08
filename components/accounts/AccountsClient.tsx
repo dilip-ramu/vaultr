@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check } from 'lucide-react'
 import type { Account, BuiltinTypeOverride, DebitCard } from '@/lib/types'
@@ -52,6 +52,14 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
   const toggleReveal = useCallback((key: string) => {
     setRevealed(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
   }, [])
+
+  // Hide-balances privacy toggle (persisted). money() masks any amount when on.
+  const [hideBalances, setHideBalances] = useState(false)
+  useEffect(() => { setHideBalances(localStorage.getItem('inex-hide-balances') === '1') }, [])
+  const toggleHideBalances = useCallback(() => {
+    setHideBalances(prev => { const next = !prev; localStorage.setItem('inex-hide-balances', next ? '1' : '0'); return next })
+  }, [])
+  const money = useCallback((n: number) => (hideBalances ? '••••••' : formatCurrency(n)), [hideBalances])
   const debitByAccount = useMemo(() => {
     const m: Record<string, DebitCard[]> = {}
     for (const d of debitCards) { (m[d.account_id] ??= []).push(d) }
@@ -148,36 +156,47 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Accounts</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''} across {accountGroups.length} type{accountGroups.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => { setEditAccount(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all shrink-0"
-          style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
-        >
-          <Plus className="w-4 h-4" />
-          Add account
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={toggleHideBalances}
+            title={hideBalances ? 'Show balances' : 'Hide balances'}
+            aria-label={hideBalances ? 'Show balances' : 'Hide balances'}
+            className="w-9 h-9 flex items-center justify-center rounded-xl"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+          >
+            {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => { setEditAccount(null); setShowForm(true) }}
+            className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
+            style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
+          >
+            <Plus className="w-4 h-4" />
+            Add account
+          </button>
+        </div>
       </div>
 
       {/* Net Worth band */}
       <div className="rounded-2xl px-6 py-5 md:py-6 mb-6 flex flex-col md:flex-row md:items-center gap-5 md:gap-0" style={{ background: 'linear-gradient(135deg, var(--brand-deep) 0%, var(--brand-dark) 100%)', boxShadow: 'var(--shadow-lg)' }}>
         <div className="md:flex-[1.1]">
           <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: 'rgba(255,255,255,0.6)' }}>Net Worth</p>
-          <p className="text-4xl font-extrabold tracking-tight leading-none mt-1.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(netWorth)}</p>
+          <p className="text-4xl font-extrabold tracking-tight leading-none mt-1.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{money(netWorth)}</p>
         </div>
         <div className="hidden md:block w-px h-14 mx-6" style={{ background: 'rgba(255,255,255,0.15)' }} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 md:flex-[2] md:gap-6">
           <div className="flex items-baseline justify-between gap-2 sm:block">
             <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Assets</p>
-            <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalAssets)}</p>
+            <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>{money(totalAssets)}</p>
           </div>
           <div className="flex items-baseline justify-between gap-2 sm:block">
             <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Liabilities</p>
-            <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalLiabilities)}</p>
+            <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{money(totalLiabilities)}</p>
           </div>
           {credit.totalLimit > 0 && (
             <div className="flex items-baseline justify-between gap-2 sm:block">
               <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Available credit</p>
-              <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#9DE8B8', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(credit.totalAvailable)}</p>
+              <p className="text-lg sm:text-xl md:text-[22px] font-extrabold tracking-tight sm:mt-0.5" style={{ color: '#9DE8B8', fontVariantNumeric: 'tabular-nums' }}>{money(credit.totalAvailable)}</p>
             </div>
           )}
         </div>
@@ -263,10 +282,10 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                   </div>
                   <div className="mt-4">
                     <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{liability ? 'Outstanding' : 'Balance'}</p>
-                    <p className="text-2xl font-extrabold tracking-tight" style={{ color: liability ? 'var(--expense)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(Math.abs(bal))}</p>
+                    <p className="text-2xl font-extrabold tracking-tight" style={{ color: liability ? 'var(--expense)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{money(Math.abs(bal))}</p>
                     {util != null && (
                       <div className="mt-2">
-                        <div className="flex items-center justify-between text-[10.5px] mb-1" style={{ color: 'var(--text-muted)' }}><span>Utilisation {Math.round(util * 100)}%</span><span>Limit {formatCurrency(Number(account.credit_limit))}</span></div>
+                        <div className="flex items-center justify-between text-[10.5px] mb-1" style={{ color: 'var(--text-muted)' }}><span>Utilisation {Math.round(util * 100)}%</span><span>Limit {money(Number(account.credit_limit))}</span></div>
                         <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}><div className="h-full rounded-full" style={{ width: `${util * 100}%`, background: util >= 0.9 ? 'var(--expense)' : 'var(--income)' }} /></div>
                       </div>
                     )}
