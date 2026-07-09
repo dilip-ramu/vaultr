@@ -16,9 +16,9 @@ interface Props {
 
 function sampleFor(key: ChequeFieldKey): string {
   switch (key) {
-    case 'payee': return 'ABC Traders Private Limited'
-    case 'amount_figures': return '12,500.00/-'
-    case 'amount_words': return 'Rupees Twelve Thousand Five Hundred Only'
+    case 'payee': return 'ABC Traders Private Limited -'
+    case 'amount_figures': return '**12,500.00/-'
+    case 'amount_words': return 'Twelve Thousand Five Hundred Only -'
     case 'ac_payee': return AC_PAYEE_TEXT
     default: return dateDigitFor(key, '09', '07', '2026') ?? ''
   }

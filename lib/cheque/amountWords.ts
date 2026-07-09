@@ -39,16 +39,17 @@ function wholeToWords(num: number): string {
 }
 
 /**
- * Cheque-ready amount in words, e.g.
- *   amountInWords(1234.5) → "Rupees One Thousand Two Hundred Thirty Four and Fifty Paise Only"
- *   amountInWords(1000)   → "Rupees One Thousand Only"
+ * Cheque-ready amount in words (no leading currency word), e.g.
+ *   amountInWords(1234.5) → "One Thousand Two Hundred Thirty Four and Fifty Paise Only"
+ *   amountInWords(1.52)   → "One and Fifty Two Paise Only"
+ *   amountInWords(1000)   → "One Thousand Only"
  */
-export function amountInWords(amount: number, currencyWord = 'Rupees', subWord = 'Paise'): string {
+export function amountInWords(amount: number, subWord = 'Paise'): string {
   const safe = Math.max(0, Math.round((Number(amount) || 0) * 100) / 100)
   const rupees = Math.floor(safe)
   const paise = Math.round((safe - rupees) * 100)
 
-  let out = `${currencyWord} ${wholeToWords(rupees)}`
+  let out = wholeToWords(rupees)
   if (paise > 0) out += ` and ${twoDigits(paise)} ${subWord}`
   out += ' Only'
   return out

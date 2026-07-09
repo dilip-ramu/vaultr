@@ -41,7 +41,15 @@ export default function ChequePrintModal({ bank, accountName, defaultPayee, defa
   const figures = useMemo(() => amountInFigures(amt), [amt])
 
   const { dd, mm, yyyy } = dateParts(date)
-  const values = { dd, mm, yyyy, payee, amountFigures: figures, amountWords: words, acPayee, chequeNumber }
+  // Cheque formatting: payee gets a trailing hyphen, amount-in-words ends with a
+  // hyphen, and figures get a "**" prefix (anti-forgery).
+  const values = {
+    dd, mm, yyyy,
+    payee: payee.trim() ? `${payee.trim()} -` : '',
+    amountFigures: figures ? `**${figures}` : '',
+    amountWords: words ? `${words} -` : '',
+    acPayee, chequeNumber,
+  }
   const valueFor = (k: ChequeFieldKey): string | null => {
     switch (k) {
       case 'payee': return values.payee
