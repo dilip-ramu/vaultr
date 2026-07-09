@@ -384,7 +384,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
 
       {showCheque && (
         <WriteChequeModal
-          accounts={accounts.map(a => ({ id: a.id, name: a.name }))}
+          accounts={accounts}
           onClose={() => setShowCheque(false)}
         />
       )}

@@ -8,9 +8,10 @@ import type { Bank, ChequeFieldKey } from '@/lib/cheque/types'
 import { MM_TO_PX, AC_PAYEE_TEXT, dateDigitFor } from '@/lib/cheque/types'
 import { amountInWords } from '@/lib/cheque/amountWords'
 import { renderChequePdfBlob, chequeValuesFrom } from '@/lib/cheque/pdf'
+import AccountChipPicker, { type PickerAccount } from '@/components/shared/AccountChipPicker'
 
 interface Props {
-  accounts: { id: string; name: string }[]
+  accounts: PickerAccount[]
   onClose: () => void
   onDone?: () => void
 }
@@ -21,7 +22,12 @@ let lineSeq = 0
 interface Line { id: number; name: string; amount: string; kind: 'expense' | 'transfer'; toAccountId: string }
 
 export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  // Cheques can only be drawn on Current (checking) or Savings accounts.
+  const fromAccounts = useMemo(() => accounts.filter(a => a.type === 'checking' || a.type === 'savings'), [accounts])
+  const [accountId, setAccountId] = useState(() => {
+    const f = accounts.filter(a => a.type === 'checking' || a.type === 'savings')
+    return f[0]?.id ?? ''
+  })
   const [payee, setPayee] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
@@ -157,12 +163,13 @@ export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
 
         <div className="overflow-y-auto p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-[11px] font-semibold col-span-2" style={{ color: 'var(--text-muted)' }}>Bank account
-              <select value={accountId} onChange={e => setAccountId(e.target.value)} className={inputCls + ' mt-1'} style={inputStyle}>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              {!bankTpl && <span className="text-[10.5px]" style={{ color: 'var(--amber)' }}>Not linked to a bank with a cheque template — you can still record the payment, but can&apos;t print.</span>}
-            </label>
+            <div className="col-span-2">
+              <p className="text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>Bank account · Current / Savings</p>
+              {fromAccounts.length === 0
+                ? <p className="text-[12px]" style={{ color: 'var(--amber)' }}>No Current or Savings account found — cheques can only be drawn from those.</p>
+                : <AccountChipPicker accounts={fromAccounts} selectedId={accountId} onSelect={setAccountId} />}
+              {accountId && !bankTpl && <p className="text-[10.5px] mt-1.5" style={{ color: 'var(--amber)' }}>Not linked to a bank with a cheque template — you can still record the payment, but can&apos;t print.</p>}
+            </div>
 
             <label className="text-[11px] font-semibold col-span-2" style={{ color: 'var(--text-muted)' }}>Payee
               <div className="flex gap-2 mt-1">
@@ -228,19 +235,19 @@ export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
                         <button key={k} type="button" onClick={() => setLine(l.id, { kind: k })} className="px-2.5 py-2 text-[11px] font-bold" style={{ background: l.kind === k ? 'var(--brand)' : 'var(--surface-2)', color: l.kind === k ? '#fff' : 'var(--text-muted)' }}>{k === 'expense' ? 'Expense' : 'Transfer'}</button>
                       ))}
                     </div>
-                    {l.kind === 'transfer' ? (
-                      <select value={l.toAccountId} onChange={e => setLine(l.id, { toAccountId: e.target.value })} className="flex-1 px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
-                        <option value="">To account…</option>
-                        {accounts.filter(a => a.id !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                      </select>
-                    ) : (
+                    {l.kind === 'expense' ? (
                       <input value={l.name} onChange={e => setLine(l.id, { name: e.target.value })} placeholder="What is this for? (e.g. Rent)" className="flex-1 px-3 py-2 rounded-lg border text-sm" style={inputStyle} />
+                    ) : (
+                      <span className="flex-1 text-[12px] px-1" style={{ color: 'var(--text-faint)' }}>Transfer to — pick an account below</span>
                     )}
                     <input type="number" value={l.amount} onChange={e => setLine(l.id, { amount: e.target.value })} onFocus={() => { if (!l.amount && remaining > 0) fillRemainingInto(l.id) }} placeholder="0.00" className="w-28 px-3 py-2 rounded-lg border text-sm text-right tabular-nums" style={inputStyle} />
                     <button type="button" onClick={() => setLines(prev => prev.length > 1 ? prev.filter(x => x.id !== l.id) : prev)} className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
                   </div>
                   {l.kind === 'transfer' && (
-                    <input value={l.name} onChange={e => setLine(l.id, { name: e.target.value })} placeholder="Note (optional) — defaults to “Transfer to …”" className="w-full px-3 py-1.5 rounded-lg border text-[12px]" style={inputStyle} />
+                    <div className="space-y-2 pl-1">
+                      <AccountChipPicker accounts={accounts.filter(a => a.id !== accountId)} selectedId={l.toAccountId} onSelect={id => setLine(l.id, { toAccountId: id })} />
+                      <input value={l.name} onChange={e => setLine(l.id, { name: e.target.value })} placeholder="Note (optional) — defaults to “Transfer to …”" className="w-full px-3 py-1.5 rounded-lg border text-[12px]" style={inputStyle} />
+                    </div>
                   )}
                 </div>
               ))}
