@@ -12,7 +12,6 @@ import type { ReconTxn } from '@/lib/reconcile'
 import type { CardTxn } from '@/lib/cards'
 import type { StatementRow } from '../cards/CardsClient'
 import type { PickerAccount } from '../shared/AccountChipPicker'
-import { Avatar } from '../AppShell'
 import CardGlass from '../shared/CardGlass'
 import { cardFaceGradient } from '@/lib/card-gradient'
 import AccountDetailModal from './AccountDetailModal'
@@ -247,10 +246,11 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                 <div className="sm:w-[280px] shrink-0 p-5 flex flex-col justify-between gap-5 relative overflow-hidden" style={{ background: cardFaceGradient(face), minHeight: '192px' }}>
                   <CardGlass base={face} />
                   <div className="flex items-start justify-between relative z-[1]">
-                    {holderPhoto(account)
-                      ? <div className="rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.4)' }}><Avatar url={holderPhoto(account)} initials={(account.account_holder || account.name).slice(0, 2).toUpperCase()} size="lg" /></div>
-                      : (isCredit ? <CreditCard className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} /> : <Wallet className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} />)}
                     <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>{account.card_network || (account.custom_type_id ? group.label : disp.label)}</span>
+                    {holderPhoto(account)
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={holderPhoto(account)!} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.4)' }} />
+                      : (isCredit ? <CreditCard className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} /> : <Wallet className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} />)}
                   </div>
                   <div className="relative z-[1]">
                     <p className="text-[8.5px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.5)' }}>{isCredit ? 'Card number' : 'Account number'}</p>
