@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, Check, Camera } from 'lucide-react'
+import { X, Camera } from 'lucide-react'
 import type { Category } from '@/lib/types'
 import { CATEGORY_ICONS, ACCOUNT_COLORS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { useFileDrop } from '@/components/shared/useFileDrop'
+import ColorPicker from '@/components/shared/ColorPicker'
 import { Avatar } from '../AppShell'
 
 interface Props {
@@ -147,19 +148,7 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
           {/* Color */}
           <div>
             <label className="block text-sm font-medium  mb-2">Color</label>
-            <div className="flex gap-2 flex-wrap">
-              {ACCOUNT_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                  style={{ backgroundColor: c }}
-                >
-                  {color === c && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
-                </button>
-              ))}
-            </div>
+            <ColorPicker value={color} onChange={setColor} label="" />
           </div>
 
           <button

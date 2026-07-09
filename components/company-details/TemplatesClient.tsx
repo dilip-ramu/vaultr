@@ -259,10 +259,16 @@ function Editor({
                 </button>
               )
             })}
-            <label className="inline-flex items-center gap-1.5 ml-1 cursor-pointer" title="Custom colour">
-              <input type="color" value={accent} onChange={e => setAccent(e.target.value)} className="w-7 h-7 rounded-full border-0 bg-transparent cursor-pointer p-0" />
-              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Custom</span>
-            </label>
+            {(() => {
+              const isPreset = ACCENT_PRESETS.some(a => a.value.toLowerCase() === accent.toLowerCase())
+              return (
+                <label className="w-7 h-7 rounded-full relative cursor-pointer flex items-center justify-center overflow-hidden shrink-0" title="Custom colour"
+                  style={{ background: isPreset ? 'conic-gradient(from 0deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)' : accent, boxShadow: '0 0 0 1px var(--border)' }}>
+                  <input type="color" value={accent} onChange={e => setAccent(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  {!isPreset && <Check className="w-3.5 h-3.5 text-white" />}
+                </label>
+              )
+            })()}
           </div>
         </div>
 

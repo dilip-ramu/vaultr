@@ -309,7 +309,10 @@ function ThemeControls({ schema, onTheme }: { schema: DocumentSchema; onTheme: (
           <button key={a.value} title={a.name} onClick={() => onTheme({ accent: a.value })}
             className="w-6 h-6 rounded-full" style={{ background: a.value, outline: schema.theme.accent.toLowerCase() === a.value.toLowerCase() ? '2px solid var(--text)' : 'none', outlineOffset: 2 }} />
         ))}
-        <input type="color" value={schema.theme.accent} onChange={e => onTheme({ accent: e.target.value })} className="w-6 h-6 rounded-full border-0 bg-transparent cursor-pointer p-0" />
+        <label className="w-6 h-6 rounded-full relative cursor-pointer overflow-hidden inline-block shrink-0" title="Custom colour"
+          style={{ background: ACCENT_PRESETS.some(a => a.value.toLowerCase() === schema.theme.accent.toLowerCase()) ? 'conic-gradient(from 0deg, #ef4444, #f59e0b, #10b981, #3b82f6, #8b5cf6, #ef4444)' : schema.theme.accent, boxShadow: '0 0 0 1px var(--border)' }}>
+          <input type="color" value={schema.theme.accent} onChange={e => onTheme({ accent: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer" />
+        </label>
       </div>
       <div className="flex items-center gap-4">
         <label className="text-xs flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
