@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Pencil, Trash2, ArrowLeftRight, Scale, CreditCard } from 'lucide-react'
 import type { Account } from '@/lib/types'
+import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
 import { formatCurrency, getRelativeDate } from '@/lib/utils'
 import type { ReconTxn } from '@/lib/reconcile'
 import type { CardTxn } from '@/lib/cards'
@@ -41,6 +42,8 @@ export default function AccountDetailModal({
 }) {
   const router = useRouter()
   const isCredit = account.type === 'credit'
+  // Exactly the account card's left-border colour — no invented fallback.
+  const accent = account.color || account.custom_type_color || (ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other).color
   const [tab, setTab] = useState<Tab>('transactions')
   const [deleting, setDeleting] = useState(false)
   useEffect(() => {
@@ -82,11 +85,16 @@ export default function AccountDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-stretch justify-center md:justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="w-full md:w-1/3 md:min-w-[360px] md:h-full rounded-t-2xl md:rounded-none flex flex-col slide-up max-h-[92dvh] md:max-h-none overflow-hidden" style={{ background: 'var(--surface)', boxShadow: 'var(--shadow-lg)', borderLeft: '1px solid var(--border)' }}>
+        {/* Accent bar — same colour as the account card */}
+        <div className="shrink-0" style={{ height: 4, background: accent }} />
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="min-w-0">
-            <h2 className="text-base font-bold truncate" style={{ color: 'var(--text)' }}>{account.name}</h2>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{account.account_holder || account.name}</p>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `color-mix(in srgb, ${accent} 18%, transparent)`, color: accent }}><CreditCard className="w-[18px] h-[18px]" /></div>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold truncate" style={{ color: 'var(--text)' }}>{account.name}</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{account.account_holder || account.name}</p>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button onClick={() => onEdit(account)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Edit"><Pencil className="w-4 h-4" /></button>
