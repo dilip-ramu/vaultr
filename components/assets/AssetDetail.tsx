@@ -6,12 +6,14 @@ import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { Asset, MarketRate } from '@/lib/assets/types'
 import { categoryDef } from '@/lib/assets/types'
-import { inr, pctStr, type Valuation } from '@/lib/assets/valuation'
+import { inr, pctStr, valueSeries, type Valuation } from '@/lib/assets/valuation'
+import type { AssetRateDefault } from '@/lib/assets/types'
 
 interface Props {
   asset: Asset
   valuation: Valuation
   marketRates: MarketRate[]
+  defaults?: AssetRateDefault[]
   onEdit: () => void
   onDeleted: (id: string) => void
   onClose: () => void
@@ -19,8 +21,9 @@ interface Props {
 
 const GOLD_GRAD = 'linear-gradient(150deg,#8A6D1F,#5C4711)'
 
-export default function AssetDetail({ asset, valuation, onEdit, onDeleted, onClose }: Props) {
+export default function AssetDetail({ asset, valuation, marketRates, defaults = [], onEdit, onDeleted, onClose }: Props) {
   const [deleting, setDeleting] = useState(false)
+  const series = valueSeries(asset, marketRates, defaults)
   const cat = categoryDef(asset.category)
   const isMarket = asset.valuation_type === 'market'
   const emoji = (asset.details as { emoji?: string }).emoji || cat?.emoji || '📦'
@@ -53,10 +56,22 @@ export default function AssetDetail({ asset, valuation, onEdit, onDeleted, onClo
   }
   if (asset.purchase_date) detailRows.push(['Purchased', new Date(asset.purchase_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })])
 
+  const chartColor = isMarket ? 'var(--amber)' : 'var(--brand)'
+  const chart = (() => {
+    if (series.length < 2) return null
+    const vals = series.map(p => p.v)
+    const min = Math.min(...vals), max = Math.max(...vals), range = (max - min) || 1
+    const W = 640, H = 120, pad = 8
+    const pts = series.map((p, i) => [ (i / (series.length - 1)) * W, H - pad - ((p.v - min) / range) * (H - 2 * pad) ] as [number, number])
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+    return { line, area: `${line} L${W},${H} L0,${H} Z`, first: series[0], last: series[series.length - 1] }
+  })()
+  const fmtMon = (t: string) => { const d = new Date(t); return isNaN(d.getTime()) ? t : d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }) }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end md:items-stretch justify-center md:justify-end">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-[var(--surface)] w-full md:max-w-lg rounded-t-3xl md:rounded-3xl shadow-2xl slide-up max-h-[92vh] overflow-hidden flex flex-col">
+      <div className="relative bg-[var(--surface)] w-full md:w-[480px] md:h-full rounded-t-3xl md:rounded-none shadow-2xl slide-up max-h-[92vh] md:max-h-none overflow-hidden flex flex-col" style={{ borderLeft: '1px solid var(--border)' }}>
         {/* photo header */}
         <div className="relative shrink-0 flex items-center justify-center overflow-hidden" style={{ height: 220, background: isMarket ? GOLD_GRAD : 'linear-gradient(150deg,var(--brand-deep,#14432D),color-mix(in srgb,var(--brand-deep,#14432D) 70%,#000))' }}>
           {asset.photo_url ? (
@@ -107,6 +122,24 @@ export default function AssetDetail({ asset, valuation, onEdit, onDeleted, onClo
               <span className="text-[13.5px] font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(valuation.cost)}</span>
             </div>
           </div>
+
+          {/* value history */}
+          {chart && (
+            <>
+              <div className="flex items-center justify-between mb-2.5">
+                <p className="text-[11px] font-extrabold tracking-wide" style={{ color: 'var(--text-muted)' }}>VALUE HISTORY</p>
+                <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{isMarket ? 'from daily rate' : 'projected from rate'}</span>
+              </div>
+              <div className="rounded-[14px] p-4 mb-5" style={{ border: '1px solid var(--border)' }}>
+                <svg viewBox="0 0 640 120" preserveAspectRatio="none" style={{ width: '100%', height: 110 }}>
+                  <defs><linearGradient id={`av-${asset.id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={chartColor} stopOpacity="0.22" /><stop offset="100%" stopColor={chartColor} stopOpacity="0" /></linearGradient></defs>
+                  <path d={chart.area} fill={`url(#av-${asset.id})`} />
+                  <path d={chart.line} fill="none" stroke={chartColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <div className="flex justify-between mt-1 text-[10px]" style={{ color: 'var(--text-faint)' }}><span>{fmtMon(chart.first.t)}</span><span>{fmtMon(chart.last.t)}</span></div>
+              </div>
+            </>
+          )}
 
           {/* details */}
           <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>DETAILS</p>

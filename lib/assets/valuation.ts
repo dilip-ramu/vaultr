@@ -172,6 +172,54 @@ export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRat
   return { cost, costLines: lines, current, gain, returnPct: cost > 0 ? gain / cost : 0, currentNote: note }
 }
 
+// ── Value history (for the detail graph) ──────────────────────────────────
+export interface SeriesPoint { t: string; v: number }
+/**
+ * A chronological value series for the asset:
+ *  market  → one point per stored market-rate date (qty × rate-for-purity + stones)
+ *  rate/depreciate/building → sampled monthly from purchase date to today
+ */
+export function valueSeries(asset: Asset, rates: MarketRate[], defaults: AssetRateDefault[]): SeriesPoint[] {
+  const { cost } = computeCost(asset.category, asset.valuation_type, asset.details)
+  const d = asset.details
+  const stones = n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
+
+  if (asset.valuation_type === 'market') {
+    const basePurity = asset.metal === 'gold' ? '24K' : null
+    const dates = Array.from(new Set(rates.filter(r => r.metal === asset.metal && (basePurity ? r.purity === basePurity : r.purity == null)).map(r => r.rate_date))).sort()
+    const frac = purityFraction(asset.metal, asset.metal_purity)
+    const g = n(asset.quantity_g)
+    return dates.map(dt => {
+      const base = rates.find(r => r.metal === asset.metal && (basePurity ? r.purity === basePurity : r.purity == null) && r.rate_date === dt)?.rate_per_gram
+      return base == null ? null : { t: dt, v: g * base * frac + stones }
+    }).filter(Boolean) as SeriesPoint[]
+  }
+
+  // rate-linked: sample from purchase → now
+  const start = asset.purchase_date ? new Date(asset.purchase_date) : null
+  if (!start || isNaN(start.getTime())) return []
+  const now = new Date()
+  const months = Math.max(1, Math.round((now.getTime() - start.getTime()) / (30.44 * 864e5)))
+  const steps = Math.min(24, Math.max(2, months))
+  const out: SeriesPoint[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = new Date(start.getTime() + (now.getTime() - start.getTime()) * (i / steps))
+    const yrs = (t.getTime() - start.getTime()) / (365.25 * 864e5)
+    let v = cost
+    if (asset.valuation_type === 'building') {
+      v = n(d.land_cost) * Math.pow(1 + n(d.land_appreciation_pct) / 100, yrs) + n(d.structure_cost) * Math.pow(1 - n(d.structure_depreciation_pct) / 100, yrs)
+    } else if (asset.valuation_type === 'depreciate') {
+      const pct = Math.abs(effectiveRatePct(asset, defaults) || n(d.depreciation_pct))
+      v = cost * Math.pow(1 - pct / 100, yrs)
+    } else {
+      const pct = effectiveRatePct(asset, defaults)
+      v = cost * Math.pow(1 + pct / 100, yrs)
+    }
+    out.push({ t: t.toISOString().slice(0, 10), v })
+  }
+  return out
+}
+
 // ── Formatting helpers ─────────────────────────────────────────────────────
 export function inr(v: number): string {
   return '₹' + Math.round(v).toLocaleString('en-IN')
