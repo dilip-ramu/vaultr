@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Pencil, Trash2, FileText } from 'lucide-react'
+import { X, Pencil, Trash2, FileText, Paperclip, Image as ImageIcon, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { Asset, MarketRate } from '@/lib/assets/types'
@@ -24,6 +24,7 @@ const GOLD_GRAD = 'linear-gradient(150deg,#8A6D1F,#5C4711)'
 
 export default function AssetDetail({ asset, valuation, marketRates, defaults = [], fx = 1, onEdit, onDeleted, onClose }: Props) {
   const [deleting, setDeleting] = useState(false)
+  const [lightbox, setLightbox] = useState<number | null>(null)
   const series = valueSeries(asset, marketRates, defaults, fx)
   const cat = categoryDef(asset.category)
   const isMarket = asset.valuation_type === 'market'
@@ -59,6 +60,15 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
   const location = (asset.details as { location?: string }).location
   if (location) detailRows.push(['Location', location])
   const docs = ((asset.details as { documents?: { type?: string; url?: string; name?: string }[] }).documents) ?? []
+  const invoiceUrl = (asset.details as { invoice_url?: string }).invoice_url
+
+  // Everything openable, in one list, for the lightbox + attachments strip.
+  const isPdf = (u?: string, n?: string) => /\.pdf($|\?)/i.test(u || '') || /\.pdf$/i.test(n || '')
+  const media: { url: string; name: string; label: string; kind: 'image' | 'pdf' }[] = []
+  if (asset.photo_url) media.push({ url: asset.photo_url, name: `${asset.name} photo`, label: 'Photo', kind: 'image' })
+  if (invoiceUrl) media.push({ url: invoiceUrl, name: 'Invoice', label: 'Invoice', kind: isPdf(invoiceUrl) ? 'pdf' : 'image' })
+  for (const dc of docs) if (dc.url) media.push({ url: dc.url, name: dc.name || dc.type || 'Document', label: dc.type || 'Document', kind: isPdf(dc.url, dc.name) ? 'pdf' : 'image' })
+  const lb = lightbox != null ? media[lightbox] : null
 
   const chartColor = isMarket ? 'var(--amber)' : 'var(--brand)'
   const chart = (() => {
@@ -80,11 +90,14 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
         <div className="relative shrink-0 flex items-center justify-center overflow-hidden" style={{ height: 220, background: isMarket ? GOLD_GRAD : 'linear-gradient(150deg,var(--brand-deep,#14432D),color-mix(in srgb,var(--brand-deep,#14432D) 70%,#000))' }}>
           {asset.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={asset.photo_url} alt={asset.name} className="absolute inset-0 w-full h-full object-cover" />
+            <img src={asset.photo_url} alt={asset.name} onClick={() => setLightbox(0)} className="absolute inset-0 w-full h-full object-cover cursor-zoom-in" />
           ) : <>
             <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 30%,rgba(255,255,255,.16),transparent 60%)' }} />
             <span style={{ fontSize: 76, filter: 'drop-shadow(0 8px 20px rgba(0,0,0,.3))' }}>{emoji}</span>
           </>}
+          {asset.photo_url && (
+            <button onClick={() => setLightbox(0)} className="absolute top-3.5 left-3.5 flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-white" style={{ background: 'rgba(0,0,0,.35)' }}><ImageIcon className="w-3.5 h-3.5" /> Open</button>
+          )}
           <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,.18)' }}><X className="w-4 h-4 text-white" /></button>
           <div className="absolute left-0 right-0 bottom-0 px-6 py-4" style={{ background: 'linear-gradient(0deg,rgba(0,0,0,.55),transparent)' }}>
             <div className="flex items-end justify-between">
@@ -156,25 +169,22 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
             ))}
           </div>
 
-          {docs.length > 0 && (
+          {/* Attachments — photo, invoice and documents all open in the viewer */}
+          {media.length > 0 && (
             <>
-              <p className="text-[11px] font-extrabold tracking-wide mt-5 mb-2.5" style={{ color: 'var(--text-muted)' }}>DOCUMENTS</p>
+              <p className="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wide mt-5 mb-2.5" style={{ color: 'var(--text-muted)' }}><Paperclip className="w-3.5 h-3.5" /> ATTACHMENTS · {media.length}</p>
               <div className="space-y-1.5">
-                {docs.map((dc, i) => (
-                  <a key={i} href={dc.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'var(--surface-2)' }}>
-                    <FileText className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
-                    <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{dc.type || 'Document'}</span>
-                    <span className="text-[11px] truncate max-w-[120px]" style={{ color: 'var(--text-faint)' }}>{dc.name || 'open'}</span>
-                  </a>
+                {media.map((mm, i) => (
+                  <button key={i} onClick={() => setLightbox(i)} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left" style={{ background: 'var(--surface-2)' }}>
+                    <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: mm.kind === 'image' ? 'color-mix(in srgb, var(--transfer) 16%, transparent)' : 'color-mix(in srgb, var(--expense) 16%, transparent)' }}>
+                      {mm.kind === 'image' ? <ImageIcon className="w-4 h-4" style={{ color: 'var(--transfer)' }} /> : <FileText className="w-4 h-4" style={{ color: 'var(--expense)' }} />}
+                    </span>
+                    <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{mm.label}</span>
+                    <span className="text-[11px] truncate max-w-[120px]" style={{ color: 'var(--text-faint)' }}>{mm.name}</span>
+                  </button>
                 ))}
               </div>
             </>
-          )}
-
-          {(asset.details as { invoice_url?: string }).invoice_url && (
-            <a href={(asset.details as { invoice_url?: string }).invoice_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 mt-4 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>
-              <FileText className="w-4 h-4" /> View invoice
-            </a>
           )}
 
           <div className="flex gap-2 mt-6">
@@ -183,6 +193,32 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
           </div>
         </div>
       </div>
+
+      {/* Lightbox for photo / invoice / documents */}
+      {lb && (
+        <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: 'rgba(0,0,0,.95)' }} onClick={() => setLightbox(null)}>
+          <div className="flex items-center justify-between px-4 py-3 shrink-0" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setLightbox(null)} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,.12)' }}><X className="w-5 h-5 text-white" /></button>
+            <p className="text-white text-sm font-medium truncate flex-1 mx-4 text-center">{lb.label} · {lb.name}</p>
+            <a href={lb.url} download target="_blank" rel="noreferrer" className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,.12)' }}><Download className="w-5 h-5 text-white" /></a>
+          </div>
+          <div className="flex-1 flex items-center justify-center overflow-hidden px-2" onClick={e => e.stopPropagation()}>
+            {lb.kind === 'image' ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={lb.url} alt={lb.name} className="max-w-full max-h-full object-contain rounded-lg" style={{ maxHeight: 'calc(100dvh - 150px)' }} />
+            ) : (
+              <iframe src={lb.url} title={lb.name} className="w-full rounded-lg bg-white" style={{ height: 'calc(100dvh - 150px)', maxWidth: 900 }} />
+            )}
+          </div>
+          {media.length > 1 && (
+            <div className="flex items-center justify-center gap-6 py-4 shrink-0" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setLightbox(i => Math.max(0, (i ?? 0) - 1))} disabled={lightbox === 0} className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-30" style={{ background: 'rgba(255,255,255,.12)' }}><ChevronLeft className="w-5 h-5 text-white" /></button>
+              <span className="text-sm" style={{ color: 'rgba(255,255,255,.6)' }}>{(lightbox ?? 0) + 1} / {media.length}</span>
+              <button onClick={() => setLightbox(i => Math.min(media.length - 1, (i ?? 0) + 1))} disabled={lightbox === media.length - 1} className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-30" style={{ background: 'rgba(255,255,255,.12)' }}><ChevronRight className="w-5 h-5 text-white" /></button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
