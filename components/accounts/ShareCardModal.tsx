@@ -62,7 +62,7 @@ export default function ShareCardModal({ account, accent, typeLabel, debitCards,
     const [logo, photo] = await Promise.all([loadImg(account.bank_logo_url), loadImg(account.avatar_url)])
     const canvas = canvasRef.current
     if (!canvas) return
-    const DPR = 2, W = 900, P = 52
+    const DPR = 3, W = 900, P = 52
     const rgb = hexToRgb(accent)
 
     // ── build detail rows ──
@@ -99,6 +99,8 @@ export default function ShareCardModal({ account, accent, typeLabel, debitCards,
     canvas.width = W * DPR; canvas.height = H * DPR
     const ctx = canvas.getContext('2d')!
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
 
     // white behind the rounded corners
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)
