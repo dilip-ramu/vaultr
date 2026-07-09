@@ -234,8 +234,14 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
     setShowForm(true)
   }, [])
 
-  // Persistent detail-rail selection (replaces the pop-up modal on desktop)
+  // Selected transaction → right-side sliding panel (like Assets)
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
+  useEffect(() => {
+    if (!selectedTx) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedTx(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedTx])
 
   // Compact ₹ formatter for the stat strip (₹1.42Cr / ₹98.6L / ₹4.5K)
   const fmtCompact = useCallback((n: number) => {
@@ -298,7 +304,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
       <>
         <div className="flex items-center justify-between mb-4">
           <p className="text-xs font-extrabold tracking-[0.06em]" style={{ color: 'var(--text-muted)' }}>TRANSACTION</p>
-          <button onClick={() => setSelectedTx(null)} aria-label="Close"><X className="w-4 h-4" style={{ color: 'var(--text-faint)' }} /></button>
+          <button onClick={() => setSelectedTx(null)} aria-label="Close" className="w-9 h-9 -mr-2 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></button>
         </div>
         <div className="flex flex-col items-center text-center pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-3" style={{ background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
@@ -586,8 +592,8 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         </div>
       )}
 
-      {/* Body: columnar list + persistent detail rail (50/50 split) */}
-      <div className="grid lg:grid-cols-2 gap-5 items-start">
+      {/* Body: full-width list (detail slides in from the right, like Assets) */}
+      <div>
         <div className="min-w-0">
           {grouped.length === 0 ? (
             <div className="text-center py-16">
@@ -687,29 +693,23 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
             </div>
           )}
         </div>
-
-        {/* Desktop detail rail */}
-        <aside className="hidden lg:block sticky top-4 rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}>
-          {selectedTx ? renderDetail(selectedTx) : (
-            <div className="text-center py-16">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3" style={{ background: 'var(--surface-2)' }}>
-                <ArrowLeftRight className="w-6 h-6" style={{ color: 'var(--text-faint)' }} />
-              </div>
-              <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Select a transaction</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>Details appear here</p>
-            </div>
-          )}
-        </aside>
       </div>
 
-      {/* Mobile detail sheet */}
-      {selectedTx && (
-        <div className="lg:hidden fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) setSelectedTx(null) }}>
-          <div className="w-full rounded-t-2xl p-5 max-h-[88vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
-            {renderDetail(selectedTx)}
+      {/* Right-side detail panel — slides in, accent matches the transaction type */}
+      {selectedTx && (() => {
+        const income = selectedTx.type === 'income', transfer = selectedTx.type === 'transfer'
+        const accent = income ? 'var(--income)' : transfer ? 'var(--transfer)' : 'var(--expense)'
+        return (
+          <div className="fixed inset-0 z-50 flex items-end md:items-stretch justify-center md:justify-end">
+            <div className="fixed inset-0 bg-black/40" onClick={() => setSelectedTx(null)} />
+            <div className="relative w-full md:w-[460px] md:h-full rounded-t-3xl md:rounded-none shadow-2xl slide-up max-h-[92vh] md:max-h-none overflow-y-auto"
+              style={{ background: 'var(--surface)', borderLeft: `1px solid var(--border)` }}>
+              <div style={{ height: 4, background: accent }} />
+              <div className="p-5">{renderDetail(selectedTx)}</div>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {showForm && (
         <TransactionForm
