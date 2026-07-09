@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Pencil, Trash2, ArrowLeftRight, Scale, CreditCard } from 'lucide-react'
 import type { Account } from '@/lib/types'
+import { ACCOUNT_TYPE_CONFIG } from '@/lib/types'
 import { formatCurrency, getRelativeDate } from '@/lib/utils'
 import type { ReconTxn } from '@/lib/reconcile'
 import type { CardTxn } from '@/lib/cards'
@@ -41,7 +42,9 @@ export default function AccountDetailModal({
 }) {
   const router = useRouter()
   const isCredit = account.type === 'credit'
-  const accent = (account as { color?: string }).color || 'var(--brand)'
+  // Match the account card exactly: custom type colour → account colour → built-in type colour.
+  const builtinTypeColor = (ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other).color
+  const accent = account.custom_type_color ?? (account.color || builtinTypeColor)
   const [tab, setTab] = useState<Tab>('transactions')
   const [deleting, setDeleting] = useState(false)
   useEffect(() => {
