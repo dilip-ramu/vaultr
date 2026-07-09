@@ -489,19 +489,12 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{isCredit ? 'Cardholder' : 'Account holder'}</label>
-                        {holders.length > 0 ? (
-                          <select value={holderId} onChange={e => { const id = e.target.value; setHolderId(id); const h = holders.find(x => x.id === id); setAccountHolder(h ? h.name : '') }}
-                            className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm appearance-none" style={{ color: 'var(--text)' }}>
-                            <option value="">— Not linked (type name) —</option>
-                            {holders.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-                          </select>
-                        ) : (
-                          <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} placeholder="e.g. Dilip T R" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
-                        )}
-                        {holders.length > 0 && !holderId && (
-                          <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} placeholder="Name (if not a saved user)" className="w-full mt-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
-                        )}
-                        {holderId && <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>Uses this user’s name &amp; photo — change them in Settings → Users and it updates here.</p>}
+                        <select value={holderId} onChange={e => { const id = e.target.value; setHolderId(id); const h = holders.find(x => x.id === id); setAccountHolder(h ? h.name : '') }}
+                          className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm appearance-none" style={{ color: 'var(--text)' }}>
+                          <option value="">— None —</option>
+                          {holders.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                        </select>
+                        <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>{holders.length === 0 ? 'Add people in Settings → Users, then pick them here.' : 'Name & photo come from the user — edit them in Settings → Users.'}</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Branch</label>
