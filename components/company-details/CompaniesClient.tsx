@@ -88,7 +88,7 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Add your first company so you can issue invoices from it.</p>
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           {companies.map(c => {
             const color = autoColor(c.id, c.color)
             const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0'

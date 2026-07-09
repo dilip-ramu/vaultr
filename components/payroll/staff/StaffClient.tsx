@@ -259,7 +259,7 @@ export default function StaffClient({ employees: initialEmployees, customers = [
             : 'No employees match your search.'}
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           {filtered.map(emp => {
             const color = autoColor(emp.id, emp.color)
             const last4 = emp.account_number ? String(emp.account_number).replace(/\s/g, '').slice(-4) : ''

@@ -173,7 +173,7 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Add your first customer to get started</p>
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           {filtered.map(c => {
             const color = autoColor(c.id, c.color)
             const totals = outstandingByCustomer[c.id]

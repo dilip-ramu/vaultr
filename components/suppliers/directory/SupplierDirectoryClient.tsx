@@ -177,7 +177,7 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Add your first supplier to get started</p>
         </div>
       ) : (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           {filtered.map(s => {
             const color = autoColor(s.id, s.color)
             const totals = outstandingBySupplier[s.id]
