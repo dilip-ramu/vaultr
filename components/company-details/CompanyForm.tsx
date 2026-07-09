@@ -44,6 +44,7 @@ export interface Company {
   invoice_accent: string
   // v82 — directory card accent (hex). Null = per-directory default.
   color: string | null
+  updated_at?: string
 }
 
 const PAYMENT_TERMS = [

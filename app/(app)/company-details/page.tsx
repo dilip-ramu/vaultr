@@ -22,7 +22,8 @@ export default async function CompanyDetailsTabPage() {
   for (const c of (companies ?? []) as Company[]) {
     if (c.logo_path) {
       const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(c.logo_path)
-      if (publicUrl) logoUrls[c.id] = publicUrl
+      // Cache-bust with updated_at — the logo path is reused on re-upload.
+      if (publicUrl) logoUrls[c.id] = `${publicUrl}?v=${c.updated_at ? Date.parse(c.updated_at) : ''}`
     }
   }
 

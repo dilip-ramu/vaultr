@@ -52,9 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select('*').single()
   if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 
-  // Return the public URL too, for immediate display.
+  // Return the public URL too, for immediate display. The storage path is
+  // reused on every upload (upsert), so the URL is byte-identical each time —
+  // append a version tied to updated_at to bust the browser/CDN cache.
   const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(path)
-  return NextResponse.json({ company: updated, publicUrl })
+  const version = updated?.updated_at ? Date.parse(updated.updated_at) : Date.now()
+  return NextResponse.json({ company: updated, publicUrl: `${publicUrl}?v=${version}` })
 }
 
 // DELETE — remove logo from storage + clear logo_path
