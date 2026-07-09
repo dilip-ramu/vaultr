@@ -25,11 +25,12 @@ function signedForAccount(t: ReconTxn, accountId: string): number {
 
 export default function AccountDetailModal({
   account, accent: accentProp, txns, currencyById, today, onReconciled,
-  cardTxns = [], cardStatements = [], payAccounts = [],
+  cardTxns = [], cardStatements = [], payAccounts = [], holderName,
   onEdit, onDeleted, onClose,
 }: {
   account: Account
   accent?: string
+  holderName?: string
   txns: ReconTxn[]
   currencyById: Record<string, string>
   today: string
@@ -95,7 +96,7 @@ export default function AccountDetailModal({
             <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `color-mix(in srgb, ${accent} 18%, transparent)`, color: accent }}><CreditCard className="w-[18px] h-[18px]" /></div>
             <div className="min-w-0">
               <h2 className="text-base font-bold truncate" style={{ color: 'var(--text)' }}>{account.name}</h2>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{account.account_holder || account.name}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{holderName || account.account_holder || '—'}</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">

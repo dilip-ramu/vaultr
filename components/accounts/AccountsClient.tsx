@@ -50,6 +50,9 @@ function expiryStr(m: number | null, y: number | null): string {
 export default function AccountsClient({ initialAccounts, builtinOverrides = [], debitCards = [], holders = [], reconcileTxns, cardTxns = [], cardStatements = [], payAccounts = [] }: Props) {
   const holderById = useMemo(() => { const m: Record<string, AccountHolder> = {}; for (const h of holders) m[h.id] = h; return m }, [holders])
   const holderPhoto = useCallback((a: Account) => (a.account_holder_id ? holderById[a.account_holder_id]?.photo_url : null) || a.avatar_url || null, [holderById])
+  // Holder NAME: free-text field, else the linked user's name. Never the
+  // account/bank name (that's shown separately) — that was the bug.
+  const holderName = useCallback((a: Account) => a.account_holder || (a.account_holder_id ? holderById[a.account_holder_id]?.name : null) || '', [holderById])
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts)
   const [showForm, setShowForm] = useState(false)
   const [showCheque, setShowCheque] = useState(false)
@@ -270,7 +273,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                     <div className="flex items-end justify-between gap-3 mt-3">
                       <div className="min-w-0">
                         <p className="text-[8.5px] font-semibold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,0.5)' }}>{isCredit ? 'Card holder' : 'Account holder'}</p>
-                        <p className="text-[12px] font-bold truncate" style={{ color: '#fff' }}>{account.account_holder || account.name}</p>
+                        <p className="text-[12px] font-bold truncate" style={{ color: '#fff' }}>{holderName(account) || '—'}</p>
                       </div>
                       {isCredit ? (exp && (
                         <div className="text-right shrink-0">
@@ -348,6 +351,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
         <AccountDetailModal
           account={detailAccount}
           accent={accountGroups.find(g => g.accounts.some(a => a.id === detailAccount.id))?.color}
+          holderName={holderName(detailAccount)}
           txns={reconcileTxns ?? []}
           currencyById={currencyById}
           today={today}
@@ -367,6 +371,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           accent={accountGroups.find(g => g.accounts.some(a => a.id === shareAccount.id))?.color ?? '#334155'}
           typeLabel={accountGroups.find(g => g.accounts.some(a => a.id === shareAccount.id))?.label ?? shareAccount.type}
           photoUrl={holderPhoto(shareAccount)}
+          holderName={holderName(shareAccount)}
           debitCards={debitByAccount[shareAccount.id] ?? []}
           onClose={() => setShareAccount(null)}
         />

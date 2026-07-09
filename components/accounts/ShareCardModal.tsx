@@ -10,6 +10,7 @@ interface Props {
   accent: string       // hex, e.g. #3B82F6
   typeLabel: string
   photoUrl?: string | null   // account-holder photo (from the linked user)
+  holderName?: string        // resolved holder name (free-text or linked user)
   debitCards: DebitCard[]
   onClose: () => void
 }
@@ -42,7 +43,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 const groupNum = (n?: string | null) => n ? n.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim() : '—'
 const money = (n?: number | null) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.abs(Number(n ?? 0)))
 
-export default function ShareCardModal({ account, accent, typeLabel, photoUrl, debitCards, onClose }: Props) {
+export default function ShareCardModal({ account, accent, typeLabel, photoUrl, holderName, debitCards, onClose }: Props) {
   const isCredit = account.type === 'credit'
   const [inclBalance, setInclBalance] = useState(false)
   const [inclExpiry, setInclExpiry] = useState(false)
@@ -64,7 +65,7 @@ export default function ShareCardModal({ account, accent, typeLabel, photoUrl, d
     const DPR = 3, W = 900, P = 52
 
     // ── build detail rows ──
-    const rows: [string, string][] = [[isCredit ? 'Cardholder' : 'Account holder', account.account_holder || account.name]]
+    const rows: [string, string][] = [[isCredit ? 'Cardholder' : 'Account holder', holderName || account.account_holder || '—']]
     if (account.ifsc_code) rows.push(['IFSC', account.ifsc_code])
     if (account.swift_code) rows.push(['SWIFT', account.swift_code])
     if (account.branch) rows.push(['Branch', account.branch])
@@ -206,7 +207,7 @@ export default function ShareCardModal({ account, accent, typeLabel, photoUrl, d
     try { setDataUrl(canvas.toDataURL('image/jpeg', 0.95)); setTainted(false) }
     catch { setTainted(true); setDataUrl('') }
     setBusy(false)
-  }, [account, accent, typeLabel, photoUrl, debitCards, inclBalance, inclExpiry, inclDebit, isCredit, exp])
+  }, [account, accent, typeLabel, photoUrl, holderName, debitCards, inclBalance, inclExpiry, inclDebit, isCredit, exp])
 
   useEffect(() => { void draw() }, [draw])
 
