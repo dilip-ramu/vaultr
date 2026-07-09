@@ -78,6 +78,11 @@ export interface Asset {
   photo_url: string | null
   include_in_net_worth: boolean
   notes: string | null
+  // Sale tracking — any asset can be marked sold with a price + date.
+  // Realised profit = sold_price − cost_total. Sold assets leave net worth.
+  status: 'held' | 'sold'
+  sold_price: number | null
+  sold_date: string | null
   created_at: string
   updated_at: string
 }

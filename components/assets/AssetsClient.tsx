@@ -27,6 +27,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
   const [defaults, setDefaults] = useState<AssetRateDefault[]>(initialDefaults)
   const [tab, setTab] = useState<Tab>('assets')
   const [catFilter, setCatFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'held' | 'sold'>('all')
   const [formFor, setFormFor] = useState<{ asset: Asset | null; category: string; subcategory: string } | null>(null)
   const [showPicker, setShowPicker] = useState(false)
   const [detail, setDetail] = useState<Asset | null>(null)
@@ -51,34 +52,51 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
     return m
   }, [assets, marketRates, defaults, fxRates])
 
+  const isSold = (a: Asset) => a.status === 'sold'
+  // What a line is worth today: sold → the agreed selling price; held → live value.
+  const dispValue = (a: Asset) => (isSold(a) ? (a.sold_price ?? 0) : valued.get(a.id)!.current)
+  // Realised (sold) or unrealised (held) gain for a single asset.
+  const lineGain = (a: Asset) => dispValue(a) - valued.get(a.id)!.cost
+
+  // Assets shown in the list, after the status filter (category filter is applied downstream).
+  const visible = useMemo(
+    () => assets.filter(a => statusFilter === 'all' ? true : statusFilter === 'sold' ? isSold(a) : !isSold(a)),
+    [assets, statusFilter],
+  )
+  const soldTotal = useMemo(() => assets.filter(isSold).length, [assets])
+
   const totals = useMemo(() => {
-    let cost = 0, current = 0
+    let cost = 0, current = 0, realised = 0, proceeds = 0, soldCost = 0, sold = 0
     for (const a of assets) {
-      if (!a.include_in_net_worth) continue
       if (catFilter !== 'all' && a.category !== catFilter) continue
       const v = valued.get(a.id)!
+      if (isSold(a)) {
+        sold++; proceeds += a.sold_price ?? 0; soldCost += v.cost; realised += (a.sold_price ?? 0) - v.cost
+        continue
+      }
+      if (!a.include_in_net_worth) continue
       cost += v.cost; current += v.current
     }
-    return { cost, current, gain: current - cost, ret: cost > 0 ? (current - cost) / cost : 0 }
+    return { cost, current, gain: current - cost, ret: cost > 0 ? (current - cost) / cost : 0, realised, proceeds, soldCost, sold }
   }, [assets, valued, catFilter])
 
   // group: category -> subcategory -> assets
   const grouped = useMemo(() => {
     const order = ASSET_CATEGORIES.map(c => c.key)
-    const keys = Array.from(new Set(assets.map(a => a.category)))
+    const keys = Array.from(new Set(visible.map(a => a.category)))
       .filter(k => catFilter === 'all' || k === catFilter)
       .sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b) })
     return keys.map(key => {
-      const list = assets.filter(a => a.category === key)
+      const list = visible.filter(a => a.category === key)
       const subs = new Map<string, Asset[]>()
       for (const a of list) { const k = a.subcategory ?? '—'; if (!subs.has(k)) subs.set(k, []); subs.get(k)!.push(a) }
       let cCost = 0, cCur = 0
-      for (const a of list) { const v = valued.get(a.id)!; cCost += v.cost; cCur += v.current }
+      for (const a of list) { cCost += valued.get(a.id)!.cost; cCur += dispValue(a) }
       const def = categoryDef(key)
       const isMetal = ['gold', 'silver', 'platinum'].includes(key)
       return { key, label: def?.label ?? key, emoji: def?.emoji ?? '💠', blurb: def?.blurb ?? (isMetal ? 'market-linked' : 'rate-linked'), isMetal, subs, cCost, cCur, cGain: cCur - cCost }
     })
-  }, [assets, valued, catFilter])
+  }, [visible, valued, catFilter])
 
   const marketRateFor = (metal: string) => {
     const r = marketRates.filter(x => x.metal === metal).sort((a, b) => (a.rate_date < b.rate_date ? 1 : -1))[0]
@@ -174,6 +192,24 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
               <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>RETURN</p>
               <p className="text-xl font-extrabold mt-0.5" style={{ color: totals.ret >= 0 ? '#9DE8B8' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{hidden ? '••' : pctStr(totals.ret)}</p>
             </div>
+            {totals.sold > 0 && (
+              <>
+                <div className="hidden sm:block" style={{ width: 1, height: 52, background: 'rgba(255,255,255,.15)' }} />
+                <div style={{ flex: '1 1 120px', paddingLeft: 22 }}>
+                  <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>REALISED PROFIT</p>
+                  <p className="text-xl font-extrabold mt-0.5" style={{ color: totals.realised >= 0 ? '#9DE8B8' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{hidden ? '••••' : `${totals.realised >= 0 ? '+' : ''}${inrCompact(totals.realised)}`}</p>
+                  <p className="text-[9.5px] font-semibold mt-0.5" style={{ color: 'rgba(255,255,255,.5)' }}>{totals.sold} sold · {m(totals.proceeds)}</p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Status filter — held vs sold */}
+          <div className="flex gap-2 mb-3 flex-wrap items-center">
+            {([['all', `All${assets.length ? ` · ${assets.length}` : ''}`], ['held', 'Held'], ['sold', `Sold${soldTotal ? ` · ${soldTotal}` : ''}`]] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setStatusFilter(k)} className="text-[11.5px] font-bold px-3.5 py-1.5 rounded-xl"
+                style={statusFilter === k ? { background: 'var(--text)', color: 'var(--surface)' } : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{label}</button>
+            ))}
           </div>
 
           {/* Category chips */}
@@ -185,6 +221,13 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                 style={catFilter === key ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{def?.emoji ?? '💠'} {def?.label ?? key}</button>
             )})}
           </div>
+
+          {visible.length === 0 && (
+            <div className="text-center py-12 rounded-2xl mb-6" style={{ border: '1px dashed var(--border)' }}>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{statusFilter === 'sold' ? 'No sold assets yet' : 'Nothing to show'}</p>
+              <p className="text-[12px] mt-1" style={{ color: 'var(--text-faint)' }}>{statusFilter === 'sold' ? 'Open an asset and “Mark as sold” to record a sale and its realised profit.' : 'Try a different filter.'}</p>
+            </div>
+          )}
 
           {/* Grouped categories */}
           {grouped.map((g) => (
@@ -205,7 +248,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
 
               {[...g.subs.entries()].map(([subKey, list]) => {
                 const subLabel = categoryDef(g.key)?.subcategories.find(s => s.key === subKey)?.label ?? subKey
-                const subTotal = list.reduce((s, a) => s + valued.get(a.id)!.current, 0)
+                const subTotal = list.reduce((s, a) => s + dispValue(a), 0)
                 const rateNote = g.key === 'real_estate' && subKey === 'land' ? ' · avg' : ''
                 return (
                   <div key={subKey} className="rounded-2xl overflow-hidden mb-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
@@ -215,19 +258,28 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                     </div>
                     {list.map((a, i) => {
                       const v = valued.get(a.id)!
+                      const sold = isSold(a)
+                      const gain = dispValue(a) - v.cost
                       return (
                         <button key={a.id} onClick={() => setDetail(a)} className="w-full text-left grid items-center px-4 py-3" style={{ gridTemplateColumns: '1.8fr 1fr 1fr auto', borderBottom: i < list.length - 1 ? '1px solid var(--border-2, var(--border))' : 'none' }}>
                           <div className="flex items-center gap-3">
                             <RowIcon a={a} />
                             <div className="min-w-0">
-                              <p className="text-[13px] font-bold truncate" style={{ color: 'var(--text)' }}>{a.name}</p>
-                              <p className="text-[10.5px] truncate" style={{ color: 'var(--text-faint)' }}>{subLabelHint(a)}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-[13px] font-bold truncate" style={{ color: 'var(--text)' }}>{a.name}</p>
+                                {sold && <span className="text-[8.5px] font-extrabold tracking-wide px-1.5 py-0.5 rounded shrink-0" style={{ color: 'var(--text-muted)', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>SOLD</span>}
+                              </div>
+                              <p className="text-[10.5px] truncate" style={{ color: 'var(--text-faint)' }}>{sold ? `Sold${a.sold_date ? ' ' + fmtMon(a.sold_date) : ''}` : subLabelHint(a)}</p>
                             </div>
                           </div>
                           <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>COST</p><p className="text-[12.5px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(v.cost)}</p></div>
-                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>CURRENT</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(v.current)}</p></div>
+                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>{sold ? 'SOLD FOR' : 'CURRENT'}</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(dispValue(a))}</p></div>
                           <div className="text-right">
-                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: v.gain >= 0 ? 'var(--income)' : 'var(--expense)', background: v.gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{pctStr(v.returnPct)}</span>
+                            {sold ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: gain >= 0 ? 'var(--income)' : 'var(--expense)', background: gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{gain >= 0 ? '+' : ''}{inrCompact(gain)}</span>
+                            ) : (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: v.gain >= 0 ? 'var(--income)' : 'var(--expense)', background: v.gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{pctStr(v.returnPct)}</span>
+                            )}
                           </div>
                         </button>
                       )
@@ -320,6 +372,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
       {detail && (
         <AssetDetail asset={detail} valuation={valued.get(detail.id)!} marketRates={marketRates} defaults={defaults} fx={assetFx(detail, fxRates)}
           onEdit={() => { setFormFor({ asset: detail, category: detail.category, subcategory: detail.subcategory ?? '' }); setDetail(null) }}
+          onSaved={(a) => { onSaved(a); setDetail(a) }}
           onDeleted={onDeleted} onClose={() => setDetail(null)} />
       )}
     </div>

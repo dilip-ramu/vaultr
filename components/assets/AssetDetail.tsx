@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Pencil, Trash2, FileText, Paperclip, Image as ImageIcon, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Pencil, Trash2, FileText, Paperclip, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { Asset, MarketRate } from '@/lib/assets/types'
@@ -16,15 +16,36 @@ interface Props {
   defaults?: AssetRateDefault[]
   fx?: number
   onEdit: () => void
+  onSaved: (a: Asset) => void
   onDeleted: (id: string) => void
   onClose: () => void
 }
 
 const GOLD_GRAD = 'linear-gradient(150deg,#8A6D1F,#5C4711)'
 
-export default function AssetDetail({ asset, valuation, marketRates, defaults = [], fx = 1, onEdit, onDeleted, onClose }: Props) {
+export default function AssetDetail({ asset, valuation, marketRates, defaults = [], fx = 1, onEdit, onSaved, onDeleted, onClose }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [lightbox, setLightbox] = useState<number | null>(null)
+  const isSold = asset.status === 'sold'
+  const [soldOpen, setSoldOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [priceStr, setPriceStr] = useState(String(asset.sold_price ?? Math.round(valuation.current)))
+  const [dateStr, setDateStr] = useState(asset.sold_date ?? new Date().toISOString().slice(0, 10))
+  const realised = (asset.sold_price ?? 0) - valuation.cost
+  const previewRealised = (Number(priceStr) || 0) - valuation.cost
+
+  const saveSale = async (status: 'held' | 'sold') => {
+    setSaving(true)
+    const supabase = createClient()
+    const patch = status === 'sold'
+      ? { status: 'sold', sold_price: Number(priceStr) || 0, sold_date: dateStr }
+      : { status: 'held', sold_price: null, sold_date: null }
+    const { data, error } = await supabase.from('assets').update(patch).eq('id', asset.id).select().single()
+    setSaving(false)
+    if (error || !data) return
+    setSoldOpen(false)
+    onSaved(data as Asset)
+  }
   const series = valueSeries(asset, marketRates, defaults, fx)
   const cat = categoryDef(asset.category)
   const isMarket = asset.valuation_type === 'market'
@@ -113,17 +134,50 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
         <div className="overflow-y-auto px-6 py-5">
           {/* value hero */}
           <div className="flex gap-3 mb-5">
-            <div className="flex-1 rounded-[15px] p-4" style={{ background: isMarket ? GOLD_GRAD : 'var(--brand)', color: '#fff' }}>
-              <div className="flex items-center gap-1.5"><p className="text-[9.5px] font-extrabold tracking-wide" style={{ color: 'rgba(255,255,255,.7)' }}>CURRENT VALUE</p>{isMarket && <span className="text-[8px] font-bold px-1.5 rounded-full" style={{ background: 'rgba(255,255,255,.2)' }}>LIVE</span>}</div>
-              <p className="text-[24px] font-extrabold mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>{inr(valuation.current)}</p>
-              {valuation.currentNote && <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,.7)' }}>{valuation.currentNote}</p>}
+            <div className="flex-1 rounded-[15px] p-4" style={{ background: isSold ? (realised >= 0 ? 'var(--income)' : 'var(--expense)') : isMarket ? GOLD_GRAD : 'var(--brand)', color: '#fff' }}>
+              <div className="flex items-center gap-1.5"><p className="text-[9.5px] font-extrabold tracking-wide" style={{ color: 'rgba(255,255,255,.7)' }}>{isSold ? 'SOLD FOR' : 'CURRENT VALUE'}</p>{!isSold && isMarket && <span className="text-[8px] font-bold px-1.5 rounded-full" style={{ background: 'rgba(255,255,255,.2)' }}>LIVE</span>}</div>
+              <p className="text-[24px] font-extrabold mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>{inr(isSold ? (asset.sold_price ?? 0) : valuation.current)}</p>
+              {isSold ? <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,.8)' }}>Realised {realised >= 0 ? '+' : ''}{inr(realised)}{asset.sold_date ? ' · ' + new Date(asset.sold_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : ''}</p>
+                : valuation.currentNote && <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,.7)' }}>{valuation.currentNote}</p>}
             </div>
             <div className="flex-1 rounded-[15px] p-4" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
               <p className="text-[9.5px] font-extrabold tracking-wide" style={{ color: 'var(--text-muted)' }}>COST BASIS</p>
               <p className="text-[24px] font-extrabold mt-1" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(valuation.cost)}</p>
-              <p className="text-[10px] mt-0.5" style={{ color: valuation.gain >= 0 ? 'var(--income)' : 'var(--expense)' }}>{valuation.gain >= 0 ? '+' : ''}{inr(valuation.gain)} · {pctStr(valuation.returnPct)}</p>
+              <p className="text-[10px] mt-0.5" style={{ color: (isSold ? realised : valuation.gain) >= 0 ? 'var(--income)' : 'var(--expense)' }}>{(isSold ? realised : valuation.gain) >= 0 ? '+' : ''}{inr(isSold ? realised : valuation.gain)}{isSold ? ' realised' : ' · ' + pctStr(valuation.returnPct)}</p>
             </div>
           </div>
+
+          {/* sale / realised profit */}
+          {isSold ? (
+            <div className="flex items-center justify-between rounded-[14px] px-4 py-3 mb-5" style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+                <span className="text-[12.5px] font-bold" style={{ color: 'var(--text)' }}>Marked sold</span>
+              </div>
+              <button onClick={() => saveSale('held')} disabled={saving} className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg disabled:opacity-60" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{saving ? '…' : 'Mark as held'}</button>
+            </div>
+          ) : soldOpen ? (
+            <div className="rounded-[15px] p-4 mb-5" style={{ border: '1px solid var(--border)' }}>
+              <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>RECORD A SALE</p>
+              <div className="flex gap-2.5">
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold" style={{ color: 'var(--text-faint)' }}>Selling price (₹)</label>
+                  <input inputMode="decimal" value={priceStr} onChange={e => setPriceStr(e.target.value.replace(/[^0-9.]/g, ''))} className="w-full mt-1 rounded-[10px] px-3 py-2 text-[13px]" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] font-bold" style={{ color: 'var(--text-faint)' }}>Sold on</label>
+                  <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} className="w-full mt-1 rounded-[10px] px-3 py-2 text-[13px]" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                </div>
+              </div>
+              <p className="text-[11px] mt-2.5" style={{ color: 'var(--text-muted)' }}>Realised profit <span style={{ color: previewRealised >= 0 ? 'var(--income)' : 'var(--expense)', fontWeight: 800 }}>{previewRealised >= 0 ? '+' : ''}{inr(previewRealised)}</span> · cost {inr(valuation.cost)}</p>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => saveSale('sold')} disabled={saving || !priceStr} className="flex-1 text-white rounded-[11px] py-2.5 text-[12.5px] font-bold disabled:opacity-60" style={{ background: 'var(--brand)' }}>{saving ? 'Saving…' : 'Confirm sale'}</button>
+                <button onClick={() => setSoldOpen(false)} className="px-3.5 rounded-[11px] text-[12.5px] font-bold" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setSoldOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-[12px] py-2.5 mb-5 text-[12.5px] font-bold" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}><Tag className="w-3.5 h-3.5" /> Mark as sold</button>
+          )}
 
           {/* cost breakdown */}
           <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>COST BREAKDOWN</p>

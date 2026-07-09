@@ -167,6 +167,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       override_rate_pct: appMode === 'override' ? (num(overrideRate) ?? null) : null,
       manual_value: appMode === 'manual' ? (num(manualValue) ?? null) : null,
       manual_value_date: null, photo_url: null, include_in_net_worth: true, notes: null,
+      status: asset?.status ?? 'held', sold_price: asset?.sold_price ?? null, sold_date: asset?.sold_date ?? null,
       created_at: '', updated_at: '',
     }
     return valueAsset(a, marketRates, defaults, fx || 1)
