@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Plus, Gem, Percent, TrendingUp, Map as MapIcon, Home, Upload } from 'lucide-react'
 import type { Asset, MarketRate, AssetRateDefault } from '@/lib/assets/types'
 import { ASSET_CATEGORIES, categoryDef } from '@/lib/assets/types'
-import { valueAsset, assetFx, inrCompact, inr, pctStr, type Valuation } from '@/lib/assets/valuation'
+import { valueAsset, assetFx, inr, pctStr, type Valuation } from '@/lib/assets/valuation'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
 import AssetDetail from './AssetDetail'
@@ -22,7 +22,7 @@ interface Props {
 
 export default function AssetsClient({ initialAssets, marketRates, initialDefaults }: Props) {
   const { hidden } = useBalanceVisibility()
-  const m = (n: number) => hidden ? '••••' : inrCompact(n)
+  const m = (n: number) => hidden ? '••••' : inr(n)
   const [assets, setAssets] = useState<Asset[]>(initialAssets)
   const [defaults, setDefaults] = useState<AssetRateDefault[]>(initialDefaults)
   const [tab, setTab] = useState<Tab>('assets')
@@ -186,7 +186,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
             </div>
             <div style={{ flex: '1 1 120px' }}>
               <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>UNREALISED GAIN</p>
-              <p className="text-xl font-extrabold mt-0.5" style={{ color: totals.gain >= 0 ? '#9DE8B8' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{hidden ? '••••' : `${totals.gain >= 0 ? '+' : ''}${inrCompact(totals.gain)}`}</p>
+              <p className="text-xl font-extrabold mt-0.5" style={{ color: totals.gain >= 0 ? '#9DE8B8' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{hidden ? '••••' : `${totals.gain >= 0 ? '+' : ''}${inr(totals.gain)}`}</p>
             </div>
             <div style={{ flex: '1 1 90px' }}>
               <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>RETURN</p>
@@ -197,7 +197,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                 <div className="hidden sm:block" style={{ width: 1, height: 52, background: 'rgba(255,255,255,.15)' }} />
                 <div style={{ flex: '1 1 120px', paddingLeft: 22 }}>
                   <p className="text-[10px] font-bold tracking-[.1em]" style={{ color: 'rgba(255,255,255,.55)' }}>REALISED PROFIT</p>
-                  <p className="text-xl font-extrabold mt-0.5" style={{ color: totals.realised >= 0 ? '#9DE8B8' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{hidden ? '••••' : `${totals.realised >= 0 ? '+' : ''}${inrCompact(totals.realised)}`}</p>
+                  <p className="text-xl font-extrabold mt-0.5" style={{ color: totals.realised >= 0 ? '#9DE8B8' : '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{hidden ? '••••' : `${totals.realised >= 0 ? '+' : ''}${inr(totals.realised)}`}</p>
                   <p className="text-[9.5px] font-semibold mt-0.5" style={{ color: 'rgba(255,255,255,.5)' }}>{totals.sold} sold · {m(totals.proceeds)}</p>
                 </div>
               </>
@@ -241,8 +241,8 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                   </span>
                 </div>
                 <div className="flex items-center gap-3.5">
-                  <span className="text-xs font-bold" style={{ color: g.cGain >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{g.cGain >= 0 ? '+' : ''}{inrCompact(g.cGain)}</span>
-                  <span className="text-sm font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(g.cCur)}</span>
+                  <span className="text-xs font-bold" style={{ color: g.cGain >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{g.cGain >= 0 ? '+' : ''}{inr(g.cGain)}</span>
+                  <span className="text-sm font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(g.cCur)}</span>
                 </div>
               </div>
 
@@ -254,7 +254,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                   <div key={subKey} className="rounded-2xl overflow-hidden mb-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                       <span className="text-[11px] font-extrabold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>{subLabel}{rateNote}{subKey === 'building' ? ' · land ↑ / structure ↓' : ''}</span>
-                      <span className="text-[11.5px] font-bold" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(subTotal)}</span>
+                      <span className="text-[11.5px] font-bold" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inr(subTotal)}</span>
                     </div>
                     {list.map((a, i) => {
                       const v = valued.get(a.id)!
@@ -272,11 +272,11 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                               <p className="text-[10.5px] truncate" style={{ color: 'var(--text-faint)' }}>{sold ? `Sold${a.sold_date ? ' ' + fmtMon(a.sold_date) : ''}` : subLabelHint(a)}</p>
                             </div>
                           </div>
-                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>COST</p><p className="text-[12.5px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(v.cost)}</p></div>
-                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>{sold ? 'SOLD FOR' : 'CURRENT'}</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(dispValue(a))}</p></div>
+                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>COST</p><p className="text-[12.5px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inr(v.cost)}</p></div>
+                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>{sold ? 'SOLD FOR' : 'CURRENT'}</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(dispValue(a))}</p></div>
                           <div className="text-right">
                             {sold ? (
-                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: gain >= 0 ? 'var(--income)' : 'var(--expense)', background: gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{gain >= 0 ? '+' : ''}{inrCompact(gain)}</span>
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: gain >= 0 ? 'var(--income)' : 'var(--expense)', background: gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{gain >= 0 ? '+' : ''}{inr(gain)}</span>
                             ) : (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: v.gain >= 0 ? 'var(--income)' : 'var(--expense)', background: v.gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{pctStr(v.returnPct)}</span>
                             )}
