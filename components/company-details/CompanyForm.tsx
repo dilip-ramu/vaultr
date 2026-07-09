@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, Upload, Loader2, Trash2, Building2, Check } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { useFileDrop } from '@/components/shared/useFileDrop'
+import ColorPicker from '@/components/shared/ColorPicker'
 import {
   INVOICE_TEMPLATES, ACCENT_PRESETS,
   DEFAULT_INVOICE_TEMPLATE, DEFAULT_INVOICE_ACCENT,
@@ -41,6 +42,8 @@ export interface Company {
   // v69 — per-company document look (Feature 1)
   invoice_template: InvoiceTemplate
   invoice_accent: string
+  // v82 — directory card accent (hex). Null = per-directory default.
+  color: string | null
 }
 
 const PAYMENT_TERMS = [
@@ -134,6 +137,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   // v69 — document look
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>(company?.invoice_template ?? DEFAULT_INVOICE_TEMPLATE)
   const [invoiceAccent,   setInvoiceAccent]   = useState<string>(company?.invoice_accent ?? DEFAULT_INVOICE_ACCENT)
+  const [color,           setColor]           = useState<string | null>(company?.color ?? null)
 
   async function handleSave() {
     if (!name.trim()) { setError('Company name is required'); return }
@@ -161,6 +165,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
         terms_conditions: terms.trim() || null,
         invoice_template: invoiceTemplate,
         invoice_accent: invoiceAccent,
+        color: color || null,
       }
       const url = isEdit ? `/api/companies/${company!.id}` : '/api/companies'
       const method = isEdit ? 'PATCH' : 'POST'
@@ -238,6 +243,13 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
                 {!isEdit && <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>Save the company first, then attach a logo.</p>}
               </div>
             </div>
+          </div>
+
+          {/* Directory card colour */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Directory card colour</label>
+            <ColorPicker value={color} onChange={setColor} label="" />
+            <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>Colours this company&apos;s card on the Companies page. Separate from the invoice accent.</p>
           </div>
 
           {/* Name + default */}

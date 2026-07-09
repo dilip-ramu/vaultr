@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 import CompanyForm, { type Company } from './CompanyForm'
+import EntityCard, { FaceField } from '@/components/shared/EntityCard'
+import { autoColor } from '@/lib/card-gradient'
 
 interface Props {
   initialCompanies: Company[]
@@ -86,47 +88,58 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Add your first company so you can issue invoices from it.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {companies.map(c => (
-            <div key={c.id} className="rounded-2xl border p-4 flex items-start gap-4" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-              {/* Logo */}
-              <div className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}>
-                {logoUrls[c.id]
-                  ? <img src={logoUrls[c.id]} alt={c.name} className="w-full h-full object-contain" />
-                  : <Building2 className="w-6 h-6" style={{ color: 'var(--text-muted)' }} />
-                }
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold" style={{ color: 'var(--text)' }}>{c.name}</p>
-                  {c.is_default && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: 'rgba(42,122,80,0.1)', color: 'var(--brand)' }}>
-                      <Star className="w-2.5 h-2.5" /> Default
-                    </span>
-                  )}
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+          {companies.map(c => {
+            const color = autoColor(c.id, c.color)
+            const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0'
+            return (
+              <EntityCard
+                key={c.id}
+                color={color}
+                onClick={() => { setEditing(c); setShowForm(true) }}
+                faceTop={<>
+                  <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>Company</span>
+                  <div className="w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.9)' }}>
+                    {logoUrls[c.id]
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={logoUrls[c.id]} alt={c.name} className="w-full h-full object-contain p-1" />
+                      : <Building2 className="w-6 h-6" style={{ color: color }} />}
+                  </div>
+                </>}
+                faceBottom={<>
+                  <FaceField label="GSTIN" value={c.gstin || '—'} />
+                  <div className="mt-3"><FaceField label="Next invoice" value={`${c.invoice_prefix}${String(c.next_invoice_number).padStart(6, '0')}`} /></div>
+                </>}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text)' }}>{c.name}</p>
+                      {c.is_default && <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}><Star className="w-2.5 h-2.5" /> Default</span>}
+                    </div>
+                    {c.bank_name && <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{c.bank_name}</p>}
+                  </div>
+                  <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    {!c.is_default && <button onClick={() => setDefault(c)} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Set as default"><Star className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>}
+                    <button onClick={() => { setEditing(c); setShowForm(true) }} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Edit"><Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>
+                    <button onClick={() => handleDelete(c)} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Delete"><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                  </div>
                 </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {c.gstin && <span>GSTIN {c.gstin}</span>}
-                  {c.email && <span>{c.email}</span>}
-                  {c.phone && <span>{c.phone}</span>}
-                  <span>Next invoice: {c.invoice_prefix}{String(c.next_invoice_number).padStart(6, '0')}</span>
+
+                <div className="mt-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Bank account</p>
+                  <p className="text-[15px] font-bold tracking-tight tabular-nums" style={{ color: c.bank_account_number ? 'var(--text)' : 'var(--text-muted)' }}>{c.bank_account_number || '—'}</p>
+                  {c.bank_ifsc && <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>IFSC {c.bank_ifsc}{c.swift_code ? ` · SWIFT ${c.swift_code}` : ''}</p>}
                 </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {!c.is_default && (
-                  <button onClick={() => setDefault(c)} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]" title="Set as default">
-                    <Star className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                  </button>
-                )}
-                <button onClick={() => { setEditing(c); setShowForm(true) }} className="p-1.5 rounded-lg hover:bg-[var(--surface-2)]" title="Edit">
-                  <Pencil className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                </button>
-                <button onClick={() => handleDelete(c)} className="p-1.5 rounded-lg " title="Delete">
-                  <Trash2 className="w-4 h-4 " />
-                </button>
-              </div>
-            </div>
-          ))}
+
+                <div className="mt-auto pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border-2, var(--border))' }}>
+                  {c.email && <span className="text-[12px] truncate" style={{ color: 'var(--text-muted)' }}>{c.email}</span>}
+                  {c.phone && <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{c.phone}</span>}
+                  {c.address && <span className="text-[11px] truncate" style={{ color: 'var(--text-faint)' }}>{c.address}</span>}
+                </div>
+              </EntityCard>
+            )
+          })}
         </div>
       )}
 

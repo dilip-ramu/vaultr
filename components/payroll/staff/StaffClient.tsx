@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import type { Employee } from '@/lib/payroll/types'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
+import EntityCard, { FaceField } from '@/components/shared/EntityCard'
+import ColorPicker from '@/components/shared/ColorPicker'
+import { autoColor } from '@/lib/card-gradient'
 
 interface Customer { id: string; name: string }
 interface Company  { id: string; name: string; is_default?: boolean }
@@ -48,6 +51,7 @@ const EMPTY: Partial<Employee> = {
   works_for_customer_id: null,
   exclude_from_invoicing: false,
   company_id: null,
+  color: null,
 }
 
 function fmtDate(d: string | null) {
@@ -247,68 +251,64 @@ export default function StaffClient({ employees: initialEmployees, customers = [
         </div>
       )}
 
-      {/* Table */}
+      {/* Cards */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-[var(--text-faint)]">
           {employees.length === 0
-            ? 'No employees yet. Click "+ Add Employee" to get started.'
+            ? 'No employees yet. Click "+ Add staff" to get started.'
             : 'No employees match your search.'}
         </div>
       ) : (
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead style={{ borderBottom: '1px solid var(--border-2)' }}>
-                <tr>
-                  {['Employee', 'Designation', 'Bank', 'Salary / mo', ''].map((h, i) => (
-                    <th key={i} className={`px-4 py-2.5 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider ${i >= 3 ? 'text-right' : 'text-left'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(emp => {
-                  const last4 = emp.account_number ? String(emp.account_number).replace(/\s/g, '').slice(-4) : ''
-                  const salary = emp.salary_currency && emp.salary_currency !== 'INR'
-                    ? `${emp.salary_currency} ${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
-                    : `₹${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
-                  return (
-                    <tr key={emp.id} className={`hover:bg-[var(--surface-2)] transition-colors ${!emp.is_active ? 'opacity-50' : ''}`} style={{ borderTop: '1px solid var(--border-2)' }}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>{emp.name.slice(0, 2).toUpperCase()}</span>
-                          <div className="min-w-0">
-                            <div className="font-semibold text-[var(--text)] truncate">{emp.name}</div>
-                            <div className="text-[11px] text-[var(--text-faint)]">{emp.employee_id}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">{emp.designation ?? '—'}</td>
-                      <td className="px-4 py-3">
-                        {emp.bank_name ? (
-                          <div>
-                            <div className="text-[13px] text-[var(--text)]">{emp.bank_name}{last4 ? ` •••• ${last4}` : ''}</div>
-                            {emp.ifsc && <div className="text-[11px] font-mono text-[var(--text-faint)]">{emp.ifsc}</div>}
-                          </div>
-                        ) : <span className="text-[var(--text-faint)]">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-[var(--text)] tabular-nums">{salary}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
-                          <button onClick={() => handleGenerateContract(emp)} disabled={generatingId === emp.id} className="text-xs font-semibold disabled:opacity-50" style={{ color: 'var(--brand)' }} title="Generate contract">
-                            {generatingId === emp.id ? 'Generating…' : 'Contract'}
-                          </button>
-                          <button onClick={() => openEdit(emp)} className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Edit</button>
-                          <button onClick={() => handleDeactivate(emp)} className="text-xs font-semibold" style={{ color: emp.is_active ? 'var(--expense)' : 'var(--income)' }}>
-                            {emp.is_active ? 'Deactivate' : 'Reactivate'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+          {filtered.map(emp => {
+            const color = autoColor(emp.id, emp.color)
+            const last4 = emp.account_number ? String(emp.account_number).replace(/\s/g, '').slice(-4) : ''
+            const salary = emp.salary_currency && emp.salary_currency !== 'INR'
+              ? `${emp.salary_currency} ${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
+              : `₹${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
+            const companyName = emp.company_id ? companies.find(c => c.id === emp.company_id)?.name : null
+            return (
+              <div key={emp.id} style={{ opacity: emp.is_active ? 1 : 0.6 }}>
+                <EntityCard
+                  color={color}
+                  onClick={() => openEdit(emp)}
+                  faceTop={<>
+                    <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>{companyName || 'Employee'}</span>
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center text-lg font-extrabold shrink-0" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>{emp.name.slice(0, 2).toUpperCase()}</div>
+                  </>}
+                  faceBottom={<>
+                    <FaceField label="Employee ID" value={emp.employee_id || '—'} />
+                    <div className="mt-3"><FaceField label="Designation" value={emp.designation || '—'} /></div>
+                  </>}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text)' }}>{emp.name}</p>
+                        {!emp.is_active && <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>Inactive</span>}
+                      </div>
+                      {emp.designation && <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{emp.designation}</p>}
+                    </div>
+                    <div className="flex gap-2 shrink-0 items-center" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => handleGenerateContract(emp)} disabled={generatingId === emp.id} className="text-[11px] font-semibold disabled:opacity-50" style={{ color: 'var(--brand)' }} title="Generate contract">{generatingId === emp.id ? '…' : 'Contract'}</button>
+                      <button onClick={() => openEdit(emp)} className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Edit</button>
+                      <button onClick={() => handleDeactivate(emp)} className="text-[11px] font-semibold" style={{ color: emp.is_active ? 'var(--expense)' : 'var(--income)' }}>{emp.is_active ? 'Deactivate' : 'Reactivate'}</button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Salary / mo</p>
+                    <p className="text-2xl font-extrabold tracking-tight tabular-nums" style={{ color: 'var(--text)' }}>{salary}</p>
+                  </div>
+
+                  <div className="mt-auto pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border-2, var(--border))' }}>
+                    {emp.bank_name ? <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{emp.bank_name}{last4 ? ` •••• ${last4}` : ''}{emp.ifsc ? ` · ${emp.ifsc}` : ''}</span> : <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>No bank details</span>}
+                    {(emp.phone || emp.email) && <span className="text-[11px] truncate" style={{ color: 'var(--text-faint)' }}>{[emp.phone, emp.email].filter(Boolean).join(' · ')}</span>}
+                  </div>
+                </EntityCard>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -339,6 +339,12 @@ export default function StaffClient({ employees: initialEmployees, customers = [
                     className="w-full px-3 py-2 border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
                     placeholder="Full name"
                   />
+                </div>
+
+                {/* Card colour */}
+                <div className="col-span-2">
+                  <ColorPicker value={form.color ?? null} onChange={v => setField('color', v)} label="Card colour" />
+                  <p className="text-[10px] text-[var(--text-faint)] mt-1">Colours this employee&apos;s card. Leave unset for an auto colour.</p>
                 </div>
 
                 {/* Employee ID */}

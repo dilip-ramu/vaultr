@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
 import type { Customer, FixedExpenseTemplate } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import ColorPicker from '@/components/shared/ColorPicker'
 
 interface Props {
   customer: Customer | null
@@ -29,6 +30,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
   const [csvAlias, setCsvAlias] = useState(customer?.csv_alias ?? '')
   const [notes, setNotes] = useState(customer?.notes ?? '')
   const [paysCommission, setPaysCommission] = useState(customer?.pays_commission ?? false)
+  const [color, setColor] = useState<string | null>(customer?.color ?? null)
   const [isReimbursable, setIsReimbursable] = useState(initialReimbursable)
   // Default to INR — most customers are Indian. Pre-Batch-E this defaulted to
   // EUR because Contrast was the archetypal customer, but that's no longer
@@ -79,6 +81,7 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
       pays_commission:  paysCommission,
       billing_currency: billingCurrency.trim().toUpperCase() || 'INR',
       fixed_expenses:   cleanedFixed.length > 0 ? cleanedFixed : null,
+      color:            color || null,
     }
 
     let data, err
@@ -138,6 +141,9 @@ export default function CustomerForm({ customer, initialReimbursable = false, on
             <input type="text" value={name} onChange={e => setName(e.target.value)} required
               placeholder="e.g. Acme Corp" className="w-full px-4 py-3  border border-[var(--border)] rounded-xl text-sm" />
           </div>
+
+          <ColorPicker value={color} onChange={setColor} label="Card colour" />
+          <p className="text-xs -mt-2" style={{ color: 'var(--text-faint)' }}>Sets the gradient on this customer&apos;s directory card. Leave unset for an auto colour.</p>
 
           <div className="grid grid-cols-2 gap-3">
             <div>

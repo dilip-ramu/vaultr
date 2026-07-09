@@ -38,6 +38,8 @@ export interface Employee {
   // v66 — which of the user's own companies employs this person.
   // NULL means "Personal" (not attached to any business entity).
   company_id: string | null
+  // v82 — directory card accent (hex). Null = per-directory default.
+  color: string | null
   created_at: string
 }
 

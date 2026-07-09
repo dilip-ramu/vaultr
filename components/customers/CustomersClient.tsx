@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useMemo, Fragment } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Users, Phone, Mail, Edit2, Trash2, ChevronDown, ChevronUp, Building2, Receipt } from 'lucide-react'
+import { Plus, Search, Users, Phone, Mail, Edit2, Trash2, Building2, Receipt } from 'lucide-react'
 import type { Customer } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import CustomerForm from './CustomerForm'
+import EntityCard, { FaceField } from '@/components/shared/EntityCard'
+import { autoColor } from '@/lib/card-gradient'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 
@@ -32,7 +34,6 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
@@ -127,6 +128,8 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
   const grandOutstanding = filtered.reduce((sum, c) => sum + (outstandingByCustomer[c.id]?.outstanding ?? 0), 0)
   const grandOverdue     = filtered.reduce((sum, c) => sum + (outstandingByCustomer[c.id]?.overdue     ?? 0), 0)
 
+  const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0'
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -162,7 +165,7 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
         </div>
       </div>
 
-      {/* Table */}
+      {/* Cards */}
       {filtered.length === 0 ? (
         <div className="py-20 text-center rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <Users className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
@@ -170,184 +173,57 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Add your first customer to get started</p>
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead style={{ backgroundColor: 'var(--surface-2, var(--surface))' }}>
-                <tr>
-                  {['Customer', 'Contact', 'GST', 'Outstanding', 'Overdue', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <Fragment key={c.id}>
-                    <tr
-                      className="hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor: 'var(--surface)',
-                        borderBottom: expandedId === c.id ? 'none' : '1px solid var(--border)',
-                      }}
-                      onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ backgroundColor: 'var(--brand)' }}>
-                            {c.name[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="font-medium" style={{ color: 'var(--text)' }}>{c.name}</p>
-                              {reimbursableIds.has(c.id) && (
-                                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                                      style={{ background: 'rgba(42,122,80,0.10)', color: 'var(--brand)' }}
-                                      title="Reimbursable — this customer has a Reimbursables tab and any payee-tagged expense counts toward them.">
-                                  Reimbursable
-                                </span>
-                              )}
-                            </div>
-                            {c.city && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.city}{c.state ? `, ${c.state}` : ''}</p>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {c.email && <p style={{ color: 'var(--text)' }}>{c.email}</p>}
-                        {c.phone && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.phone}</p>}
-                      </td>
-                      <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>
-                        {c.gst_number ?? <span>—</span>}
-                      </td>
-                      <td className="px-4 py-3 tabular-nums" style={{ color: 'var(--text)' }}>
-                        {outstandingByCustomer[c.id]?.outstanding ? `₹${fmtAmt(outstandingByCustomer[c.id].outstanding)}` : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                      </td>
-                      <td className="px-4 py-3 tabular-nums" style={{ color: (outstandingByCustomer[c.id]?.overdue ?? 0) > 0 ? 'var(--expense)' : 'var(--text-muted)' }}>
-                        {outstandingByCustomer[c.id]?.overdue ? `₹${fmtAmt(outstandingByCustomer[c.id].overdue)}` : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
-                          <Link
-                            href={`/recoverables/customers/${encodeURIComponent(c.name)}`}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title="View invoices"
-                          >
-                            <Receipt className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                          </Link>
-                          <button
-                            onClick={() => handleMakeSupplier(c)}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title="Also add as supplier"
-                          >
-                            <Building2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                          </button>
-                          <button
-                            onClick={() => { setEditingCustomer(c); setShowForm(true) }}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(c.id)}
-                            disabled={deleting === c.id}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" />
-                          </button>
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            {expandedId === c.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedId === c.id && (
-                      <tr key={`${c.id}-detail`} style={{ backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                        <td colSpan={6} className="px-6 py-4">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <InfoCell label="Email" value={c.email} />
-                            <InfoCell label="Phone" value={c.phone} />
-                            <InfoCell label="GST Number" value={c.gst_number} />
-                            <InfoCell label="Address" value={c.address} />
-                            <InfoCell label="City" value={c.city} />
-                            <InfoCell label="State" value={c.state ? `${c.state}${c.state_code ? ` (${c.state_code})` : ''}` : null} />
-                            <InfoCell label="Pincode" value={c.pincode} />
-                            <InfoCell label="Country" value={c.country} />
-                            {c.notes && <InfoCell label="Notes" value={c.notes} />}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+          {filtered.map(c => {
+            const color = autoColor(c.id, c.color)
+            const totals = outstandingByCustomer[c.id]
+            const location = [c.city, c.state].filter(Boolean).join(', ')
+            return (
+              <EntityCard
+                key={c.id}
+                color={color}
+                onClick={() => { setEditingCustomer(c); setShowForm(true) }}
+                faceTop={<>
+                  <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>Customer</span>
+                  <div className="w-12 h-12 rounded-lg flex items-center justify-center text-lg font-extrabold shrink-0" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>{c.name[0]?.toUpperCase() ?? '?'}</div>
+                </>}
+                faceBottom={<>
+                  <FaceField label="GSTIN" value={c.gst_number || '—'} />
+                  <div className="mt-3"><FaceField label="Location" value={location || '—'} /></div>
+                </>}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text)' }}>{c.name}</p>
+                      {reimbursableIds.has(c.id) && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)', color: 'var(--brand)' }}>Reimbursable</span>
+                      )}
+                    </div>
+                    {location && <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{location}</p>}
+                  </div>
+                  <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <Link href={`/recoverables/customers/${encodeURIComponent(c.name)}`} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="View invoices"><Receipt className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></Link>
+                    <button onClick={() => handleMakeSupplier(c)} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Also add as supplier"><Building2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>
+                    <button onClick={() => { setEditingCustomer(c); setShowForm(true) }} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Edit"><Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>
+                    <button onClick={() => handleDelete(c.id)} disabled={deleting === c.id} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Delete"><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                  </div>
+                </div>
 
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
-            {filtered.map(c => (
-              <div key={c.id} className="p-4" style={{ backgroundColor: 'var(--surface)' }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: 'var(--brand)' }}>
-                      {c.name[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{c.name}</p>
-                      {c.gst_number && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>GST: {c.gst_number}</p>}
-                    </div>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Link
-                      href={`/recoverables/customers/${encodeURIComponent(c.name)}`}
-                      className="p-1.5 rounded-lg"
-                      style={{ backgroundColor: 'var(--surface-2)' }}
-                      title="View invoices"
-                    >
-                      <Receipt className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                    </Link>
-                    <button onClick={() => handleMakeSupplier(c)} className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }} title="Also add as supplier">
-                      <Building2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                    </button>
-                    <button onClick={() => { setEditingCustomer(c); setShowForm(true) }} className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
-                      <Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                    </button>
-                    <button onClick={() => handleDelete(c.id)} className="p-1.5 rounded-lg bg-[var(--surface-2)]">
-                      <Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" />
-                    </button>
-                  </div>
+                <div className="mt-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Outstanding</p>
+                  <p className="text-2xl font-extrabold tracking-tight" style={{ color: totals?.outstanding ? 'var(--text)' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{totals?.outstanding ? `₹${fmtAmt(totals.outstanding)}` : '—'}</p>
+                  {totals?.overdue ? <p className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--expense)' }}>₹{fmtAmt(totals.overdue)} overdue</p> : null}
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                  {c.email && (
-                    <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <Mail className="w-3 h-3" />{c.email}
-                    </span>
-                  )}
-                  {c.phone && (
-                    <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <Phone className="w-3 h-3" />{c.phone}
-                    </span>
-                  )}
+
+                <div className="mt-auto pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border-2, var(--border))' }}>
+                  {c.email && <span className="flex items-center gap-1.5 text-[12px] truncate" style={{ color: 'var(--text-muted)' }}><Mail className="w-3.5 h-3.5 shrink-0" />{c.email}</span>}
+                  {c.phone && <span className="flex items-center gap-1.5 text-[12px]" style={{ color: 'var(--text-muted)' }}><Phone className="w-3.5 h-3.5 shrink-0" />{c.phone}</span>}
+                  {!c.email && !c.phone && <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>No contact details</span>}
                 </div>
-                {(outstandingByCustomer[c.id]?.outstanding || outstandingByCustomer[c.id]?.overdue) ? (
-                  <div className="mt-2 flex flex-wrap gap-3 text-xs tabular-nums">
-                    {outstandingByCustomer[c.id]?.outstanding ? (
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Outstanding <span className="font-semibold" style={{ color: 'var(--text)' }}>₹{fmtAmt(outstandingByCustomer[c.id].outstanding)}</span>
-                      </span>
-                    ) : null}
-                    {outstandingByCustomer[c.id]?.overdue ? (
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Overdue <span className="font-semibold" style={{ color: 'var(--expense)' }}>₹{fmtAmt(outstandingByCustomer[c.id].overdue)}</span>
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
+              </EntityCard>
+            )
+          })}
         </div>
       )}
 
@@ -359,16 +235,6 @@ export default function CustomersClient({ initialCustomers, outstandingByCustome
           onClose={() => { setShowForm(false); setEditingCustomer(null) }}
         />
       )}
-    </div>
-  )
-}
-
-function InfoCell({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null
-  return (
-    <div>
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
-      <p className="font-medium mt-0.5 break-all" style={{ color: 'var(--text)' }}>{value}</p>
     </div>
   )
 }

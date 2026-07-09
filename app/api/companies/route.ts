@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     terms_conditions:    body.terms_conditions    ?? null,
     invoice_template:    normalizeTemplate(body.invoice_template),
     invoice_accent:      normalizeAccent(body.invoice_accent),
+    color:               body.color               ?? null,
   }
 
   const { data, error } = await supabase.from('companies').insert(insertRow).select('*').single()

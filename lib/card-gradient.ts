@@ -95,3 +95,22 @@ export function cardFaceGradient(base: string): string {
   const { c1, c2 } = deriveCardColors(base)
   return `linear-gradient(140deg, ${c1}, ${c2})`
 }
+
+const FALLBACK_PALETTE = [
+  '#6366F1', '#10B981', '#F59E0B', '#8B5CF6',
+  '#3B82F6', '#EF4444', '#EC4899', '#14B8A6',
+  '#F97316', '#84CC16', '#06B6D4', '#A16207',
+] as const
+
+/**
+ * Stable accent for a card whose colour hasn't been chosen yet: hashes a seed
+ * (e.g. the row id) to a palette entry so a directory looks varied but each
+ * card keeps the same colour across reloads. Pass the user's chosen hex to
+ * override.
+ */
+export function autoColor(seed: string, chosen?: string | null, palette: readonly string[] = FALLBACK_PALETTE): string {
+  if (chosen) return chosen
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return palette[h % palette.length]
+}

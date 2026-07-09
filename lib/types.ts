@@ -222,6 +222,8 @@ export interface Customer {
   // Charges, etc). Stored in the customer's billing currency. The invoice
   // builder pre-populates these into every new reimbursement invoice.
   fixed_expenses: FixedExpenseTemplate[] | null
+  // v82 — directory card accent (hex). Null = per-directory default.
+  color: string | null
   created_at: string
 }
 

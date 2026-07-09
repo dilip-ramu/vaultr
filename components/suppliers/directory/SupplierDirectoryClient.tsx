@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useMemo, Fragment } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Building2, Phone, Mail, Edit2, Trash2, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, UserPlus } from 'lucide-react'
+import { Plus, Search, Building2, Phone, Mail, Edit2, Trash2, ToggleLeft, ToggleRight, UserPlus } from 'lucide-react'
 import type { Supplier } from '@/lib/suppliers/types'
 import { PAYMENT_TERMS_OPTIONS } from '@/lib/suppliers/types'
 import SupplierForm from './SupplierForm'
+import EntityCard, { FaceField } from '@/components/shared/EntityCard'
+import { autoColor } from '@/lib/card-gradient'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
 import { createClient } from '@/lib/supabase/client'
@@ -28,7 +30,6 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
   const [showInactive, setShowInactive] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
 
@@ -168,7 +169,7 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
         </label>
       </div>
 
-      {/* Table */}
+      {/* Cards */}
       {filtered.length === 0 ? (
         <div className="py-20 text-center rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <Building2 className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
@@ -176,188 +177,60 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Add your first supplier to get started</p>
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead style={{ backgroundColor: 'var(--surface-2, var(--surface))' }}>
-                <tr>
-                  {['Supplier', 'Contact', 'Payment Terms', 'Currency', 'Outstanding', 'Overdue', 'Status', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => (
-                  <Fragment key={s.id}>
-                    <tr
-                      className="hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
-                      style={{
-                        backgroundColor: 'var(--surface)',
-                        borderBottom: expandedId === s.id ? 'none' : '1px solid var(--border)',
-                        opacity: s.is_active ? 1 : 0.55,
-                      }}
-                      onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ backgroundColor: 'var(--brand)' }}>
-                            {s.name[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-medium" style={{ color: 'var(--text)' }}>{s.name}</p>
-                            {s.supplier_code && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.supplier_code}</p>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {s.contact_person && <p style={{ color: 'var(--text)' }}>{s.contact_person}</p>}
-                        {s.mobile && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.mobile}</p>}
-                      </td>
-                      <td className="px-4 py-3" style={{ color: 'var(--text)' }}>{termsLabel(s)}</td>
-                      <td className="px-4 py-3">
-                        <span className="px-2 py-0.5 rounded-md text-xs font-medium" style={{ backgroundColor: 'var(--brand-light)', color: 'var(--brand)' }}>
-                          {s.currency}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 tabular-nums" style={{ color: 'var(--text)' }}>
-                        {outstandingBySupplier[s.id]?.outstanding ? `₹${fmtAmt(outstandingBySupplier[s.id].outstanding)}` : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                      </td>
-                      <td className="px-4 py-3 tabular-nums" style={{ color: (outstandingBySupplier[s.id]?.overdue ?? 0) > 0 ? 'var(--expense)' : 'var(--text-muted)' }}>
-                        {outstandingBySupplier[s.id]?.overdue ? `₹${fmtAmt(outstandingBySupplier[s.id].overdue)}` : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.is_active ? 'bg-[var(--brand-light)] text-[var(--income)]' : 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>
-                          {s.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 justify-end" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleMakeCustomer(s)}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title="Also add as customer"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                          </button>
-                          <button
-                            onClick={() => { setEditingSupplier(s); setShowForm(true) }}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title="Edit"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                          </button>
-                          <button
-                            onClick={() => handleToggleActive(s.id, s.is_active)}
-                            disabled={toggling === s.id}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title={s.is_active ? 'Deactivate' : 'Activate'}
-                          >
-                            {s.is_active
-                              ? <ToggleRight className="w-3.5 h-3.5 text-[var(--income)]" />
-                              : <ToggleLeft className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                            }
-                          </button>
-                          <button
-                            onClick={() => handleDelete(s.id)}
-                            disabled={deleting === s.id}
-                            className="p-1.5 rounded-lg hover:bg-[var(--surface-2)] transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" />
-                          </button>
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            {expandedId === s.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                    {expandedId === s.id && (
-                      <tr key={`${s.id}-detail`} style={{ backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                        <td colSpan={8} className="px-6 py-4">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <InfoCell label="Email" value={s.email} />
-                            <InfoCell label="GST Number" value={s.gst_number} />
-                            <InfoCell label="PAN Number" value={s.pan_number} />
-                            <InfoCell label="Address" value={s.address} />
-                            <InfoCell label="Bank Name" value={s.bank_name} />
-                            <InfoCell label="Account Number" value={s.account_number} />
-                            <InfoCell label="IFSC / SWIFT" value={s.ifsc_swift} />
-                            {s.notes && <InfoCell label="Notes" value={s.notes} />}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
+          {filtered.map(s => {
+            const color = autoColor(s.id, s.color)
+            const totals = outstandingBySupplier[s.id]
+            const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center shrink-0'
+            return (
+              <div key={s.id} style={{ opacity: s.is_active ? 1 : 0.6 }}>
+                <EntityCard
+                  color={color}
+                  onClick={() => { setEditingSupplier(s); setShowForm(true) }}
+                  faceTop={<>
+                    <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>Supplier</span>
+                    <div className="w-12 h-12 rounded-lg flex items-center justify-center text-lg font-extrabold shrink-0" style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>{s.name[0]?.toUpperCase() ?? '?'}</div>
+                  </>}
+                  faceBottom={<>
+                    <FaceField label="Supplier code" value={s.supplier_code || '—'} />
+                    <div className="flex items-end justify-between gap-3 mt-3">
+                      <FaceField label="Terms" value={termsLabel(s)} />
+                      <FaceField label="Currency" value={s.currency} align="right" />
+                    </div>
+                  </>}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text)' }}>{s.name}</p>
+                        {!s.is_active && <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>Inactive</span>}
+                      </div>
+                      {s.contact_person && <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{s.contact_person}</p>}
+                    </div>
+                    <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                      <button onClick={() => handleMakeCustomer(s)} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Also add as customer"><UserPlus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>
+                      <button onClick={() => { setEditingSupplier(s); setShowForm(true) }} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Edit"><Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>
+                      <button onClick={() => handleToggleActive(s.id, s.is_active)} disabled={toggling === s.id} className={iconBtn} style={{ background: 'var(--surface-2)' }} title={s.is_active ? 'Deactivate' : 'Activate'}>{s.is_active ? <ToggleRight className="w-3.5 h-3.5 text-[var(--income)]" /> : <ToggleLeft className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />}</button>
+                      <button onClick={() => handleDelete(s.id)} disabled={deleting === s.id} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Delete"><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                    </div>
+                  </div>
 
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
-            {filtered.map(s => (
-              <div key={s.id} className="p-4" style={{ backgroundColor: 'var(--surface)', opacity: s.is_active ? 1 : 0.55 }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white" style={{ backgroundColor: 'var(--brand)' }}>
-                      {s.name[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm" style={{ color: 'var(--text)' }}>{s.name}</p>
-                      {s.supplier_code && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.supplier_code}</p>}
-                    </div>
+                  <div className="mt-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Outstanding payable</p>
+                    <p className="text-2xl font-extrabold tracking-tight" style={{ color: totals?.outstanding ? 'var(--text)' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{totals?.outstanding ? `₹${fmtAmt(totals.outstanding)}` : '—'}</p>
+                    {totals?.overdue ? <p className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--expense)' }}>₹{fmtAmt(totals.overdue)} overdue</p> : null}
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <button onClick={() => handleMakeCustomer(s)} className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }} title="Also add as customer">
-                      <UserPlus className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                    </button>
-                    <button onClick={() => { setEditingSupplier(s); setShowForm(true) }} className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--surface-2)' }}>
-                      <Edit2 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
-                    </button>
-                    <button onClick={() => handleDelete(s.id)} className="p-1.5 rounded-lg bg-[var(--surface-2)]">
-                      <Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" />
-                    </button>
+
+                  <div className="mt-auto pt-3 flex flex-col gap-1" style={{ borderTop: '1px solid var(--border-2, var(--border))' }}>
+                    {s.mobile && <span className="flex items-center gap-1.5 text-[12px]" style={{ color: 'var(--text-muted)' }}><Phone className="w-3.5 h-3.5 shrink-0" />{s.mobile}</span>}
+                    {s.email && <span className="flex items-center gap-1.5 text-[12px] truncate" style={{ color: 'var(--text-muted)' }}><Mail className="w-3.5 h-3.5 shrink-0" />{s.email}</span>}
+                    {s.gst_number && <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>GST {s.gst_number}</span>}
+                    {!s.mobile && !s.email && !s.gst_number && <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>No contact details</span>}
                   </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                  {s.contact_person && (
-                    <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <Building2 className="w-3 h-3" />{s.contact_person}
-                    </span>
-                  )}
-                  {s.mobile && (
-                    <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <Phone className="w-3 h-3" />{s.mobile}
-                    </span>
-                  )}
-                  {s.email && (
-                    <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                      <Mail className="w-3 h-3" />{s.email}
-                    </span>
-                  )}
-                  <span className="px-2 py-0.5 rounded-md font-medium" style={{ backgroundColor: 'var(--brand-light)', color: 'var(--brand)' }}>{s.currency}</span>
-                  <span className="px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: s.is_active ? '#dcfce7' : '#f3f4f6', color: s.is_active ? 'var(--income)' : '#6b7280' }}>
-                    {s.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                {(outstandingBySupplier[s.id]?.outstanding || outstandingBySupplier[s.id]?.overdue) ? (
-                  <div className="mt-2 flex flex-wrap gap-3 text-xs tabular-nums">
-                    {outstandingBySupplier[s.id]?.outstanding ? (
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Outstanding <span className="font-semibold" style={{ color: 'var(--text)' }}>₹{fmtAmt(outstandingBySupplier[s.id].outstanding)}</span>
-                      </span>
-                    ) : null}
-                    {outstandingBySupplier[s.id]?.overdue ? (
-                      <span style={{ color: 'var(--text-muted)' }}>
-                        Overdue <span className="font-semibold" style={{ color: 'var(--expense)' }}>₹{fmtAmt(outstandingBySupplier[s.id].overdue)}</span>
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
+                </EntityCard>
               </div>
-            ))}
-          </div>
+            )
+          })}
         </div>
       )}
 
@@ -369,16 +242,6 @@ export default function SupplierDirectoryClient({ initialSuppliers, outstandingB
           onClose={() => { setShowForm(false); setEditingSupplier(null) }}
         />
       )}
-    </div>
-  )
-}
-
-function InfoCell({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null
-  return (
-    <div>
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
-      <p className="font-medium mt-0.5 break-all" style={{ color: 'var(--text)' }}>{value}</p>
     </div>
   )
 }

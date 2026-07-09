@@ -31,6 +31,8 @@ export interface Supplier {
   notes: string | null
   is_active: boolean
   default_category_id: string | null
+  // v82 — directory card accent (hex). Null = per-directory default.
+  color: string | null
   created_at: string
   updated_at: string
 }

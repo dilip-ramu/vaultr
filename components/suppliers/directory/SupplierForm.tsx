@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { PAYMENT_TERMS_OPTIONS } from '@/lib/suppliers/types'
+import ColorPicker from '@/components/shared/ColorPicker'
 
 interface Category { id: string; name: string; color: string }
 
@@ -31,6 +32,7 @@ const EMPTY: Omit<Supplier, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   notes: '',
   is_active: true,
   default_category_id: null,
+  color: null,
 }
 
 const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
@@ -223,6 +225,12 @@ export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
                 Auto-applied to transactions when marking invoices as paid
               </p>
             </Field>
+          </Section>
+
+          {/* Card colour */}
+          <Section title="Directory card">
+            <ColorPicker value={form.color} onChange={v => set('color', v)} label="Card colour" />
+            <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>Sets the gradient on this supplier&apos;s directory card. Leave unset for an auto colour.</p>
           </Section>
 
           {/* Notes */}
