@@ -42,9 +42,9 @@ export default function AccountDetailModal({
 }) {
   const router = useRouter()
   const isCredit = account.type === 'credit'
-  // Match the account card exactly: custom type colour → account colour → built-in type colour.
-  const builtinTypeColor = (ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other).color
-  const accent = account.custom_type_color ?? (account.color || builtinTypeColor)
+  // Use the EXACT same colour the account card's left border uses, so the accent
+  // always matches what you set — account colour first, then custom-type colour.
+  const accent = account.color || account.custom_type_color || (ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other).color
   const [tab, setTab] = useState<Tab>('transactions')
   const [deleting, setDeleting] = useState(false)
   useEffect(() => {
