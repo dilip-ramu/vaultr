@@ -11,7 +11,7 @@ import { cardFaceGradient } from '@/lib/card-gradient'
  * above the glass automatically). `children` is the right-hand info panel.
  */
 export default function EntityCard({
-  color, onClick, faceTop, faceBottom, children, faceClassName = 'sm:w-[260px]',
+  color, onClick, faceTop, faceBottom, children, faceClassName = 'sm:w-[280px]',
 }: {
   color: string
   onClick?: () => void
@@ -23,13 +23,13 @@ export default function EntityCard({
   return (
     <div
       onClick={onClick}
-      className={`rounded-2xl overflow-hidden flex flex-col sm:flex-row transition-shadow hover:brightness-[0.99] ${onClick ? 'cursor-pointer' : ''}`}
+      className={`h-full rounded-2xl overflow-hidden flex flex-col sm:flex-row transition-shadow hover:brightness-[0.99] ${onClick ? 'cursor-pointer' : ''}`}
       style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}
     >
-      {/* coloured identity face */}
-      <div className={`${faceClassName} shrink-0 p-5 flex flex-col justify-between gap-5 relative overflow-hidden`} style={{ background: cardFaceGradient(color), minHeight: 176 }}>
+      {/* coloured identity face — matches the Accounts card exactly */}
+      <div className={`${faceClassName} shrink-0 p-5 flex flex-col justify-between gap-5 relative overflow-hidden`} style={{ background: cardFaceGradient(color), minHeight: '192px' }}>
         <CardGlass base={color} />
-        <div className="relative z-[1] flex items-start justify-between gap-3">{faceTop}</div>
+        <div className="flex items-start justify-between relative z-[1]">{faceTop}</div>
         <div className="relative z-[1]">{faceBottom}</div>
       </div>
       {/* info panel */}
