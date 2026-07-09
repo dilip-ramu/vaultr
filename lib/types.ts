@@ -41,6 +41,8 @@ export interface Account {
   icon: string
   avatar_url: string | null
   bank_logo_url?: string | null
+  // v83 — links the account to a bank whose cheque template it inherits.
+  bank_id?: string | null
   account_holder_id?: string | null
   custom_type_id?: string | null
   custom_type_name?: string | null

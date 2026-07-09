@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { X, CheckCircle2, Paperclip, Upload } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import dynamic from 'next/dynamic'
+import { X, CheckCircle2, Paperclip, Upload, Printer } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
+import type { Bank } from '@/lib/cheque/types'
 import AccountChipPicker, { type PickerAccount } from '@/components/shared/AccountChipPicker'
 import { createClient } from '@/lib/supabase/client'
 import { useFileDrop } from '@/components/shared/useFileDrop'
+
+const ChequePrintModal = dynamic(() => import('@/components/cheque/ChequePrintModal'), { ssr: false })
 
 interface Props {
   invoiceIds: string[]
@@ -33,8 +37,30 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
   const [saving, setSaving]                 = useState(false)
   const [error, setError]                   = useState('')
   const [done, setDone]                     = useState(false)
+  const [bankTpl, setBankTpl]               = useState<Bank | null>(null)
+  const [showCheque, setShowCheque]         = useState(false)
   const fileInputRef                        = useRef<HTMLInputElement>(null)
   const proofDrop = useFileDrop(f => setProofFile(f[0] ?? null))
+
+  // Resolve the selected account's bank cheque template (if any).
+  useEffect(() => {
+    if (!accountId) { setBankTpl(null); return }
+    let live = true
+    const supabase = createClient()
+    ;(async () => {
+      const { data: acc } = await supabase.from('accounts').select('bank_id').eq('id', accountId).maybeSingle()
+      if (!acc?.bank_id) { if (live) setBankTpl(null); return }
+      const { data: bank } = await supabase.from('banks').select('*').eq('id', acc.bank_id).maybeSingle()
+      if (live) setBankTpl(((bank as Bank) && bank!.cheque_width_mm) ? (bank as Bank) : null)
+    })()
+    return () => { live = false }
+  }, [accountId])
+
+  // Payee for a printed cheque — the (first) supplier on the selected invoices.
+  const payeeName = (() => {
+    const names = [...new Set(invoices.map(inv => (inv.supplier as unknown as Supplier)?.name).filter(Boolean) as string[])]
+    return names[0] ?? 'Supplier'
+  })()
 
   const invoiceTotal = invoices.reduce((s, i) => s + Number(i.amount), 0)
   const charges      = parseFloat(bankCharges) || 0
@@ -57,8 +83,12 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
     return unique.length === 1 ? unique[0]! : null
   })()
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    void doPay()
+  }
+
+  async function doPay(cheque?: { number: string; blob: Blob }) {
     if (!accountId) { setError('Please select a bank account'); return }
 
     setSaving(true); setError('')
@@ -119,6 +149,8 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
           supplier_payment_batch_id: !isSingle && data.batch_id ? data.batch_id : null,
           // Auto-apply the supplier's default expense category
           category_id: defaultCategoryId ?? null,
+          // Cheque metadata (when paid by printed cheque)
+          cheque_number: cheque?.number || null,
         }).select('id').single()
 
         // Copy invoice attachments + payment proof to the transaction
@@ -138,6 +170,25 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
               file_size: inv.attachment_size ?? null,
               content_type: null,
             })
+          }
+
+          // Cheque PDF — archived with the payment for future reference.
+          if (cheque?.blob) {
+            const chequePath = `${user.id}/cheques/${tx.id}.pdf`
+            const { error: cErr } = await supabase.storage
+              .from('vaultr-attachments')
+              .upload(chequePath, cheque.blob, { contentType: 'application/pdf', upsert: true })
+            if (!cErr) {
+              await supabase.from('transactions').update({ cheque_pdf_path: chequePath }).eq('id', tx.id)
+              attachmentRows.push({
+                user_id: user.id,
+                transaction_id: tx.id,
+                file_path: chequePath,
+                file_name: `Cheque ${cheque.number || ''}`.trim() + '.pdf',
+                file_size: cheque.blob.size,
+                content_type: 'application/pdf',
+              })
+            }
           }
 
           // Payment proof (uploaded now)
@@ -407,6 +458,17 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
             )}
           </Field>
 
+          {bankTpl && (
+            <button
+              type="button"
+              onClick={() => setShowCheque(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold"
+              style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--brand)' }}
+            >
+              <Printer className="w-4 h-4" /> Print cheque &amp; record — {bankTpl.name}
+            </button>
+          )}
+
           <div className="flex gap-3 pt-1">
             <button
               type="button"
@@ -426,6 +488,18 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
             </button>
           </div>
         </form>
+
+        {showCheque && bankTpl && (
+          <ChequePrintModal
+            bank={bankTpl}
+            accountName={accounts.find(a => a.id === accountId)?.name ?? 'Account'}
+            defaultPayee={payeeName}
+            defaultAmount={grandTotal}
+            defaultDate={paymentDate}
+            onClose={() => setShowCheque(false)}
+            onConfirm={async ({ chequeNumber, pdfBlob }) => { setShowCheque(false); await doPay({ number: chequeNumber, blob: pdfBlob }) }}
+          />
+        )}
       </div>
     </div>
   )

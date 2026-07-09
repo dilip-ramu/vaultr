@@ -154,6 +154,16 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
     setAvatarUploading(false)
   }
 
+  // v83 — bank link (drives the cheque template used when printing cheques).
+  const [bankId, setBankId] = useState(account?.bank_id ?? '')
+  const [banks, setBanks] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    let live = true
+    const supabase = createClient()
+    supabase.from('banks').select('id, name').order('name').then(({ data }) => { if (live) setBanks(data ?? []) })
+    return () => { live = false }
+  }, [])
+
   // Bank logo — separate from the account-holder avatar.
   const [bankLogoUrl, setBankLogoUrl] = useState(account?.bank_logo_url ?? '')
   const [logoUploading, setLogoUploading] = useState(false)
@@ -201,6 +211,7 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
       swift_code: swiftCode.trim() || null,
       bank_customer_id: bankCustomerId.trim() || null,
       bank_address: bankAddress.trim() || null,
+      bank_id: bankId || null,
       open_date: openDate || null,
       closing_date: closingDate || null,
       statement_due_day: (type === 'credit' && statementDueDay) ? parseInt(statementDueDay) : null,
@@ -497,6 +508,14 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
                           {holders.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                         </select>
                         <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>{holders.length === 0 ? 'Add people in Settings → Users, then pick them here.' : 'Name & photo come from the user — edit them in Settings → Users.'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Bank (cheque template)</label>
+                        <select value={bankId} onChange={e => setBankId(e.target.value)} className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm">
+                          <option value="">— Not linked —</option>
+                          {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </select>
+                        <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>Link to a bank (Setup → Banks) to print cheques on its calibrated layout.</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Branch</label>

@@ -58,6 +58,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/setup/email',         label: 'Email' },
     { href: '/setup/categories',    label: 'Categories' },
     { href: '/setup/account-types', label: 'Account types' },
+    { href: '/setup/banks',         label: 'Banks' },
     { href: '/setup/currencies',    label: 'Currencies' },
     { href: '/setup/export',        label: 'Downloads' },
   ] },
