@@ -133,6 +133,15 @@ export const ASSET_CATEGORIES: CategoryDef[] = [
     ],
   },
   {
+    key: 'platinum', label: 'Platinum', emoji: '⚪', valuation: 'market',
+    blurb: 'market-linked',
+    subcategories: [
+      { key: 'jewellery', label: 'Jewellery', valuation: 'market' },
+      { key: 'coins', label: 'Coins', valuation: 'market' },
+      { key: 'bars', label: 'Bars', valuation: 'market' },
+    ],
+  },
+  {
     key: 'electronics', label: 'Electronics', emoji: '💻', valuation: 'depreciate',
     blurb: 'depreciating',
     subcategories: [

@@ -10,6 +10,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
  */
 const GOLD_URL = process.env.METAL_GOLD_URL || 'https://www.goodreturns.in/gold-rates/tirupur.html'
 const SILVER_URL = process.env.METAL_SILVER_URL || 'https://www.goodreturns.in/silver-rates/tirupur.html'
+const PLATINUM_URL = process.env.METAL_PLATINUM_URL || 'https://www.goodreturns.in/platinum-price.html'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 const HEADERS = { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml', 'Accept-Language': 'en-IN,en;q=0.9' }
@@ -54,6 +55,18 @@ export async function fetchAndStoreMetalRates(): Promise<{ ok: boolean; stored: 
       else notes.push('silver: price not found on page')
     }
   } catch (e) { notes.push(`silver fetch failed: ${e instanceof Error ? e.message : 'error'}`) }
+
+  // Platinum — pure per-gram baseline (best effort; page format may vary).
+  try {
+    const res = await fetch(PLATINUM_URL, { headers: HEADERS, cache: 'no-store' })
+    if (!res.ok) notes.push(`platinum HTTP ${res.status}`)
+    else {
+      const t = stripTags(await res.text())
+      const p = numBefore(t, /([\d,]+)\s*per gram/i)
+      if (p) rows.push({ rate_date: today, metal: 'platinum', purity: null, rate_per_gram: p, source: 'goodreturns' })
+      else notes.push('platinum: price not found on page')
+    }
+  } catch (e) { notes.push(`platinum fetch failed: ${e instanceof Error ? e.message : 'error'}`) }
 
   if (rows.length === 0) return { ok: false, stored: 0, reason: notes.join('; ') || 'Could not read rates from source' }
 

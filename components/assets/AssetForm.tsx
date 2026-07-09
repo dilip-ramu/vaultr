@@ -38,9 +38,10 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
 
   // gold/silver
   const [weight, setWeight] = useState(d0.weight_g?.toString() ?? asset?.quantity_g?.toString() ?? '')
-  const purityUnit = category === 'gold' ? 'K' : '%'
-  const initPurity = d0.purity ?? asset?.metal_purity ?? (category === 'gold' ? '22K' : '99.9%')
-  const [purityVal, setPurityVal] = useState(initPurity.match(/[\d.]+/)?.[0] ?? (category === 'gold' ? '22' : '99.9'))
+  const purityUnit = category === 'gold' ? 'K' : category === 'platinum' ? '' : '%'
+  const purityDefault = category === 'gold' ? '22K' : category === 'platinum' ? '950' : '99.9%'
+  const initPurity = d0.purity ?? asset?.metal_purity ?? purityDefault
+  const [purityVal, setPurityVal] = useState(initPurity.match(/[\d.]+/)?.[0] ?? (category === 'gold' ? '22' : category === 'platinum' ? '950' : '99.9'))
   const purity = purityVal ? `${purityVal}${purityUnit}` : ''
   const [ppg, setPpg] = useState(d0.price_per_gram?.toString() ?? '')
   const [grossW, setGrossW] = useState(d0.gross_weight_g?.toString() ?? '')
@@ -228,10 +229,12 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
               <div><label className={lbl}>Metal cost / gram (at purchase)</label><input className={fld} inputMode="decimal" value={ppg} onChange={e => setPpg(e.target.value)} /></div>
               {/* Purity — presets + any custom value (e.g. 12.5K gold, 92.5% silver) */}
               <div>
-                <label className={lbl}>Purity ({category === 'gold' ? 'karat' : 'fineness %'})</label>
+                <label className={lbl}>Purity ({category === 'gold' ? 'karat' : 'fineness'})</label>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                   {(category === 'gold'
                     ? [['24', '24K'], ['22', '22K'], ['18', '18K'], ['14', '14K']]
+                    : category === 'platinum'
+                    ? [['999', '999'], ['950', 'Pt 950'], ['900', '900']]
                     : [['99.9', 'Fine 99.9%'], ['92.5', 'Sterling 92.5%'], ['90', 'Coin 90%']]
                   ).map(([v, l]) => (
                     <button key={v} type="button" onClick={() => setPurityVal(v)} className="text-[12px] font-semibold px-2.5 py-1.5 rounded-lg"

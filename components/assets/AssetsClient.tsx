@@ -41,11 +41,12 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
     let cost = 0, current = 0
     for (const a of assets) {
       if (!a.include_in_net_worth) continue
+      if (catFilter !== 'all' && a.category !== catFilter) continue
       const v = valued.get(a.id)!
       cost += v.cost; current += v.current
     }
     return { cost, current, gain: current - cost, ret: cost > 0 ? (current - cost) / cost : 0 }
-  }, [assets, valued])
+  }, [assets, valued, catFilter])
 
   // group: category -> subcategory -> assets
   const grouped = useMemo(() => {
@@ -184,8 +185,8 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                   </span>
                 </div>
                 <div className="flex items-center gap-3.5">
-                  <span className="text-xs font-bold" style={{ color: cGain >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{hidden ? '••••' : `${cGain >= 0 ? '+' : ''}${inrCompact(cGain)}`}</span>
-                  <span className="text-sm font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{m(cCur)}</span>
+                  <span className="text-xs font-bold" style={{ color: cGain >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{cGain >= 0 ? '+' : ''}{inrCompact(cGain)}</span>
+                  <span className="text-sm font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(cCur)}</span>
                 </div>
               </div>
 
@@ -197,7 +198,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                   <div key={subKey} className="rounded-2xl overflow-hidden mb-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
                       <span className="text-[11px] font-extrabold tracking-wide uppercase" style={{ color: 'var(--text-muted)' }}>{subLabel}{rateNote}{subKey === 'building' ? ' · land ↑ / structure ↓' : ''}</span>
-                      <span className="text-[11.5px] font-bold" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{m(subTotal)}</span>
+                      <span className="text-[11.5px] font-bold" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(subTotal)}</span>
                     </div>
                     {list.map((a, i) => {
                       const v = valued.get(a.id)!
@@ -210,8 +211,8 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                               <p className="text-[10.5px] truncate" style={{ color: 'var(--text-faint)' }}>{subLabelHint(a)}</p>
                             </div>
                           </div>
-                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>COST</p><p className="text-[12.5px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{m(v.cost)}</p></div>
-                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>CURRENT</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{m(v.current)}</p></div>
+                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>COST</p><p className="text-[12.5px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(v.cost)}</p></div>
+                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>CURRENT</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(v.current)}</p></div>
                           <div className="text-right">
                             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: v.gain >= 0 ? 'var(--income)' : 'var(--expense)', background: v.gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{pctStr(v.returnPct)}</span>
                           </div>
