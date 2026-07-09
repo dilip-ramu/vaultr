@@ -18,7 +18,7 @@ interface Props {
 const PT_TO_PX = 96 / 72
 let lineSeq = 0
 
-interface Line { id: number; name: string; amount: string }
+interface Line { id: number; name: string; amount: string; kind: 'expense' | 'transfer'; toAccountId: string }
 
 export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
@@ -28,7 +28,7 @@ export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
   const [chequeNumber, setChequeNumber] = useState('')
   const [acPayee, setAcPayee] = useState(true)
   const [bankTpl, setBankTpl] = useState<Bank | null>(null)
-  const [lines, setLines] = useState<Line[]>([{ id: ++lineSeq, name: '', amount: '' }])
+  const [lines, setLines] = useState<Line[]>([{ id: ++lineSeq, name: '', amount: '', kind: 'expense', toAccountId: '' }])
   const [blob, setBlob] = useState<Blob | null>(null)
   const [busy, setBusy] = useState(false)
   const [printed, setPrinted] = useState(false)
@@ -87,13 +87,13 @@ export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
   }
 
   const setLine = (id: number, patch: Partial<Line>) => setLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l))
-  const addLine = () => setLines(prev => [...prev, { id: ++lineSeq, name: prev.length === 0 ? payee : '', amount: '' }])
+  const addLine = () => setLines(prev => [...prev, { id: ++lineSeq, name: prev.length === 0 ? payee : '', amount: '', kind: 'expense', toAccountId: '' }])
   const fillRemainingInto = (id: number) => setLine(id, { amount: String(Math.max(0, remaining + (parseFloat(lines.find(l => l.id === id)?.amount || '0') || 0))) })
 
   async function handleRecord() {
     if (!accountId) { notify('Pick an account', 'info'); return }
-    const valid = lines.filter(l => l.name.trim() && (parseFloat(l.amount) || 0) > 0)
-    if (valid.length === 0) { notify('Add at least one transaction line (name + amount).', 'info'); return }
+    const valid = lines.filter(l => (parseFloat(l.amount) || 0) > 0 && (l.kind === 'transfer' ? !!l.toAccountId : !!l.name.trim()))
+    if (valid.length === 0) { notify('Add at least one line: an expense (name + amount) or a transfer (target + amount).', 'info'); return }
     if (amt > 0 && Math.abs(remaining) > 0.01) { notify(`Lines must add up to the cheque amount. Off by ₹${Math.abs(remaining).toFixed(2)}.`, 'info'); return }
 
     setBusy(true)
@@ -110,11 +110,17 @@ export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
         if (!error) pdfPath = path
       }
 
-      const rows = valid.map(l => ({
-        user_id: user.id, account_id: accountId, type: 'expense' as const,
-        amount: parseFloat(l.amount) || 0, date, name: l.name.trim(),
-        cheque_number: chequeNumber || null, cheque_pdf_path: pdfPath,
-      }))
+      const rows: Record<string, unknown>[] = valid.map(l => {
+        const base = {
+          user_id: user.id, account_id: accountId, amount: parseFloat(l.amount) || 0, date,
+          cheque_number: chequeNumber || null, cheque_pdf_path: pdfPath,
+        }
+        if (l.kind === 'transfer') {
+          const tgt = accounts.find(a => a.id === l.toAccountId)
+          return { ...base, type: 'transfer', to_account_id: l.toAccountId, name: l.name.trim() || `Transfer to ${tgt?.name ?? ''}`.trim() }
+        }
+        return { ...base, type: 'expense', name: l.name.trim() }
+      })
       const { data: inserted, error: txErr } = await supabase.from('transactions').insert(rows).select('id')
       if (txErr) { notify(txErr.message, 'error'); return }
 
@@ -215,10 +221,27 @@ export default function WriteChequeModal({ accounts, onClose, onDone }: Props) {
             </div>
             <div className="space-y-2">
               {lines.map(l => (
-                <div key={l.id} className="flex items-center gap-2">
-                  <input value={l.name} onChange={e => setLine(l.id, { name: e.target.value })} placeholder="What is this for? (e.g. Cash, Rent)" className="flex-1 px-3 py-2 rounded-lg border text-sm" style={inputStyle} />
-                  <input type="number" value={l.amount} onChange={e => setLine(l.id, { amount: e.target.value })} onFocus={() => { if (!l.amount && remaining > 0) fillRemainingInto(l.id) }} placeholder="0.00" className="w-32 px-3 py-2 rounded-lg border text-sm text-right tabular-nums" style={inputStyle} />
-                  <button type="button" onClick={() => setLines(prev => prev.length > 1 ? prev.filter(x => x.id !== l.id) : prev)} className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                <div key={l.id} className="rounded-lg border p-2 space-y-2" style={{ borderColor: 'var(--border)' }}>
+                  <div className="flex items-center gap-2">
+                    <div className="flex rounded-lg overflow-hidden shrink-0" style={{ border: '1px solid var(--border)' }}>
+                      {(['expense', 'transfer'] as const).map(k => (
+                        <button key={k} type="button" onClick={() => setLine(l.id, { kind: k })} className="px-2.5 py-2 text-[11px] font-bold" style={{ background: l.kind === k ? 'var(--brand)' : 'var(--surface-2)', color: l.kind === k ? '#fff' : 'var(--text-muted)' }}>{k === 'expense' ? 'Expense' : 'Transfer'}</button>
+                      ))}
+                    </div>
+                    {l.kind === 'transfer' ? (
+                      <select value={l.toAccountId} onChange={e => setLine(l.id, { toAccountId: e.target.value })} className="flex-1 px-3 py-2 rounded-lg border text-sm" style={inputStyle}>
+                        <option value="">To account…</option>
+                        {accounts.filter(a => a.id !== accountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                    ) : (
+                      <input value={l.name} onChange={e => setLine(l.id, { name: e.target.value })} placeholder="What is this for? (e.g. Rent)" className="flex-1 px-3 py-2 rounded-lg border text-sm" style={inputStyle} />
+                    )}
+                    <input type="number" value={l.amount} onChange={e => setLine(l.id, { amount: e.target.value })} onFocus={() => { if (!l.amount && remaining > 0) fillRemainingInto(l.id) }} placeholder="0.00" className="w-28 px-3 py-2 rounded-lg border text-sm text-right tabular-nums" style={inputStyle} />
+                    <button type="button" onClick={() => setLines(prev => prev.length > 1 ? prev.filter(x => x.id !== l.id) : prev)} className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                  </div>
+                  {l.kind === 'transfer' && (
+                    <input value={l.name} onChange={e => setLine(l.id, { name: e.target.value })} placeholder="Note (optional) — defaults to “Transfer to …”" className="w-full px-3 py-1.5 rounded-lg border text-[12px]" style={inputStyle} />
+                  )}
                 </div>
               ))}
               <button type="button" onClick={addLine} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold border border-dashed" style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}><Plus className="w-3.5 h-3.5" /> Add transaction line</button>
