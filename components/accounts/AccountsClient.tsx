@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import dynamic from 'next/dynamic'
 import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check, Paperclip } from 'lucide-react'
-import type { Account, BuiltinTypeOverride, DebitCard } from '@/lib/types'
+import type { Account, BuiltinTypeOverride, DebitCard, AccountHolder } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, getCategoryEmoji } from '@/lib/types'
 import { accountGroupRank } from '@/lib/utils'
 import { creditSummary, isLiability } from '@/lib/account-metrics'
@@ -22,6 +22,7 @@ interface Props {
   initialAccounts: Account[]
   builtinOverrides?: BuiltinTypeOverride[]
   debitCards?: DebitCard[]
+  holders?: AccountHolder[]
   reconcileTxns?: ReconTxn[]
   cardTxns?: CardTxn[]
   cardStatements?: StatementRow[]
@@ -44,7 +45,9 @@ function expiryStr(m: number | null, y: number | null): string {
   return `${String(m).padStart(2, '0')}/${String(y).slice(-2)}`
 }
 
-export default function AccountsClient({ initialAccounts, builtinOverrides = [], debitCards = [], reconcileTxns, cardTxns = [], cardStatements = [], payAccounts = [] }: Props) {
+export default function AccountsClient({ initialAccounts, builtinOverrides = [], debitCards = [], holders = [], reconcileTxns, cardTxns = [], cardStatements = [], payAccounts = [] }: Props) {
+  const holderById = useMemo(() => { const m: Record<string, AccountHolder> = {}; for (const h of holders) m[h.id] = h; return m }, [holders])
+  const holderPhoto = useCallback((a: Account) => (a.account_holder_id ? holderById[a.account_holder_id]?.photo_url : null) || a.avatar_url || null, [holderById])
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts)
   const [showForm, setShowForm] = useState(false)
   const [editAccount, setEditAccount] = useState<Account | null>(null)
@@ -241,8 +244,8 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                 {/* LEFT — colored identity face */}
                 <div className="sm:w-[280px] shrink-0 p-5 flex flex-col justify-between gap-5" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${face} 52%, #000), ${face})`, minHeight: '192px' }}>
                   <div className="flex items-start justify-between">
-                    {account.avatar_url
-                      ? <div className="rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.4)' }}><Avatar url={account.avatar_url} initials={(account.account_holder || account.name).slice(0, 2).toUpperCase()} size="lg" /></div>
+                    {holderPhoto(account)
+                      ? <div className="rounded-full" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.4)' }}><Avatar url={holderPhoto(account)} initials={(account.account_holder || account.name).slice(0, 2).toUpperCase()} size="lg" /></div>
                       : (isCredit ? <CreditCard className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} /> : <Wallet className="w-9 h-9" style={{ color: 'rgba(255,255,255,0.9)' }} />)}
                     <span className="text-[10.5px] font-bold tracking-[0.1em] uppercase mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>{account.card_network || (account.custom_type_id ? group.label : disp.label)}</span>
                   </div>
@@ -348,6 +351,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           account={shareAccount}
           accent={accountGroups.find(g => g.accounts.some(a => a.id === shareAccount.id))?.color ?? '#334155'}
           typeLabel={accountGroups.find(g => g.accounts.some(a => a.id === shareAccount.id))?.label ?? shareAccount.type}
+          photoUrl={holderPhoto(shareAccount)}
           debitCards={debitByAccount[shareAccount.id] ?? []}
           onClose={() => setShareAccount(null)}
         />
@@ -356,6 +360,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
       {showForm && (
         <AccountForm
           account={editAccount}
+          holders={holders}
           onSaved={handleSaved}
           onClose={() => { setShowForm(false); setEditAccount(null) }}
           onDeleted={handleDelete}

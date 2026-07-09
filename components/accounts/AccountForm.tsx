@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { X, Check, Camera, ChevronDown, ChevronUp, CreditCard, Trash2, Plus, ImagePlus } from 'lucide-react'
-import type { Account, AccountType, CustomAccountType, DebitCard, BuiltinTypeOverride } from '@/lib/types'
+import type { Account, AccountType, CustomAccountType, DebitCard, BuiltinTypeOverride, AccountHolder } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS, resolveAccountTypeDisplay } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { useFileDrop } from '@/components/shared/useFileDrop'
@@ -12,6 +12,7 @@ import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 interface AccountFormProps {
   account: Account | null
+  holders?: AccountHolder[]
   onSaved: (account: Account) => void
   onClose: () => void
   onDeleted?: (id: string) => void
@@ -19,7 +20,8 @@ interface AccountFormProps {
 
 const CURRENCY_SYMBOL: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SGD: 'S$' }
 
-export default function AccountForm({ account, onSaved, onClose, onDeleted }: AccountFormProps) {
+export default function AccountForm({ account, holders = [], onSaved, onClose, onDeleted }: AccountFormProps) {
+  const [holderId, setHolderId] = useState(account?.account_holder_id ?? '')
   const isEdit = !!account
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [showDetails, setShowDetails] = useState(isEdit)
@@ -191,6 +193,7 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
       bank_logo_url: bankLogoUrl || null,
       account_number: accountNumber.trim() || null,
       account_holder: accountHolder.trim() || null,
+      account_holder_id: holderId || null,
       branch: branch.trim() || null,
       ifsc_code: ifscCode.trim() || null,
       swift_code: swiftCode.trim() || null,
@@ -485,8 +488,20 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
                         <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="XXXX XXXX XXXX" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{isCredit ? 'Cardholder name' : 'Holder'}</label>
-                        <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} placeholder="e.g. Dilip T R" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{isCredit ? 'Cardholder' : 'Account holder'}</label>
+                        {holders.length > 0 ? (
+                          <select value={holderId} onChange={e => { const id = e.target.value; setHolderId(id); const h = holders.find(x => x.id === id); if (h) setAccountHolder(h.name) }}
+                            className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm appearance-none" style={{ color: 'var(--text)' }}>
+                            <option value="">— Not linked (type name) —</option>
+                            {holders.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+                          </select>
+                        ) : (
+                          <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} placeholder="e.g. Dilip T R" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                        )}
+                        {holders.length > 0 && (
+                          <input type="text" value={accountHolder} onChange={e => setAccountHolder(e.target.value)} placeholder="Name shown on account" className="w-full mt-2 px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm" />
+                        )}
+                        {holderId && <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>Photo loads from this user — change it in Settings → Users and it updates here.</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Branch</label>

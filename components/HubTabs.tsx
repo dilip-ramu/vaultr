@@ -54,6 +54,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
   ] },
   { name: 'System', tabs: [
     { href: '/setup/settings',      label: 'Settings' },
+    { href: '/setup/users',         label: 'Users' },
     { href: '/setup/email',         label: 'Email' },
     { href: '/setup/categories',    label: 'Categories' },
     { href: '/setup/account-types', label: 'Account types' },

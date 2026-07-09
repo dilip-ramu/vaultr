@@ -41,6 +41,7 @@ export interface Account {
   icon: string
   avatar_url: string | null
   bank_logo_url?: string | null
+  account_holder_id?: string | null
   custom_type_id?: string | null
   custom_type_name?: string | null
   custom_type_color?: string | null
@@ -77,6 +78,26 @@ export interface Account {
   created_at: string
   balance?: number
   transaction_count?: number
+}
+
+// v80 — a person who holds accounts ("Users"). One place for their photo + KYC.
+export interface HolderDoc { type?: string; url?: string; name?: string }
+export interface AccountHolder {
+  id: string
+  user_id: string
+  household_id: string | null
+  name: string
+  photo_url: string | null
+  pan: string | null
+  aadhaar: string | null
+  dob: string | null
+  phone: string | null
+  email: string | null
+  address: string | null
+  documents: HolderDoc[]
+  notes: string | null
+  created_at: string
+  updated_at: string
 }
 
 // v73 — a debit card linked to a funding account. CVV is never stored.

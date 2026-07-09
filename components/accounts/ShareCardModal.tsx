@@ -8,6 +8,7 @@ interface Props {
   account: Account
   accent: string       // hex, e.g. #3B82F6
   typeLabel: string
+  photoUrl?: string | null   // account-holder photo (from the linked user)
   debitCards: DebitCard[]
   onClose: () => void
 }
@@ -43,7 +44,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 const groupNum = (n?: string | null) => n ? n.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim() : '—'
 const money = (n?: number | null) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.abs(Number(n ?? 0)))
 
-export default function ShareCardModal({ account, accent, typeLabel, debitCards, onClose }: Props) {
+export default function ShareCardModal({ account, accent, typeLabel, photoUrl, debitCards, onClose }: Props) {
   const isCredit = account.type === 'credit'
   const [inclBalance, setInclBalance] = useState(false)
   const [inclExpiry, setInclExpiry] = useState(false)
@@ -59,7 +60,7 @@ export default function ShareCardModal({ account, accent, typeLabel, debitCards,
 
   const draw = useCallback(async () => {
     setBusy(true)
-    const [logo, photo] = await Promise.all([loadImg(account.bank_logo_url), loadImg(account.avatar_url)])
+    const [logo, photo] = await Promise.all([loadImg(account.bank_logo_url), loadImg(photoUrl ?? account.avatar_url)])
     const canvas = canvasRef.current
     if (!canvas) return
     const DPR = 3, W = 900, P = 52
@@ -93,9 +94,10 @@ export default function ShareCardModal({ account, accent, typeLabel, debitCards,
     const rowGridH = Math.ceil(rows.length / 2) * 88
     const addrH = addrLines.length ? 32 + addrLines.length * 32 + 10 : 0
     const debitH = showDebit ? 24 + debitCards.length * 80 : 0
+    const bandH = photo ? 132 : 0   // account-holder photo lives in a bottom band
 
     // ── total height (no wasted space) ──
-    const H = 48 + 100 + 30 /*header*/ + 100 /*primary*/ + rowGridH + addrH + debitH + 44 /*bottom pad*/
+    const H = 48 + 100 + 30 /*header*/ + 100 /*primary*/ + rowGridH + addrH + debitH + bandH + 44 /*bottom pad*/
     canvas.width = W * DPR; canvas.height = H * DPR
     const ctx = canvas.getContext('2d')!
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0)
@@ -123,15 +125,7 @@ export default function ShareCardModal({ account, accent, typeLabel, debitCards,
       ctx.drawImage(logo, P + (100 - w) / 2, 48 + (100 - h) / 2, w, h); ctx.restore()
       nameX = P + 124
     }
-    if (photo) {
-      const d = 100, px = W - P - d, py = 48
-      ctx.save(); ctx.beginPath(); ctx.arc(px + d / 2, py + d / 2, d / 2, 0, 7); ctx.clip()
-      const s = Math.max(d / photo.width, d / photo.height)
-      ctx.drawImage(photo, px + (d - photo.width * s) / 2, py + (d - photo.height * s) / 2, photo.width * s, photo.height * s)
-      ctx.restore(); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.6)'
-      ctx.beginPath(); ctx.arc(px + d / 2, py + d / 2, d / 2, 0, 7); ctx.stroke()
-    }
-    const nameMax = W - nameX - P - (photo ? 116 : 0)
+    const nameMax = W - nameX - P
     ctx.fillStyle = '#fff'; ctx.font = '700 46px system-ui, sans-serif'; ctx.fillText(account.name, nameX, 56, nameMax)
     ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '700 23px system-ui, sans-serif'; ctx.fillText(typeLabel.toUpperCase(), nameX, 112)
 
@@ -176,10 +170,25 @@ export default function ShareCardModal({ account, accent, typeLabel, debitCards,
       }
     }
 
+    // account-holder photo — bottom-right, with the holder name to its left
+    if (photo) {
+      const d = 112, bandTop = H - 44 - d, px = W - P - d, py = bandTop
+      ctx.save(); ctx.beginPath(); ctx.arc(px + d / 2, py + d / 2, d / 2, 0, 7); ctx.clip()
+      const s = Math.max(d / photo.width, d / photo.height)
+      ctx.drawImage(photo, px + (d - photo.width * s) / 2, py + (d - photo.height * s) / 2, photo.width * s, photo.height * s)
+      ctx.restore(); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.65)'
+      ctx.beginPath(); ctx.arc(px + d / 2, py + d / 2, d / 2, 0, 7); ctx.stroke()
+      if (account.account_holder) {
+        label('Account holder', bandTop + 32)
+        ctx.fillStyle = '#fff'; ctx.font = '700 30px system-ui, sans-serif'
+        ctx.fillText(account.account_holder, P, bandTop + 58, px - P - 20)
+      }
+    }
+
     try { setDataUrl(canvas.toDataURL('image/jpeg', 0.95)); setTainted(false) }
     catch { setTainted(true); setDataUrl('') }
     setBusy(false)
-  }, [account, accent, typeLabel, debitCards, inclBalance, inclExpiry, inclDebit, isCredit, exp])
+  }, [account, accent, typeLabel, photoUrl, debitCards, inclBalance, inclExpiry, inclDebit, isCredit, exp])
 
   useEffect(() => { void draw() }, [draw])
 

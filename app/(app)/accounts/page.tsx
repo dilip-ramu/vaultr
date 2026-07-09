@@ -31,7 +31,7 @@ export default async function AccountsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: accounts }, { data: overrides }, { data: debitCards }, reconcileTxns] = await Promise.all([
+  const [{ data: accounts }, { data: overrides }, { data: debitCards }, { data: holders }, reconcileTxns] = await Promise.all([
     supabase
       .from('account_balances')
       .select('*')
@@ -49,6 +49,12 @@ export default async function AccountsPage() {
       .select('*')
       .eq('user_id', user!.id)
       .order('created_at', { ascending: true })
+      .then(r => r, () => ({ data: [] })),
+    supabase
+      .from('account_holders')
+      .select('*')
+      .eq('user_id', user!.id)
+      .order('name', { ascending: true })
       .then(r => r, () => ({ data: [] })),
     fetchAllAccountTxns(supabase, user!.id),
   ])
@@ -81,6 +87,7 @@ export default async function AccountsPage() {
       initialAccounts={accounts ?? []}
       builtinOverrides={overrides ?? []}
       debitCards={debitCards ?? []}
+      holders={holders ?? []}
       reconcileTxns={reconcileTxns}
       cardTxns={cardTxns}
       cardStatements={cardStatements}
