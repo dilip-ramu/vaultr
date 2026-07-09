@@ -272,7 +272,6 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text)' }}>{account.name}</p>
-                      <span className="inline-block text-[10px] font-bold uppercase tracking-wide mt-1 px-2 py-0.5 rounded-full" style={{ background: `color-mix(in srgb, ${face} 12%, transparent)`, color: face }}>{disp.label}</span>
                     </div>
                     <button onClick={e => { e.stopPropagation(); handleEdit(account) }} className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
                   </div>
