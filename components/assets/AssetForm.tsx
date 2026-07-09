@@ -1,10 +1,10 @@
 'use client'
 
-import { useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { X, TrendingUp, TrendingDown, ImagePlus, FileText, Gem, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType, StoneEntry, DocEntry } from '@/lib/assets/types'
-import { categoryDef, STONE_TYPES, DOC_TYPES } from '@/lib/assets/types'
+import { categoryDef, STONE_TYPES, DOC_TYPES, ASSET_CURRENCIES } from '@/lib/assets/types'
 import { computeCost, perGramRate, valueAsset, inr } from '@/lib/assets/valuation'
 
 interface Props {
@@ -123,9 +123,19 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const [purchaseCost, setPurchaseCost] = useState(d0.purchase_cost?.toString() ?? '')
   // shared
   const [purchaseDate, setPurchaseDate] = useState(asset?.purchase_date ?? '')
+  const [currency, setCurrency] = useState((d0.currency as string | undefined) ?? 'INR')
+  const [fxRates, setFxRates] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (currency === 'INR' || fxRates[currency]) return
+    let live = true
+    fetch('/api/exchange-rates').then(r => r.json()).then(j => { if (live && j?.rates) setFxRates(j.rates) }).catch(() => {})
+    return () => { live = false }
+  }, [currency, fxRates])
+  const fx = currency && currency !== 'INR' ? (fxRates[currency] || 0) : 1
 
   const details: AssetDetails = useMemo(() => {
     const docs = documents.length ? documents : undefined
+    const cur = currency && currency !== 'INR' ? currency : undefined
     const cleanStones = stones
       .map(s => ({ type: s.type, weight_ct: Number(s.weight_ct) || undefined, cost: Number(s.cost) || undefined, present: Number(s.present) || undefined }))
       .filter(s => s.type || s.cost || s.weight_ct || s.present)
@@ -134,12 +144,12 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       value_addition_pct: num(valueAdd), making_per_gram: num(makingG), certification: num(certif),
       discount: num(discount), tax_pct: num(taxPct),
       stones: cleanStones.length ? cleanStones : undefined,
-      invoice_url: invoiceUrl || undefined, documents: docs,
+      invoice_url: invoiceUrl || undefined, documents: docs, currency: cur,
     }
-    if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs }
-    if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs }
-    return { purchase_cost: num(purchaseCost), documents: docs }
-  }, [isMarket, isLand, isBuilding, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost])
+    if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs, currency: cur }
+    if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs, currency: cur }
+    return { purchase_cost: num(purchaseCost), documents: docs, currency: cur }
+  }, [isMarket, isLand, isBuilding, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, currency])
 
   const { cost, lines } = computeCost(category, valuation, details)
 
@@ -154,8 +164,8 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       manual_value_date: null, photo_url: null, include_in_net_worth: true, notes: null,
       created_at: '', updated_at: '',
     }
-    return valueAsset(a, marketRates, defaults)
-  }, [asset, name, category, subcategory, valuation, purchaseDate, cost, details, isMarket, purity, weight, appMode, overrideRate, manualValue, marketRates, defaults])
+    return valueAsset(a, marketRates, defaults, fx || 1)
+  }, [asset, name, category, subcategory, valuation, purchaseDate, cost, details, isMarket, purity, weight, appMode, overrideRate, manualValue, marketRates, defaults, fx])
 
   const todayRate = isMarket ? perGramRate(category, purity || null, marketRates) : null
 
@@ -202,7 +212,19 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
 
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3.5">
             {error && <div className="text-[13px] rounded-xl px-3 py-2" style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }}>{error}</div>}
-            <div><label className={lbl}>Name</label><input className={fld} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Wedding set" /></div>
+            <div className="grid grid-cols-[1fr_auto] gap-2.5">
+              <div><label className={lbl}>Name</label><input className={fld} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Wedding set" /></div>
+              <div><label className={lbl}>Currency</label>
+                <select className={`${fld} appearance-none`} style={{ color: 'var(--text)' }} value={currency} onChange={e => setCurrency(e.target.value)}>
+                  {ASSET_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            {currency !== 'INR' && (
+              <p className="text-[10.5px] -mt-1" style={{ color: 'var(--text-faint)' }}>
+                Amounts entered in {currency}. {fx ? `≈ ₹${(cost * fx).toLocaleString('en-IN', { maximumFractionDigits: 0 })} at today’s rate (₹${fx.toFixed(2)}/${currency}).` : 'Fetching today’s rate…'}
+              </p>
+            )}
 
             {/* Attachments — Photo and Invoice have separate slots */}
             <div className="grid grid-cols-2 gap-2.5">

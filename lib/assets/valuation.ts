@@ -144,23 +144,35 @@ export function effectiveRatePct(asset: Asset, defaults: AssetRateDefault[]): nu
   return cat?.rate_pct ?? 0
 }
 
+/** INR per 1 unit of an asset's purchase currency, from a live forex map. 1 for INR/unknown. */
+export function assetFx(asset: Asset, fxRates?: Record<string, number>): number {
+  const cur = (asset.details?.currency as string | undefined)?.toUpperCase()
+  if (!cur || cur === 'INR' || !fxRates) return 1
+  const r = fxRates[cur]
+  return r && r > 0 ? r : 1
+}
+
 // ── Full valuation ─────────────────────────────────────────────────────────
-export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRateDefault[]): Valuation {
-  const { cost, lines } = computeCost(asset.category, asset.valuation_type, asset.details)
+// `fx` converts the purchase-currency amounts to INR at the *current* rate.
+export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRateDefault[], fx = 1): Valuation {
+  const raw = computeCost(asset.category, asset.valuation_type, asset.details)
+  const cost = raw.cost * fx
+  const lines = raw.lines.map(l => ({ ...l, amount: l.amount * fx }))
   const yrs = yearsSince(asset.purchase_date)
   let current = cost
   let note: string | undefined
 
   if (asset.manual_value != null) {
-    current = asset.manual_value
+    current = asset.manual_value * fx
   } else if (asset.valuation_type === 'market') {
     const g = n(asset.quantity_g)
-    const rate = perGramRate(asset.metal, asset.metal_purity, rates)
+    const rate = perGramRate(asset.metal, asset.metal_purity, rates)   // already INR/g
     const d = asset.details
     const stoneList = Array.isArray(d.stones) ? d.stones : []
-    const stones = stoneList.length
+    const stonesRaw = stoneList.length
       ? stoneList.reduce((s, x) => s + n(x.present), 0)
       : n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
+    const stones = stonesRaw * fx
     if (rate != null) {
       current = g * rate + stones
       note = `${g}g × ₹${Math.round(rate).toLocaleString('en-IN')} (${asset.metal_purity ?? 'fine'})${stones ? ' + stones' : ''}`
@@ -171,7 +183,7 @@ export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRat
     const d = asset.details
     const land = n(d.land_cost) * Math.pow(1 + n(d.land_appreciation_pct) / 100, yrs)
     const structure = n(d.structure_cost) * Math.pow(1 - n(d.structure_depreciation_pct) / 100, yrs)
-    current = land + structure
+    current = (land + structure) * fx
   } else if (asset.valuation_type === 'depreciate') {
     const pct = Math.abs(effectiveRatePct(asset, defaults) || n(asset.details.depreciation_pct))
     current = cost * Math.pow(1 - pct / 100, yrs)
@@ -191,13 +203,14 @@ export interface SeriesPoint { t: string; v: number }
  *  market  → one point per stored market-rate date (qty × rate-for-purity + stones)
  *  rate/depreciate/building → sampled monthly from purchase date to today
  */
-export function valueSeries(asset: Asset, rates: MarketRate[], defaults: AssetRateDefault[]): SeriesPoint[] {
-  const { cost } = computeCost(asset.category, asset.valuation_type, asset.details)
+export function valueSeries(asset: Asset, rates: MarketRate[], defaults: AssetRateDefault[], fx = 1): SeriesPoint[] {
+  const raw = computeCost(asset.category, asset.valuation_type, asset.details)
+  const cost = raw.cost * fx
   const d = asset.details
   const stoneList = Array.isArray(d.stones) ? d.stones : []
-  const stones = stoneList.length
+  const stones = (stoneList.length
     ? stoneList.reduce((s, x) => s + n(x.present), 0)
-    : n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
+    : n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)) * fx
 
   if (asset.valuation_type === 'market') {
     const basePurity = asset.metal === 'gold' ? '24K' : null
@@ -222,7 +235,7 @@ export function valueSeries(asset: Asset, rates: MarketRate[], defaults: AssetRa
     const yrs = (t.getTime() - start.getTime()) / (365.25 * 864e5)
     let v = cost
     if (asset.valuation_type === 'building') {
-      v = n(d.land_cost) * Math.pow(1 + n(d.land_appreciation_pct) / 100, yrs) + n(d.structure_cost) * Math.pow(1 - n(d.structure_depreciation_pct) / 100, yrs)
+      v = (n(d.land_cost) * Math.pow(1 + n(d.land_appreciation_pct) / 100, yrs) + n(d.structure_cost) * Math.pow(1 - n(d.structure_depreciation_pct) / 100, yrs)) * fx
     } else if (asset.valuation_type === 'depreciate') {
       const pct = Math.abs(effectiveRatePct(asset, defaults) || n(d.depreciation_pct))
       v = cost * Math.pow(1 - pct / 100, yrs)

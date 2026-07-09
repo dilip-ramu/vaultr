@@ -52,7 +52,11 @@ export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & Electro
   stones?: StoneEntry[]
   location?: string
   documents?: DocEntry[]
+  currency?: string          // purchase currency (ISO code); INR/blank = native
 } & Record<string, unknown>
+
+// Common purchase currencies (INR first). Any ISO code the forex API returns will convert.
+export const ASSET_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD', 'CHF', 'JPY', 'SAR', 'QAR', 'KWD', 'MYR', 'HKD', 'CNY', 'THB', 'NZD', 'ZAR']
 
 export interface Asset {
   id: string

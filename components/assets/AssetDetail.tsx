@@ -14,6 +14,7 @@ interface Props {
   valuation: Valuation
   marketRates: MarketRate[]
   defaults?: AssetRateDefault[]
+  fx?: number
   onEdit: () => void
   onDeleted: (id: string) => void
   onClose: () => void
@@ -21,9 +22,9 @@ interface Props {
 
 const GOLD_GRAD = 'linear-gradient(150deg,#8A6D1F,#5C4711)'
 
-export default function AssetDetail({ asset, valuation, marketRates, defaults = [], onEdit, onDeleted, onClose }: Props) {
+export default function AssetDetail({ asset, valuation, marketRates, defaults = [], fx = 1, onEdit, onDeleted, onClose }: Props) {
   const [deleting, setDeleting] = useState(false)
-  const series = valueSeries(asset, marketRates, defaults)
+  const series = valueSeries(asset, marketRates, defaults, fx)
   const cat = categoryDef(asset.category)
   const isMarket = asset.valuation_type === 'market'
   const emoji = (asset.details as { emoji?: string }).emoji || cat?.emoji || '📦'

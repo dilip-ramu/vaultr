@@ -1,11 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Plus, Gem, Percent, TrendingUp, Map as MapIcon, Home, Upload } from 'lucide-react'
 import type { Asset, MarketRate, AssetRateDefault } from '@/lib/assets/types'
 import { ASSET_CATEGORIES, categoryDef } from '@/lib/assets/types'
-import { valueAsset, inrCompact, inr, pctStr, type Valuation } from '@/lib/assets/valuation'
+import { valueAsset, assetFx, inrCompact, inr, pctStr, type Valuation } from '@/lib/assets/valuation'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
 import AssetDetail from './AssetDetail'
@@ -32,12 +32,24 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
   const [detail, setDetail] = useState<Asset | null>(null)
   const [newCat, setNewCat] = useState('')
   const [newSub, setNewSub] = useState('')
+  const [subSel, setSubSel] = useState('')
+  const [catSel, setCatSel] = useState('')
+  const [fxRates, setFxRates] = useState<Record<string, number>>({})
+
+  // Live forex — only fetched if any asset was bought in a non-INR currency.
+  const needsFx = useMemo(() => assets.some(a => { const c = (a.details?.currency as string | undefined)?.toUpperCase(); return c && c !== 'INR' }), [assets])
+  useEffect(() => {
+    if (!needsFx) return
+    let live = true
+    fetch('/api/exchange-rates').then(r => r.json()).then(j => { if (live && j?.rates) setFxRates(j.rates) }).catch(() => {})
+    return () => { live = false }
+  }, [needsFx])
 
   const valued = useMemo(() => {
     const m = new Map<string, Valuation>()
-    for (const a of assets) m.set(a.id, valueAsset(a, marketRates, defaults))
+    for (const a of assets) m.set(a.id, valueAsset(a, marketRates, defaults, assetFx(a, fxRates)))
     return m
-  }, [assets, marketRates, defaults])
+  }, [assets, marketRates, defaults, fxRates])
 
   const totals = useMemo(() => {
     let cost = 0, current = 0
@@ -228,47 +240,74 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
         </>
       ))}
 
-      {/* Category picker → form */}
+      {/* Category picker → form (two dropdowns; choose "New…" to create) */}
       {showPicker && (() => {
         const builtinByLabel = new Map(ASSET_CATEGORIES.map(c => [c.label.toLowerCase(), c.key]))
         const resolveCat = (name: string) => builtinByLabel.get(name.trim().toLowerCase()) ?? name.trim()
-        const knownCats = Array.from(new Set([...ASSET_CATEGORIES.map(c => c.label), ...assets.map(a => categoryDef(a.category)?.label ?? a.category)]))
-        const knownSubs = Array.from(new Set(assets.map(a => a.subcategory).filter(Boolean) as string[]))
+        // Known sub-categories (built-in labels + whatever the user already uses)
+        const knownSubs = Array.from(new Set([
+          ...ASSET_CATEGORIES.flatMap(c => c.subcategories.map(s => s.label)),
+          ...assets.map(a => a.subcategory).filter(Boolean) as string[],
+        ]))
+        const knownCats = Array.from(new Set([
+          ...ASSET_CATEGORIES.map(c => c.label),
+          ...assets.map(a => categoryDef(a.category)?.label ?? a.category),
+        ]))
+        // Learned sub-category → category (built-in first, then user's own overrides)
         const subToCat = new Map<string, string>()
+        ASSET_CATEGORIES.forEach(c => c.subcategories.forEach(s => { if (!subToCat.has(s.label.toLowerCase())) subToCat.set(s.label.toLowerCase(), c.label) }))
         assets.forEach(a => { if (a.subcategory) subToCat.set(a.subcategory.toLowerCase(), categoryDef(a.category)?.label ?? a.category) })
-        const startCustom = () => { if (!newSub.trim()) return; setShowPicker(false); setFormFor({ asset: null, category: resolveCat(newCat || 'Other'), subcategory: newSub.trim() }); setNewCat(''); setNewSub('') }
+        // Recover built-in sub-category key so detailed land/building forms still trigger
+        const resolveSub = (subLabel: string, catKey: string) => {
+          const def = categoryDef(catKey)
+          return def?.subcategories.find(s => s.label.toLowerCase() === subLabel.trim().toLowerCase())?.key ?? subLabel.trim()
+        }
+        const subValue = subSel === '__new' ? newSub.trim() : subSel
+        const catValue = catSel === '__new' ? newCat.trim() : catSel
+        const canContinue = !!subValue && !!catValue
+        const go = () => {
+          if (!canContinue) return
+          const category = resolveCat(catValue)
+          setShowPicker(false)
+          setFormFor({ asset: null, category, subcategory: resolveSub(subValue, category) })
+          setSubSel(''); setCatSel(''); setNewSub(''); setNewCat('')
+        }
+        const selCls = 'w-full mt-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-[10px] px-3 py-2.5 text-[13px] appearance-none'
+        const inCls = 'w-full mt-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-[10px] px-3 py-2.5 text-[13px]'
         return (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
           <div className="fixed inset-0 bg-black/40" onClick={() => setShowPicker(false)} />
           <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up max-h-[90vh] overflow-y-auto">
-            <p className="text-base font-extrabold mb-4" style={{ color: 'var(--text)' }}>What are you adding?</p>
-            <div className="grid grid-cols-2 gap-2.5">
-              {ASSET_CATEGORIES.flatMap(c => c.subcategories.map(s => ({ c, s }))).map(({ c, s }) => (
-                <button key={c.key + s.key} onClick={() => { setShowPicker(false); setFormFor({ asset: null, category: c.key, subcategory: s.key }) }}
-                  className="flex items-center gap-2.5 p-3 rounded-xl text-left" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                  <span className="text-lg">{c.emoji}</span>
-                  <div><p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>{s.label}</p><p className="text-[10.5px]" style={{ color: 'var(--text-faint)' }}>{c.label}</p></div>
-                </button>
-              ))}
-            </div>
-            {/* Custom category + subcategory */}
-            <p className="text-[11px] font-extrabold tracking-wide mt-5 mb-2" style={{ color: 'var(--text-faint)' }}>OR ADD YOUR OWN</p>
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>Sub-category</label>
-                <input list="asset-subs" value={newSub} onChange={e => { setNewSub(e.target.value); const c = subToCat.get(e.target.value.trim().toLowerCase()); if (c) setNewCat(c) }}
-                  placeholder="e.g. Watch, Painting" className="w-full mt-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-[10px] px-3 py-2.5 text-[13px]" />
-                <datalist id="asset-subs">{knownSubs.map(s => <option key={s} value={s} />)}</datalist>
-              </div>
-              <div>
-                <label className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>Category</label>
-                <input list="asset-cats" value={newCat} onChange={e => setNewCat(e.target.value)}
-                  placeholder="e.g. Collectibles" className="w-full mt-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-[10px] px-3 py-2.5 text-[13px]" />
-                <datalist id="asset-cats">{knownCats.map(c => <option key={c} value={c} />)}</datalist>
-              </div>
-            </div>
-            <button onClick={startCustom} disabled={!newSub.trim()} className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50" style={{ background: 'var(--brand)' }}>Continue</button>
-            <p className="text-[10.5px] mt-2" style={{ color: 'var(--text-faint)' }}>Pick a known sub-category and its category fills in automatically. New ones get a rate line on the Rates tab.</p>
+            <p className="text-base font-extrabold mb-1" style={{ color: 'var(--text)' }}>What are you adding?</p>
+            <p className="text-[11.5px] mb-4" style={{ color: 'var(--text-faint)' }}>Pick a sub-category — its category fills in automatically. Choose “New…” to create your own.</p>
+
+            {/* Sub-category */}
+            <label className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>Sub-category</label>
+            <select value={subSel} className={selCls} style={{ color: 'var(--text)' }}
+              onChange={e => { const v = e.target.value; setSubSel(v); if (v && v !== '__new') { const c = subToCat.get(v.toLowerCase()); if (c) { setCatSel(c) } } }}>
+              <option value="">Choose…</option>
+              {knownSubs.map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="__new">＋ New sub-category…</option>
+            </select>
+            {subSel === '__new' && (
+              <input autoFocus value={newSub} onChange={e => { setNewSub(e.target.value); const c = subToCat.get(e.target.value.trim().toLowerCase()); if (c) setCatSel(c) }}
+                placeholder="e.g. Watch, Painting, Vehicle" className={inCls} />
+            )}
+
+            {/* Category */}
+            <label className="text-[11px] font-bold block mt-4" style={{ color: 'var(--text-muted)' }}>Category</label>
+            <select value={catSel} className={selCls} style={{ color: 'var(--text)' }} onChange={e => setCatSel(e.target.value)}>
+              <option value="">Choose…</option>
+              {knownCats.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="__new">＋ New category…</option>
+            </select>
+            {catSel === '__new' && (
+              <input value={newCat} onChange={e => setNewCat(e.target.value)}
+                placeholder="e.g. Collectibles, Vehicles" className={inCls} />
+            )}
+
+            <button onClick={go} disabled={!canContinue} className="w-full mt-5 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50" style={{ background: 'var(--brand)' }}>Continue</button>
+            <p className="text-[10.5px] mt-2" style={{ color: 'var(--text-faint)' }}>New sub-categories get their own %/yr line on the Rates tab. For a precious metal, pick Gold, Silver or Platinum as the category.</p>
           </div>
         </div>
       )})()}
@@ -279,7 +318,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
       )}
 
       {detail && (
-        <AssetDetail asset={detail} valuation={valued.get(detail.id)!} marketRates={marketRates} defaults={defaults}
+        <AssetDetail asset={detail} valuation={valued.get(detail.id)!} marketRates={marketRates} defaults={defaults} fx={assetFx(detail, fxRates)}
           onEdit={() => { setFormFor({ asset: detail, category: detail.category, subcategory: detail.subcategory ?? '' }); setDetail(null) }}
           onDeleted={onDeleted} onClose={() => setDetail(null)} />
       )}
