@@ -24,11 +24,12 @@ function signedForAccount(t: ReconTxn, accountId: string): number {
 }
 
 export default function AccountDetailModal({
-  account, txns, currencyById, today, onReconciled,
+  account, accent: accentProp, txns, currencyById, today, onReconciled,
   cardTxns = [], cardStatements = [], payAccounts = [],
   onEdit, onDeleted, onClose,
 }: {
   account: Account
+  accent?: string
   txns: ReconTxn[]
   currencyById: Record<string, string>
   today: string
@@ -42,8 +43,9 @@ export default function AccountDetailModal({
 }) {
   const router = useRouter()
   const isCredit = account.type === 'credit'
-  // Exactly the account card's left-border colour — no invented fallback.
-  const accent = account.color || account.custom_type_color || (ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other).color
+  // The card's face colour, passed straight from the accounts page (respects your
+  // built-in type overrides + custom-type colours). Falls back only if absent.
+  const accent = accentProp || account.custom_type_color || (ACCOUNT_TYPE_CONFIG[account.type] ?? ACCOUNT_TYPE_CONFIG.other).color
   const [tab, setTab] = useState<Tab>('transactions')
   const [deleting, setDeleting] = useState(false)
   useEffect(() => {

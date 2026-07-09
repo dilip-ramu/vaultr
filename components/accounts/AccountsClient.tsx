@@ -324,6 +324,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
       {detailAccount && (
         <AccountDetailModal
           account={detailAccount}
+          accent={accountGroups.find(g => g.accounts.some(a => a.id === detailAccount.id))?.color}
           txns={reconcileTxns ?? []}
           currencyById={currencyById}
           today={today}
