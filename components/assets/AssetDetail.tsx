@@ -85,7 +85,7 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-stretch justify-center md:justify-end">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-[var(--surface)] w-full md:w-[480px] md:h-full rounded-t-3xl md:rounded-none shadow-2xl slide-up max-h-[92vh] md:max-h-none overflow-hidden flex flex-col" style={{ borderLeft: '1px solid var(--border)' }}>
+      <div className="relative bg-[var(--surface)] w-full md:w-1/3 md:min-w-[360px] md:h-full rounded-t-3xl md:rounded-none shadow-2xl slide-up max-h-[92vh] md:max-h-none overflow-hidden flex flex-col" style={{ borderLeft: '1px solid var(--border)' }}>
         {/* photo header */}
         <div className="relative shrink-0 flex items-center justify-center overflow-hidden" style={{ height: 220, background: isMarket ? GOLD_GRAD : 'linear-gradient(150deg,var(--brand-deep,#14432D),color-mix(in srgb,var(--brand-deep,#14432D) 70%,#000))' }}>
           {asset.photo_url ? (

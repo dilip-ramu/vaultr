@@ -702,7 +702,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
         return (
           <div className="fixed inset-0 z-50 flex items-end md:items-stretch justify-center md:justify-end">
             <div className="fixed inset-0 bg-black/40" onClick={() => setSelectedTx(null)} />
-            <div className="relative w-full md:w-[460px] md:h-full rounded-t-3xl md:rounded-none shadow-2xl slide-up max-h-[92vh] md:max-h-none overflow-y-auto"
+            <div className="relative w-full md:w-1/3 md:min-w-[360px] md:h-full rounded-t-3xl md:rounded-none shadow-2xl slide-up max-h-[92vh] md:max-h-none overflow-y-auto"
               style={{ background: 'var(--surface)', borderLeft: `1px solid var(--border)` }}>
               <div style={{ height: 4, background: accent }} />
               <div className="p-5">{renderDetail(selectedTx)}</div>

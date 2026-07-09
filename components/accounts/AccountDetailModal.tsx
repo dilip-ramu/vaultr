@@ -85,7 +85,7 @@ export default function AccountDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-stretch justify-center md:justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full md:w-[480px] md:h-full rounded-t-2xl md:rounded-none flex flex-col slide-up max-h-[92dvh] md:max-h-none overflow-hidden" style={{ background: 'var(--surface)', boxShadow: 'var(--shadow-lg)', borderLeft: '1px solid var(--border)' }}>
+      <div className="w-full md:w-1/3 md:min-w-[360px] md:h-full rounded-t-2xl md:rounded-none flex flex-col slide-up max-h-[92dvh] md:max-h-none overflow-hidden" style={{ background: 'var(--surface)', boxShadow: 'var(--shadow-lg)', borderLeft: '1px solid var(--border)' }}>
         {/* Accent bar — matches the account type colour */}
         <div className="shrink-0" style={{ height: 4, background: accent }} />
         {/* Header */}
