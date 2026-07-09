@@ -5,7 +5,7 @@ import { X, Upload, Trash2, Image as ImageIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import type { Bank, ChequeField, ChequeFieldKey } from '@/lib/cheque/types'
-import { MM_TO_PX, CHEQUE_FIELD_LABELS, AC_PAYEE_TEXT, defaultChequeFields, dateDigitFor } from '@/lib/cheque/types'
+import { MM_TO_PX, CHEQUE_FIELD_LABELS, AC_PAYEE_TEXT, defaultChequeFields, dateDigitFor, DATE_DIGIT_KEYS } from '@/lib/cheque/types'
 
 interface Props {
   bank: Bank
@@ -215,33 +215,43 @@ export default function ChequeTemplateEditor({ bank, bgUrl: initialBg, onSaved, 
               // eslint-disable-next-line @next/next/no-img-element
               <img src={bgUrl} alt="" className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none" style={{ opacity: bgOpacity }} />
             )}
-            {fields.map(f => (
-              <div
-                key={f.key}
-                onPointerDown={e => onChipDown(e, f)}
-                onPointerMove={onChipMove}
-                onPointerUp={onChipUp}
-                className="absolute cursor-move whitespace-nowrap"
-                style={{
-                  left: f.x * MM_TO_PX,
-                  top: f.y * MM_TO_PX,
-                  width: f.w ? f.w * MM_TO_PX : undefined,
-                  fontSize: f.fontSize * PT_TO_PX,
-                  color: f.color,
-                  fontWeight: f.bold ? 700 : 400,
-                  textAlign: f.align,
-                  letterSpacing: (f.letterSpacing ?? 0) * PT_TO_PX,
-                  opacity: f.enabled ? 1 : 0.35,
-                  outline: selected === f.key ? '1.5px solid var(--brand)' : '1px dashed rgba(0,0,0,0.25)',
-                  outlineOffset: 1,
-                  background: selected === f.key ? 'color-mix(in srgb, var(--brand) 10%, transparent)' : 'transparent',
-                  fontFamily: 'Helvetica, Arial, sans-serif',
-                  lineHeight: 1.1,
-                }}
-              >
-                {sampleFor(f.key)}
-              </div>
-            ))}
+            {fields.map(f => {
+              const isDigit = DATE_DIGIT_KEYS.includes(f.key)
+              const digitBox = f.fontSize * PT_TO_PX
+              return (
+                <div
+                  key={f.key}
+                  onPointerDown={e => onChipDown(e, f)}
+                  onPointerMove={onChipMove}
+                  onPointerUp={onChipUp}
+                  className="absolute cursor-move whitespace-nowrap"
+                  style={{
+                    left: f.x * MM_TO_PX,
+                    top: f.y * MM_TO_PX,
+                    // Date digits render as a fixed guide cell so each one lines
+                    // up with its pre-printed box; other fields hug their text.
+                    width: isDigit ? digitBox * 1.5 : (f.w ? f.w * MM_TO_PX : undefined),
+                    height: isDigit ? digitBox * 1.7 : undefined,
+                    display: isDigit ? 'flex' : undefined,
+                    alignItems: isDigit ? 'center' : undefined,
+                    justifyContent: isDigit ? 'center' : undefined,
+                    fontSize: f.fontSize * PT_TO_PX,
+                    color: f.color,
+                    fontWeight: f.bold ? 700 : 400,
+                    textAlign: f.align,
+                    letterSpacing: (f.letterSpacing ?? 0) * PT_TO_PX,
+                    opacity: f.enabled ? 1 : 0.35,
+                    outline: selected === f.key ? '1.5px solid var(--brand)' : isDigit ? '1px solid rgba(37,99,235,0.5)' : '1px dashed rgba(0,0,0,0.25)',
+                    outlineOffset: isDigit ? 0 : 1,
+                    background: selected === f.key ? 'color-mix(in srgb, var(--brand) 10%, transparent)' : isDigit ? 'rgba(37,99,235,0.06)' : 'transparent',
+                    fontFamily: 'Helvetica, Arial, sans-serif',
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {sampleFor(f.key)}
+                </div>
+              )
+            })}
             {!bgUrl && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="flex flex-col items-center gap-1" style={{ color: 'var(--text-faint)' }}>
