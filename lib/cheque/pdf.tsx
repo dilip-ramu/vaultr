@@ -5,6 +5,7 @@
 import { Document, Page, Text, View, pdf } from '@react-pdf/renderer'
 import type { Bank, ChequeField } from './types'
 import { MM_TO_PT, AC_PAYEE_TEXT, dateDigitFor } from './types'
+import { amountInWords, amountInFigures } from './amountWords'
 
 export interface ChequeValues {
   dd: string             // day, e.g. "09"
@@ -15,6 +16,26 @@ export interface ChequeValues {
   amountWords: string
   acPayee: boolean
   chequeNumber?: string
+}
+
+/**
+ * Assemble the printed cheque values from raw inputs, applying the house
+ * formatting: payee trailing hyphen, amount-in-words (no "Rupees") ending in a
+ * hyphen, and a "**" anti-forgery prefix on the figures. Shared by the invoice
+ * pay flow and the standalone cheque writer so they always match.
+ */
+export function chequeValuesFrom(opts: { payee: string; amount: number; dateIso: string; acPayee: boolean; chequeNumber?: string }): ChequeValues {
+  const [y, m, d] = (opts.dateIso || '').split('-')
+  const words = amountInWords(opts.amount)
+  const figures = amountInFigures(opts.amount)
+  return {
+    dd: d ?? '', mm: m ?? '', yyyy: y ?? '',
+    payee: opts.payee.trim() ? `${opts.payee.trim()} -` : '',
+    amountFigures: figures ? `**${figures}` : '',
+    amountWords: words ? `${words} -` : '',
+    acPayee: opts.acPayee,
+    chequeNumber: opts.chequeNumber,
+  }
 }
 
 function valueFor(field: ChequeField, v: ChequeValues): string | null {

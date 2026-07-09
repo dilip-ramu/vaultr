@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import dynamic from 'next/dynamic'
-import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check, Paperclip } from 'lucide-react'
+import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check, Paperclip, Printer } from 'lucide-react'
 import type { Account, BuiltinTypeOverride, DebitCard, AccountHolder } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, getCategoryEmoji } from '@/lib/types'
 import { accountGroupRank } from '@/lib/utils'
@@ -16,6 +16,7 @@ import CardGlass from '../shared/CardGlass'
 import { cardFaceGradient } from '@/lib/card-gradient'
 import AccountDetailModal from './AccountDetailModal'
 const ShareCardModal = dynamic(() => import('./ShareCardModal'), { ssr: false })
+const WriteChequeModal = dynamic(() => import('@/components/cheque/WriteChequeModal'), { ssr: false })
 
 const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
 
@@ -51,6 +52,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
   const holderPhoto = useCallback((a: Account) => (a.account_holder_id ? holderById[a.account_holder_id]?.photo_url : null) || a.avatar_url || null, [holderById])
   const [accounts, setAccounts] = useState<Account[]>(initialAccounts)
   const [showForm, setShowForm] = useState(false)
+  const [showCheque, setShowCheque] = useState(false)
   const [editAccount, setEditAccount] = useState<Account | null>(null)
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [detailAccount, setDetailAccount] = useState<Account | null>(null)
@@ -158,14 +160,24 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Accounts</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{accounts.length} account{accounts.length !== 1 ? 's' : ''} across {accountGroups.length} type{accountGroups.length !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => { setEditAccount(null); setShowForm(true) }}
-          className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all shrink-0"
-          style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
-        >
-          <Plus className="w-4 h-4" />
-          Add account
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowCheque(true)}
+            className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl transition-all"
+            style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+          >
+            <Printer className="w-4 h-4" />
+            Write cheque
+          </button>
+          <button
+            onClick={() => { setEditAccount(null); setShowForm(true) }}
+            className="flex items-center gap-1.5 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
+            style={{ background: 'var(--brand)', boxShadow: 'var(--shadow)' }}
+          >
+            <Plus className="w-4 h-4" />
+            Add account
+          </button>
+        </div>
       </div>
 
       {/* Net Worth band */}
@@ -367,6 +379,13 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           onSaved={handleSaved}
           onClose={() => { setShowForm(false); setEditAccount(null) }}
           onDeleted={handleDelete}
+        />
+      )}
+
+      {showCheque && (
+        <WriteChequeModal
+          accounts={accounts.map(a => ({ id: a.id, name: a.name }))}
+          onClose={() => setShowCheque(false)}
         />
       )}
     </div>
