@@ -5,6 +5,7 @@ import { X, Upload, FileText, Trash2 } from 'lucide-react'
 import type { SupplierInvoice, Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { INVOICE_CATEGORIES, PAYMENT_TERMS_OPTIONS, calcDueDateFromTerms } from '@/lib/suppliers/types'
 import { createClient } from '@/lib/supabase/client'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import { uploadAttachment } from '@/lib/upload'
 import AmountField from '@/components/shared/AmountField'
 
@@ -75,6 +76,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const invoiceDrop = useFileDrop(f => { if (f[0]) handleFileUpload(f[0]) })
 
   const set = <K extends keyof typeof EMPTY>(k: K, v: typeof EMPTY[K]) =>
     setForm(f => ({ ...f, [k]: v }))
@@ -336,11 +338,12 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="w-full py-3 rounded-xl border-2 border-dashed text-sm flex items-center justify-center gap-2 transition-colors hover:border-[var(--brand)]"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                {...invoiceDrop.dropProps}
+                className="w-full py-3 rounded-xl border-2 border-dashed text-sm flex items-center justify-center gap-2 transition-all"
+                style={{ borderColor: invoiceDrop.dragOver ? 'var(--brand)' : 'var(--border)', background: invoiceDrop.dragOver ? 'var(--brand-light)' : undefined, color: invoiceDrop.dragOver ? 'var(--brand)' : 'var(--text-muted)' }}
               >
                 <Upload className="w-4 h-4" />
-                {uploading ? 'Uploading…' : 'Upload PDF, image, or document'}
+                {uploading ? 'Uploading…' : invoiceDrop.dragOver ? 'Drop to upload' : 'Upload or drop PDF, image, or document'}
               </button>
             )}
             <input

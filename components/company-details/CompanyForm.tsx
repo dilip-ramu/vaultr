@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Upload, Loader2, Trash2, Building2, Check } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import {
   INVOICE_TEMPLATES, ACCENT_PRESETS,
   DEFAULT_INVOICE_TEMPLATE, DEFAULT_INVOICE_ACCENT,
@@ -129,6 +130,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   const [terms,        setTerms]        = useState(company?.terms_conditions ?? '')
   const [logoUrl, setLogoUrl] = useState<string | undefined>(existingLogoUrl)
   const [logoBusy, setLogoBusy] = useState(false)
+  const logoDrop = useFileDrop(f => { if (f[0]) void handleLogoUpload(f[0]) }, { disabled: logoBusy })
   // v69 — document look
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>(company?.invoice_template ?? DEFAULT_INVOICE_TEMPLATE)
   const [invoiceAccent,   setInvoiceAccent]   = useState<string>(company?.invoice_accent ?? DEFAULT_INVOICE_ACCENT)
@@ -208,10 +210,10 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
           <div>
             <label className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Logo</label>
             <div className="mt-2 flex items-center gap-3">
-              <div className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                {logoUrl
+              <div {...logoDrop.dropProps} className="w-20 h-20 rounded-2xl overflow-hidden flex items-center justify-center shrink-0 transition-all" style={{ background: logoDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)', border: logoDrop.dragOver ? '1px dashed var(--brand)' : '1px solid var(--border)' }}>
+                {logoUrl && !logoDrop.dragOver
                   ? <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
-                  : <Building2 className="w-7 h-7" style={{ color: 'var(--text-muted)' }} />
+                  : <Building2 className="w-7 h-7" style={{ color: logoDrop.dragOver ? 'var(--brand)' : 'var(--text-muted)' }} />
                 }
               </div>
               <div className="space-y-1.5">

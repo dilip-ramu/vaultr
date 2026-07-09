@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, Check, ArrowLeft, Camera } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import { ACCOUNT_COLORS, ACCOUNT_TYPE_CONFIG, EMOJI_MAP } from '@/lib/types'
 import type { AccountType, CustomAccountType, BuiltinTypeOverride } from '@/lib/types'
 import { Avatar } from '../AppShell'
@@ -88,8 +89,9 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
     setShowForm(true)
   }
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const avatarDrop = useFileDrop(f => uploadAvatarFile(f[0]), { disabled: avatarUploading })
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => uploadAvatarFile(e.target.files?.[0])
+  const uploadAvatarFile = async (file?: File) => {
     if (!file) return
     if (file.size > 2 * 1024 * 1024) { setError('Image must be under 2MB'); return }
     setAvatarUploading(true)
@@ -302,7 +304,7 @@ export default function AccountTypesClient({ initialTypes, initialOverrides }: P
 
             {/* Avatar */}
             <div className="flex items-center gap-4">
-              <div className="relative">
+              <div className="relative rounded-full transition-all" {...avatarDrop.dropProps} style={avatarDrop.dragOver ? { outline: '2px dashed var(--brand)', outlineOffset: 2 } : undefined}>
                 <Avatar url={avatarUrl || null} initials={name.slice(0, 2).toUpperCase() || '??'} size="lg" />
                 <button
                   type="button"

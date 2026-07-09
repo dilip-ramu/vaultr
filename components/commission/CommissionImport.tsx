@@ -5,6 +5,7 @@ import { X, Upload, Download, CheckCircle2, AlertCircle, ChevronRight } from 'lu
 import type { CommissionOrder, Customer, Account } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { getTodayString } from '@/lib/utils'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 
 interface Props {
   customers: Customer[]
@@ -91,6 +92,8 @@ export default function CommissionImport({ customers, accounts, onImported, onCl
   const [rows,               setRows]               = useState<ParsedRow[]>([])
   const [saving,             setSaving]             = useState(false)
   const [error,              setError]              = useState('')
+
+  const csvDrop = useFileDrop(f => { if (f[0]) handleFile(f[0]) })
 
   const handleFile = (file: File) => {
     setError(''); setRows([])
@@ -312,12 +315,11 @@ export default function CommissionImport({ customers, accounts, onImported, onCl
 
               <div
                 onClick={() => fileRef.current?.click()}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
-                className="border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+                {...csvDrop.dropProps}
+                className="border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all"
+                style={{ borderColor: csvDrop.dragOver ? 'var(--brand)' : 'var(--border)', background: csvDrop.dragOver ? 'var(--brand-light)' : undefined, color: csvDrop.dragOver ? 'var(--brand)' : 'var(--text-muted)' }}>
                 <Upload className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-medium">Click or drag CSV here</p>
+                <p className="text-sm font-medium">{csvDrop.dragOver ? 'Drop CSV to import' : 'Click or drag CSV here'}</p>
                 <input ref={fileRef} type="file" accept=".csv,.CSV" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
               </div>

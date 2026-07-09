@@ -9,6 +9,7 @@ import {
 import type { Profile } from '@/lib/types'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import { Avatar } from '../AppShell'
 
 interface Props {
@@ -42,8 +43,9 @@ export default function SettingsClient({ user, profile }: Props) {
     router.refresh()
   }
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const avatarDrop = useFileDrop(f => uploadAvatarFile(f[0]), { disabled: avatarUploading })
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => uploadAvatarFile(e.target.files?.[0])
+  const uploadAvatarFile = async (file?: File) => {
     if (!file) return
     if (file.size > 2 * 1024 * 1024) { setMessage('Image must be under 2MB'); return }
 
@@ -92,7 +94,7 @@ export default function SettingsClient({ user, profile }: Props) {
         <div className="p-5 space-y-4">
           {/* Avatar */}
           <div className="flex items-center gap-4">
-            <div className="relative">
+            <div className="relative rounded-full transition-all" {...avatarDrop.dropProps} style={avatarDrop.dragOver ? { outline: '2px dashed var(--brand)', outlineOffset: 2 } : undefined}>
               <Avatar url={avatarUrl} initials={initials} size="lg" />
               <button
                 onClick={() => avatarInputRef.current?.click()}

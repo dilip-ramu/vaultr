@@ -5,6 +5,7 @@ import { X, Check, Camera, ChevronDown, ChevronUp, CreditCard, Trash2, Plus } fr
 import type { Account, AccountType, CustomAccountType, DebitCard, BuiltinTypeOverride } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS, resolveAccountTypeDisplay } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import { Avatar } from '../AppShell'
 import { isLoan } from '@/lib/account-metrics'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -132,8 +133,9 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
     setDcList(prev => prev.filter(d => d.id !== id))
   }
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const avatarDrop = useFileDrop(f => uploadAvatarFile(f[0]), { disabled: avatarUploading })
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => uploadAvatarFile(e.target.files?.[0])
+  const uploadAvatarFile = async (file?: File) => {
     if (!file) return
     if (file.size > 2 * 1024 * 1024) { setError('Image must be under 2MB'); return }
     setAvatarUploading(true)
@@ -239,9 +241,9 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
           {/* Header */}
           <div className="shrink-0 px-6 py-4 flex items-center justify-between border-b border-[var(--border)]">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="relative shrink-0">
+              <div className="relative shrink-0 rounded-xl transition-all" {...avatarDrop.dropProps} style={avatarDrop.dragOver ? { outline: '2px dashed var(--brand)', outlineOffset: 2 } : undefined}>
                 <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: `color-mix(in srgb, ${previewFace} 16%, transparent)` }}>
-                  {avatarUrl
+                  {avatarUrl && !avatarDrop.dragOver
                     // eslint-disable-next-line @next/next/no-img-element
                     ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                     : <span className="text-[17px]">🏦</span>}

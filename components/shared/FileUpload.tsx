@@ -6,6 +6,7 @@ import type { Attachment } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { uploadAttachment } from '@/lib/upload'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 
 interface Props {
   transactionId?: string
@@ -135,6 +136,7 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
   const [lightbox, setLightbox] = useState<{ urls: { url: string; name: string; type: string }[]; index: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
+  const { dragOver, dropProps } = useFileDrop(files => handleFiles(files), { disabled: uploading })
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -217,7 +219,7 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
         />
       )}
 
-      <div>
+      <div {...dropProps} className="rounded-xl transition-all" style={dragOver ? { outline: '2px dashed var(--brand)', outlineOffset: 4, background: 'var(--brand-light)' } : undefined}>
         <div className="flex items-center justify-between mb-3">
           <label className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
             Attachments{attachments.length > 0 && <span style={{ color: 'var(--text-muted)' }}> ({attachments.length})</span>}
@@ -317,10 +319,10 @@ export default function FileUpload({ transactionId, billId, existingAttachments 
               type="button"
               onClick={() => inputRef.current?.click()}
               className="flex-1 border-2 border-dashed rounded-xl py-3 text-xs font-medium flex items-center justify-center gap-1.5"
-              style={{ borderColor: 'var(--border)', color: 'var(--text-faint)' }}
+              style={{ borderColor: dragOver ? 'var(--brand)' : 'var(--border)', color: dragOver ? 'var(--brand)' : 'var(--text-faint)' }}
             >
               <Paperclip className="w-3.5 h-3.5" />
-              Attach File
+              {dragOver ? 'Drop to attach' : 'Attach or drop file'}
             </button>
           </div>
         )}

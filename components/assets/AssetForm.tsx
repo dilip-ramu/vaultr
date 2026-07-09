@@ -5,6 +5,7 @@ import { X, TrendingUp, TrendingDown, ImagePlus, FileText, Gem, Plus, Trash2 } f
 import { createClient } from '@/lib/supabase/client'
 import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType, StoneEntry, DocEntry } from '@/lib/assets/types'
 import { categoryDef, STONE_TYPES, DOC_TYPES, ASSET_CURRENCIES } from '@/lib/assets/types'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import { computeCost, perGramRate, valueAsset, inr } from '@/lib/assets/valuation'
 
 interface Props {
@@ -90,6 +91,10 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
     if (slot === 'photo') setPhotoUrl(url); else setInvoiceUrl(url)
     setUploading('')
   }
+
+  const photoDrop = useFileDrop(f => uploadFile('photo', f[0]), { disabled: uploading === 'photo' })
+  const invoiceDrop = useFileDrop(f => uploadFile('invoice', f[0]), { disabled: uploading === 'invoice' })
+  const docDrop = useFileDrop(f => uploadDoc(f[0]), { disabled: uploadingDoc })
 
   const uploadDoc = async (file?: File) => {
     if (!file) return
@@ -230,19 +235,19 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className={lbl}>Photo</label>
-                <button type="button" onClick={() => photoRef.current?.click()} className="mt-1.5 w-full h-[78px] rounded-[10px] border border-dashed flex flex-col items-center justify-center gap-1 overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-                  {photoUrl
+                <button type="button" onClick={() => photoRef.current?.click()} {...photoDrop.dropProps} className="mt-1.5 w-full h-[78px] rounded-[10px] border border-dashed flex flex-col items-center justify-center gap-1 overflow-hidden transition-all" style={{ borderColor: photoDrop.dragOver ? 'var(--brand)' : 'var(--border)', background: photoDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)' }}>
+                  {photoUrl && !photoDrop.dragOver
                     // eslint-disable-next-line @next/next/no-img-element
                     ? <img src={photoUrl} alt="" className="w-full h-full object-cover" />
-                    : <><ImagePlus className="w-5 h-5" style={{ color: 'var(--text-faint)' }} /><span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{uploading === 'photo' ? 'Uploading…' : 'Add photo'}</span></>}
+                    : <><ImagePlus className="w-5 h-5" style={{ color: photoDrop.dragOver ? 'var(--brand)' : 'var(--text-faint)' }} /><span className="text-[10px]" style={{ color: photoDrop.dragOver ? 'var(--brand)' : 'var(--text-faint)' }}>{uploading === 'photo' ? 'Uploading…' : photoDrop.dragOver ? 'Drop photo' : 'Add photo'}</span></>}
                 </button>
                 <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={e => uploadFile('photo', e.target.files?.[0])} />
               </div>
               <div>
                 <label className={lbl}>Invoice</label>
-                <button type="button" onClick={() => invoiceRef.current?.click()} className="mt-1.5 w-full h-[78px] rounded-[10px] border border-dashed flex flex-col items-center justify-center gap-1" style={{ borderColor: invoiceUrl ? 'var(--brand)' : 'var(--border)', background: 'var(--surface-2)' }}>
-                  <FileText className="w-5 h-5" style={{ color: invoiceUrl ? 'var(--brand)' : 'var(--text-faint)' }} />
-                  <span className="text-[10px]" style={{ color: invoiceUrl ? 'var(--brand)' : 'var(--text-faint)' }}>{uploading === 'invoice' ? 'Uploading…' : invoiceUrl ? 'Invoice attached' : 'Add invoice'}</span>
+                <button type="button" onClick={() => invoiceRef.current?.click()} {...invoiceDrop.dropProps} className="mt-1.5 w-full h-[78px] rounded-[10px] border border-dashed flex flex-col items-center justify-center gap-1 transition-all" style={{ borderColor: (invoiceUrl || invoiceDrop.dragOver) ? 'var(--brand)' : 'var(--border)', background: invoiceDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)' }}>
+                  <FileText className="w-5 h-5" style={{ color: (invoiceUrl || invoiceDrop.dragOver) ? 'var(--brand)' : 'var(--text-faint)' }} />
+                  <span className="text-[10px]" style={{ color: (invoiceUrl || invoiceDrop.dragOver) ? 'var(--brand)' : 'var(--text-faint)' }}>{uploading === 'invoice' ? 'Uploading…' : invoiceDrop.dragOver ? 'Drop invoice' : invoiceUrl ? 'Invoice attached' : 'Add invoice'}</span>
                 </button>
                 <input ref={invoiceRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => uploadFile('invoice', e.target.files?.[0])} />
               </div>
@@ -381,10 +386,10 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
             </>}
 
             {/* Documents — repeatable (parent doc, patta, chitta, …) */}
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+            <div {...docDrop.dropProps} className="rounded-xl overflow-hidden transition-all" style={{ border: docDrop.dragOver ? '1px dashed var(--brand)' : '1px solid var(--border)', background: docDrop.dragOver ? 'var(--brand-light)' : undefined }}>
               <div className="flex items-center justify-between px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
                 <span className="flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--text)' }}><FileText className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} /> Documents {documents.length > 0 && <span style={{ color: 'var(--text-faint)' }}>· {documents.length}</span>}</span>
-                <button type="button" onClick={() => docRef.current?.click()} className="flex items-center gap-1 text-[12px] font-bold" style={{ color: 'var(--brand)' }}>{uploadingDoc ? 'Uploading…' : <><Plus className="w-3.5 h-3.5" /> Add</>}</button>
+                <button type="button" onClick={() => docRef.current?.click()} className="flex items-center gap-1 text-[12px] font-bold" style={{ color: 'var(--brand)' }}>{uploadingDoc ? 'Uploading…' : docDrop.dragOver ? 'Drop file' : <><Plus className="w-3.5 h-3.5" /> Add</>}</button>
                 <input ref={docRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => uploadDoc(e.target.files?.[0])} />
               </div>
               {documents.length > 0 && (

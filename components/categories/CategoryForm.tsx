@@ -5,6 +5,7 @@ import { X, Check, Camera } from 'lucide-react'
 import type { Category } from '@/lib/types'
 import { CATEGORY_ICONS, ACCOUNT_COLORS } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import { Avatar } from '../AppShell'
 
 interface Props {
@@ -37,8 +38,9 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
 
   const initials = name.slice(0, 2).toUpperCase() || (ICON_EMOJI_MAP[icon] ?? '?')
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const avatarDrop = useFileDrop(f => uploadAvatarFile(f[0]), { disabled: avatarUploading })
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => uploadAvatarFile(e.target.files?.[0])
+  const uploadAvatarFile = async (file?: File) => {
     if (!file) return
     if (file.size > 2 * 1024 * 1024) { setError('Image must be under 2MB'); return }
     setAvatarUploading(true)
@@ -95,7 +97,7 @@ export default function CategoryForm({ category, onSaved, onClose }: Props) {
 
           {/* Avatar + Name row */}
           <div className="flex items-center gap-4">
-            <div className="relative">
+            <div className="relative rounded-full transition-all" {...avatarDrop.dropProps} style={avatarDrop.dragOver ? { outline: '2px dashed var(--brand)', outlineOffset: 2 } : undefined}>
               <Avatar url={avatarUrl || null} initials={initials} size="lg" />
               <button
                 type="button"

@@ -5,6 +5,7 @@ import { X, CheckCircle2, Paperclip, Upload } from 'lucide-react'
 import type { SupplierInvoice, Supplier } from '@/lib/suppliers/types'
 import AccountChipPicker, { type PickerAccount } from '@/components/shared/AccountChipPicker'
 import { createClient } from '@/lib/supabase/client'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 
 interface Props {
   invoiceIds: string[]
@@ -33,6 +34,7 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
   const [error, setError]                   = useState('')
   const [done, setDone]                     = useState(false)
   const fileInputRef                        = useRef<HTMLInputElement>(null)
+  const proofDrop = useFileDrop(f => setProofFile(f[0] ?? null))
 
   const invoiceTotal = invoices.reduce((s, i) => s + Number(i.amount), 0)
   const charges      = parseFloat(bankCharges) || 0
@@ -395,11 +397,12 @@ export default function BulkPayModal({ invoiceIds, invoices, accounts, onDone, o
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-sm"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                {...proofDrop.dropProps}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-sm transition-all"
+                style={{ borderColor: proofDrop.dragOver ? 'var(--brand)' : 'var(--border)', background: proofDrop.dragOver ? 'var(--brand-light)' : undefined, color: proofDrop.dragOver ? 'var(--brand)' : 'var(--text-muted)' }}
               >
                 <Upload className="w-4 h-4" />
-                Attach screenshot / receipt
+                {proofDrop.dragOver ? 'Drop to attach' : 'Attach or drop screenshot / receipt'}
               </button>
             )}
           </Field>

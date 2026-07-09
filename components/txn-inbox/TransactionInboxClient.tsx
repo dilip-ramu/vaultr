@@ -56,6 +56,7 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
   const [showSenders, setShowSenders] = useState(false)
   const [newSender, setNewSender] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [dragRow, setDragRow] = useState<string | null>(null)
 
   const patch = (id: string, fields: Partial<Draft>) => {
     setDrafts(prev => prev.map(d => d.id === id ? { ...d, ...fields } : d))
@@ -319,8 +320,12 @@ export default function TransactionInboxClient({ drafts: initial, accounts, cate
                       <button onClick={() => removeAttachment(d.id, d.attachment_path!)} disabled={busy === d.id} className="hover:opacity-70 disabled:opacity-40"><X className="w-3 h-3" /></button>
                     </span>
                   ) : (
-                    <label className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                      <Paperclip className="w-3 h-3" /><span>Attach receipt</span>
+                    <label
+                      onDragOver={e => { if (Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); setDragRow(d.id) } }}
+                      onDragLeave={() => setDragRow(r => r === d.id ? null : r)}
+                      onDrop={e => { e.preventDefault(); setDragRow(null); const file = e.dataTransfer.files?.[0]; if (file && busy !== d.id) attachFile(d.id, file) }}
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer transition-all" style={{ background: dragRow === d.id ? 'var(--brand-light)' : 'var(--surface-2)', color: dragRow === d.id ? 'var(--brand)' : 'var(--text-muted)' }}>
+                      <Paperclip className="w-3 h-3" /><span>{dragRow === d.id ? 'Drop receipt' : 'Attach receipt'}</span>
                       <input type="file" className="hidden" disabled={busy === d.id} onChange={e => { const file = e.target.files?.[0]; if (file) attachFile(d.id, file); e.currentTarget.value = '' }} />
                     </label>
                   )}

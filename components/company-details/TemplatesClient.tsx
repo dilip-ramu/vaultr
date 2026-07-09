@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Save, Loader2, Upload, Trash2, Building2, Check } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 import type { Company } from './CompanyForm'
 import {
   INVOICE_TEMPLATES, ACCENT_PRESETS,
@@ -123,6 +124,7 @@ function Editor({
 }) {
   const [busy, setBusy] = useState(false)
   const [logoBusy, setLogoBusy] = useState(false)
+  const logoDrop = useFileDrop(f => { if (f[0]) void handleLogoUpload(f[0]) }, { disabled: logoBusy })
   const [logo, setLogo] = useState<string | null>(logoUrl)
 
   const [template, setTemplate] = useState<InvoiceTemplate>(company.invoice_template ?? DEFAULT_INVOICE_TEMPLATE)
@@ -268,8 +270,8 @@ function Editor({
         <div className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Logo</p>
           <div className="flex items-center gap-3">
-            <div className="w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-              {logo ? <img src={logo} alt="Logo" className="w-full h-full object-contain" /> : <Building2 className="w-6 h-6" style={{ color: 'var(--text-muted)' }} />}
+            <div {...logoDrop.dropProps} className="w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center shrink-0 transition-all" style={{ background: logoDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)', border: logoDrop.dragOver ? '1px dashed var(--brand)' : '1px solid var(--border)' }}>
+              {logo && !logoDrop.dragOver ? <img src={logo} alt="Logo" className="w-full h-full object-contain" /> : <Building2 className="w-6 h-6" style={{ color: logoDrop.dragOver ? 'var(--brand)' : 'var(--text-muted)' }} />}
             </div>
             <div className="space-y-1.5">
               <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>

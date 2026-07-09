@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { FileSpreadsheet, ArrowLeft, Check, Loader2, AlertTriangle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 
 // header prefix -> our key (case-insensitive startsWith on the header cell)
 const COLS: Record<string, string> = {
@@ -39,6 +40,7 @@ export default function AssetImportClient() {
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [done, setDone] = useState<{ ok: number; skip: number; fail: number; err?: string } | null>(null)
+  const importDrop = useFileDrop(f => { if (f[0]) parseFile(f[0]) })
 
   const parseFile = async (file: File) => {
     setError(''); setRows([]); setDone(null)
@@ -124,9 +126,9 @@ export default function AssetImportClient() {
       <p className="text-sm mt-0.5 mb-5" style={{ color: 'var(--text-muted)' }}>Upload a Precious Metals export (.xlsx or .csv). Details, stones and cost import; photos/invoices are added separately.</p>
 
       {!rows.length && !done && (
-        <div onClick={() => inputRef.current?.click()} className="rounded-2xl border border-dashed cursor-pointer flex flex-col items-center justify-center gap-2 py-14" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-          <FileSpreadsheet className="w-9 h-9" style={{ color: 'var(--text-faint)' }} />
-          <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Click to choose a spreadsheet</p>
+        <div onClick={() => inputRef.current?.click()} {...importDrop.dropProps} className="rounded-2xl border border-dashed cursor-pointer flex flex-col items-center justify-center gap-2 py-14 transition-all" style={{ borderColor: importDrop.dragOver ? 'var(--brand)' : 'var(--border)', background: importDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)' }}>
+          <FileSpreadsheet className="w-9 h-9" style={{ color: importDrop.dragOver ? 'var(--brand)' : 'var(--text-faint)' }} />
+          <p className="text-sm font-semibold" style={{ color: importDrop.dragOver ? 'var(--brand)' : 'var(--text)' }}>{importDrop.dragOver ? 'Drop the spreadsheet' : 'Click or drop a spreadsheet'}</p>
           <p className="text-xs" style={{ color: 'var(--text-faint)' }}>.xlsx or .csv exported from your Precious Metals board</p>
           <input ref={inputRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={e => e.target.files?.[0] && parseFile(e.target.files[0])} />
         </div>

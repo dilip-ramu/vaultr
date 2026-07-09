@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Upload, AlertTriangle, CheckCircle2, Loader2, FileText } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 
 interface PreviewRow { date: string; description: string; amount: number; type: 'income' | 'expense' }
 interface PreviewResponse {
@@ -91,6 +92,8 @@ export default function ImportStatementModal({ accountId, accountName, earliestE
     }
   }
 
+  const csvDrop = useFileDrop(f => { if (f[0]) handleFile(f[0]) })
+
   function handleFile(f: File) {
     setFile(f)
     setPreview(null)
@@ -119,11 +122,11 @@ export default function ImportStatementModal({ accountId, accountName, earliestE
               {/* File picker */}
               <label className="block">
                 <span className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>CSV statement</span>
-                <div className="relative mt-2 flex items-center gap-3 rounded-xl border-2 border-dashed p-4 cursor-pointer" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-                  <FileText className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />
+                <div {...csvDrop.dropProps} className="relative mt-2 flex items-center gap-3 rounded-xl border-2 border-dashed p-4 cursor-pointer transition-all" style={{ borderColor: csvDrop.dragOver ? 'var(--brand)' : 'var(--border)', background: csvDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)' }}>
+                  <FileText className="w-5 h-5" style={{ color: csvDrop.dragOver ? 'var(--brand)' : 'var(--text-muted)' }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate" style={{ color: 'var(--text)' }}>
-                      {file ? file.name : 'Tap to choose a CSV file'}
+                      {file ? file.name : csvDrop.dragOver ? 'Drop CSV to import' : 'Tap to choose or drop a CSV file'}
                     </p>
                     <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
                       Needs columns for Date and Amount (or Debit/Credit). Most bank exports work as-is.

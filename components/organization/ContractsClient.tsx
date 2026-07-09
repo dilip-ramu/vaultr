@@ -6,6 +6,7 @@ import { Upload, Loader2, Trash2, History, FileText, ChevronDown, Save } from 'l
 import { notify } from '@/components/shared/Toast'
 import { createClient } from '@/lib/supabase/client'
 import { CONTRACT_PLACEHOLDERS } from '@/lib/contracts/variables'
+import { useFileDrop } from '@/components/shared/useFileDrop'
 
 const ATTACH_BUCKET = 'vaultr-attachments'
 
@@ -48,6 +49,7 @@ export default function ContractsClient({ initialTemplates, companies, designati
   // ── Template upload (one per company) ──
   const [companyId, setCompanyId] = useState<string>('')
   const [file, setFile] = useState<File | null>(null)
+  const docxDrop = useFileDrop(f => setFile(f[0] ?? null))
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [showVars, setShowVars] = useState(false)
@@ -163,8 +165,8 @@ export default function ContractsClient({ initialTemplates, companies, designati
             </label>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
-              <Upload className="w-4 h-4" />{file ? file.name : 'Choose .docx'}
+            <label {...docxDrop.dropProps} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border cursor-pointer transition-all" style={{ background: docxDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)', borderColor: docxDrop.dragOver ? 'var(--brand)' : 'var(--border)', color: docxDrop.dragOver ? 'var(--brand)' : 'var(--text)' }}>
+              <Upload className="w-4 h-4" />{docxDrop.dragOver ? 'Drop .docx' : file ? file.name : 'Choose or drop .docx'}
               <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
             </label>
             <button onClick={handleUpload} disabled={busy} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5 disabled:opacity-50" style={{ background: 'var(--brand)' }}>
