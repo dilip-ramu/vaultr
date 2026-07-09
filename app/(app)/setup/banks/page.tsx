@@ -18,7 +18,7 @@ export default async function BanksPage() {
   const bgUrls: Record<string, string> = {}
   for (const b of (banks ?? []) as Bank[]) {
     if (b.cheque_bg_path) {
-      const { data: { publicUrl } } = supabase.storage.from('vaultr-attachments').getPublicUrl(b.cheque_bg_path)
+      const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(b.cheque_bg_path)
       if (publicUrl) bgUrls[b.id] = `${publicUrl}?v=${b.updated_at ? Date.parse(b.updated_at) : ''}`
     }
   }

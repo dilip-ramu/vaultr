@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { X, Printer, Check } from 'lucide-react'
 import type { Bank, ChequeFieldKey } from '@/lib/cheque/types'
-import { MM_TO_PX, AC_PAYEE_TEXT } from '@/lib/cheque/types'
+import { MM_TO_PX, AC_PAYEE_TEXT, dateDigitFor } from '@/lib/cheque/types'
 import { amountInWords, amountInFigures } from '@/lib/cheque/amountWords'
 import { renderChequePdfBlob } from '@/lib/cheque/pdf'
 import { notify } from '@/components/shared/Toast'
@@ -20,10 +20,10 @@ interface Props {
 
 const PT_TO_PX = 96 / 72
 
-function fmtDate(iso: string): string {
-  if (!iso) return ''
+function dateParts(iso: string): { dd: string; mm: string; yyyy: string } {
+  if (!iso) return { dd: '', mm: '', yyyy: '' }
   const [y, m, d] = iso.split('-')
-  return `${d}/${m}/${y}`
+  return { dd: d ?? '', mm: m ?? '', yyyy: y ?? '' }
 }
 
 export default function ChequePrintModal({ bank, accountName, defaultPayee, defaultAmount, defaultDate, onConfirm, onClose }: Props) {
@@ -40,22 +40,15 @@ export default function ChequePrintModal({ bank, accountName, defaultPayee, defa
   const words = useMemo(() => amountInWords(amt), [amt])
   const figures = useMemo(() => amountInFigures(amt), [amt])
 
-  const values = {
-    date: fmtDate(date),
-    payee,
-    amountFigures: figures,
-    amountWords: words,
-    acPayee,
-    chequeNumber,
-  }
+  const { dd, mm, yyyy } = dateParts(date)
+  const values = { dd, mm, yyyy, payee, amountFigures: figures, amountWords: words, acPayee, chequeNumber }
   const valueFor = (k: ChequeFieldKey): string | null => {
     switch (k) {
-      case 'date': return values.date
       case 'payee': return values.payee
       case 'amount_figures': return values.amountFigures
       case 'amount_words': return values.amountWords
       case 'ac_payee': return acPayee ? AC_PAYEE_TEXT : null
-      default: return null
+      default: return dateDigitFor(k, dd, mm, yyyy)
     }
   }
 

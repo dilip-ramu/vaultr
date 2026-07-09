@@ -4,10 +4,12 @@
 
 import { Document, Page, Text, View, pdf } from '@react-pdf/renderer'
 import type { Bank, ChequeField } from './types'
-import { MM_TO_PT, AC_PAYEE_TEXT } from './types'
+import { MM_TO_PT, AC_PAYEE_TEXT, dateDigitFor } from './types'
 
 export interface ChequeValues {
-  date: string           // already formatted, e.g. "07 09 2026" or "09/07/2026"
+  dd: string             // day, e.g. "09"
+  mm: string             // month, e.g. "07"
+  yyyy: string           // year, e.g. "2026"
   payee: string
   amountFigures: string
   amountWords: string
@@ -17,12 +19,11 @@ export interface ChequeValues {
 
 function valueFor(field: ChequeField, v: ChequeValues): string | null {
   switch (field.key) {
-    case 'date': return v.date || null
     case 'payee': return v.payee || null
     case 'amount_figures': return v.amountFigures || null
     case 'amount_words': return v.amountWords || null
     case 'ac_payee': return v.acPayee ? AC_PAYEE_TEXT : null
-    default: return null
+    default: return dateDigitFor(field.key, v.dd, v.mm, v.yyyy)
   }
 }
 

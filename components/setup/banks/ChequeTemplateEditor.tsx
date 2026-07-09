@@ -5,7 +5,7 @@ import { X, Upload, Trash2, Image as ImageIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import type { Bank, ChequeField, ChequeFieldKey } from '@/lib/cheque/types'
-import { MM_TO_PX, CHEQUE_FIELD_LABELS, AC_PAYEE_TEXT, defaultChequeFields } from '@/lib/cheque/types'
+import { MM_TO_PX, CHEQUE_FIELD_LABELS, AC_PAYEE_TEXT, defaultChequeFields, dateDigitFor } from '@/lib/cheque/types'
 
 interface Props {
   bank: Bank
@@ -14,12 +14,14 @@ interface Props {
   onClose: () => void
 }
 
-const SAMPLE: Record<ChequeFieldKey, string> = {
-  date: '09/07/2026',
-  payee: 'ABC Traders Private Limited',
-  amount_figures: '12,500.00/-',
-  amount_words: 'Rupees Twelve Thousand Five Hundred Only',
-  ac_payee: AC_PAYEE_TEXT,
+function sampleFor(key: ChequeFieldKey): string {
+  switch (key) {
+    case 'payee': return 'ABC Traders Private Limited'
+    case 'amount_figures': return '12,500.00/-'
+    case 'amount_words': return 'Rupees Twelve Thousand Five Hundred Only'
+    case 'ac_payee': return AC_PAYEE_TEXT
+    default: return dateDigitFor(key, '09', '07', '2026') ?? ''
+  }
 }
 
 const PT_TO_PX = 96 / 72
@@ -68,10 +70,11 @@ export default function ChequeTemplateEditor({ bank, bgUrl: initialBg, onSaved, 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+      // Public bucket — the calibration image needs to display via a plain URL.
       const path = `${user.id}/cheque-bg/${bank.id}-${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('vaultr-attachments').upload(path, file, { upsert: true, contentType: file.type })
+      const { error } = await supabase.storage.from('vaultr-avatars').upload(path, file, { upsert: true, contentType: file.type })
       if (error) { notify(error.message, 'error'); return }
-      const { data: { publicUrl } } = supabase.storage.from('vaultr-attachments').getPublicUrl(path)
+      const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(path)
       setBgPath(path); setBgUrl(publicUrl)
     } finally { setUploading(false) }
   }
@@ -236,7 +239,7 @@ export default function ChequeTemplateEditor({ bank, bgUrl: initialBg, onSaved, 
                   lineHeight: 1.1,
                 }}
               >
-                {SAMPLE[f.key]}
+                {sampleFor(f.key)}
               </div>
             ))}
             {!bgUrl && (
