@@ -45,18 +45,17 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-end md:items-center justify-center"
-      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 56px)' }}
+      className="fixed inset-0 z-[1000] flex items-end md:items-stretch justify-center md:justify-end"
     >
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
 
-      {/* Sheet */}
+      {/* Right-side panel (matches Assets) */}
       <div
-        className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl flex flex-col slide-up"
+        className="relative w-full md:w-[460px] md:h-full rounded-t-3xl md:rounded-none shadow-2xl flex flex-col slide-up max-h-[92vh] md:max-h-none"
         style={{
           backgroundColor: 'var(--surface)',
-          maxHeight: '100%',
+          borderLeft: '1px solid var(--border)',
         }}
       >
         {/* ── Header (never scrolls away) ─────────────────────────────────── */}

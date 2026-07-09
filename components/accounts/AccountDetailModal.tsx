@@ -75,8 +75,8 @@ export default function AccountDetailModal({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl flex flex-col" style={{ background: 'var(--surface)', maxHeight: '90dvh', boxShadow: 'var(--shadow-lg)' }}>
+    <div className="fixed inset-0 z-50 flex items-end md:items-stretch justify-center md:justify-end" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full md:w-[480px] md:h-full rounded-t-2xl md:rounded-none flex flex-col slide-up max-h-[92dvh] md:max-h-none" style={{ background: 'var(--surface)', boxShadow: 'var(--shadow-lg)', borderLeft: '1px solid var(--border)' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="min-w-0">
