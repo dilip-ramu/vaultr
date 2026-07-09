@@ -40,6 +40,7 @@ export interface Account {
   color: string
   icon: string
   avatar_url: string | null
+  bank_logo_url?: string | null
   custom_type_id?: string | null
   custom_type_name?: string | null
   custom_type_color?: string | null

@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import dynamic from 'next/dynamic'
-import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check } from 'lucide-react'
+import { Plus, Wallet, CreditCard, Eye, EyeOff, Pencil, Check, Paperclip } from 'lucide-react'
 import type { Account, BuiltinTypeOverride, DebitCard } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay, getCategoryEmoji } from '@/lib/types'
 import { accountGroupRank } from '@/lib/utils'
@@ -14,6 +14,7 @@ import type { StatementRow } from '../cards/CardsClient'
 import type { PickerAccount } from '../shared/AccountChipPicker'
 import { Avatar } from '../AppShell'
 import AccountDetailModal from './AccountDetailModal'
+const ShareCardModal = dynamic(() => import('./ShareCardModal'), { ssr: false })
 
 const AccountForm = dynamic(() => import('./AccountForm'), { ssr: false })
 
@@ -49,6 +50,7 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
   const [editAccount, setEditAccount] = useState<Account | null>(null)
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [detailAccount, setDetailAccount] = useState<Account | null>(null)
+  const [shareAccount, setShareAccount] = useState<Account | null>(null)
   const [revealed, setRevealed] = useState<Set<string>>(new Set())
   const toggleReveal = useCallback((key: string) => {
     setRevealed(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
@@ -270,10 +272,14 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
                 {/* RIGHT — balance, status, debit cards */}
                 <div className="flex-1 p-5 flex flex-col min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {account.bank_logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={account.bank_logo_url} alt="" className="w-9 h-9 rounded-lg object-contain shrink-0 p-0.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }} />
+                      )}
                       <p className="text-[15px] font-bold truncate" style={{ color: 'var(--text)' }}>{account.name}</p>
                     </div>
-                    <button onClick={e => { e.stopPropagation(); handleEdit(account) }} className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                    <button onClick={e => { e.stopPropagation(); setShareAccount(account) }} className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }} title="Share bank details"><Paperclip className="w-3.5 h-3.5" /></button>
                   </div>
                   <div className="mt-4">
                     <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{liability ? 'Outstanding' : 'Balance'}</p>
@@ -334,6 +340,16 @@ export default function AccountsClient({ initialAccounts, builtinOverrides = [],
           onEdit={a => { setDetailAccount(null); handleEdit(a) }}
           onDeleted={handleDelete}
           onClose={() => setDetailAccount(null)}
+        />
+      )}
+
+      {shareAccount && (
+        <ShareCardModal
+          account={shareAccount}
+          accent={accountGroups.find(g => g.accounts.some(a => a.id === shareAccount.id))?.color ?? '#334155'}
+          typeLabel={accountGroups.find(g => g.accounts.some(a => a.id === shareAccount.id))?.label ?? shareAccount.type}
+          debitCards={debitByAccount[shareAccount.id] ?? []}
+          onClose={() => setShareAccount(null)}
         />
       )}
 

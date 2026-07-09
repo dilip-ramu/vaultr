@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { X, Check, Camera, ChevronDown, ChevronUp, CreditCard, Trash2, Plus } from 'lucide-react'
+import { X, Check, Camera, ChevronDown, ChevronUp, CreditCard, Trash2, Plus, ImagePlus } from 'lucide-react'
 import type { Account, AccountType, CustomAccountType, DebitCard, BuiltinTypeOverride } from '@/lib/types'
 import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS, resolveAccountTypeDisplay } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
@@ -150,6 +150,26 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
     setAvatarUploading(false)
   }
 
+  // Bank logo — separate from the account-holder avatar.
+  const [bankLogoUrl, setBankLogoUrl] = useState(account?.bank_logo_url ?? '')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const uploadBankLogo = async (file?: File) => {
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { setError('Logo must be under 2MB'); return }
+    setLogoUploading(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const ext = file.name.split('.').pop()
+    const path = `${user!.id}/bank-logos/${Date.now()}.${ext}`
+    const { error: uploadErr } = await supabase.storage.from('vaultr-avatars').upload(path, file, { upsert: true })
+    if (uploadErr) { setError(uploadErr.message); setLogoUploading(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(path)
+    setBankLogoUrl(`${publicUrl}?t=${Date.now()}`)
+    setLogoUploading(false)
+  }
+  const logoDrop = useFileDrop(f => uploadBankLogo(f[0]), { disabled: logoUploading })
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) { setError('Account name is required'); return }
@@ -168,6 +188,7 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
       currency,
       include_in_net_worth: includeNetWorth,
       avatar_url: avatarUrl || null,
+      bank_logo_url: bankLogoUrl || null,
       account_number: accountNumber.trim() || null,
       account_holder: accountHolder.trim() || null,
       branch: branch.trim() || null,
@@ -441,7 +462,24 @@ export default function AccountForm({ account, onSaved, onClose, onDeleted }: Ac
 
                 {showDetails && (
                   <div className="px-4 pb-4 space-y-3 border-t border-[var(--border)]">
-                    <div className="grid grid-cols-2 gap-3 pt-3">
+                    {/* Bank logo (separate from the account-holder photo) */}
+                    <div className="flex items-center gap-3 pt-3">
+                      <button type="button" onClick={() => logoInputRef.current?.click()} {...logoDrop.dropProps}
+                        className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 overflow-hidden transition-all"
+                        style={{ background: logoDrop.dragOver ? 'var(--brand-light)' : 'var(--surface-2)', border: `1px ${logoDrop.dragOver ? 'dashed var(--brand)' : 'solid var(--border)'}` }}>
+                        {bankLogoUrl && !logoDrop.dragOver
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={bankLogoUrl} alt="" className="w-full h-full object-contain" />
+                          : <ImagePlus className="w-5 h-5" style={{ color: 'var(--text-faint)' }} />}
+                      </button>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Bank logo</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{logoUploading ? 'Uploading…' : 'Shown on the card & shareable image. Tap or drop an image.'}</p>
+                        {bankLogoUrl && <button type="button" onClick={() => setBankLogoUrl('')} className="text-[11px] mt-0.5" style={{ color: 'var(--expense)' }}>Remove</button>}
+                      </div>
+                      <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={e => uploadBankLogo(e.target.files?.[0])} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pt-1">
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">{isCredit ? 'Card number' : 'Account number'}</label>
                         <input type="text" value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="XXXX XXXX XXXX" className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm font-mono" />
