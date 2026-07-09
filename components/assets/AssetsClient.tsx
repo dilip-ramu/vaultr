@@ -30,6 +30,8 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
   const [formFor, setFormFor] = useState<{ asset: Asset | null; category: string; subcategory: string } | null>(null)
   const [showPicker, setShowPicker] = useState(false)
   const [detail, setDetail] = useState<Asset | null>(null)
+  const [newCat, setNewCat] = useState('')
+  const [newSub, setNewSub] = useState('')
 
   const valued = useMemo(() => {
     const m = new Map<string, Valuation>()
@@ -50,21 +52,20 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
 
   // group: category -> subcategory -> assets
   const grouped = useMemo(() => {
-    const cats = ASSET_CATEGORIES.filter(c => (catFilter === 'all' ? true : c.key === catFilter))
-      .map(c => {
-        const list = assets.filter(a => a.category === c.key)
-        if (list.length === 0) return null
-        const subs = new Map<string, Asset[]>()
-        for (const a of list) {
-          const k = a.subcategory ?? '—'
-          if (!subs.has(k)) subs.set(k, [])
-          subs.get(k)!.push(a)
-        }
-        let cCost = 0, cCur = 0
-        for (const a of list) { const v = valued.get(a.id)!; cCost += v.cost; cCur += v.current }
-        return { cat: c, subs, cCost, cCur, cGain: cCur - cCost }
-      }).filter(Boolean) as { cat: typeof ASSET_CATEGORIES[number]; subs: Map<string, Asset[]>; cCost: number; cCur: number; cGain: number }[]
-    return cats
+    const order = ASSET_CATEGORIES.map(c => c.key)
+    const keys = Array.from(new Set(assets.map(a => a.category)))
+      .filter(k => catFilter === 'all' || k === catFilter)
+      .sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b) })
+    return keys.map(key => {
+      const list = assets.filter(a => a.category === key)
+      const subs = new Map<string, Asset[]>()
+      for (const a of list) { const k = a.subcategory ?? '—'; if (!subs.has(k)) subs.set(k, []); subs.get(k)!.push(a) }
+      let cCost = 0, cCur = 0
+      for (const a of list) { const v = valued.get(a.id)!; cCost += v.cost; cCur += v.current }
+      const def = categoryDef(key)
+      const isMetal = ['gold', 'silver', 'platinum'].includes(key)
+      return { key, label: def?.label ?? key, emoji: def?.emoji ?? '💠', blurb: def?.blurb ?? (isMetal ? 'market-linked' : 'rate-linked'), isMetal, subs, cCost, cCur, cGain: cCur - cCost }
+    })
   }, [assets, valued, catFilter])
 
   const marketRateFor = (metal: string) => {
@@ -124,7 +125,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
         ))}
       </div>
 
-      {tab === 'rates' && <RatesTab defaults={defaults} setDefaults={setDefaults} />}
+      {tab === 'rates' && <RatesTab assets={assets} defaults={defaults} setDefaults={setDefaults} />}
       {tab === 'market' && <MarketTab rates={marketRates} />}
 
       {tab === 'assets' && (assets.length === 0 ? (
@@ -167,33 +168,33 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
           <div className="flex gap-2 mb-5 flex-wrap">
             <button onClick={() => setCatFilter('all')} className="text-[11.5px] font-bold px-3.5 py-1.5 rounded-xl"
               style={catFilter === 'all' ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>All</button>
-            {ASSET_CATEGORIES.filter(c => assets.some(a => a.category === c.key)).map(c => (
-              <button key={c.key} onClick={() => setCatFilter(c.key)} className="text-[11.5px] font-semibold px-3.5 py-1.5 rounded-xl"
-                style={catFilter === c.key ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{c.emoji} {c.label}</button>
-            ))}
+            {Array.from(new Set(assets.map(a => a.category))).map(key => { const def = categoryDef(key); return (
+              <button key={key} onClick={() => setCatFilter(key)} className="text-[11.5px] font-semibold px-3.5 py-1.5 rounded-xl"
+                style={catFilter === key ? { background: 'var(--brand)', color: '#fff' } : { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{def?.emoji ?? '💠'} {def?.label ?? key}</button>
+            )})}
           </div>
 
           {/* Grouped categories */}
-          {grouped.map(({ cat, subs, cCur, cGain }) => (
-            <div key={cat.key} className="mb-6">
+          {grouped.map((g) => (
+            <div key={g.key} className="mb-6">
               <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-base">{cat.emoji}</span>
-                  <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>{cat.label}</h2>
+                  <span className="text-base">{g.emoji}</span>
+                  <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>{g.label}</h2>
                   <span className="text-[11px] font-semibold" style={{ color: 'var(--text-faint)' }}>
-                    · {cat.blurb}{cat.valuation === 'market' && marketRateFor(cat.key === 'gold' ? 'gold' : 'silver') ? ` · ₹${marketRateFor(cat.key === 'gold' ? 'gold' : 'silver')!.toLocaleString('en-IN')}/g` : ''}
+                    · {g.blurb}{g.isMetal && marketRateFor(g.key) ? ` · ₹${marketRateFor(g.key)!.toLocaleString('en-IN')}/g` : ''}
                   </span>
                 </div>
                 <div className="flex items-center gap-3.5">
-                  <span className="text-xs font-bold" style={{ color: cGain >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{cGain >= 0 ? '+' : ''}{inrCompact(cGain)}</span>
-                  <span className="text-sm font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(cCur)}</span>
+                  <span className="text-xs font-bold" style={{ color: g.cGain >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>{g.cGain >= 0 ? '+' : ''}{inrCompact(g.cGain)}</span>
+                  <span className="text-sm font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inrCompact(g.cCur)}</span>
                 </div>
               </div>
 
-              {[...subs.entries()].map(([subKey, list]) => {
-                const subLabel = cat.subcategories.find(s => s.key === subKey)?.label ?? subKey
+              {[...g.subs.entries()].map(([subKey, list]) => {
+                const subLabel = categoryDef(g.key)?.subcategories.find(s => s.key === subKey)?.label ?? subKey
                 const subTotal = list.reduce((s, a) => s + valued.get(a.id)!.current, 0)
-                const rateNote = cat.key === 'real_estate' && subKey === 'land' ? ' · avg' : ''
+                const rateNote = g.key === 'real_estate' && subKey === 'land' ? ' · avg' : ''
                 return (
                   <div key={subKey} className="rounded-2xl overflow-hidden mb-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
@@ -228,10 +229,18 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
       ))}
 
       {/* Category picker → form */}
-      {showPicker && (
+      {showPicker && (() => {
+        const builtinByLabel = new Map(ASSET_CATEGORIES.map(c => [c.label.toLowerCase(), c.key]))
+        const resolveCat = (name: string) => builtinByLabel.get(name.trim().toLowerCase()) ?? name.trim()
+        const knownCats = Array.from(new Set([...ASSET_CATEGORIES.map(c => c.label), ...assets.map(a => categoryDef(a.category)?.label ?? a.category)]))
+        const knownSubs = Array.from(new Set(assets.map(a => a.subcategory).filter(Boolean) as string[]))
+        const subToCat = new Map<string, string>()
+        assets.forEach(a => { if (a.subcategory) subToCat.set(a.subcategory.toLowerCase(), categoryDef(a.category)?.label ?? a.category) })
+        const startCustom = () => { if (!newSub.trim()) return; setShowPicker(false); setFormFor({ asset: null, category: resolveCat(newCat || 'Other'), subcategory: newSub.trim() }); setNewCat(''); setNewSub('') }
+        return (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
           <div className="fixed inset-0 bg-black/40" onClick={() => setShowPicker(false)} />
-          <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up">
+          <div className="relative bg-[var(--surface)] w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up max-h-[90vh] overflow-y-auto">
             <p className="text-base font-extrabold mb-4" style={{ color: 'var(--text)' }}>What are you adding?</p>
             <div className="grid grid-cols-2 gap-2.5">
               {ASSET_CATEGORIES.flatMap(c => c.subcategories.map(s => ({ c, s }))).map(({ c, s }) => (
@@ -242,9 +251,27 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                 </button>
               ))}
             </div>
+            {/* Custom category + subcategory */}
+            <p className="text-[11px] font-extrabold tracking-wide mt-5 mb-2" style={{ color: 'var(--text-faint)' }}>OR ADD YOUR OWN</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>Sub-category</label>
+                <input list="asset-subs" value={newSub} onChange={e => { setNewSub(e.target.value); const c = subToCat.get(e.target.value.trim().toLowerCase()); if (c) setNewCat(c) }}
+                  placeholder="e.g. Watch, Painting" className="w-full mt-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-[10px] px-3 py-2.5 text-[13px]" />
+                <datalist id="asset-subs">{knownSubs.map(s => <option key={s} value={s} />)}</datalist>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>Category</label>
+                <input list="asset-cats" value={newCat} onChange={e => setNewCat(e.target.value)}
+                  placeholder="e.g. Collectibles" className="w-full mt-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-[10px] px-3 py-2.5 text-[13px]" />
+                <datalist id="asset-cats">{knownCats.map(c => <option key={c} value={c} />)}</datalist>
+              </div>
+            </div>
+            <button onClick={startCustom} disabled={!newSub.trim()} className="w-full mt-3 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50" style={{ background: 'var(--brand)' }}>Continue</button>
+            <p className="text-[10.5px] mt-2" style={{ color: 'var(--text-faint)' }}>Pick a known sub-category and its category fills in automatically. New ones get a rate line on the Rates tab.</p>
           </div>
         </div>
-      )}
+      )})()}
 
       {formFor && (
         <AssetForm asset={formFor.asset} category={formFor.category} subcategory={formFor.subcategory}

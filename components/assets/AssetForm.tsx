@@ -22,14 +22,19 @@ const fld = 'w-full mt-1.5 bg-[var(--surface-2)] border border-[var(--border)] r
 const lbl = 'text-[11px] font-bold text-[var(--text-muted)]'
 
 export default function AssetForm({ asset, category, subcategory, marketRates, defaults, onSaved, onClose }: Props) {
-  const cat = categoryDef(category)!
-  const valuation: ValuationType = (asset?.valuation_type
-    ?? cat.subcategories.find(s => s.key === subcategory)?.valuation
-    ?? cat.valuation) as ValuationType
+  const cat = categoryDef(category)                      // undefined for user-defined categories
+  const catLabel = cat?.label ?? category
+  const catEmoji = cat?.emoji ?? '💠'
+  const isMetalCat = ['gold', 'silver', 'platinum'].includes(category)
+  const valuation: ValuationType = (asset?.valuation_type as ValuationType)
+    ?? (isMetalCat ? 'market'
+      : (category === 'real_estate' && subcategory === 'building') ? 'building'
+      : (cat?.subcategories.find(s => s.key === subcategory)?.valuation as ValuationType)
+      ?? 'rate')
   const isMarket = valuation === 'market'
-  const isLand = category === 'real_estate' && valuation === 'rate'
   const isBuilding = valuation === 'building'
-  const isDeprec = valuation === 'depreciate'
+  const isLand = category === 'real_estate' && subcategory === 'land' && (valuation === 'rate' || valuation === 'depreciate')
+  const isRate = (valuation === 'rate' || valuation === 'depreciate') && !isLand   // generic: electronics, watch, artwork, custom…
 
   const d0 = (asset?.details ?? {}) as AssetDetails
   const [name, setName] = useState(asset?.name ?? '')
@@ -116,7 +121,6 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const [structDep, setStructDep] = useState(d0.structure_depreciation_pct?.toString() ?? '3')
   // electronics
   const [purchaseCost, setPurchaseCost] = useState(d0.purchase_cost?.toString() ?? '')
-  const [deprecPct, setDeprecPct] = useState(d0.depreciation_pct?.toString() ?? (subcategory === 'phones' ? '30' : '25'))
   // shared
   const [purchaseDate, setPurchaseDate] = useState(asset?.purchase_date ?? '')
 
@@ -134,8 +138,8 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
     }
     if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs }
     if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs }
-    return { purchase_cost: num(purchaseCost), depreciation_pct: num(deprecPct), documents: docs }
-  }, [isMarket, isLand, isBuilding, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, deprecPct])
+    return { purchase_cost: num(purchaseCost), documents: docs }
+  }, [isMarket, isLand, isBuilding, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost])
 
   const { cost, lines } = computeCost(category, valuation, details)
 
@@ -145,13 +149,13 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       id: asset?.id ?? 'preview', user_id: '', household_id: null, name, category, subcategory,
       valuation_type: valuation, purchase_date: purchaseDate || null, cost_total: cost, details,
       metal: isMarket ? category : null, metal_purity: isMarket ? purity : null, quantity_g: isMarket ? (num(weight) ?? null) : null,
-      override_rate_pct: appMode === 'override' ? (num(overrideRate) ?? null) : isDeprec ? -(num(deprecPct) ?? 0) : null,
+      override_rate_pct: appMode === 'override' ? (num(overrideRate) ?? null) : null,
       manual_value: appMode === 'manual' ? (num(manualValue) ?? null) : null,
       manual_value_date: null, photo_url: null, include_in_net_worth: true, notes: null,
       created_at: '', updated_at: '',
     }
     return valueAsset(a, marketRates, defaults)
-  }, [asset, name, category, subcategory, valuation, purchaseDate, cost, details, isMarket, purity, weight, appMode, overrideRate, manualValue, isDeprec, deprecPct, marketRates, defaults])
+  }, [asset, name, category, subcategory, valuation, purchaseDate, cost, details, isMarket, purity, weight, appMode, overrideRate, manualValue, marketRates, defaults])
 
   const todayRate = isMarket ? perGramRate(category, purity || null, marketRates) : null
 
@@ -165,7 +169,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       purchase_date: purchaseDate || null, cost_total: cost, details,
       metal: isMarket ? category : null, metal_purity: isMarket ? (purity || null) : null,
       quantity_g: isMarket ? (num(weight) ?? null) : null,
-      override_rate_pct: appMode === 'override' ? (num(overrideRate) ?? null) : isDeprec ? -(num(deprecPct) ?? 0) : null,
+      override_rate_pct: appMode === 'override' ? (num(overrideRate) ?? null) : null,
       manual_value: appMode === 'manual' ? (num(manualValue) ?? null) : null,
       include_in_net_worth: asset?.include_in_net_worth ?? true,
       photo_url: photoUrl || null,
@@ -177,7 +181,8 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
     onSaved(data as Asset)
   }
 
-  const title = asset ? `Edit · ${asset.name}` : `Add ${cat.label.toLowerCase()}${isMarket ? ' · ' + (cat.subcategories.find(s => s.key === subcategory)?.label ?? '') : ''}`
+  const subLabel = cat?.subcategories.find(s => s.key === subcategory)?.label ?? subcategory
+  const title = asset ? `Edit · ${asset.name}` : `Add ${catLabel.toLowerCase()}${subLabel ? ' · ' + subLabel : ''}`
   const goldGrad = 'linear-gradient(135deg,#8A6D1F,#5C4711)'
   const brandGrad = 'linear-gradient(135deg,var(--brand-deep,#14432D),color-mix(in srgb,var(--brand-deep,#14432D) 76%,#000))'
 
@@ -189,7 +194,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
         <div className="flex flex-col flex-1 min-w-0 max-h-[92vh]">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
             <div className="flex items-center gap-2.5">
-              <span className="text-lg">{cat.emoji}</span>
+              <span className="text-lg">{catEmoji}</span>
               <p className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>{title}</p>
             </div>
             <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></button>
@@ -332,12 +337,25 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
               <div><label className={lbl}>Built / bought</label><input type="date" className={fld} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} /></div>
             </>}
 
-            {isDeprec && <>
+            {isRate && <>
               <div className="grid grid-cols-2 gap-2.5">
-                <div><label className={lbl}>Purchase cost</label><input className={fld} inputMode="decimal" value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)} /></div>
+                <div><label className={lbl}>Cost</label><input className={fld} inputMode="decimal" value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)} /></div>
                 <div><label className={lbl}>Purchase date</label><input type="date" className={fld} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} /></div>
               </div>
-              <div><label className={lbl}>Depreciation %/yr</label><input className={fld} inputMode="decimal" value={deprecPct} onChange={e => setDeprecPct(e.target.value)} /></div>
+              <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[12px] font-bold" style={{ color: 'var(--text)' }}>Change /yr</span>
+                  <div className="flex rounded-lg p-0.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                    {(['default', 'override', 'manual'] as const).map(mm => (
+                      <button key={mm} type="button" onClick={() => setAppMode(mm)} className="text-[11px] font-semibold px-2.5 py-1 rounded-md capitalize"
+                        style={appMode === mm ? { background: 'var(--brand)', color: '#fff' } : { color: 'var(--text-muted)' }}>{mm === 'manual' ? 'Manual ₹' : mm}</button>
+                    ))}
+                  </div>
+                </div>
+                {appMode === 'default' && <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>Uses this subcategory’s rate from the Rates tab (+ appreciates, − depreciates).</p>}
+                {appMode === 'override' && <input className="num w-full bg-[var(--surface)] border-[1.5px] border-[var(--brand)] rounded-[9px] px-3 py-2 text-[13px] font-bold" placeholder="e.g. −25 or 8" value={overrideRate} onChange={e => setOverrideRate(e.target.value)} inputMode="decimal" style={{ color: 'var(--text)' }} />}
+                {appMode === 'manual' && <input className="num w-full bg-[var(--surface)] border-[1.5px] border-[var(--brand)] rounded-[9px] px-3 py-2 text-[13px] font-bold" placeholder="Current value ₹" value={manualValue} onChange={e => setManualValue(e.target.value)} inputMode="decimal" style={{ color: 'var(--text)' }} />}
+              </div>
             </>}
 
             {/* Documents — repeatable (parent doc, patta, chitta, …) */}
