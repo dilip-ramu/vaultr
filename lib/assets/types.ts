@@ -41,7 +41,18 @@ export interface ElectronicsDetails {
   purchase_cost?: number
   depreciation_pct?: number
 }
-export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & ElectronicsDetails & Record<string, unknown>
+// Repeatable sub-items
+export interface StoneEntry { type?: string; weight_ct?: number; cost?: number; present?: number }
+export interface DocEntry { type?: string; url?: string; name?: string }
+
+export const STONE_TYPES = ['Diamond', 'Ruby', 'Emerald', 'Sapphire', 'Pearl', 'Coral', 'Topaz', 'Cubic Zirconia', 'Other']
+export const DOC_TYPES = ['Parent document', 'Sale deed', 'Patta', 'Chitta', 'Adangal', 'FMB sketch', 'EC (Encumbrance)', 'Tax receipt', 'Approval / Plan', 'Khata', 'Other']
+
+export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & ElectronicsDetails & {
+  stones?: StoneEntry[]
+  location?: string
+  documents?: DocEntry[]
+} & Record<string, unknown>
 
 export interface Asset {
   id: string

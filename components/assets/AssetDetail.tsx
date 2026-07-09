@@ -55,6 +55,9 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
     detailRows.push(['Depreciation', `${d.depreciation_pct ?? Math.abs(asset.override_rate_pct ?? 0)}%/yr`])
   }
   if (asset.purchase_date) detailRows.push(['Purchased', new Date(asset.purchase_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })])
+  const location = (asset.details as { location?: string }).location
+  if (location) detailRows.push(['Location', location])
+  const docs = ((asset.details as { documents?: { type?: string; url?: string; name?: string }[] }).documents) ?? []
 
   const chartColor = isMarket ? 'var(--amber)' : 'var(--brand)'
   const chart = (() => {
@@ -151,6 +154,21 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
               </div>
             ))}
           </div>
+
+          {docs.length > 0 && (
+            <>
+              <p className="text-[11px] font-extrabold tracking-wide mt-5 mb-2.5" style={{ color: 'var(--text-muted)' }}>DOCUMENTS</p>
+              <div className="space-y-1.5">
+                {docs.map((dc, i) => (
+                  <a key={i} href={dc.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'var(--surface-2)' }}>
+                    <FileText className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+                    <span className="text-[12.5px] font-semibold flex-1 truncate" style={{ color: 'var(--text)' }}>{dc.type || 'Document'}</span>
+                    <span className="text-[11px] truncate max-w-[120px]" style={{ color: 'var(--text-faint)' }}>{dc.name || 'open'}</span>
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
 
           {(asset.details as { invoice_url?: string }).invoice_url && (
             <a href={(asset.details as { invoice_url?: string }).invoice_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 mt-4 px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>

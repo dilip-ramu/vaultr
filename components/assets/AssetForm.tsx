@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo, useState, useRef } from 'react'
-import { X, TrendingUp, TrendingDown, ImagePlus, FileText, Gem } from 'lucide-react'
+import { X, TrendingUp, TrendingDown, ImagePlus, FileText, Gem, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType } from '@/lib/assets/types'
-import { categoryDef } from '@/lib/assets/types'
+import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType, StoneEntry, DocEntry } from '@/lib/assets/types'
+import { categoryDef, STONE_TYPES, DOC_TYPES } from '@/lib/assets/types'
 import { computeCost, perGramRate, valueAsset, inr } from '@/lib/assets/valuation'
 
 interface Props {
@@ -49,14 +49,19 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const [certif, setCertif] = useState(d0.certification?.toString() ?? '')
   const [discount, setDiscount] = useState(d0.discount?.toString() ?? '')
   const [taxPct, setTaxPct] = useState((d0.tax_pct ?? d0.gst_pct)?.toString() ?? '')
-  // stones (diamond + other)
-  const [diaCt, setDiaCt] = useState(d0.diamond_carats?.toString() ?? '')
-  const [diaCost, setDiaCost] = useState(d0.diamond_cost_per_carat?.toString() ?? '')
-  const [diaPresent, setDiaPresent] = useState(d0.diamond_present_per_carat?.toString() ?? '')
-  const [othCt, setOthCt] = useState(d0.other_carats?.toString() ?? '')
-  const [othCost, setOthCost] = useState(d0.other_cost_per_carat?.toString() ?? '')
-  const [othPresent, setOthPresent] = useState(d0.other_present_per_carat?.toString() ?? '')
-  const [showStones, setShowStones] = useState(!!(d0.diamond_carats || d0.other_carats))
+  // stones — repeatable list (converts legacy diamond/other fields for editing)
+  const nz = (v: unknown) => Number(v) || 0
+  const legacyStones: StoneEntry[] = []
+  if (nz(d0.diamond_carats) || nz(d0.diamond_cost_per_carat)) legacyStones.push({ type: 'Diamond', weight_ct: nz(d0.diamond_carats) || undefined, cost: nz(d0.diamond_carats) * nz(d0.diamond_cost_per_carat) || undefined, present: nz(d0.diamond_carats) * nz(d0.diamond_present_per_carat) || undefined })
+  if (nz(d0.other_carats) || nz(d0.other_cost_per_carat)) legacyStones.push({ type: 'Other', weight_ct: nz(d0.other_carats) || undefined, cost: nz(d0.other_carats) * nz(d0.other_cost_per_carat) || undefined, present: nz(d0.other_carats) * nz(d0.other_present_per_carat) || undefined })
+  const [stones, setStones] = useState<StoneEntry[]>(Array.isArray(d0.stones) && d0.stones.length ? d0.stones : legacyStones)
+  const [showStones, setShowStones] = useState((Array.isArray(d0.stones) ? d0.stones.length : legacyStones.length) > 0)
+  const setStone = (i: number, patch: Partial<StoneEntry>) => setStones(s => s.map((x, j) => j === i ? { ...x, ...patch } : x))
+  // location + documents (repeatable, like stones)
+  const [location, setLocation] = useState(d0.location ?? '')
+  const [documents, setDocuments] = useState<DocEntry[]>(Array.isArray(d0.documents) ? d0.documents : [])
+  const docRef = useRef<HTMLInputElement>(null)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
   // attachments — Photo + Invoice (separate)
   const [photoUrl, setPhotoUrl] = useState(asset?.photo_url ?? '')
   const [invoiceUrl, setInvoiceUrl] = useState(d0.invoice_url ?? '')
@@ -79,6 +84,21 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
     if (slot === 'photo') setPhotoUrl(url); else setInvoiceUrl(url)
     setUploading('')
   }
+
+  const uploadDoc = async (file?: File) => {
+    if (!file) return
+    if (file.size > 15 * 1024 * 1024) { setError('Document must be under 15MB'); return }
+    setUploadingDoc(true); setError('')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const ext = file.name.split('.').pop()
+    const path = `${user!.id}/assets/doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
+    const { error: e } = await supabase.storage.from('vaultr-avatars').upload(path, file, { upsert: true })
+    if (e) { setError(e.message); setUploadingDoc(false); return }
+    const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(path)
+    setDocuments(d => [...d, { type: DOC_TYPES[0], url: publicUrl, name: file.name }])
+    setUploadingDoc(false)
+  }
   // land
   const [areaCent, setAreaCent] = useState(d0.area_cent?.toString() ?? '')
   const [ppc, setPpc] = useState(d0.price_per_cent?.toString() ?? '')
@@ -100,18 +120,21 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const [purchaseDate, setPurchaseDate] = useState(asset?.purchase_date ?? '')
 
   const details: AssetDetails = useMemo(() => {
+    const docs = documents.length ? documents : undefined
+    const cleanStones = stones
+      .map(s => ({ type: s.type, weight_ct: Number(s.weight_ct) || undefined, cost: Number(s.cost) || undefined, present: Number(s.present) || undefined }))
+      .filter(s => s.type || s.cost || s.weight_ct || s.present)
     if (isMarket) return {
       weight_g: num(weight), gross_weight_g: num(grossW), purity, price_per_gram: num(ppg),
       value_addition_pct: num(valueAdd), making_per_gram: num(makingG), certification: num(certif),
       discount: num(discount), tax_pct: num(taxPct),
-      diamond_carats: num(diaCt), diamond_cost_per_carat: num(diaCost), diamond_present_per_carat: num(diaPresent),
-      other_carats: num(othCt), other_cost_per_carat: num(othCost), other_present_per_carat: num(othPresent),
-      invoice_url: invoiceUrl || undefined,
+      stones: cleanStones.length ? cleanStones : undefined,
+      invoice_url: invoiceUrl || undefined, documents: docs,
     }
-    if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker) }
-    if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep) }
-    return { purchase_cost: num(purchaseCost), depreciation_pct: num(deprecPct) }
-  }, [isMarket, isLand, isBuilding, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, diaCt, diaCost, diaPresent, othCt, othCost, othPresent, invoiceUrl, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, deprecPct])
+    if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs }
+    if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs }
+    return { purchase_cost: num(purchaseCost), depreciation_pct: num(deprecPct), documents: docs }
+  }, [isMarket, isLand, isBuilding, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, deprecPct])
 
   const { cost, lines } = computeCost(category, valuation, details)
 
@@ -229,27 +252,31 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
                 <div><label className={lbl}>Discount</label><input className={fld} inputMode="decimal" value={discount} onChange={e => setDiscount(e.target.value)} /></div>
                 <div><label className={lbl}>Tax %</label><input className={fld} inputMode="decimal" value={taxPct} onChange={e => setTaxPct(e.target.value)} /></div>
               </div>
-              {/* Diamonds & other stones */}
+              {/* Stones — repeatable list */}
               <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                 <button type="button" onClick={() => setShowStones(v => !v)} className="w-full flex items-center justify-between px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
-                  <span className="flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--text)' }}><Gem className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} /> Diamonds &amp; stones</span>
+                  <span className="flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--text)' }}><Gem className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} /> Stones {stones.length > 0 && <span style={{ color: 'var(--text-faint)' }}>· {stones.length}</span>}</span>
                   <span className="text-[16px]" style={{ color: 'var(--text-faint)' }}>{showStones ? '−' : '+'}</span>
                 </button>
                 {showStones && (
-                  <div className="px-3 pb-3 pt-1 space-y-2.5" style={{ borderTop: '1px solid var(--border)' }}>
-                    <p className="text-[10px] font-extrabold tracking-wide pt-2" style={{ color: 'var(--text-faint)' }}>DIAMOND</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div><label className={lbl}>Carats</label><input className={fld} inputMode="decimal" value={diaCt} onChange={e => setDiaCt(e.target.value)} /></div>
-                      <div><label className={lbl}>Cost / ct</label><input className={fld} inputMode="decimal" value={diaCost} onChange={e => setDiaCost(e.target.value)} /></div>
-                      <div><label className={lbl}>Value / ct now</label><input className={fld} inputMode="decimal" value={diaPresent} onChange={e => setDiaPresent(e.target.value)} /></div>
-                    </div>
-                    <p className="text-[10px] font-extrabold tracking-wide" style={{ color: 'var(--text-faint)' }}>OTHER STONES</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div><label className={lbl}>Carats</label><input className={fld} inputMode="decimal" value={othCt} onChange={e => setOthCt(e.target.value)} /></div>
-                      <div><label className={lbl}>Cost / ct</label><input className={fld} inputMode="decimal" value={othCost} onChange={e => setOthCost(e.target.value)} /></div>
-                      <div><label className={lbl}>Value / ct now</label><input className={fld} inputMode="decimal" value={othPresent} onChange={e => setOthPresent(e.target.value)} /></div>
-                    </div>
-                    <p className="text-[10.5px]" style={{ color: 'var(--text-faint)' }}>Stone cost adds to the total cost. “Value / ct now” is the stone’s current per-carat value used for gain — the metal itself is valued live from the market rate.</p>
+                  <div className="px-3 pb-3 pt-2.5 space-y-2.5" style={{ borderTop: '1px solid var(--border)' }}>
+                    {stones.map((s, i) => (
+                      <div key={i} className="rounded-lg p-2.5" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <select className="flex-1 bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2.5 py-2 text-[12.5px]" value={s.type ?? ''} onChange={e => setStone(i, { type: e.target.value })}>
+                            {STONE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                          <button type="button" onClick={() => setStones(st => st.filter((_, j) => j !== i))} className="text-[var(--expense)] p-1"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div><label className={lbl}>Weight (ct)</label><input className={fld} inputMode="decimal" value={s.weight_ct ?? ''} onChange={e => setStone(i, { weight_ct: e.target.value === '' ? undefined : Number(e.target.value) })} /></div>
+                          <div><label className={lbl}>Cost</label><input className={fld} inputMode="decimal" value={s.cost ?? ''} onChange={e => setStone(i, { cost: e.target.value === '' ? undefined : Number(e.target.value) })} /></div>
+                          <div><label className={lbl}>Value now</label><input className={fld} inputMode="decimal" value={s.present ?? ''} onChange={e => setStone(i, { present: e.target.value === '' ? undefined : Number(e.target.value) })} /></div>
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setStones(st => [...st, { type: STONE_TYPES[0] }])} className="flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--brand)' }}><Plus className="w-4 h-4" /> Add stone</button>
+                    <p className="text-[10.5px]" style={{ color: 'var(--text-faint)' }}>Each stone’s cost adds to the total; “Value now” is its current worth used for gain. The metal is valued live from the market rate.</p>
                   </div>
                 )}
               </div>
@@ -257,6 +284,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
             </>}
 
             {isLand && <>
+              <div><label className={lbl}>Location</label><input className={fld} value={location} onChange={e => setLocation(e.target.value)} placeholder="Address / survey no. / area" /></div>
               <div className="grid grid-cols-2 gap-2.5">
                 <div><label className={lbl}>Area (cent)</label><input className={fld} inputMode="decimal" value={areaCent} onChange={e => setAreaCent(e.target.value)} /></div>
                 <div><label className={lbl}>Price / cent</label><input className={fld} inputMode="decimal" value={ppc} onChange={e => setPpc(e.target.value)} /></div>
@@ -283,6 +311,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
             </>}
 
             {isBuilding && <>
+              <div><label className={lbl}>Location</label><input className={fld} value={location} onChange={e => setLocation(e.target.value)} placeholder="Address / survey no. / area" /></div>
               <div className="rounded-xl overflow-hidden" style={{ border: '1px solid color-mix(in srgb, var(--brand) 25%, transparent)' }}>
                 <div className="flex items-center gap-1.5 px-3 py-2" style={{ background: 'var(--brand-light)' }}><TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} /><span className="text-[11px] font-extrabold tracking-wide" style={{ color: 'var(--brand)' }}>LAND — APPRECIATES</span></div>
                 <div className="p-3 grid grid-cols-2 gap-2.5">
@@ -307,6 +336,28 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
               </div>
               <div><label className={lbl}>Depreciation %/yr</label><input className={fld} inputMode="decimal" value={deprecPct} onChange={e => setDeprecPct(e.target.value)} /></div>
             </>}
+
+            {/* Documents — repeatable (parent doc, patta, chitta, …) */}
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+                <span className="flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--text)' }}><FileText className="w-3.5 h-3.5" style={{ color: 'var(--brand)' }} /> Documents {documents.length > 0 && <span style={{ color: 'var(--text-faint)' }}>· {documents.length}</span>}</span>
+                <button type="button" onClick={() => docRef.current?.click()} className="flex items-center gap-1 text-[12px] font-bold" style={{ color: 'var(--brand)' }}>{uploadingDoc ? 'Uploading…' : <><Plus className="w-3.5 h-3.5" /> Add</>}</button>
+                <input ref={docRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => uploadDoc(e.target.files?.[0])} />
+              </div>
+              {documents.length > 0 && (
+                <div className="px-3 py-2 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  {documents.map((dc, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <select className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-2.5 py-2 text-[12px]" value={dc.type ?? ''} onChange={e => setDocuments(dl => dl.map((x, j) => j === i ? { ...x, type: e.target.value } : x))}>
+                        {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <a href={dc.url} target="_blank" rel="noreferrer" className="text-[11px] truncate max-w-[100px]" style={{ color: 'var(--text-muted)' }}>{dc.name || 'file'}</a>
+                      <button type="button" onClick={() => setDocuments(dl => dl.filter((_, j) => j !== i))} className="text-[var(--expense)] p-1"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 px-5 py-3.5 border-t border-[var(--border)]" style={{ background: 'var(--surface-2)' }}>

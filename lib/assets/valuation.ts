@@ -37,17 +37,26 @@ export function goldCost(d: Asset['details']): { cost: number; lines: CostLine[]
   const making = n(d.making_per_gram) * w + n(d.making_charge)   // per-gram + flat
   const cert = n(d.certification)
   const disc = n(d.discount)
-  const diamond = n(d.diamond_carats) * n(d.diamond_cost_per_carat)
-  const other = n(d.other_carats) * n(d.other_cost_per_carat)
-  const subtotal = metal + va + making + cert + diamond + other - disc
+  // Stones — new repeatable list, or fall back to the legacy diamond/other fields
+  const stoneList = Array.isArray(d.stones) ? d.stones : []
+  const stoneLines: CostLine[] = []
+  let stonesCost = 0
+  if (stoneList.length) {
+    for (const s of stoneList) { const c = n(s.cost); stonesCost += c; if (c) stoneLines.push({ label: `${s.type || 'Stone'}${s.weight_ct ? ` · ${s.weight_ct}ct` : ''}`, amount: c }) }
+  } else {
+    const diamond = n(d.diamond_carats) * n(d.diamond_cost_per_carat)
+    const other = n(d.other_carats) * n(d.other_cost_per_carat)
+    if (diamond) { stonesCost += diamond; stoneLines.push({ label: `Diamond · ${n(d.diamond_carats)}ct`, amount: diamond }) }
+    if (other) { stonesCost += other; stoneLines.push({ label: `Other stones · ${n(d.other_carats)}ct`, amount: other }) }
+  }
+  const subtotal = metal + va + making + cert + stonesCost - disc
   const taxPct = n(d.tax_pct) || n(d.gst_pct)
   const tax = subtotal * (taxPct / 100)
   const cost = subtotal + tax
   const lines: CostLine[] = [{ label: `Metal · ${w || 0}g × ₹${ppg.toLocaleString('en-IN')}`, amount: metal }]
   if (va) lines.push({ label: `Value addition · ${vaPct}%`, amount: va })
   if (making) lines.push({ label: 'Making charges', amount: making })
-  if (diamond) lines.push({ label: `Diamond · ${n(d.diamond_carats)}ct`, amount: diamond })
-  if (other) lines.push({ label: `Other stones · ${n(d.other_carats)}ct`, amount: other })
+  for (const sl of stoneLines) lines.push(sl)
   if (cert) lines.push({ label: 'Certification', amount: cert })
   if (disc) lines.push({ label: 'Discount', amount: -disc })
   if (tax) lines.push({ label: `Tax · ${taxPct}%`, amount: tax })
@@ -148,7 +157,10 @@ export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRat
     const g = n(asset.quantity_g)
     const rate = perGramRate(asset.metal, asset.metal_purity, rates)
     const d = asset.details
-    const stones = n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
+    const stoneList = Array.isArray(d.stones) ? d.stones : []
+    const stones = stoneList.length
+      ? stoneList.reduce((s, x) => s + n(x.present), 0)
+      : n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
     if (rate != null) {
       current = g * rate + stones
       note = `${g}g × ₹${Math.round(rate).toLocaleString('en-IN')} (${asset.metal_purity ?? 'fine'})${stones ? ' + stones' : ''}`
@@ -182,7 +194,10 @@ export interface SeriesPoint { t: string; v: number }
 export function valueSeries(asset: Asset, rates: MarketRate[], defaults: AssetRateDefault[]): SeriesPoint[] {
   const { cost } = computeCost(asset.category, asset.valuation_type, asset.details)
   const d = asset.details
-  const stones = n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
+  const stoneList = Array.isArray(d.stones) ? d.stones : []
+  const stones = stoneList.length
+    ? stoneList.reduce((s, x) => s + n(x.present), 0)
+    : n(d.diamond_carats) * n(d.diamond_present_per_carat) + n(d.other_carats) * n(d.other_present_per_carat)
 
   if (asset.valuation_type === 'market') {
     const basePurity = asset.metal === 'gold' ? '24K' : null
