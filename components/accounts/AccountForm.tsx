@@ -7,6 +7,8 @@ import { ACCOUNT_TYPE_CONFIG, ACCOUNT_COLORS, resolveAccountTypeDisplay } from '
 import { createClient } from '@/lib/supabase/client'
 import { useFileDrop } from '@/components/shared/useFileDrop'
 import { Avatar } from '../AppShell'
+import CardGlass from '../shared/CardGlass'
+import { cardFaceGradient } from '@/lib/card-gradient'
 import { isLoan } from '@/lib/account-metrics'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
@@ -594,8 +596,9 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
         {/* ── RIGHT: live preview ── */}
         <div className="hidden md:flex md:w-[380px] shrink-0 flex-col justify-center px-8" style={{ background: 'color-mix(in srgb, var(--surface-2) 60%, var(--surface))', borderLeft: '1px solid var(--border)' }}>
           <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-faint)] mb-3">Preview</p>
-          <div className="rounded-2xl p-5 shadow-lg" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${previewFace} 52%, #000), ${previewFace})`, color: '#fff', minHeight: 150 }}>
-            <div className="flex items-start justify-between gap-3">
+          <div className="rounded-2xl p-5 shadow-lg relative overflow-hidden" style={{ background: cardFaceGradient(previewFace), color: '#fff', minHeight: 150 }}>
+            <CardGlass base={previewFace} />
+            <div className="flex items-start justify-between gap-3 relative z-[1]">
               <div className="min-w-0">
                 <p className="text-[17px] font-bold truncate">{name || 'Account name'}</p>
                 <p className="text-[11px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>{previewTypeLabel}</p>
@@ -605,8 +608,8 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
                 ? <img src={avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" style={{ boxShadow: '0 0 0 2px rgba(255,255,255,0.4)' }} />
                 : <span className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }}>{initials}</span>}
             </div>
-            <p className="text-[28px] font-extrabold tracking-tight mt-4" style={{ fontVariantNumeric: 'tabular-nums' }}>{previewBalance}</p>
-            <div className="flex items-end justify-between gap-3 mt-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.75)' }}>
+            <p className="text-[28px] font-extrabold tracking-tight mt-4 relative z-[1]" style={{ fontVariantNumeric: 'tabular-nums' }}>{previewBalance}</p>
+            <div className="flex items-end justify-between gap-3 mt-3 text-[11px] relative z-[1]" style={{ color: 'rgba(255,255,255,0.75)' }}>
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>···· {last4 || '0000'}</span>
               {ifscCode && <span>IFSC {ifscCode}</span>}
             </div>

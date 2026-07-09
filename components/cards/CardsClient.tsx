@@ -8,6 +8,8 @@ import { formatCurrency, formatDate, getTodayString } from '@/lib/utils'
 import { cardOverview, type CardTxn, type CardCycle } from '@/lib/cards'
 import AccountChipPicker, { type PickerAccount } from '@/components/shared/AccountChipPicker'
 import { Avatar } from '@/components/AppShell'
+import CardGlass from '@/components/shared/CardGlass'
+import { cardFaceGradient } from '@/lib/card-gradient'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
 export interface CardAccount {
@@ -255,12 +257,13 @@ export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onS
           {/* Card visual + statement stats */}
           <div className="flex flex-col lg:flex-row gap-4">
             {/* gradient card face */}
-            <div className="lg:w-[260px] shrink-0 rounded-2xl p-5 flex flex-col justify-between" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${cardColor} 52%, #000), ${cardColor})`, minHeight: '134px' }}>
-              <div className="flex items-center justify-between">
+            <div className="lg:w-[260px] shrink-0 rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden" style={{ background: cardFaceGradient(cardColor), minHeight: '134px' }}>
+              <CardGlass base={cardColor} />
+              <div className="flex items-center justify-between relative z-[1]">
                 <CreditCard className="w-6 h-6" style={{ color: 'rgba(255,255,255,0.9)' }} />
                 <span className="text-[11px] font-bold tracking-[0.1em]" style={{ color: 'rgba(255,255,255,0.8)' }}>CREDIT</span>
               </div>
-              <div>
+              <div className="relative z-[1]">
                 <p className="text-[15px] font-semibold tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.85)' }}>•••• ••••</p>
                 <p className="text-[13px] font-bold mt-2" style={{ color: '#fff' }}>{card.name}</p>
               </div>

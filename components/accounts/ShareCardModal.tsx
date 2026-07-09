@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { X, Download, Share2, Loader2 } from 'lucide-react'
 import type { Account, DebitCard } from '@/lib/types'
+import { deriveCardColors } from '@/lib/card-gradient'
 
 interface Props {
   account: Account
@@ -19,9 +20,6 @@ function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(h, 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
-const darken = ([r, g, b]: [number, number, number], a: number) =>
-  `rgb(${Math.round(r * (1 - a))},${Math.round(g * (1 - a))},${Math.round(b * (1 - a))})`
-
 function loadImg(url?: string | null): Promise<HTMLImageElement | null> {
   return new Promise(res => {
     if (!url) return res(null)
@@ -64,7 +62,6 @@ export default function ShareCardModal({ account, accent, typeLabel, photoUrl, d
     const canvas = canvasRef.current
     if (!canvas) return
     const DPR = 3, W = 900, P = 52
-    const rgb = hexToRgb(accent)
 
     // ── build detail rows ──
     const rows: [string, string][] = [[isCredit ? 'Cardholder' : 'Account holder', account.account_holder || account.name]]
@@ -106,13 +103,40 @@ export default function ShareCardModal({ account, accent, typeLabel, photoUrl, d
 
     // white behind the rounded corners
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H)
-    // card
-    const grad = ctx.createLinearGradient(0, 0, W, H)
-    grad.addColorStop(0, darken(rgb, 0.5)); grad.addColorStop(1, accent)
-    roundRect(ctx, 0, 0, W, H, 40); ctx.fillStyle = grad; ctx.fill()
+
+    // ── card face: "30a" diagonal glass — three same-hue tones (c1 dark,
+    //    c2 = chosen colour, c3 light) that accentuate each other ──
+    const { c1, c2, c3 } = deriveCardColors(accent)
+    ctx.save()
+    roundRect(ctx, 0, 0, W, H, 40); ctx.clip()   // everything below stays on the card
+
+    // base gradient c1 → c2 (≈140°)
+    const base = ctx.createLinearGradient(0, 0, W, H)
+    base.addColorStop(0, c1); base.addColorStop(1, c2)
+    ctx.fillStyle = base; ctx.fillRect(0, 0, W, H)
+
+    // facet plane 1 — c2 → c3 across the left diagonal
+    ctx.save()
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0.58 * W, 0); ctx.lineTo(0.30 * W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.clip()
+    const g1 = ctx.createLinearGradient(0, 0, 0.6 * W, H)
+    g1.addColorStop(0, c2); g1.addColorStop(1, c3)
+    ctx.globalAlpha = 0.42; ctx.fillStyle = g1; ctx.fillRect(0, 0, W, H)
+    ctx.restore()
+
+    // facet plane 2 — c3 → transparent across the upper-right diagonal
+    ctx.save()
+    ctx.beginPath(); ctx.moveTo(0.58 * W, 0); ctx.lineTo(W, 0); ctx.lineTo(W, 0.42 * H); ctx.lineTo(0.30 * W, H); ctx.closePath(); ctx.clip()
+    const [cr, cg, cb] = hexToRgb(c3)
+    const g2 = ctx.createLinearGradient(W, 0, 0, H)
+    g2.addColorStop(0, `rgb(${cr},${cg},${cb})`); g2.addColorStop(1, `rgba(${cr},${cg},${cb},0)`)
+    ctx.globalAlpha = 0.30; ctx.fillStyle = g2; ctx.fillRect(0, 0, W, H)
+    ctx.restore()
+
+    // soft top-right sheen
     const glow = ctx.createRadialGradient(W * 0.82, 40, 0, W * 0.82, 40, 460)
     glow.addColorStop(0, 'rgba(255,255,255,0.14)'); glow.addColorStop(1, 'rgba(255,255,255,0)')
-    ctx.fillStyle = glow; roundRect(ctx, 0, 0, W, H, 40); ctx.fill()
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
+    ctx.restore()   // drop the card clip
 
     ctx.textBaseline = 'top'
 
