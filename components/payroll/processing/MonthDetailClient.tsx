@@ -302,11 +302,13 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
     try {
       const res = await fetch(`/api/payroll/months/${month.id}/finalize`, { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) { setFinalizeError(data.error ?? 'Failed'); return }
+      if (!res.ok) { setFinalizeError(data.error ?? 'Failed'); notify(data.error ?? 'Could not finalize payroll'); return }
       setMonth(data.month)
+      notify(`Payroll finalized — ${data.slip_count} salary slip${data.slip_count === 1 ? '' : 's'} ready`, 'success')
       router.refresh()
-    } catch {
+    } catch (e) {
       setFinalizeError('Network error')
+      notify('Could not finalize payroll: ' + (e as Error).message)
     } finally {
       setFinalizing(false)
     }
