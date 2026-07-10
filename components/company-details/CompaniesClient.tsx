@@ -12,9 +12,10 @@ import { autoColor } from '@/lib/card-gradient'
 interface Props {
   initialCompanies: Company[]
   logoUrls: Record<string, string>      // company_id → public URL (server-resolved)
+  docLogoUrls?: Record<string, string>  // company_id → document logo public URL
 }
 
-export default function CompaniesClient({ initialCompanies, logoUrls: initialUrls }: Props) {
+export default function CompaniesClient({ initialCompanies, logoUrls: initialUrls, docLogoUrls = {} }: Props) {
   const router = useRouter()
   const [companies, setCompanies] = useState<Company[]>(initialCompanies)
   const [logoUrls, setLogoUrls] = useState<Record<string, string>>(initialUrls)
@@ -147,6 +148,7 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
         <CompanyForm
           company={editing}
           existingLogoUrl={editing ? logoUrls[editing.id] : undefined}
+          existingDocLogoUrl={editing ? docLogoUrls[editing.id] : undefined}
           onSaved={handleSaved}
           onClose={() => { setShowForm(false); setEditing(null) }}
         />

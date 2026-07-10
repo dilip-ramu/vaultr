@@ -34,21 +34,26 @@ export default async function OrganizationCompaniesTab() {
   )
 
   const logoUrls: Record<string, string> = {}
-  const augmented = ((companies ?? []) as Company[]).map(c => ({
+  const docLogoUrls: Record<string, string> = {}
+  const augmented = ((companies ?? []) as (Company & { document_logo_path?: string | null })[]).map(c => ({
     ...c,
     is_available_as_customer: mirroredCompanyIds.has(c.id),
   }))
   for (const c of augmented) {
+    const ver = c.updated_at ? Date.parse(c.updated_at) : ''
     if (c.logo_path) {
       const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(c.logo_path)
-      // Cache-bust with updated_at — the logo path is reused on re-upload.
-      if (publicUrl) logoUrls[c.id] = `${publicUrl}?v=${c.updated_at ? Date.parse(c.updated_at) : ''}`
+      if (publicUrl) logoUrls[c.id] = `${publicUrl}?v=${ver}`
+    }
+    if (c.document_logo_path) {
+      const { data: { publicUrl } } = supabase.storage.from('vaultr-avatars').getPublicUrl(c.document_logo_path)
+      if (publicUrl) docLogoUrls[c.id] = `${publicUrl}?v=${ver}`
     }
   }
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 pb-6">
-      <CompaniesClient initialCompanies={augmented} logoUrls={logoUrls} />
+      <CompaniesClient initialCompanies={augmented} logoUrls={logoUrls} docLogoUrls={docLogoUrls} />
     </div>
   )
 }

@@ -33,16 +33,17 @@ export default async function SalarySlipPrintPage({ params }: Props) {
   const employee = e.employee
   const companyId = employee?.company_id ?? null
 
-  type Co = { name: string | null; address: string | null; invoice_accent: string | null; logo_path: string | null }
+  type Co = { name: string | null; address: string | null; invoice_accent: string | null; logo_path: string | null; document_logo_path: string | null }
   let company: Co | null = null
   if (companyId) {
-    const { data } = await supabase.from('companies').select('name, address, invoice_accent, logo_path').eq('id', companyId).eq('user_id', user.id).maybeSingle()
+    const { data } = await supabase.from('companies').select('name, address, invoice_accent, logo_path, document_logo_path').eq('id', companyId).eq('user_id', user.id).maybeSingle()
     company = (data as Co | null) ?? null
   }
 
   let logoUrl: string | null = null
-  if (company?.logo_path) {
-    logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(company.logo_path).data.publicUrl ?? null
+  const slipLogoPath = company?.document_logo_path ?? company?.logo_path
+  if (slipLogoPath) {
+    logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(slipLogoPath).data.publicUrl ?? null
   }
 
   // v89 — signature from the run's chosen signatory (fallback company default).

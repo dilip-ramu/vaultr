@@ -61,7 +61,7 @@ export default async function InvoicePrintPage({ params }: Props) {
   if (inv.company_id) {
     const { data } = await supabase
       .from('companies')
-      .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, terms_conditions, hsn_sac, logo_path, invoice_template, invoice_accent')
+      .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, terms_conditions, hsn_sac, logo_path, document_logo_path, invoice_template, invoice_accent')
       .eq('id', inv.company_id)
       .eq('user_id', user.id)
       .maybeSingle()
@@ -95,7 +95,7 @@ export default async function InvoicePrintPage({ params }: Props) {
   // vaultr-attachments bucket and need short-lived (10-min) signed URLs.
   let logoUrl:      string | null = null
   let signatureUrl: string | null = null
-  const companyLogoPath = company?.logo_path as string | null | undefined
+  const companyLogoPath = (company?.document_logo_path as string | null | undefined) ?? (company?.logo_path as string | null | undefined)
   if (companyLogoPath) {
     const { data } = supabase.storage.from('vaultr-avatars').getPublicUrl(companyLogoPath)
     logoUrl = data?.publicUrl ?? null

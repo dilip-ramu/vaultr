@@ -53,7 +53,8 @@ export default async function ReimbursablePrintPage({ params }: Props) {
   const c = company as Record<string, unknown> | null
   const cust = customer as Record<string, unknown> | null
   let logoUrl: string | null = null
-  if (c?.logo_path) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(c.logo_path as string).data?.publicUrl ?? null
+  const docLogoPath = (c?.document_logo_path as string | null) ?? (c?.logo_path as string | null)
+  if (docLogoPath) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(docLogoPath).data?.publicUrl ?? null
   const signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: (invoice.signatory_id as string | null) ?? null, companyId })
 
   const cur = (invoice.currency as string | null) ?? 'EUR'
@@ -118,10 +119,12 @@ export default async function ReimbursablePrintPage({ params }: Props) {
   if (gst > 0) totals.push({ label: 'GST', value: fmtCur(gst) })
 
   const bankLines: string[] = []
-  if (c?.bank_name || c?.bank_account_number) bankLines.push(`Bank: ${[c?.bank_name, c?.bank_account_number].filter(Boolean).join(' · ')}`)
+  if (c?.bank_name) bankLines.push('Bank: ' + c.bank_name)
+  if (c?.bank_account_name) bankLines.push('Account Name: ' + c.bank_account_name)
+  if (c?.bank_account_number) bankLines.push('Account Number: ' + c.bank_account_number)
   const b2: string[] = []
-  if (c?.bank_ifsc) b2.push('IFSC ' + c.bank_ifsc)
-  if (c?.swift_code) b2.push('SWIFT ' + c.swift_code)
+  if (c?.bank_ifsc) b2.push('IFSC: ' + c.bank_ifsc)
+  if (c?.swift_code) b2.push('SWIFT: ' + c.swift_code)
   if (b2.length) bankLines.push(b2.join(' · '))
 
   const model: DocModel = {

@@ -4,7 +4,7 @@ import DocPrintView from '@/components/documents/DocPrintView'
 import { normalizeAccent } from '@/lib/companies/templates'
 import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
 import { issuedDocToModel, type InvoiceSettings } from '@/lib/documents/adapters'
-import { docConfig } from '@/lib/documents/config'
+import { docConfigFor, type DocSide } from '@/lib/documents/config'
 import type { BandTone } from '@/lib/documents/model'
 
 type Props = { params: Promise<{ id: string }> }
@@ -39,13 +39,13 @@ export default async function DocumentPrintPage({ params }: Props) {
   const d = doc as Record<string, unknown>
   const docType = String(d.doc_type)
   const companyId = (d.company_id as string | null) ?? null
-  const cfg = docConfig(docType)
+  const cfg = docConfigFor(docType, (d.party_kind as DocSide) ?? 'customer')
   const meta = DOC_META[docType] ?? { title: cfg?.label ?? 'Document', statusLabel: 'ISSUED', statusTone: 'grey' as BandTone }
 
   let company: Record<string, unknown> | null = null
   if (companyId) {
     const { data } = await supabase.from('companies')
-      .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, terms_conditions, invoice_accent, logo_path')
+      .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, terms_conditions, invoice_accent, logo_path, document_logo_path')
       .eq('id', companyId).eq('user_id', user.id).maybeSingle()
     company = (data as Record<string, unknown> | null) ?? null
   }
@@ -66,7 +66,8 @@ export default async function DocumentPrintPage({ params }: Props) {
   }
 
   let logoUrl: string | null = null
-  if (company?.logo_path) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(company.logo_path as string).data?.publicUrl ?? null
+  const docLogoPath = (company?.document_logo_path as string | null) ?? (company?.logo_path as string | null)
+  if (docLogoPath) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(docLogoPath).data?.publicUrl ?? null
   const signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: (d.signatory_id as string | null) ?? null, companyId })
 
   const model = issuedDocToModel(

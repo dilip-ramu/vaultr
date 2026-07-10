@@ -19,10 +19,19 @@ export const DOC_CONFIGS: DocConfig[] = [
   { id: 'delivery_challan', label: 'Delivery Challan', side: 'customer', prefix: 'DC-', tax: false, partyLabel: 'Consignee', referenceLabel: 'Reason for transport' },
   { id: 'purchase_order',   label: 'Purchase Order',   side: 'supplier', prefix: 'PO-', tax: true,  partyLabel: 'Vendor', referenceLabel: 'Reference' },
   { id: 'debit_note',       label: 'Debit Note',       side: 'supplier', prefix: 'DN-', tax: true,  partyLabel: 'Supplier', referenceLabel: 'Against invoice no.' },
+  // Supplier-side delivery challan — same doc_type as the customer one but a
+  // distinct party side + number series, kept separate via party_kind.
+  { id: 'delivery_challan', label: 'Delivery Challan', side: 'supplier', prefix: 'SDC-', tax: false, partyLabel: 'Supplier', referenceLabel: 'Reason for transport' },
 ]
 
+/** First config with this id (side-agnostic). Prefer docConfigFor when the side
+ *  is known (delivery_challan exists on both sides). */
 export function docConfig(id: string): DocConfig | undefined {
   return DOC_CONFIGS.find(d => d.id === id)
+}
+/** Side-aware config lookup — required for delivery_challan which is shared. */
+export function docConfigFor(id: string, side: DocSide): DocConfig | undefined {
+  return DOC_CONFIGS.find(d => d.id === id && d.side === side) ?? docConfig(id)
 }
 export function configsForSide(side: DocSide): DocConfig[] {
   return DOC_CONFIGS.filter(d => d.side === side)

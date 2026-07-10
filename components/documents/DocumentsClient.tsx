@@ -10,20 +10,23 @@ import SignatorySelect from '@/components/company-details/SignatorySelect'
 
 interface Party { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
 interface Company { id: string; name: string }
-interface Props { side: DocSide; companies: Company[]; parties: Party[]; initialDocs: DocumentRow[] }
+interface Props { side: DocSide; companies: Company[]; parties: Party[]; initialDocs: DocumentRow[]; lockedType?: string }
 
 interface Line { id: number; item: string; hsn: string; qty: string; rate: string; gst: string }
 let seq = 0
 const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n)
 
-export default function DocumentsClient({ side, companies, parties, initialDocs }: Props) {
-  const configs = configsForSide(side)
+export default function DocumentsClient({ side, companies, parties, initialDocs, lockedType }: Props) {
+  const allConfigs = configsForSide(side)
+  const configs = lockedType ? allConfigs.filter(c => c.id === lockedType) : allConfigs
+  // Side-aware config (delivery_challan exists on both customer & supplier).
+  const cfgFor = (dt: string) => allConfigs.find(c => c.id === dt) ?? docConfig(dt)!
   const [docs, setDocs] = useState<DocumentRow[]>(initialDocs)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [docType, setDocType] = useState(configs[0]?.id ?? '')
-  const cfg = docConfig(docType)!
+  const cfg = cfgFor(docType)
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? '')
   const [signatoryId, setSignatoryId] = useState<string | null>(null)
   const [partyId, setPartyId] = useState('')
@@ -34,7 +37,7 @@ export default function DocumentsClient({ side, companies, parties, initialDocs 
   const [lines, setLines] = useState<Line[]>([{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
 
   const nextNumber = (dt: string) => {
-    const c = docConfig(dt)!
+    const c = cfgFor(dt)
     const n = docs.filter(d => d.doc_type === dt).length + 1
     return `${c.prefix}${String(n).padStart(4, '0')}`
   }

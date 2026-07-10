@@ -36,6 +36,8 @@ export interface Company {
   payment_terms: string
   terms_conditions: string | null
   logo_path: string | null
+  // v91 — separate logo printed on invoices/PDFs (falls back to logo_path).
+  document_logo_path?: string | null
   // v89 — proprietorship | partnership (drives signatory labels)
   business_type?: 'proprietorship' | 'partnership'
   // Retained column (templates retired) — no longer used by the form.
@@ -58,6 +60,7 @@ const PAYMENT_TERMS = [
 interface Props {
   company: Company | null
   existingLogoUrl?: string
+  existingDocLogoUrl?: string
   onSaved: (c: Company, newLogoUrl?: string) => void
   onClose: () => void
 }
@@ -66,7 +69,7 @@ const inputCls = 'w-full px-3 py-2 rounded-lg text-sm border outline-none'
 const inputStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' } as const
 
 
-export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose }: Props) {
+export default function CompanyForm({ company, existingLogoUrl, existingDocLogoUrl, onSaved, onClose }: Props) {
   const isEdit = !!company
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,6 +98,8 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   const [logoUrl, setLogoUrl] = useState<string | undefined>(existingLogoUrl)
   const [logoBusy, setLogoBusy] = useState(false)
   const logoDrop = useFileDrop(f => { if (f[0]) void handleLogoUpload(f[0]) }, { disabled: logoBusy })
+  const [docLogoUrl, setDocLogoUrl] = useState<string | undefined>(existingDocLogoUrl)
+  const [docLogoBusy, setDocLogoBusy] = useState(false)
   // v69 — document look
   const [invoiceAccent,   setInvoiceAccent]   = useState<string>(company?.invoice_accent ?? DEFAULT_INVOICE_ACCENT)
   const [color,           setColor]           = useState<string | null>(company?.color ?? null)
@@ -161,6 +166,29 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
     } finally { setLogoBusy(false) }
   }
 
+  async function handleDocLogoUpload(file: File) {
+    if (!company) { notify('Save the company first, then add a document logo', 'info'); return }
+    setDocLogoBusy(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch(`/api/companies/${company.id}/document-logo`, { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { notify(data.error || 'Upload failed', 'error'); return }
+      setDocLogoUrl(data.publicUrl)
+      notify('Document logo updated', 'success')
+    } finally { setDocLogoBusy(false) }
+  }
+
+  async function handleDocLogoRemove() {
+    if (!company || !docLogoUrl) return
+    setDocLogoBusy(true)
+    try {
+      const res = await fetch(`/api/companies/${company.id}/document-logo`, { method: 'DELETE' })
+      if (!res.ok) { notify('Could not remove document logo', 'error'); return }
+      setDocLogoUrl(undefined)
+    } finally { setDocLogoBusy(false) }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4">
       <div className="w-full sm:max-w-2xl rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[92dvh]" style={{ background: 'var(--surface)' }}>
@@ -199,9 +227,36 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
                   </button>
                 )}
                 <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                  PNG, JPG, WEBP, or SVG. Printed ~5.5&nbsp;cm wide on documents (adjustable per template).
+                  PNG, JPG, WEBP, or SVG. Shown in the app.
                 </p>
                 {!isEdit && <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>Save the company first, then attach a logo.</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Document logo (v91) — printed on invoices/PDFs; falls back to app logo */}
+          <div>
+            <label className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Document logo</label>
+            <p className="text-[10px] mb-2" style={{ color: 'var(--text-faint)' }}>Printed on invoices &amp; PDFs (~5.5&nbsp;cm wide). Leave empty to use the app logo.</p>
+            <div className="flex items-center gap-3">
+              <div className="w-24 h-16 rounded-2xl overflow-hidden flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                {docLogoUrl
+                  ? <img src={docLogoUrl} alt="Document logo" className="w-full h-full object-contain" />
+                  : <Building2 className="w-6 h-6" style={{ color: 'var(--text-muted)' }} />}
+              </div>
+              <div className="space-y-1.5">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+                  {docLogoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  {docLogoBusy ? 'Uploading…' : (docLogoUrl ? 'Replace document logo' : 'Attach document logo')}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) void handleDocLogoUpload(f) }} />
+                </label>
+                {docLogoUrl && (
+                  <button onClick={handleDocLogoRemove} disabled={docLogoBusy} className="inline-flex items-center gap-1 text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
+                    <Trash2 className="w-3 h-3" /> Remove
+                  </button>
+                )}
+                {!isEdit && <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>Save the company first, then attach a document logo.</p>}
               </div>
             </div>
           </div>

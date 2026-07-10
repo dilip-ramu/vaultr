@@ -33,12 +33,12 @@ function companyLines(s: InvoiceSettings | null): string[] {
 function bankLines(s: InvoiceSettings | null): string[] {
   if (!s) return []
   const parts: string[] = []
-  if (compact(s.bank_name) || compact(s.bank_account_number)) {
-    parts.push(`Bank: ${[compact(s.bank_name), compact(s.bank_account_number)].filter(Boolean).join(' · ')}`)
-  }
+  if (compact(s.bank_name)) parts.push('Bank: ' + s.bank_name)
+  if (compact(s.bank_account_name)) parts.push('Account Name: ' + s.bank_account_name)
+  if (compact(s.bank_account_number)) parts.push('Account Number: ' + s.bank_account_number)
   const l2: string[] = []
-  if (compact(s.bank_ifsc)) l2.push('IFSC ' + s.bank_ifsc)
-  if (compact(s.swift_code)) l2.push('SWIFT ' + s.swift_code)
+  if (compact(s.bank_ifsc)) l2.push('IFSC: ' + s.bank_ifsc)
+  if (compact(s.swift_code)) l2.push('SWIFT: ' + s.swift_code)
   if (l2.length) parts.push(l2.join(' · '))
   return parts
 }
