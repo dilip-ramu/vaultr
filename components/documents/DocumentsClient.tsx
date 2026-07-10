@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Plus, X, Trash2, FileText } from 'lucide-react'
+import { Plus, X, Trash2, FileText, Printer } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -130,7 +130,12 @@ export default function DocumentsClient({ side, companies, parties, initialDocs 
                   <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{d.date}</td>
                   <td className="px-4 py-2.5" style={{ color: 'var(--text)' }}>{d.party_name}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: 'var(--text)' }}>{money(d.total)}</td>
-                  <td className="px-4 py-2.5 text-right"><button onClick={() => del(d)} className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button></td>
+                  <td className="px-4 py-2.5 text-right">
+                    <div className="inline-flex items-center gap-1.5">
+                      <a href={`/documents/${d.id}/print`} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }} title="Print / PDF"><Printer className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></a>
+                      <button onClick={() => del(d)} className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
