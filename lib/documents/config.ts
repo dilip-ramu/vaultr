@@ -14,6 +14,7 @@ export interface DocConfig {
 }
 
 export const DOC_CONFIGS: DocConfig[] = [
+  { id: 'quotation',        label: 'Quotation',        side: 'customer', code: 'QT',  tax: true,  partyLabel: 'Customer', referenceLabel: 'Enquiry ref' },
   { id: 'proforma_gst',     label: 'Proforma Invoice', side: 'customer', code: 'PI',  tax: true,  partyLabel: 'Customer', referenceLabel: 'Reference' },
   { id: 'credit_note',      label: 'Credit Note',      side: 'customer', code: 'CN',  tax: true,  partyLabel: 'Customer', referenceLabel: 'Against invoice no.' },
   { id: 'sales_order',      label: 'Sales Order',      side: 'customer', code: 'SO',  tax: true,  partyLabel: 'Customer', referenceLabel: 'Buyer PO ref' },
@@ -24,6 +25,13 @@ export const DOC_CONFIGS: DocConfig[] = [
   // distinct party side + number series (SDC), kept separate via party_kind.
   { id: 'delivery_challan', label: 'Delivery Challan', side: 'supplier', code: 'SDC', tax: false, partyLabel: 'Supplier', referenceLabel: 'Reason for transport' },
 ]
+
+/** The head of a document number: {PREFIX}-{CODE}{YY} (plus the 2-digit year). */
+export function docNumberHead(companyPrefix: string, code: string): { head: string; yy: string } {
+  const p = (companyPrefix || '').trim().replace(/[-\s]+$/, '').toUpperCase() || 'DOC'
+  const yy = String(new Date().getFullYear()).slice(-2)
+  return { head: `${p}-${code}${yy}`, yy }
+}
 
 /** Build a document number: {PREFIX}-{CODE}{YY}{NNNN}, e.g. C-PO260001.
  *  `existingNumbers` are the numbers already used for this company + doc side,

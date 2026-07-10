@@ -7,38 +7,47 @@ import { ChevronLeft, Plus, Trash2, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import SignatorySelect from '@/components/company-details/SignatorySelect'
-import { buildDocNumber, docConfigFor, type DocSide } from '@/lib/documents/config'
+import { buildDocNumber, docNumberHead, docConfigFor, type DocSide } from '@/lib/documents/config'
 
 interface CompanyOpt { id: string; name: string; prefix: string }
 interface PartyOpt { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
+export interface DocInitial {
+  companyId: string; partyId: string; date: string; reference: string; notes: string
+  signatoryId: string | null; number: string
+  lines: { item: string; hsn: string; qty: string; rate: string; gst: string }[]
+}
 interface Props {
   side: DocSide
   docType: string
   companies: CompanyOpt[]
   parties: PartyOpt[]
   existing: { company_id: string | null; number: string }[]
+  docId?: string | null
+  initial?: DocInitial
 }
 
 interface Line { id: number; item: string; hsn: string; qty: string; rate: string; gst: string }
 let seq = 0
 const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n)
 
-export default function DocumentForm({ side, docType, companies, parties, existing }: Props) {
+export default function DocumentForm({ side, docType, companies, parties, existing, docId = null, initial }: Props) {
   const router = useRouter()
+  const isEdit = !!docId
   const cfg = docConfigFor(docType, side)!
   const listHref = `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${docType}`
 
   const companyPrefix = (cid: string) => companies.find(c => c.id === cid)?.prefix ?? ''
   const nextNumber = (cid: string) => buildDocNumber(companyPrefix(cid), cfg.code, existing.filter(e => e.company_id === cid).map(e => e.number))
 
-  const [companyId, setCompanyId] = useState(companies[0]?.id ?? '')
-  const [signatoryId, setSignatoryId] = useState<string | null>(null)
-  const [partyId, setPartyId] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
-  const [reference, setReference] = useState('')
-  const [notes, setNotes] = useState('')
-  const [numberStr, setNumberStr] = useState(() => nextNumber(companies[0]?.id ?? ''))
-  const [lines, setLines] = useState<Line[]>([{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
+  const [companyId, setCompanyId] = useState(initial?.companyId ?? companies[0]?.id ?? '')
+  const [signatoryId, setSignatoryId] = useState<string | null>(initial?.signatoryId ?? null)
+  const [partyId, setPartyId] = useState(initial?.partyId ?? '')
+  const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10))
+  const [reference, setReference] = useState(initial?.reference ?? '')
+  const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [numberStr, setNumberStr] = useState(() => initial?.number ?? nextNumber(companies[0]?.id ?? ''))
+  const [lines, setLines] = useState<Line[]>(() =>
+    initial?.lines?.length ? initial.lines.map(l => ({ id: ++seq, ...l })) : [{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
   const [saving, setSaving] = useState(false)
 
   const party = parties.find(p => p.id === partyId)
@@ -63,22 +72,42 @@ export default function DocumentForm({ side, docType, companies, parties, existi
       const sb = createClient()
       const { data: { user } } = await sb.auth.getUser()
       if (!user) return
-      const { data: doc, error } = await sb.from('documents').insert({
-        user_id: user.id, doc_type: docType, company_id: companyId,
+
+      // For NEW docs, reserve a monotonic number from the server counter so a
+      // deleted number is never reused. Falls back to the client preview if the
+      // RPC/migration isn't available yet.
+      let finalNumber = numberStr.trim()
+      if (!isEdit) {
+        const { head, yy } = docNumberHead(companyPrefix(companyId), cfg.code)
+        const { data: seq, error: seqErr } = await sb.rpc('next_document_number', { p_company: companyId, p_code: cfg.code, p_yy: yy })
+        if (!seqErr && typeof seq === 'number') finalNumber = `${head}${String(seq).padStart(4, '0')}`
+      }
+
+      const fields = {
+        company_id: companyId,
         party_kind: side, party_id: party.id, party_name: party.name,
         party_address: party.address, party_gstin: party.gstin, party_state: party.state,
-        number: numberStr.trim(), date, reference: reference.trim() || null, notes: notes.trim() || null,
+        number: finalNumber, date, reference: reference.trim() || null, notes: notes.trim() || null,
         signatory_id: signatoryId || null,
         subtotal: totals.subtotal, cgst_amount: totals.cgst, sgst_amount: totals.sgst, total: totals.total,
-      }).select('*').single()
-      if (error || !doc) { notify(error?.message ?? 'Save failed', 'error'); return }
+      }
+      let savedId = docId
+      if (isEdit && docId) {
+        const { error } = await sb.from('documents').update(fields).eq('id', docId).eq('user_id', user.id)
+        if (error) { notify(error.message, 'error'); return }
+        await sb.from('document_lines').delete().eq('document_id', docId).eq('user_id', user.id)
+      } else {
+        const { data: doc, error } = await sb.from('documents').insert({ user_id: user.id, doc_type: docType, ...fields }).select('id').single()
+        if (error || !doc) { notify(error?.message ?? 'Save failed', 'error'); return }
+        savedId = doc.id
+      }
       const lineRows = valid.map((l, i) => {
         const amt = (parseFloat(l.qty) || 0) * (parseFloat(l.rate) || 0)
         const g = cfg.tax ? (parseFloat(l.gst) || 0) / 2 / 100 * amt : 0
-        return { document_id: doc.id, user_id: user.id, line_number: i + 1, item: l.item.trim(), hsn_sac: l.hsn.trim() || null, qty: parseFloat(l.qty) || 0, rate: parseFloat(l.rate) || 0, amount: amt, gst_rate: cfg.tax ? parseFloat(l.gst) || 0 : 0, cgst_amount: g, sgst_amount: g }
+        return { document_id: savedId, user_id: user.id, line_number: i + 1, item: l.item.trim(), hsn_sac: l.hsn.trim() || null, qty: parseFloat(l.qty) || 0, rate: parseFloat(l.rate) || 0, amount: amt, gst_rate: cfg.tax ? parseFloat(l.gst) || 0 : 0, cgst_amount: g, sgst_amount: g }
       })
       await sb.from('document_lines').insert(lineRows)
-      notify(`${cfg.label} ${numberStr} saved ✓`, 'success')
+      notify(`${cfg.label} ${finalNumber} ${isEdit ? 'updated' : 'saved'} ✓`, 'success')
       router.push(listHref)
       router.refresh()
     } finally { setSaving(false) }
@@ -93,10 +122,10 @@ export default function DocumentForm({ side, docType, companies, parties, existi
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link href={listHref} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><ChevronLeft className="w-4 h-4" /></Link>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>New {cfg.label.toLowerCase()}</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>{isEdit ? 'Edit' : 'New'} {cfg.label.toLowerCase()}</h1>
         </div>
         <button onClick={save} disabled={saving} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-60" style={{ background: 'var(--brand)' }}>
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}{saving ? 'Saving…' : `Save ${cfg.label.toLowerCase()}`}
+          {saving && <Loader2 className="w-4 h-4 animate-spin" />}{saving ? 'Saving…' : (isEdit ? 'Save changes' : `Save ${cfg.label.toLowerCase()}`)}
         </button>
       </div>
 
@@ -108,8 +137,8 @@ export default function DocumentForm({ side, docType, companies, parties, existi
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
-          <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Number
-            <input value={numberStr} onChange={e => setNumberStr(e.target.value)} className={iCls} style={iStyle} />
+          <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Number {!isEdit && <span style={{ color: 'var(--text-faint)' }}>(auto)</span>}
+            <input value={numberStr} onChange={e => setNumberStr(e.target.value)} readOnly={!isEdit} className={iCls} style={{ ...iStyle, opacity: isEdit ? 1 : 0.7 }} />
           </label>
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{cfg.partyLabel}
             <select value={partyId} onChange={e => setPartyId(e.target.value)} className={iCls} style={iStyle}>

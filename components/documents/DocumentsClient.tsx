@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Trash2, FileText, Printer } from 'lucide-react'
+import { Plus, Trash2, FileText, Printer, Pencil } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -58,6 +58,7 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
                   <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: 'var(--text)' }}>{money(d.total)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1.5">
+                      <Link href={`${newHref.replace(/\/new$/, '')}/${d.id}/edit`} className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }} title="Edit"><Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></Link>
                       <a href={`/documents/${d.id}/print`} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }} title="Print / PDF"><Printer className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></a>
                       <button onClick={() => del(d)} className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
                     </div>
