@@ -1,5 +1,5 @@
 import React from 'react'
-import { type DocModel, BAND_COLORS } from '@/lib/documents/model'
+import { type DocModel } from '@/lib/documents/model'
 
 /**
  * The single downloadable-document design (the "31" design). Renders any
@@ -15,7 +15,6 @@ export default function DocDesign({ model, preview = false }: { model: DocModel;
   const acc = model.accent || '#1F5C3A'
   const cols = model.columns
   const gridCols = cols.map(c => `${c.flex ?? 1}fr`).join(' ')
-  const band = model.status ? BAND_COLORS[model.status.tone] : null
 
   const sheetStyle: React.CSSProperties = {
     position: 'relative',
@@ -41,19 +40,9 @@ export default function DocDesign({ model, preview = false }: { model: DocModel;
         {/* accent top strip */}
         <div style={{ height: '6px', background: acc }} />
 
-        {/* status band, top-left */}
-        {band && model.status && (
-          <div style={{
-            position: 'absolute', top: '6px', left: 0, zIndex: 2,
-            background: band.bg, color: band.fg,
-            fontSize: '10px', fontWeight: 800, letterSpacing: '.06em',
-            padding: '5px 14px 5px 34px', borderBottomRightRadius: '10px',
-          }}>{model.status.label}</div>
-        )}
-
         <div style={{ padding: '30px 34px 26px', display: 'flex', flexDirection: 'column', minHeight: preview ? 'auto' : 'calc(297mm - 6px)' }}>
           {/* header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginTop: band ? '18px' : 0, marginBottom: '22px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '22px' }}>
             <div style={{ maxWidth: '58%' }}>
               {model.logoUrl
                 ? <img src={model.logoUrl} alt="" style={{ width: '5.5cm', maxHeight: '2.8cm', height: 'auto', objectFit: 'contain', objectPosition: 'left center', display: 'block', marginBottom: '10px' }} />

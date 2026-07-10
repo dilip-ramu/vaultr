@@ -169,7 +169,9 @@ export async function POST(req: NextRequest) {
       total,
       paid_amount:      0,
       balance_due:      total,
-      status:           'draft',
+      // Issued on creation — a saved tax invoice is a real, unpaid invoice
+      // (shows DUE / OVERDUE), not a draft. Payment moves it to 'paid'.
+      status:           'sent',
       notes:            notes ?? null,
       signatory_id:     signatoryId ?? null,
       currency:         'INR',

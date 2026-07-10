@@ -2,7 +2,6 @@
 
 import type { SalarySlipDocData } from '@/lib/payroll/slip'
 import { amountToWords } from '@/lib/recoverables/invoices/words'
-import { BAND_COLORS } from '@/lib/documents/model'
 
 /**
  * Salary slip — Claude design (frame 17a). Layout schema is from the Claude
@@ -58,13 +57,6 @@ export default function SalarySlip17a({
   const totSt: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr auto', fontSize: '11.5px', fontWeight: 700, color: '#111', padding: '11px 0' }
   const cell = (v: number) => (v > 0 ? fmtInr(v) : '—')
 
-  const band = (month as { is_paid?: boolean }).is_paid
-    ? { label: 'PAID', tone: 'green' as const }
-    : (month as { is_finalized?: boolean }).is_finalized
-      ? { label: 'FINALIZED', tone: 'blue' as const }
-      : { label: 'DRAFT', tone: 'grey' as const }
-  const bandC = BAND_COLORS[band.tone]
-
   return (
     <div className="vinv" style={{ background: preview ? 'transparent' : '#e5e7eb', padding: preview ? 0 : '28px 0', display: 'flex', justifyContent: 'center' }}>
       <div className="sheet" style={{
@@ -77,8 +69,6 @@ export default function SalarySlip17a({
       }}>
         {/* accent top strip */}
         <div style={{ height: '6px', background: accent }} />
-        {/* status band, top-left */}
-        <div style={{ position: 'absolute', top: '6px', left: 0, zIndex: 2, background: bandC.bg, color: bandC.fg, fontSize: '10px', fontWeight: 800, letterSpacing: '.06em', padding: '5px 14px 5px 34px', borderBottomRightRadius: '10px' }}>{band.label}</div>
 
         <div style={{ padding: preview ? '30px 34px' : '40px 44px' }}>
         {/* Header */}

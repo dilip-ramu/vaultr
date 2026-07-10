@@ -59,22 +59,25 @@ interface TaxInvoice {
 }
 
 export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: InvoiceSettings | null, refs: BrandRefs): DocModel {
-  const hasAwb = lines.some(l => compact(l.awb))
-  const hasClient = lines.some(l => compact(l.client_name))
-  const cols: DocColumn[] = [{ key: 'desc', label: 'DESCRIPTION', flex: 1.9 }]
-  if (hasClient) cols.push({ key: 'client', label: 'CLIENT', flex: 1 })
-  if (hasAwb) cols.push({ key: 'awb', label: 'AWB', align: 'center', flex: 0.9 })
-  cols.push(
+  // A single Description column. Courier details (AWB / client) are folded into
+  // the description text — never their own columns.
+  const cols: DocColumn[] = [
+    { key: 'desc', label: 'DESCRIPTION', flex: 2.6 },
     { key: 'hsn', label: 'HSN', align: 'center', flex: 0.6 },
     { key: 'qty', label: 'QTY', align: 'center', flex: 0.5 },
     { key: 'rate', label: 'RATE', align: 'right', flex: 0.8 },
     { key: 'amt', label: 'AMOUNT', align: 'right', flex: 0.9 },
-  )
+  ]
+  const buildDesc = (l: TaxLine): string => {
+    const extras: string[] = []
+    if (compact(l.client_name)) extras.push(String(l.client_name))
+    if (compact(l.awb)) extras.push('AWB ' + l.awb)
+    const base = String(l.description ?? '')
+    return extras.length ? `${base}${base ? ' — ' : ''}${extras.join(' · ')}` : base
+  }
   const rows: DocRow[] = lines.map(l => ({
     cells: {
-      desc: String(l.description ?? ''),
-      client: String(l.client_name ?? ''),
-      awb: String(l.awb ?? ''),
+      desc: buildDesc(l),
       hsn: String(l.hsn_sac ?? ''),
       qty: plain(Number(l.qty) || 0),
       rate: plain(Number(l.rate) || 0),
@@ -109,9 +112,12 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
   if (compact(inv.customer_state)) cl2.push(String(inv.customer_state))
   if (cl2.length) custLines.push(cl2.join(' · '))
 
+  // A saved tax invoice is a real issued invoice — treat legacy 'draft' rows as
+  // issued so they read DUE/OVERDUE, never DRAFT (there is no draft workflow).
+  const effectiveStatus = (inv.status ?? '') === 'draft' ? 'sent' : (inv.status ?? '')
   return {
     accent: refs.accent,
-    status: invoiceStatusBand(inv.status ?? '', inv.due_date),
+    status: invoiceStatusBand(effectiveStatus, inv.due_date),
     logoUrl: refs.logoUrl,
     companyName: settings?.company_name ?? 'Company',
     companyLines: companyLines(settings),

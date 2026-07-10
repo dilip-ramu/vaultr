@@ -50,6 +50,27 @@ export default async function InvoiceDetailPage({
 
   if (!invoice) notFound()
 
+  // FROM (seller) must reflect the company that actually issued this invoice
+  // (invoice.company_id), not the legacy single-row settings. Fall back to the
+  // legacy settings only when the invoice has no company.
+  let sellerInfo = settings ?? null
+  const issuingCompanyId = (invoice as RecoverableInvoice & { company_id?: string | null }).company_id
+  if (issuingCompanyId) {
+    const { data: co } = await supabase
+      .from('companies')
+      .select('name, address, gstin, phone, email')
+      .eq('id', issuingCompanyId).eq('user_id', user.id).maybeSingle()
+    if (co) {
+      sellerInfo = {
+        company_name: co.name ?? null,
+        company_address: co.address ?? null,
+        company_gstin: co.gstin ?? null,
+        company_phone: co.phone ?? null,
+        company_email: co.email ?? null,
+      }
+    }
+  }
+
   let customer: Customer | null = null
   if ((invoice as RecoverableInvoice).customer_id) {
     const { data: c } = await supabase
@@ -66,7 +87,7 @@ export default async function InvoiceDetailPage({
       invoice={invoice as RecoverableInvoice}
       lines={(lines ?? []) as RecoverableInvoiceLine[]}
       customer={customer}
-      sellerInfo={settings ?? null}
+      sellerInfo={sellerInfo}
       initialSupplierLinks={(supplierLinks ?? []) as unknown as SupplierLink[]}
     />
   )

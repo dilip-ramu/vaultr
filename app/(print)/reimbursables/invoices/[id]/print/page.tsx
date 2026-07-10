@@ -61,7 +61,6 @@ export default async function ReimbursablePrintPage({ params }: Props) {
   const fmtInr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
 
   const lines = ((invoice.items ?? []) as LineRow[]).slice().sort((a, b) => (a.line_number ?? 0) - (b.line_number ?? 0))
-  const hasAwb = lines.some(l => (l.awb ?? '').trim())
   // Per-line INR value where a rate is known (salary lines carry expended_rate).
   const lineInr = (l: LineRow): number | null => {
     const rate = Number(l.expended_rate) || 0
@@ -70,12 +69,16 @@ export default async function ReimbursablePrintPage({ params }: Props) {
     return base * rate
   }
   const hasInr = lines.some(l => lineInr(l) != null)
+  // AWB is folded into the description text, never its own column.
+  const lineDesc = (l: LineRow): string => {
+    const base = String(l.description ?? '')
+    const awb = (l.awb ?? '').trim()
+    return awb ? `${base}${base ? ' — ' : ''}AWB ${awb}` : base
+  }
 
-  // Column set — dual currency (INR + billing currency) when INR is derivable,
-  // plus AWB when present.
+  // Column set — dual currency (INR + billing currency) when INR is derivable.
   const columns = [
-    { key: 'desc', label: 'DESCRIPTION', flex: hasAwb ? 2.2 : 3 },
-    ...(hasAwb ? [{ key: 'awb', label: 'AWB', align: 'center' as const, flex: 1 }] : []),
+    { key: 'desc', label: 'DESCRIPTION', flex: 3 },
     ...(hasInr ? [{ key: 'inr', label: 'INR', align: 'right' as const, flex: 1.3 }] : []),
     { key: 'cur', label: `AMOUNT (${cur})`, align: 'right' as const, flex: 1.3 },
   ]
