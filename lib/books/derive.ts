@@ -51,6 +51,63 @@ export interface BooksResult {
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 
+export interface LedgerEntry { date: string; name: string; debit: number; credit: number }
+
+/** The individual journal lines behind one trial-balance row (read-only). */
+export function ledgerEntries(input: BooksInput, key: string): LedgerEntry[] {
+  const { accounts, transactions, categories } = input
+  const acctById = new Map(accounts.map(a => [a.id, a]))
+  const catName = new Map(categories.map(c => [c.id, c.name]))
+  const out: LedgerEntry[] = []
+
+  if (key === 'equity:opening') {
+    for (const a of accounts) {
+      const ib = Number(a.initial_balance) || 0
+      if (!ib) continue
+      out.push({ date: '', name: a.name, debit: ib < 0 ? -ib : 0, credit: ib >= 0 ? ib : 0 })
+    }
+    return out
+  }
+
+  if (key.startsWith('acct:')) {
+    const id = key.slice(5)
+    const a = acctById.get(id)
+    const ib = a ? Number(a.initial_balance) || 0 : 0
+    if (ib) out.push({ date: '', name: 'Opening balance', debit: ib >= 0 ? ib : 0, credit: ib < 0 ? -ib : 0 })
+    for (const t of transactions) {
+      const amt = Math.abs(Number(t.amount) || 0)
+      if (!amt) continue
+      if (t.type === 'transfer') {
+        if (t.account_id === id) out.push({ date: t.date, name: `Transfer out → ${t.to_account_id ? acctById.get(t.to_account_id)?.name ?? 'account' : 'account'}`, debit: 0, credit: amt })
+        else if (t.to_account_id === id) out.push({ date: t.date, name: `Transfer in ← ${t.account_id ? acctById.get(t.account_id)?.name ?? 'account' : 'account'}`, debit: amt, credit: 0 })
+      } else if (t.account_id === id) {
+        const cn = (t.category_id && catName.get(t.category_id)) || (t.type === 'income' ? 'Income' : 'Expense')
+        if (t.type === 'income') out.push({ date: t.date, name: cn, debit: amt, credit: 0 })
+        else out.push({ date: t.date, name: cn, debit: 0, credit: amt })
+      }
+    }
+    return out.sort((x, y) => x.date.localeCompare(y.date))
+  }
+
+  if (key.startsWith('cat:')) {
+    const catId = key.slice(4)
+    for (const t of transactions) {
+      if (t.type === 'transfer') continue
+      const amt = Math.abs(Number(t.amount) || 0)
+      if (!amt) continue
+      const isIncome = t.type === 'income'
+      const tKey = t.category_id ?? `uncat-${isIncome ? 'income' : 'expense'}`
+      if (tKey !== catId) continue
+      const an = t.account_id ? acctById.get(t.account_id)?.name ?? '—' : '—'
+      if (isIncome) out.push({ date: t.date, name: an, debit: 0, credit: amt })
+      else out.push({ date: t.date, name: an, debit: amt, credit: 0 })
+    }
+    return out.sort((x, y) => x.date.localeCompare(y.date))
+  }
+
+  return out
+}
+
 export function deriveBooks(input: BooksInput): BooksResult {
   const { accounts, transactions, categories } = input
   const acctById = new Map(accounts.map(a => [a.id, a]))
