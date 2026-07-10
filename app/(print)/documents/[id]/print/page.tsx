@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import DocumentPrintView from '@/components/documents/DocumentPrintView'
 import { presetSchema, type DocType, type DocumentSchema } from '@/lib/templates/schema'
 import { normalizeAccent } from '@/lib/companies/templates'
+import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
 import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
 
 type Props = { params: Promise<{ id: string }> }
@@ -102,6 +103,12 @@ export default async function DocumentPrintPage({ params }: Props) {
     logoUrl = data?.publicUrl ?? null
   }
 
+  // v89 — authorised signatory signature (chosen → company default).
+  const signatureUrl = await resolveSignatureUrl(supabase, user.id, {
+    signatoryId: (d.signatory_id as string | null) ?? null,
+    companyId,
+  })
+
   return (
     <DocumentPrintView
       schema={schema}
@@ -109,6 +116,7 @@ export default async function DocumentPrintPage({ params }: Props) {
       lines={adaptedLines}
       settings={settings as unknown as import('@/components/recoverables/invoices/InvoiceDocument').InvoiceDocSettings}
       logoUrl={logoUrl}
+      signatureUrl={signatureUrl}
     />
   )
 }

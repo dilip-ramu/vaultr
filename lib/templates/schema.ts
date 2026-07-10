@@ -10,6 +10,7 @@ export type DocType =
   | 'salary_slip'
   // GST-compliant line-item documents that reuse the invoice engine
   | 'credit_note'
+  | 'debit_note'
   | 'proforma_gst'
   | 'purchase_order'
   | 'delivery_challan'
@@ -64,6 +65,7 @@ export const ADDABLE_BLOCKS: Record<DocType, BlockType[]> = {
   reimbursable_invoice: ['text', 'divider', 'spacer'],
   salary_slip:          ['text', 'divider', 'spacer'],
   credit_note:          ['text', 'divider', 'spacer'],
+  debit_note:           ['text', 'divider', 'spacer'],
   proforma_gst:         ['text', 'divider', 'spacer'],
   purchase_order:       ['text', 'divider', 'spacer'],
   delivery_challan:     ['text', 'divider', 'spacer'],
@@ -74,6 +76,7 @@ export const DOC_TYPES: { id: DocType; label: string; short: string }[] = [
   { id: 'gst_invoice',          label: 'GST tax invoice',   short: 'GST invoice' },
   { id: 'proforma_gst',         label: 'Proforma invoice',  short: 'proforma invoice' },
   { id: 'credit_note',          label: 'Credit note',       short: 'credit note' },
+  { id: 'debit_note',           label: 'Debit note',        short: 'debit note' },
   { id: 'delivery_challan',     label: 'Delivery challan',  short: 'delivery challan' },
   { id: 'purchase_order',       label: 'Purchase order',    short: 'purchase order' },
   { id: 'reimbursable_invoice', label: 'Reimbursable invoice', short: 'reimbursable invoice' },
@@ -173,6 +176,7 @@ const CHALLAN_TOTALS: FieldDef[] = [
 
 const GST_DOC_OPTS: Partial<Record<DocType, InvoiceBlockOpts>> = {
   credit_note:      { title: 'Credit Note',      billToLabel: 'Credit To',       showBalanceDue: false },
+  debit_note:       { title: 'Debit Note',       billToLabel: 'Debit To',        showBalanceDue: false },
   proforma_gst:     { title: 'Proforma Invoice', billToLabel: 'Bill To',         showBalanceDue: false },
   purchase_order:   { title: 'Purchase Order',   billToLabel: 'Vendor',          showBalanceDue: false, showBank: false, termsTitle: 'Terms & Delivery Instructions' },
   delivery_challan: { title: 'Delivery Challan', billToLabel: 'Consignee (Ship To)', showBalanceDue: false, showBank: false, columns: CHALLAN_COLUMNS, totals: CHALLAN_TOTALS, termsTitle: 'Reason for Transportation / Notes' },

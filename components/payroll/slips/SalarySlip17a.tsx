@@ -25,10 +25,11 @@ const fmtInr = (n: number) => new Intl.NumberFormat('en-IN', { minimumFractionDi
 const num = (v: unknown) => Number(v ?? 0)
 
 export default function SalarySlip17a({
-  data, logoUrl = null, accent = '#1F5C3A', preview = false,
+  data, logoUrl = null, signatureUrl = null, accent = '#1F5C3A', preview = false,
 }: {
   data: SalarySlipDocData
   logoUrl?: string | null
+  signatureUrl?: string | null
   accent?: string
   preview?: boolean
 }) {
@@ -69,7 +70,7 @@ export default function SalarySlip17a({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '34px' }}>
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {logoUrl && <img src={logoUrl} alt="" style={{ height: '28px', width: 'auto', objectFit: 'contain', marginBottom: '14px' }} />}
+            {logoUrl && <img src={logoUrl} alt="" style={{ width: '5.5cm', maxHeight: '2.8cm', height: 'auto', objectFit: 'contain', objectPosition: 'left center', marginBottom: '14px', display: 'block' }} />}
             <p style={{ fontSize: '11px', color: '#888', lineHeight: 1.55, margin: 0 }}>
               <span style={{ fontWeight: 700, color: '#333' }}>{companyName ?? 'Your Company'}</span>
               {companyAddress && <><br />{companyAddress}</>}
@@ -142,7 +143,15 @@ export default function SalarySlip17a({
             Salary {fmtInr(num(entry.salary_amount))} {employee.salary_currency || 'EUR'}
             {num(entry.expended_rate) > 0 && <><br />Exchange rate ₹{fmtInr(num(entry.expended_rate))}</>}
           </p>
-          <p style={{ fontSize: '9.5px', color: '#aaa', textAlign: 'right', margin: 0 }}>Computer-generated slip<br />No signature required</p>
+          {signatureUrl
+            ? (
+              <div style={{ textAlign: 'right' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={signatureUrl} alt="Authorised Signature" style={{ height: '2cm', width: 'auto', maxWidth: '5.5cm', objectFit: 'contain', display: 'block', marginLeft: 'auto' }} />
+                <p style={{ fontSize: '9.5px', color: '#aaa', margin: '4px 0 0' }}>Authorised Signatory</p>
+              </div>
+            )
+            : <p style={{ fontSize: '9.5px', color: '#aaa', textAlign: 'right', margin: 0 }}>Computer-generated slip<br />No signature required</p>}
         </div>
       </div>
     </div>

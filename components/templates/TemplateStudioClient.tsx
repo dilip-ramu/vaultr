@@ -369,6 +369,9 @@ function BlockEditor({ block, index, total, onMove, onToggle, onProps, onRemove 
               </Row>
               <Row label="Title"><input className={inputCls} style={inputStyle} value={String(p.title ?? '')} onChange={e => onProps(block.id, { title: e.target.value })} /></Row>
               <Check label="Show logo" v={p.showLogo !== false} on={v => onProps(block.id, { showLogo: v })} />
+              {p.showLogo !== false && String(p.variant ?? 'plain') === 'plain' && (
+                <Row label="Logo width (cm)"><input type="number" step={0.5} min={1} max={12} className={inputCls} style={inputStyle} value={String(p.logoWidthCm ?? 5.5)} onChange={e => onProps(block.id, { logoWidthCm: Number(e.target.value) || 5.5 })} /></Row>
+              )}
               <Check label="Show invoice number" v={p.showNumber !== false} on={v => onProps(block.id, { showNumber: v })} />
               <Check label="Show balance due" v={p.showBalanceDue !== false} on={v => onProps(block.id, { showBalanceDue: v })} />
             </>
@@ -400,6 +403,13 @@ function BlockEditor({ block, index, total, onMove, onToggle, onProps, onRemove 
             <>
               <Row label="Label"><input className={inputCls} style={inputStyle} value={String(p.label ?? 'Authorised Signature')} onChange={e => onProps(block.id, { label: e.target.value })} /></Row>
               <Check label="Show signature image" v={p.showImage !== false} on={v => onProps(block.id, { showImage: v })} />
+              <Row label="Alignment">
+                <select value={String(p.align ?? 'right')} onChange={e => onProps(block.id, { align: e.target.value })} className={inputCls} style={inputStyle}>
+                  <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+                </select>
+              </Row>
+              <Row label="Signature width (cm)"><input type="number" step={0.5} min={1} max={10} className={inputCls} style={inputStyle} value={String(p.imgWidthCm ?? 5.5)} onChange={e => onProps(block.id, { imgWidthCm: Number(e.target.value) || 5.5 })} /></Row>
+              <Row label="Signature height (cm)"><input type="number" step={0.2} min={1} max={6} className={inputCls} style={inputStyle} value={String(p.imgHeightCm ?? 2.4)} onChange={e => onProps(block.id, { imgHeightCm: Number(e.target.value) || 2.4 })} /></Row>
             </>
           )}
           {block.type === 'rHeader' && (

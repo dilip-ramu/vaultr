@@ -3,11 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-export async function POST(_req: NextRequest, { params }: RouteContext) {
+export async function POST(req: NextRequest, { params }: RouteContext) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Optional: the authorised signatory chosen for this run's slips (v89).
+  let signatoryId: string | null = null
+  try { const b = await req.json(); signatoryId = (b?.signatoryId as string | null) ?? null } catch { /* no body */ }
 
   const { data: month } = await supabase
     .from('payroll_months').select('*').eq('id', id).eq('user_id', user.id).single()
@@ -25,7 +29,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
   // is_finalized straight back to false.
   const { data: updatedMonth, error: monthErr } = await supabase
     .from('payroll_months')
-    .update({ status: 'finalized', is_finalized: true, finalized_at: now })
+    .update({ status: 'finalized', is_finalized: true, finalized_at: now, signatory_id: signatoryId })
     .eq('id', id).eq('user_id', user.id)
     .select().single()
 

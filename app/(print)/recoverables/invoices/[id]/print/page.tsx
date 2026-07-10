@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import InvoicePrintView from '@/components/recoverables/invoices/InvoicePrintView'
 import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
 import { normalizeTemplate, normalizeAccent } from '@/lib/companies/templates'
+import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -118,7 +119,11 @@ export default async function InvoicePrintPage({ params }: Props) {
     const { data } = await supabase.storage.from('vaultr-attachments').createSignedUrl(legacy.logo_path, 600)
     logoUrl = data?.signedUrl ?? null
   }
-  if (legacy?.signature_path) {
+  // v89 — signature comes from the chosen signatory (fallback: company default).
+  const invSignatoryId = (inv as { signatory_id?: string | null }).signatory_id ?? null
+  signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: invSignatoryId, companyId: inv.company_id ?? null })
+  // Legacy fallback (old single-signature settings) if no signatory image found.
+  if (!signatureUrl && legacy?.signature_path) {
     const { data } = await supabase.storage.from('vaultr-attachments').createSignedUrl(legacy.signature_path, 600)
     signatureUrl = data?.signedUrl ?? null
   }

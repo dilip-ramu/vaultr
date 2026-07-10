@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { configsForSide, docConfig, type DocSide, type DocumentRow } from '@/lib/documents/config'
+import SignatorySelect from '@/components/company-details/SignatorySelect'
 
 interface Party { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
 interface Company { id: string; name: string }
@@ -24,6 +25,7 @@ export default function DocumentsClient({ side, companies, parties, initialDocs 
   const [docType, setDocType] = useState(configs[0]?.id ?? '')
   const cfg = docConfig(docType)!
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? '')
+  const [signatoryId, setSignatoryId] = useState<string | null>(null)
   const [partyId, setPartyId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState('')
@@ -74,6 +76,7 @@ export default function DocumentsClient({ side, companies, parties, initialDocs 
         party_kind: side, party_id: party.id, party_name: party.name,
         party_address: party.address, party_gstin: party.gstin, party_state: party.state,
         number: numberStr.trim(), date, reference: reference.trim() || null, notes: notes.trim() || null,
+        signatory_id: signatoryId || null,
         subtotal: totals.subtotal, cgst_amount: totals.cgst, sgst_amount: totals.sgst, total: totals.total,
       }).select('*').single()
       if (error || !doc) { notify(error?.message ?? 'Save failed', 'error'); return }
@@ -165,6 +168,9 @@ export default function DocumentsClient({ side, companies, parties, initialDocs 
                     <option value="">— pick —</option>
                     {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
+                </label>
+                <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Authorised signatory
+                  <SignatorySelect companyId={companyId || null} value={signatoryId} onChange={setSignatoryId} className={inputCls + ' mt-1'} style={iStyle} />
                 </label>
                 <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{cfg.partyLabel}
                   <select value={partyId} onChange={e => setPartyId(e.target.value)} className={inputCls + ' mt-1'} style={iStyle}>

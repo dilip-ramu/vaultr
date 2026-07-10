@@ -101,7 +101,7 @@ export default function InvoiceDocument({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '36px' }}>
             <div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              {logoUrl && <img src={logoUrl} alt="" style={{ height: '28px', width: 'auto', objectFit: 'contain', marginBottom: '14px' }} />}
+              {logoUrl && <img src={logoUrl} alt="" style={{ width: '5.5cm', maxHeight: '2.8cm', height: 'auto', objectFit: 'contain', objectPosition: 'left center', marginBottom: '14px', display: 'block' }} />}
               <p style={{ fontSize: '11px', color: '#888', lineHeight: 1.55, margin: 0 }}>
                 <span style={{ fontWeight: 700, color: '#333' }}>{companyName}</span>
                 {settings?.company_address && <><br />{settings.company_address}</>}
@@ -378,7 +378,7 @@ export default function InvoiceDocument({
           <>
             <div className="header">
               {logoUrl
-                ? <img src={logoUrl} alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
+                ? <img src={logoUrl} alt={companyName} style={{ width: '5.5cm', maxHeight: '2.8cm', height: 'auto', objectFit: 'contain', objectPosition: 'left center', display: 'block' }} />
                 : <div style={{ height: '1.5cm' }} />}
               <div className="tax-invoice-block">
                 <h2>Tax Invoice</h2>

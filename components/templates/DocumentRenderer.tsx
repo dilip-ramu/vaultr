@@ -37,6 +37,9 @@ const paymentTermsLabel: Record<string, string> = {
 
 const S = (v: unknown, d = '') => (typeof v === 'string' ? v : d)
 const B = (v: unknown, d = false) => (typeof v === 'boolean' ? v : d)
+const N = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : d }
+const alignToFlex = (a: string): 'flex-start' | 'center' | 'flex-end' =>
+  a === 'left' ? 'flex-start' : a === 'center' ? 'center' : 'flex-end'
 
 /** Renders any invoice DocumentSchema to the scoped .vinv document. Shared by
  *  the live editor preview and the print route, so they never drift. */
@@ -112,10 +115,11 @@ export default function DocumentRenderer({
         </div>
       )
     }
+    const logoW = N(p.logoWidthCm, 5.5)
     return (
       <div className="header" key="header">
         {showLogo && logoUrl
-          ? <img src={logoUrl} alt={companyName} style={{ height: '1.5cm', width: 'auto', display: 'block' }} />
+          ? <img src={logoUrl} alt={companyName} style={{ width: `${logoW}cm`, maxHeight: '2.8cm', height: 'auto', objectFit: 'contain', objectPosition: 'left center', display: 'block' }} />
           : <div style={{ height: '1.5cm' }} />}
         <div className="tax-invoice-block">
           <h2>{title}</h2>
@@ -249,16 +253,23 @@ export default function DocumentRenderer({
     return <div className="terms-block" key="terms" style={{ marginTop: 12 }}><h4>{S(p.title, 'Terms & Conditions')}</h4>{text}</div>
   }
 
-  const renderSignature = (p: Record<string, unknown>) => (
-    <div key="signature" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-      <div style={{ textAlign: 'right' }}>
-        {B(p.showImage, true) && signatureUrl
-          ? <img src={signatureUrl} alt="Signature" style={{ height: '3cm', width: 'auto', display: 'block', marginLeft: 'auto' }} />
-          : <div style={{ height: '3cm', width: '5cm', borderBottom: '1px solid #999', marginLeft: 'auto' }} />}
-        <div style={{ fontSize: 10.5, marginTop: 4 }}>{S(p.label, 'Authorised Signature')}</div>
+  const renderSignature = (p: Record<string, unknown>) => {
+    const align = S(p.align, 'right')
+    const imgH = N(p.imgHeightCm, 2.4)
+    const imgW = N(p.imgWidthCm, 5.5)
+    const textAlign = (align === 'left' ? 'left' : align === 'center' ? 'center' : 'right') as 'left' | 'center' | 'right'
+    const marginX = align === 'left' ? { marginRight: 'auto' } : align === 'center' ? { marginLeft: 'auto', marginRight: 'auto' } : { marginLeft: 'auto' }
+    return (
+      <div key="signature" style={{ display: 'flex', justifyContent: alignToFlex(align), marginTop: 24 }}>
+        <div style={{ textAlign }}>
+          {B(p.showImage, true) && signatureUrl
+            ? <img src={signatureUrl} alt="Signature" style={{ height: `${imgH}cm`, width: 'auto', maxWidth: `${imgW}cm`, objectFit: 'contain', display: 'block', ...marginX }} />
+            : <div style={{ height: `${imgH}cm`, width: `${imgW}cm`, borderBottom: '1px solid #999', ...marginX }} />}
+          <div style={{ fontSize: 10.5, marginTop: 4 }}>{S(p.label, 'Authorised Signature')}</div>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderBlock = (block: Block, i: number): React.ReactNode => {
     if (!block.visible) return null

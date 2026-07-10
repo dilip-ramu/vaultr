@@ -14,7 +14,7 @@ const UPDATABLE = new Set([
   'payment_terms', 'terms_conditions',
   'logo_path',
   'invoice_template', 'invoice_accent',
-  'color',
+  'color', 'business_type',
 ])
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {

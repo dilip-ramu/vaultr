@@ -8,6 +8,7 @@ import MarkPaidModal from './MarkPaidModal'
 import AccountChipPicker from '@/components/shared/AccountChipPicker'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
+import SignatorySelect from '@/components/company-details/SignatorySelect'
 
 interface Account { id: string; name: string; type: string; color?: string | null; avatar_url?: string | null; custom_type_id?: string | null; custom_type_name?: string | null; custom_type_color?: string | null; custom_type_icon?: string | null }
 
@@ -159,6 +160,17 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
   // Finalize state
   const [finalizing, setFinalizing] = useState(false)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
+  // v89 — authorised signatory for this run's slips (default + per-run override).
+  const [signatoryId, setSignatoryId] = useState<string | null>((initialMonth as { signatory_id?: string | null }).signatory_id ?? null)
+  // Company whose signatories apply — the most common employer among entries.
+  const payrollCompanyId = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const e of entries) {
+      const cid = (e.employee as Employee | undefined)?.company_id
+      if (cid) counts[cid] = (counts[cid] ?? 0) + 1
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+  }, [entries])
 
   // Income logging state
   const [showIncomeModal, setShowIncomeModal] = useState(false)
@@ -314,7 +326,10 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
     setFinalizing(true)
     setFinalizeError(null)
     try {
-      const res = await fetch(`/api/payroll/months/${month.id}/finalize`, { method: 'POST' })
+      const res = await fetch(`/api/payroll/months/${month.id}/finalize`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signatoryId }),
+      })
       const data = await res.json()
       if (!res.ok) { setFinalizeError(data.error ?? 'Failed'); notify(data.error ?? 'Could not finalize payroll'); return }
       setMonth(data.month)
@@ -418,8 +433,22 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           </div>
         </div>
         {entries.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {finalizeError && <span className="text-xs text-[var(--expense)]">{finalizeError}</span>}
+
+            {/* Authorised signatory for this run's slips */}
+            {!month.is_paid && payrollCompanyId && (
+              <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Signed by
+                <SignatorySelect
+                  companyId={payrollCompanyId}
+                  value={signatoryId}
+                  onChange={setSignatoryId}
+                  className="px-2 py-1.5 rounded-lg text-sm border outline-none"
+                  style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+              </label>
+            )}
 
             {/* Finalize / Re-finalize */}
             {!month.is_finalized ? (

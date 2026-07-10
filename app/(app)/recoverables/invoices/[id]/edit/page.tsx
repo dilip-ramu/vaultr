@@ -46,6 +46,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
         invoiceDate: String(inv.invoice_date ?? '').slice(0, 10),
         paymentTerms: (inv.payment_terms as string | null) ?? 'due_on_receipt',
         notes: (inv.notes as string | null) ?? '',
+        signatoryId: (inv.signatory_id as string | null) ?? null,
         lines: draftLines.length ? draftLines : [{ description: '', hsn: '', qty: '1', rate: '', cgst: '9', sgst: '9' }],
       }}
     />

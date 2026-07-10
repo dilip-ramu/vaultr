@@ -25,10 +25,10 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let body: { customerId?: string; companyId?: string | null; invoiceDate?: string; paymentTerms?: string; notes?: string | null; lines?: TypedLineInput[] }
+  let body: { customerId?: string; companyId?: string | null; invoiceDate?: string; paymentTerms?: string; notes?: string | null; signatoryId?: string | null; lines?: TypedLineInput[] }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const { customerId, companyId, invoiceDate = new Date().toISOString().slice(0, 10), paymentTerms = 'due_on_receipt', notes, lines: rawLines } = body
+  const { customerId, companyId, invoiceDate = new Date().toISOString().slice(0, 10), paymentTerms = 'due_on_receipt', notes, signatoryId, lines: rawLines } = body
   if (!customerId) return NextResponse.json({ error: 'customerId is required' }, { status: 400 })
 
   // Existing invoice — must be a typed tax invoice owned by the user.
@@ -70,6 +70,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     invoice_date: invoiceDate, due_date: calcDueDate(invoiceDate, paymentTerms), payment_terms: paymentTerms,
     subtotal, cgst_rate: uniform(l => l.cgst_rate, defCgst), sgst_rate: uniform(l => l.sgst_rate, defSgst),
     cgst_amount: cgstAmount, sgst_amount: sgstAmount, total, balance_due: r2(total - paid), notes: notes ?? null,
+    signatory_id: signatoryId ?? null,
     updated_at: new Date().toISOString(),
   }).eq('id', id).eq('user_id', user.id)
   if (invErr) return NextResponse.json({ error: invErr.message }, { status: 500 })

@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     invoice_template:    normalizeTemplate(body.invoice_template),
     invoice_accent:      normalizeAccent(body.invoice_accent),
     color:               body.color               ?? null,
+    business_type:       (body.business_type === 'partnership' ? 'partnership' : 'proprietorship'),
   }
 
   const { data, error } = await supabase.from('companies').insert(insertRow).select('*').single()

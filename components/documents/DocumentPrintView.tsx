@@ -13,11 +13,12 @@ interface Props {
   lines: RecoverableInvoiceLine[]
   settings: InvoiceDocSettings | null
   logoUrl?: string | null
+  signatureUrl?: string | null
 }
 
 /** Full-page print view for an issued document. Renders the assigned (or default)
  *  template via the shared DocumentRenderer, so print matches the template editor. */
-export default function DocumentPrintView({ schema, invoice, lines, settings, logoUrl = null }: Props) {
+export default function DocumentPrintView({ schema, invoice, lines, settings, logoUrl = null, signatureUrl = null }: Props) {
   const accent = schema?.theme?.accent ?? '#2A7A50'
   const [busy, setBusy] = useState(false)
   async function downloadPdf() {
@@ -48,7 +49,7 @@ export default function DocumentPrintView({ schema, invoice, lines, settings, lo
         <button className="doc-btn primary" onClick={downloadPdf} disabled={busy}>{busy ? 'Preparing…' : 'Download PDF'}</button>
         <button className="doc-btn ghost" onClick={() => window.print()}>Print</button>
       </div>
-      <DocumentRenderer schema={schema} invoice={invoice} lines={lines} settings={settings} logoUrl={logoUrl} />
+      <DocumentRenderer schema={schema} invoice={invoice} lines={lines} settings={settings} logoUrl={logoUrl} signatureUrl={signatureUrl} />
     </>
   )
 }

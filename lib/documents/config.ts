@@ -18,6 +18,7 @@ export const DOC_CONFIGS: DocConfig[] = [
   { id: 'credit_note',      label: 'Credit Note',      side: 'customer', prefix: 'CN-', tax: true,  partyLabel: 'Customer', referenceLabel: 'Against invoice no.' },
   { id: 'delivery_challan', label: 'Delivery Challan', side: 'customer', prefix: 'DC-', tax: false, partyLabel: 'Consignee', referenceLabel: 'Reason for transport' },
   { id: 'purchase_order',   label: 'Purchase Order',   side: 'supplier', prefix: 'PO-', tax: true,  partyLabel: 'Vendor', referenceLabel: 'Reference' },
+  { id: 'debit_note',       label: 'Debit Note',       side: 'supplier', prefix: 'DN-', tax: true,  partyLabel: 'Supplier', referenceLabel: 'Against invoice no.' },
 ]
 
 export function docConfig(id: string): DocConfig | undefined {

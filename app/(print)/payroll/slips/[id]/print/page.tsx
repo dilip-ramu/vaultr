@@ -7,6 +7,7 @@ import type { SalarySlipDocData } from '@/components/templates/SalarySlipRendere
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import { salarySlipPreset, type DocumentSchema } from '@/lib/templates/schema'
 import { normalizeAccent } from '@/lib/companies/templates'
+import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -46,6 +47,12 @@ export default async function SalarySlipPrintPage({ params }: Props) {
     logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(company.logo_path).data.publicUrl ?? null
   }
 
+  // v89 — signature from the run's chosen signatory (fallback company default).
+  const signatureUrl = await resolveSignatureUrl(supabase, user.id, {
+    signatoryId: (e.month as { signatory_id?: string | null })?.signatory_id ?? null,
+    companyId,
+  })
+
   const sdata: SalarySlipDocData = {
     entry: e, month: e.month, employee,
     companyName: company?.name ?? null,
@@ -55,7 +62,7 @@ export default async function SalarySlipPrintPage({ params }: Props) {
   // Claude design (17a) — only for payroll months created under the new design.
   // Every field is the app's own slip data; only the layout schema is Claude's.
   if ((e.month as { design_version?: string | null })?.design_version === 'claude') {
-    return <SalarySlip17a data={sdata} logoUrl={logoUrl} accent={normalizeAccent(company?.invoice_accent ?? undefined)} />
+    return <SalarySlip17a data={sdata} logoUrl={logoUrl} signatureUrl={signatureUrl} accent={normalizeAccent(company?.invoice_accent ?? undefined)} />
   }
 
   // Resolve the assigned salary-slip template; fall back to the classic preset.

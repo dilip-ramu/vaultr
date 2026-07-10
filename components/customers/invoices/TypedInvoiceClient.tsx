@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Plus, Trash2, Loader2 } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import SignatorySelect from '@/components/company-details/SignatorySelect'
 
 interface CustomerOption { id: string; name: string }
 interface CompanyOption {
@@ -17,6 +18,7 @@ interface InitialInvoice {
   invoiceDate: string
   paymentTerms: string
   notes: string
+  signatoryId?: string | null
   lines: { description: string; hsn: string; qty: string; rate: string; cgst: string; sgst: string }[]
 }
 interface Props {
@@ -62,6 +64,7 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
   const [invoiceDate, setInvoiceDate] = useState(initial?.invoiceDate || new Date().toISOString().slice(0, 10))
   const [paymentTerms, setPaymentTerms] = useState(initial?.paymentTerms || 'due_on_receipt')
   const [notes, setNotes] = useState(initial?.notes || '')
+  const [signatoryId, setSignatoryId] = useState<string | null>(initial?.signatoryId ?? null)
   const [saving, setSaving] = useState(false)
 
   const company = companies.find(c => c.id === companyId) ?? defaultCompany
@@ -123,7 +126,7 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
       const res = await fetch(isEdit ? `/api/recoverables/invoices/typed/${invoiceId}` : '/api/recoverables/invoices/typed', {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, companyId, invoiceDate, paymentTerms, notes, lines: payloadLines }),
+        body: JSON.stringify({ customerId, companyId, invoiceDate, paymentTerms, notes, signatoryId, lines: payloadLines }),
       })
       const data = await res.json()
       if (!res.ok) { notify(data.error ?? (isEdit ? 'Could not update invoice' : 'Could not create invoice'), 'error'); return }
@@ -168,6 +171,10 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
             {companies.length === 0 && <option value="">No companies</option>}
             {companies.map(c => <option key={c.id} value={c.id}>{c.name}{c.is_default ? ' · default' : ''}</option>)}
           </select>
+        </label>
+        <label className="block">
+          <span className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Authorised signatory</span>
+          <SignatorySelect companyId={companyId || null} value={signatoryId} onChange={setSignatoryId} className={inputCls} style={inputStyle} autoDefault={!isEdit} />
         </label>
         <label className="block">
           <span className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Invoice date</span>

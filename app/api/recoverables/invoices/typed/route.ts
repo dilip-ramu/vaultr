@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     invoiceDate?: string
     paymentTerms?: string
     notes?: string | null
+    signatoryId?: string | null
     lines?: TypedLineInput[]
   }
   try {
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     customerId, companyId,
     invoiceDate = new Date().toISOString().slice(0, 10),
     paymentTerms = 'due_on_receipt',
-    notes, lines: rawLines,
+    notes, signatoryId, lines: rawLines,
   } = body
 
   if (!customerId) return NextResponse.json({ error: 'customerId is required' }, { status: 400 })
@@ -170,6 +171,7 @@ export async function POST(req: NextRequest) {
       balance_due:      total,
       status:           'draft',
       notes:            notes ?? null,
+      signatory_id:     signatoryId ?? null,
       currency:         'INR',
       design_version:   'claude',
     })

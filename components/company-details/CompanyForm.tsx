@@ -5,6 +5,7 @@ import { X, Upload, Loader2, Trash2, Building2, Check } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { useFileDrop } from '@/components/shared/useFileDrop'
 import ColorPicker from '@/components/shared/ColorPicker'
+import SignatoriesManager from './SignatoriesManager'
 import {
   INVOICE_TEMPLATES, ACCENT_PRESETS,
   DEFAULT_INVOICE_TEMPLATE, DEFAULT_INVOICE_ACCENT,
@@ -39,6 +40,8 @@ export interface Company {
   payment_terms: string
   terms_conditions: string | null
   logo_path: string | null
+  // v89 — proprietorship | partnership (drives signatory labels)
+  business_type?: 'proprietorship' | 'partnership'
   // v69 — per-company document look (Feature 1)
   invoice_template: InvoiceTemplate
   invoice_accent: string
@@ -139,6 +142,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>(company?.invoice_template ?? DEFAULT_INVOICE_TEMPLATE)
   const [invoiceAccent,   setInvoiceAccent]   = useState<string>(company?.invoice_accent ?? DEFAULT_INVOICE_ACCENT)
   const [color,           setColor]           = useState<string | null>(company?.color ?? null)
+  const [businessType,    setBusinessType]    = useState<'proprietorship' | 'partnership'>(company?.business_type ?? 'proprietorship')
 
   async function handleSave() {
     if (!name.trim()) { setError('Company name is required'); return }
@@ -167,6 +171,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
         invoice_template: invoiceTemplate,
         invoice_accent: invoiceAccent,
         color: color || null,
+        business_type: businessType,
       }
       const url = isEdit ? `/api/companies/${company!.id}` : '/api/companies'
       const method = isEdit ? 'PATCH' : 'POST'
@@ -239,7 +244,7 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
                   </button>
                 )}
                 <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                  PNG, JPG, WEBP, or SVG. Rendered at a fixed 80×80 on invoices.
+                  PNG, JPG, WEBP, or SVG. Printed ~5.5&nbsp;cm wide on documents (adjustable per template).
                 </p>
                 {!isEdit && <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>Save the company first, then attach a logo.</p>}
               </div>
@@ -402,6 +407,29 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
                 })()}
               </div>
             </div>
+          </div>
+
+          {/* Authorised signatories (v89) */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Authorised signatories</p>
+            <div className="flex items-center gap-2">
+              {(['proprietorship', 'partnership'] as const).map(t => {
+                const active = businessType === t
+                return (
+                  <button key={t} type="button" onClick={() => setBusinessType(t)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border capitalize"
+                    style={{ borderColor: active ? 'var(--brand)' : 'var(--border)', background: active ? 'var(--brand-light)' : 'var(--surface-2)', color: active ? 'var(--brand)' : 'var(--text-muted)' }}>
+                    {t}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+              {businessType === 'partnership'
+                ? 'Add each partner and their signature. Choose who signed when you create an invoice or document.'
+                : 'Add the proprietor and their signature. It appears on invoices and documents you issue.'}
+            </p>
+            <SignatoriesManager companyId={company?.id ?? null} businessType={businessType} />
           </div>
 
           {error && (
