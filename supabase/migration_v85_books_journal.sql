@@ -1,0 +1,4 @@
+-- v85 — intentionally empty.
+-- A manual journal-entry feature was started here and then dropped: the Books
+-- page derives full double-entry automatically from existing transactions, so
+-- no manual bookkeeping (and no extra tables) is needed. Nothing to run.
