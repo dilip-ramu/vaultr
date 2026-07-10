@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import SignatorySelect from '@/components/company-details/SignatorySelect'
 import { buildDocNumber, docNumberHead, docConfigFor, type DocSide } from '@/lib/documents/config'
+import type { LinkKind } from '@/lib/documents/links'
 
 interface CompanyOpt { id: string; name: string; prefix: string }
 interface PartyOpt { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
@@ -24,13 +25,18 @@ interface Props {
   existing: { company_id: string | null; number: string }[]
   docId?: string | null
   initial?: DocInitial
+  /** When creating from an upstream document (convert). */
+  sourceId?: string | null
+  sourceKind?: LinkKind
+  /** When this is a credit/debit note raised against an invoice. */
+  against?: { id: string; kind: LinkKind; number: string } | null
 }
 
 interface Line { id: number; item: string; hsn: string; qty: string; rate: string; gst: string }
 let seq = 0
 const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n)
 
-export default function DocumentForm({ side, docType, companies, parties, existing, docId = null, initial }: Props) {
+export default function DocumentForm({ side, docType, companies, parties, existing, docId = null, initial, sourceId = null, sourceKind = 'document', against = null }: Props) {
   const router = useRouter()
   const isEdit = !!docId
   const cfg = docConfigFor(docType, side)!
@@ -107,6 +113,18 @@ export default function DocumentForm({ side, docType, companies, parties, existi
         return { document_id: savedId, user_id: user.id, line_number: i + 1, item: l.item.trim(), hsn_sac: l.hsn.trim() || null, qty: parseFloat(l.qty) || 0, rate: parseFloat(l.rate) || 0, amount: amt, gst_rate: cfg.tax ? parseFloat(l.gst) || 0 : 0, cgst_amount: g, sgst_amount: g }
       })
       await sb.from('document_lines').insert(lineRows)
+
+      // Record chain links on first creation (additive — never on edit).
+      if (!isEdit && savedId) {
+        if (sourceId) {
+          await sb.from('document_links').insert({ user_id: user.id, source_kind: sourceKind, source_id: sourceId, target_kind: 'document', target_id: savedId, relation: 'converted' })
+          if (sourceKind === 'document') await sb.from('documents').update({ status: 'converted' }).eq('id', sourceId).eq('user_id', user.id)
+        }
+        if (against) {
+          await sb.from('document_links').insert({ user_id: user.id, source_kind: against.kind, source_id: against.id, target_kind: 'document', target_id: savedId, relation: 'adjusts' })
+        }
+      }
+
       notify(`${cfg.label} ${finalNumber} ${isEdit ? 'updated' : 'saved'} ✓`, 'success')
       router.push(listHref)
       router.refresh()

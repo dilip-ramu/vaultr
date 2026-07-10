@@ -303,6 +303,13 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             </button>
           )}
           <button
+            onClick={() => router.push(`/customers/documents/credit_note/new?against=${invoice.id}`)}
+            className="px-4 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          >
+            + Credit Note
+          </button>
+          <button
             onClick={async () => {
               setDownloading(true)
               try {

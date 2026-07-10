@@ -2,11 +2,17 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Plus, Trash2, FileText, Printer, Pencil } from 'lucide-react'
+import { Plus, Trash2, FileText, Printer, Pencil, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { docConfigFor, type DocSide, type DocumentRow } from '@/lib/documents/config'
+import { convertTargets, statusMeta } from '@/lib/documents/links'
+
+const BADGE: Record<string, { bg: string; fg: string }> = {
+  grey: { bg: '#EEF0F2', fg: '#4B5563' }, amber: { bg: '#FEF3C7', fg: '#92400E' },
+  green: { bg: '#DCFCE7', fg: '#14532D' }, blue: { bg: '#DBEAFE', fg: '#1E40AF' },
+}
 
 interface Props { side: DocSide; lockedType: string; initialDocs: DocumentRow[] }
 
@@ -52,12 +58,30 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
             <tbody>
               {docs.map(d => (
                 <tr key={d.id} style={{ borderTop: '1px solid var(--border-2, var(--border))' }}>
-                  <td className="px-4 py-2.5 font-semibold" style={{ color: 'var(--text)' }}>{d.number}</td>
+                  <td className="px-4 py-2.5 font-semibold" style={{ color: 'var(--text)' }}>
+                    <span className="inline-flex items-center gap-2">
+                      {d.number}
+                      {(() => { const m = statusMeta(d.status ?? 'open'); const c = BADGE[m.tone]; return <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: c.bg, color: c.fg }}>{m.label}</span> })()}
+                    </span>
+                  </td>
                   <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{d.date}</td>
                   <td className="px-4 py-2.5" style={{ color: 'var(--text)' }}>{d.party_name}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: 'var(--text)' }}>{money(d.total)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1.5">
+                      {convertTargets(lockedType).length > 0 && (
+                        <details className="relative inline-block">
+                          <summary className="w-8 h-8 rounded-lg inline-flex items-center justify-center cursor-pointer list-none" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }} title="Convert to…"><ArrowRight className="w-3.5 h-3.5" /></summary>
+                          <div className="absolute right-0 mt-1 z-20 rounded-xl border py-1 shadow-lg" style={{ background: 'var(--surface)', borderColor: 'var(--border)', minWidth: 170 }}>
+                            {convertTargets(lockedType).map(t => (
+                              <Link key={t.type} href={t.kind === 'invoice' ? `/customers/invoices/new?fromDoc=${d.id}` : `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${t.type}/new?from=${d.id}`}
+                                className="block px-3 py-1.5 text-xs font-semibold hover:bg-[var(--surface-2)]" style={{ color: 'var(--text)' }}>
+                                → {t.label}
+                              </Link>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                       <Link href={`${newHref.replace(/\/new$/, '')}/${d.id}/edit`} className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }} title="Edit"><Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></Link>
                       <a href={`/documents/${d.id}/print`} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }} title="Print / PDF"><Printer className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></a>
                       <button onClick={() => del(d)} className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>

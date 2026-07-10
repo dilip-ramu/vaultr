@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import InvoiceDetailClient from '@/components/recoverables/invoices/InvoiceDetailClient'
+import DocChainFlow from '@/components/documents/DocChainFlow'
+import { resolveSellChain } from '@/lib/documents/chain'
 import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
 import type { Customer } from '@/lib/types'
 import type { SupplierLink } from '@/components/recoverables/invoices/InvoiceDetailClient'
@@ -82,13 +84,24 @@ export default async function InvoiceDetailPage({
     customer = c as Customer | null
   }
 
+  // Chain ribbon — only render if this invoice belongs to a document chain.
+  const chain = await resolveSellChain(supabase, user.id, { kind: 'recoverable_invoice', id })
+  const inChain = chain.some(n => n.status !== 'pending' && n.key !== 'tax_invoice')
+
   return (
-    <InvoiceDetailClient
-      invoice={invoice as RecoverableInvoice}
-      lines={(lines ?? []) as RecoverableInvoiceLine[]}
-      customer={customer}
-      sellerInfo={sellerInfo}
-      initialSupplierLinks={(supplierLinks ?? []) as unknown as SupplierLink[]}
-    />
+    <div>
+      {inChain && (
+        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+          <DocChainFlow nodes={chain} />
+        </div>
+      )}
+      <InvoiceDetailClient
+        invoice={invoice as RecoverableInvoice}
+        lines={(lines ?? []) as RecoverableInvoiceLine[]}
+        customer={customer}
+        sellerInfo={sellerInfo}
+        initialSupplierLinks={(supplierLinks ?? []) as unknown as SupplierLink[]}
+      />
+    </div>
   )
 }

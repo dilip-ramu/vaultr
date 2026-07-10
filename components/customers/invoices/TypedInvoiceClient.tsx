@@ -12,7 +12,7 @@ interface CompanyOption {
   id: string; name: string; is_default: boolean
   cgst_rate: number; sgst_rate: number; hsn_sac: string
 }
-interface InitialInvoice {
+export interface InitialInvoice {
   customerId: string
   companyId: string
   invoiceDate: string
@@ -28,6 +28,8 @@ interface Props {
   /** When set, the form edits this existing invoice instead of creating one. */
   invoiceId?: string | null
   initial?: InitialInvoice
+  /** When creating from a document (convert), the source document id — linked on save. */
+  sourceDocId?: string | null
 }
 
 interface LineDraft {
@@ -54,7 +56,7 @@ const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDi
 let seq = 0
 const newKey = () => `l${++seq}`
 
-export default function TypedInvoiceClient({ customers, companies, initialCustomerId, invoiceId = null, initial }: Props) {
+export default function TypedInvoiceClient({ customers, companies, initialCustomerId, invoiceId = null, initial, sourceDocId = null }: Props) {
   const router = useRouter()
   const isEdit = !!invoiceId
   const defaultCompany = companies.find(c => c.is_default) ?? companies[0] ?? null
@@ -126,7 +128,7 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
       const res = await fetch(isEdit ? `/api/recoverables/invoices/typed/${invoiceId}` : '/api/recoverables/invoices/typed', {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, companyId, invoiceDate, paymentTerms, notes, signatoryId, lines: payloadLines }),
+        body: JSON.stringify({ customerId, companyId, invoiceDate, paymentTerms, notes, signatoryId, sourceDocId, lines: payloadLines }),
       })
       const data = await res.json()
       if (!res.ok) { notify(data.error ?? (isEdit ? 'Could not update invoice' : 'Could not create invoice'), 'error'); return }

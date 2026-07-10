@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import DocumentForm, { type DocInitial } from '@/components/documents/DocumentForm'
+import DocChainFlow from '@/components/documents/DocChainFlow'
 import { docConfigFor } from '@/lib/documents/config'
+import { resolveSellChain } from '@/lib/documents/chain'
+
+const SELL_CHAIN_TYPES = ['quotation', 'sales_order', 'proforma_gst', 'delivery_challan']
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +41,18 @@ export default async function EditCustomerDocumentPage({ params }: { params: Pro
     lines: (lines ?? []).map((l: Record<string, unknown>) => ({ item: String(l.item ?? ''), hsn: String(l.hsn_sac ?? ''), qty: String(l.qty ?? '1'), rate: String(l.rate ?? ''), gst: String(l.gst_rate ?? 18) })),
   }
 
+  const chain = SELL_CHAIN_TYPES.includes(type)
+    ? await resolveSellChain(supabase, uid, { kind: 'document', id })
+    : null
+
   return (
-    <DocumentForm side="customer" docType={type} docId={id} initial={initial} companies={companyOpts} parties={parties} existing={(existing ?? []) as { company_id: string | null; number: string }[]} />
+    <>
+      {chain && (
+        <div className="w-full max-w-5xl mx-auto px-4 md:px-8 pt-6">
+          <DocChainFlow nodes={chain} />
+        </div>
+      )}
+      <DocumentForm side="customer" docType={type} docId={id} initial={initial} companies={companyOpts} parties={parties} existing={(existing ?? []) as { company_id: string | null; number: string }[]} />
+    </>
   )
 }

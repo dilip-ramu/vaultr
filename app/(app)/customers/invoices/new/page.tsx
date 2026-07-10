@@ -13,13 +13,33 @@ export const dynamic = 'force-dynamic'
 export default async function NewTypedInvoicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string }>
+  searchParams: Promise<{ customer?: string; fromDoc?: string }>
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { customer: customerParam } = await searchParams
+  const { customer: customerParam, fromDoc } = await searchParams
+
+  // Convert a document (quotation / SO / proforma / challan) into a tax invoice.
+  let initial: import('@/components/customers/invoices/TypedInvoiceClient').InitialInvoice | undefined
+  if (fromDoc) {
+    const [{ data: src }, { data: sl }] = await Promise.all([
+      supabase.from('documents').select('*').eq('id', fromDoc).eq('user_id', user.id).maybeSingle(),
+      supabase.from('document_lines').select('*').eq('document_id', fromDoc).order('line_number', { ascending: true }),
+    ])
+    if (src) {
+      initial = {
+        customerId: (src.party_id as string | null) ?? '',
+        companyId: (src.company_id as string | null) ?? '',
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        paymentTerms: 'due_on_receipt',
+        notes: (src.notes as string | null) ?? '',
+        signatoryId: (src.signatory_id as string | null) ?? null,
+        lines: (sl ?? []).map((l: Record<string, unknown>) => ({ description: String(l.item ?? ''), hsn: String(l.hsn_sac ?? ''), qty: String(l.qty ?? '1'), rate: String(l.rate ?? ''), cgst: String((Number(l.gst_rate) || 18) / 2), sgst: String((Number(l.gst_rate) || 18) / 2) })),
+      }
+    }
+  }
 
   const [{ data: customers }, { data: companies }] = await Promise.all([
     supabase
@@ -47,6 +67,8 @@ export default async function NewTypedInvoicePage({
         hsn_sac: (c.hsn_sac as string | null) ?? '996812',
       }))}
       initialCustomerId={customerParam && customerParam !== 'all' ? customerParam : null}
+      initial={initial}
+      sourceDocId={fromDoc ?? null}
     />
   )
 }

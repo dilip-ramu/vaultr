@@ -64,6 +64,7 @@ export function configsForSide(side: DocSide): DocConfig[] {
 export interface DocumentRow {
   id: string
   doc_type: string
+  status?: string
   company_id: string | null
   party_kind: string
   party_id: string | null

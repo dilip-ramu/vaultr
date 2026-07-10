@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
     paymentTerms?: string
     notes?: string | null
     signatoryId?: string | null
+    sourceDocId?: string | null
     lines?: TypedLineInput[]
   }
   try {
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
     customerId, companyId,
     invoiceDate = new Date().toISOString().slice(0, 10),
     paymentTerms = 'due_on_receipt',
-    notes, signatoryId, lines: rawLines,
+    notes, signatoryId, sourceDocId, lines: rawLines,
   } = body
 
   if (!customerId) return NextResponse.json({ error: 'customerId is required' }, { status: 400 })
@@ -209,6 +210,15 @@ export async function POST(req: NextRequest) {
     // Roll back the header so we don't leave an orphan invoice.
     await supabase.from('recoverable_invoices').delete().eq('id', invoiceId).eq('user_id', user.id)
     return NextResponse.json({ error: `Line insert failed: ${lineErr.message}` }, { status: 500 })
+  }
+
+  // Chain link: this invoice was converted from a document (best-effort).
+  if (sourceDocId) {
+    await supabase.from('document_links').insert({
+      user_id: user.id, source_kind: 'document', source_id: sourceDocId,
+      target_kind: 'recoverable_invoice', target_id: invoiceId, relation: 'converted',
+    })
+    await supabase.from('documents').update({ status: 'converted' }).eq('id', sourceDocId).eq('user_id', user.id)
   }
 
   return NextResponse.json({ id: invoiceId, invoice_number: invoiceNumber })
