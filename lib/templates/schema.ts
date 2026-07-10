@@ -4,7 +4,15 @@
 // output exactly. Block props are a generic bag so blocks can gain options
 // without a schema migration; the renderer reads known keys with defaults.
 
-export type DocType = 'gst_invoice' | 'reimbursable_invoice' | 'salary_slip'
+export type DocType =
+  | 'gst_invoice'
+  | 'reimbursable_invoice'
+  | 'salary_slip'
+  // GST-compliant line-item documents that reuse the invoice engine
+  | 'credit_note'
+  | 'proforma_gst'
+  | 'purchase_order'
+  | 'delivery_challan'
 
 export interface DocTheme {
   /** #RRGGBB accent for headers, totals, rules. */
@@ -55,7 +63,22 @@ export const ADDABLE_BLOCKS: Record<DocType, BlockType[]> = {
   gst_invoice:          ['text', 'divider', 'spacer'],
   reimbursable_invoice: ['text', 'divider', 'spacer'],
   salary_slip:          ['text', 'divider', 'spacer'],
+  credit_note:          ['text', 'divider', 'spacer'],
+  proforma_gst:         ['text', 'divider', 'spacer'],
+  purchase_order:       ['text', 'divider', 'spacer'],
+  delivery_challan:     ['text', 'divider', 'spacer'],
 }
+
+/** All document types the Templates hub exposes, with labels. */
+export const DOC_TYPES: { id: DocType; label: string; short: string }[] = [
+  { id: 'gst_invoice',          label: 'GST tax invoice',   short: 'GST invoice' },
+  { id: 'proforma_gst',         label: 'Proforma invoice',  short: 'proforma invoice' },
+  { id: 'credit_note',          label: 'Credit note',       short: 'credit note' },
+  { id: 'delivery_challan',     label: 'Delivery challan',  short: 'delivery challan' },
+  { id: 'purchase_order',       label: 'Purchase order',    short: 'purchase order' },
+  { id: 'reimbursable_invoice', label: 'Reimbursable invoice', short: 'reimbursable invoice' },
+  { id: 'salary_slip',          label: 'Salary slip',       short: 'salary slip' },
+]
 
 export const BLOCK_LABELS: Record<BlockType, string> = {
   header: 'Header', companyInfo: 'Company info', billTo: 'Bill to', meta: 'Invoice meta',
@@ -94,22 +117,72 @@ const INVOICE_TOTALS: FieldDef[] = [
   { key: 'balance',  label: 'Balance Due',  visible: true },
 ]
 
-function invoiceBlocks(headerVariant: 'plain' | 'band' | 'minimal', headerStyle: 'grey' | 'filled' | 'plain'): Block[] {
+interface InvoiceBlockOpts {
+  title?: string
+  billToLabel?: string
+  columns?: ColumnDef[]
+  totals?: FieldDef[]
+  showSupply?: boolean
+  showBank?: boolean
+  showBalanceDue?: boolean
+  termsTitle?: string
+}
+
+function invoiceBlocks(
+  headerVariant: 'plain' | 'band' | 'minimal', headerStyle: 'grey' | 'filled' | 'plain', opts: InvoiceBlockOpts = {},
+): Block[] {
+  const title = opts.title ?? 'Tax Invoice'
+  const billToLabel = opts.billToLabel ?? 'Bill To'
+  const columns = opts.columns ?? INVOICE_COLUMNS
+  const totals = opts.totals ?? INVOICE_TOTALS
+  const showBalanceDue = opts.showBalanceDue ?? true
   return [
-    { id: blockId(), type: 'header',      visible: true, props: { variant: headerVariant, showLogo: true, title: 'Tax Invoice', showNumber: true, showBalanceDue: true } },
+    { id: blockId(), type: 'header',      visible: true, props: { variant: headerVariant, showLogo: true, title, showNumber: true, showBalanceDue } },
     // In band + minimal variants the header already carries the company block;
     // only the plain (classic) variant needs the separate company-info row.
-    { id: blockId(), type: 'companyInfo', visible: headerVariant === 'plain', props: { showBalanceDue: true } },
-    { id: blockId(), type: 'billTo',      visible: true, props: { label: 'Bill To' } },
+    { id: blockId(), type: 'companyInfo', visible: headerVariant === 'plain', props: { showBalanceDue } },
+    { id: blockId(), type: 'billTo',      visible: true, props: { label: billToLabel } },
     { id: blockId(), type: 'meta',        visible: true, props: { fields: INVOICE_META } },
-    { id: blockId(), type: 'supply',      visible: true, props: {} },
-    { id: blockId(), type: 'lineItems',   visible: true, props: { columns: INVOICE_COLUMNS, headerStyle, zebra: headerStyle !== 'plain' } },
-    { id: blockId(), type: 'totals',      visible: true, props: { rows: INVOICE_TOTALS } },
+    { id: blockId(), type: 'supply',      visible: opts.showSupply ?? true, props: {} },
+    { id: blockId(), type: 'lineItems',   visible: true, props: { columns, headerStyle, zebra: headerStyle !== 'plain' } },
+    { id: blockId(), type: 'totals',      visible: true, props: { rows: totals } },
     { id: blockId(), type: 'amountWords', visible: true, props: {} },
-    { id: blockId(), type: 'bank',        visible: true, props: { title: 'Bank Details' } },
-    { id: blockId(), type: 'terms',       visible: true, props: { title: 'Terms & Conditions' } },
+    { id: blockId(), type: 'bank',        visible: opts.showBank ?? true, props: { title: 'Bank Details' } },
+    { id: blockId(), type: 'terms',       visible: true, props: { title: opts.termsTitle ?? 'Terms & Conditions' } },
     { id: blockId(), type: 'signature',   visible: true, props: { label: 'Authorised Signature', showImage: true } },
   ]
+}
+
+// ── GST-compliant line-item documents (credit note, proforma, PO, challan) ──
+// All reuse the invoice engine, so HSN/SAC, CGST/SGST, place of supply, GSTIN
+// and amount-in-words come for free. Only titles, party labels and (for the
+// challan) the tax columns differ.
+
+const CHALLAN_COLUMNS: ColumnDef[] = [
+  { key: 'sno',    label: '#',                  visible: true,  align: 'left' },
+  { key: 'item',   label: 'Item & Description', visible: true,  align: 'left' },
+  { key: 'hsn',    label: 'HSN/SAC',            visible: true,  align: 'left' },
+  { key: 'qty',    label: 'Qty',                visible: true,  align: 'right' },
+  { key: 'rate',   label: 'Rate',               visible: true,  align: 'right' },
+  { key: 'amount', label: 'Taxable Value',      visible: true,  align: 'right' },
+]
+const CHALLAN_TOTALS: FieldDef[] = [
+  { key: 'subtotal', label: 'Total Taxable Value', visible: true },
+  { key: 'total',    label: 'Total Value',         visible: true },
+]
+
+const GST_DOC_OPTS: Partial<Record<DocType, InvoiceBlockOpts>> = {
+  credit_note:      { title: 'Credit Note',      billToLabel: 'Credit To',       showBalanceDue: false },
+  proforma_gst:     { title: 'Proforma Invoice', billToLabel: 'Bill To',         showBalanceDue: false },
+  purchase_order:   { title: 'Purchase Order',   billToLabel: 'Vendor',          showBalanceDue: false, showBank: false, termsTitle: 'Terms & Delivery Instructions' },
+  delivery_challan: { title: 'Delivery Challan', billToLabel: 'Consignee (Ship To)', showBalanceDue: false, showBank: false, columns: CHALLAN_COLUMNS, totals: CHALLAN_TOTALS, termsTitle: 'Reason for Transportation / Notes' },
+}
+
+function gstDocPreset(docType: DocType, preset: PresetId, accent: string, opts: InvoiceBlockOpts): DocumentSchema {
+  const theme: DocTheme = { accent, font: 'sans', fontScalePct: 100, pageMarginMm: 12 }
+  const [variant, style]: ['plain' | 'band' | 'minimal', 'grey' | 'filled' | 'plain'] =
+    preset === 'modern' ? ['band', 'filled'] : preset === 'minimal' ? ['minimal', 'plain'] : ['plain', 'grey']
+  return { version: 1, docType, theme, blocks: invoiceBlocks(variant, style, opts) }
 }
 
 export type PresetId = 'classic' | 'modern' | 'minimal'
@@ -213,5 +286,7 @@ export function presetSchema(docType: DocType, preset: PresetId, accent: string 
   if (docType === 'gst_invoice') return invoicePreset(preset, accent)
   if (docType === 'reimbursable_invoice') return reimbursablePreset(preset, accent)
   if (docType === 'salary_slip') return salarySlipPreset(preset, accent)
+  const opts = GST_DOC_OPTS[docType]
+  if (opts) return gstDocPreset(docType, preset, accent, opts)
   return null
 }

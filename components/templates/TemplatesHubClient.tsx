@@ -2,33 +2,28 @@
 
 import { useState } from 'react'
 import TemplateStudioClient, { type TemplateListItem, type AssignmentRow } from './TemplateStudioClient'
-import type { DocType } from '@/lib/templates/schema'
+import { DOC_TYPES, type DocType } from '@/lib/templates/schema'
 
 interface CompanyItem { id: string; name: string; accent: string }
-interface DocData { templates: TemplateListItem[]; assignments: AssignmentRow[] }
+export interface DocData { templates: TemplateListItem[]; assignments: AssignmentRow[] }
 
 interface Props {
   companies: CompanyItem[]
-  gst: DocData
-  reimbursable: DocData
-  salarySlip: DocData
+  /** Templates + assignments keyed by doc type. */
+  byType: Record<string, DocData>
 }
 
-const TABS: { id: DocType; label: string }[] = [
-  { id: 'gst_invoice', label: 'GST tax invoice' },
-  { id: 'reimbursable_invoice', label: 'Reimbursable invoice' },
-  { id: 'salary_slip', label: 'Salary slip' },
-]
+const EMPTY: DocData = { templates: [], assignments: [] }
 
-export default function TemplatesHubClient({ companies, gst, reimbursable, salarySlip }: Props) {
+export default function TemplatesHubClient({ companies, byType }: Props) {
   const [tab, setTab] = useState<DocType>('gst_invoice')
-  const data = tab === 'gst_invoice' ? gst : tab === 'reimbursable_invoice' ? reimbursable : salarySlip
-  const label = tab === 'gst_invoice' ? 'GST invoice' : tab === 'reimbursable_invoice' ? 'reimbursable invoice' : 'salary slip'
+  const meta = DOC_TYPES.find(d => d.id === tab)!
+  const data = byType[tab] ?? EMPTY
 
   return (
     <div className="space-y-5">
       <div className="flex gap-1 p-1 rounded-xl overflow-x-auto" style={{ background: 'var(--surface-2)' }} role="tablist">
-        {TABS.map(t => {
+        {DOC_TYPES.map(t => {
           const active = t.id === tab
           return (
             <button key={t.id} role="tab" aria-selected={active} onClick={() => setTab(t.id)}
@@ -43,7 +38,7 @@ export default function TemplatesHubClient({ companies, gst, reimbursable, salar
       <TemplateStudioClient
         key={tab}
         docType={tab}
-        docLabel={label}
+        docLabel={meta.short}
         initialTemplates={data.templates}
         companies={companies}
         initialAssignments={data.assignments}
