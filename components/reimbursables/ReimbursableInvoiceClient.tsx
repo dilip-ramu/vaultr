@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
 
-const ReimbursableInvoicePDFDownload = dynamic(() => import('./ReimbursableInvoicePDFDownload'), { ssr: false })
+import ReimbursableDownloadButton from './ReimbursableDownloadButton'
 
 const MONTHS_LONG = ['January','February','March','April','May','June',
   'July','August','September','October','November','December']
@@ -954,14 +954,14 @@ export default function ReimbursableInvoiceClient({
             Invoice finalized — payroll month created, all items marked as billed. Finalize payroll after receiving payment.
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <ReimbursableInvoicePDFDownload
-              data={invoiceData!}
-              label="Download PDF"
-              className="flex items-center gap-2 px-5 py-2.5 bg-[var(--brand)] hover:bg-[var(--brand)] text-white rounded-xl font-semibold text-sm transition-all"
-            />
-            {/* Custom block-based template (Feature: customisable templates).
-                Opens the HTML print view, which renders the company's assigned
-                reimbursable template (or the classic layout if none). */}
+            {existingInvoiceId && (
+              <ReimbursableDownloadButton
+                invoiceId={existingInvoiceId}
+                invoiceNumber={invoiceData?.invoice_number}
+                label="Download PDF"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[var(--brand)] hover:bg-[var(--brand)] text-white rounded-xl font-semibold text-sm transition-all disabled:opacity-50"
+              />
+            )}
             {existingInvoiceId && (
               <a
                 href={`/reimbursables/invoices/${existingInvoiceId}/print`}
@@ -969,7 +969,7 @@ export default function ReimbursableInvoiceClient({
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 px-5 py-2.5 border border-[var(--border)] text-[var(--brand)] hover:bg-[var(--brand-light)] rounded-xl font-semibold text-sm transition-all"
               >
-                Template PDF
+                Open print page
               </a>
             )}
             {/* "Edit invoice" flips the form back to draft. The next Finalize

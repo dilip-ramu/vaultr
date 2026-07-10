@@ -12,7 +12,7 @@ import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
 import { notify } from '@/components/shared/Toast'
 import { createClient } from '@/lib/supabase/client'
 
-const ReimbursableInvoicePDFDownload = dynamic(() => import('./ReimbursableInvoicePDFDownload'), { ssr: false })
+import ReimbursableDownloadButton from './ReimbursableDownloadButton'
 
 const MONTHS_LONG = ['January','February','March','April','May','June',
   'July','August','September','October','November','December']
@@ -132,16 +132,6 @@ function InvoiceRow({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting]   = useState(false)
   const router = useRouter()
-
-  const buildPdfData = (): ReimbursableInvoiceData => ({
-    invoice_number: inv.invoice_number,
-    invoice_month:  inv.invoice_month,
-    invoice_date:   inv.invoice_date,
-    items: inv.items.sort((a, b) => a.sort_order - b.sort_order),
-    subtotal:       inv.subtotal,
-    gst_amount:     inv.gst_amount,
-    total:          inv.total,
-  })
 
   const saveNotes = async () => {
     setSavingNotes(true)
@@ -267,10 +257,11 @@ function InvoiceRow({
 
             {/* Download */}
             {inv.items.length > 0 && (
-              <ReimbursableInvoicePDFDownload
-                data={buildPdfData()}
+              <ReimbursableDownloadButton
+                invoiceId={inv.id}
+                invoiceNumber={inv.invoice_number}
                 label="PDF"
-                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--brand-light)] hover:bg-[var(--brand-light)] text-[var(--brand)] rounded-xl text-xs font-medium transition-all"
+                className="flex items-center gap-1.5 px-3 py-2 bg-[var(--brand-light)] hover:bg-[var(--brand-light)] text-[var(--brand)] rounded-xl text-xs font-medium transition-all disabled:opacity-50"
               />
             )}
 
