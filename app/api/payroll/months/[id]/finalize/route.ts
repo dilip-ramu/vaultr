@@ -20,10 +20,12 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
 
   const now = new Date().toISOString()
 
-  // Mark month finalized
+  // Mark month finalized. `status` is the source of truth (v65) — a trigger
+  // syncs is_finalized from it, so we MUST set status or the trigger overwrites
+  // is_finalized straight back to false.
   const { data: updatedMonth, error: monthErr } = await supabase
     .from('payroll_months')
-    .update({ is_finalized: true, finalized_at: now })
+    .update({ status: 'finalized', is_finalized: true, finalized_at: now })
     .eq('id', id).eq('user_id', user.id)
     .select().single()
 
