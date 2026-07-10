@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Check, AlertTriangle, X } from 'lucide-react'
+import { Check, AlertTriangle, X, Download } from 'lucide-react'
 import type { Asset, MarketRate, AssetRateDefault } from '@/lib/assets/types'
 import { valueAsset, assetFx, inr } from '@/lib/assets/valuation'
 import { deriveBooks, ledgerEntries, type BooksAccount, type BooksTxn, type BooksCategory, type LedgerGroup } from '@/lib/books/derive'
@@ -62,11 +62,49 @@ export default function BooksClient({ accounts, transactions, categories, assets
   const nw = books.netWorth
   const groups: LedgerGroup[] = ['asset', 'liability', 'equity', 'income', 'expense']
 
+  function exportCsv() {
+    const csv = (v: string | number) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+    const line = (arr: (string | number)[]) => arr.map(csv).join(',')
+    const bs = books.balanceSheet
+    const L: string[] = []
+    L.push('Trial balance')
+    L.push(line(['Group', 'Account', 'Debit', 'Credit']))
+    for (const r of books.trial.rows) L.push(line([GROUP_LABEL[r.group], r.name, r.debit || '', r.credit || '']))
+    L.push(line(['', 'Total', books.trial.totalDebit, books.trial.totalCredit]))
+    L.push('')
+    L.push('Balance sheet')
+    L.push(line(['Cash & accounts', bs.assetsFromAccounts]))
+    L.push(line(['Investments & assets (market)', bs.assetHoldings]))
+    L.push(line(['Total assets', bs.assets]))
+    L.push(line(['Liabilities', bs.liabilities]))
+    L.push(line(['Opening balance equity', bs.openingEquity]))
+    L.push(line(['Retained earnings', bs.retained]))
+    L.push(line(['Asset holdings reserve', bs.assetHoldings]))
+    L.push(line(['Total equity', bs.equity]))
+    L.push('')
+    L.push(`Profit & loss (${label})`)
+    L.push(line(['Income', books.pnl.income]))
+    L.push(line(['Expenses', books.pnl.expense]))
+    L.push(line(['Net', books.pnl.net]))
+    L.push(line(['Category', 'Kind', 'Amount']))
+    for (const c of books.pnl.byCategory) L.push(line([c.name, c.kind, c.amount]))
+    const blob = new Blob([L.join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `vaultr-books-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a); a.click(); a.remove()
+  }
+
   return (
     <div className="w-full px-4 md:px-8 py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Books</h1>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>A read-only double-entry view derived from your existing data. Nothing here changes your transactions, billing, payroll or accounts.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Books</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>A read-only double-entry view derived from your existing data. Nothing here changes your transactions, billing, payroll or accounts.</p>
+        </div>
+        <button onClick={exportCsv} className="flex items-center gap-1.5 text-sm font-bold px-3.5 py-2 rounded-xl shrink-0" style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
       </div>
 
       {/* Net worth */}
