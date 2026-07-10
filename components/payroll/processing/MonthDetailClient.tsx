@@ -769,8 +769,13 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
           <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={() => {
-                const csv = generateBankCSV(entries, rowValues, fmtMonth(month.payroll_month))
-                if (!csv) { notify('No eligible entries — check that employees have IFSC code and account number filled in.'); return }
+                // Only the ticked employees (the batch you're paying). Fall back
+                // to all entries if nothing is ticked.
+                const chosen = entries.filter(e => selectedEntries.has(e.id))
+                const forCsv = chosen.length > 0 ? chosen : entries
+                if (chosen.length === 0) { notify('No employees ticked — select who to pay, or this exports everyone.', 'info') }
+                const csv = generateBankCSV(forCsv, rowValues, fmtMonth(month.payroll_month))
+                if (!csv) { notify('No eligible entries — check that the ticked employees have IFSC code and account number filled in.'); return }
                 triggerCSVDownload(csv, 'BULK.csv')
               }}
               className="px-4 py-2 border border-[var(--border)] text-[var(--income)] bg-[var(--surface)] rounded-lg text-sm font-medium hover:bg-[var(--brand-light)] transition-colors"
