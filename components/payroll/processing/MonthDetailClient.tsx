@@ -97,6 +97,20 @@ function generateBankCSV(
   return rows.map(r => r.join(',') + ';').join('\n')
 }
 
+/** Ever-incrementing bank-CSV filename — the bank rejects duplicate names, so
+ *  each download gets a fresh number: BULK.csv, BULK2.csv, BULK3.csv … The
+ *  counter persists in the browser so it keeps climbing across sessions. */
+function nextBulkFilename(): string {
+  try {
+    const key = 'vaultr-bulk-csv-seq'
+    const n = (parseInt(localStorage.getItem(key) || '0', 10) || 0) + 1
+    localStorage.setItem(key, String(n))
+    return n <= 1 ? 'BULK.csv' : `BULK${n}.csv`
+  } catch {
+    return `BULK${Date.now()}.csv`
+  }
+}
+
 function triggerCSVDownload(content: string, filename: string) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -776,7 +790,7 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                 if (chosen.length === 0) { notify('No employees ticked — select who to pay, or this exports everyone.', 'info') }
                 const csv = generateBankCSV(forCsv, rowValues, fmtMonth(month.payroll_month))
                 if (!csv) { notify('No eligible entries — check that the ticked employees have IFSC code and account number filled in.'); return }
-                triggerCSVDownload(csv, 'BULK.csv')
+                triggerCSVDownload(csv, nextBulkFilename())
               }}
               className="px-4 py-2 border border-[var(--border)] text-[var(--income)] bg-[var(--surface)] rounded-lg text-sm font-medium hover:bg-[var(--brand-light)] transition-colors"
             >
