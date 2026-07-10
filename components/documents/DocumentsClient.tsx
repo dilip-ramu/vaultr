@@ -5,11 +5,11 @@ import { Plus, X, Trash2, FileText, Printer } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
-import { configsForSide, docConfig, type DocSide, type DocumentRow } from '@/lib/documents/config'
+import { configsForSide, docConfig, buildDocNumber, type DocSide, type DocumentRow } from '@/lib/documents/config'
 import SignatorySelect from '@/components/company-details/SignatorySelect'
 
 interface Party { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
-interface Company { id: string; name: string }
+interface Company { id: string; name: string; prefix?: string }
 interface Props { side: DocSide; companies: Company[]; parties: Party[]; initialDocs: DocumentRow[]; lockedType?: string }
 
 interface Line { id: number; item: string; hsn: string; qty: string; rate: string; gst: string }
@@ -36,17 +36,17 @@ export default function DocumentsClient({ side, companies, parties, initialDocs,
   const [numberStr, setNumberStr] = useState('')
   const [lines, setLines] = useState<Line[]>([{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
 
-  const nextNumber = (dt: string) => {
-    const c = cfgFor(dt)
-    const n = docs.filter(d => d.doc_type === dt).length + 1
-    return `${c.prefix}${String(n).padStart(4, '0')}`
-  }
+  const companyPrefix = (cid: string) => companies.find(c => c.id === cid)?.prefix ?? ''
+  // {PREFIX}-{CODE}{YY}{NNNN}, running per company + doc side.
+  const nextNumber = (dt: string, cid: string) =>
+    buildDocNumber(companyPrefix(cid), cfgFor(dt).code, docs.filter(d => d.company_id === cid).map(d => d.number))
 
   function openNew() {
     const dt = configs[0]?.id ?? ''
-    setDocType(dt); setCompanyId(companies[0]?.id ?? ''); setPartyId('')
+    const cid = companies[0]?.id ?? ''
+    setDocType(dt); setCompanyId(cid); setPartyId('')
     setDate(new Date().toISOString().slice(0, 10)); setReference(''); setNotes('')
-    setNumberStr(nextNumber(dt))
+    setNumberStr(nextNumber(dt, cid))
     setLines([{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
     setOpen(true)
   }
@@ -159,7 +159,7 @@ export default function DocumentsClient({ side, companies, parties, initialDocs,
             <div className="overflow-y-auto p-5 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Document type
-                  <select value={docType} onChange={e => { setDocType(e.target.value); setNumberStr(nextNumber(e.target.value)) }} className={inputCls + ' mt-1'} style={iStyle}>
+                  <select value={docType} onChange={e => { setDocType(e.target.value); setNumberStr(nextNumber(e.target.value, companyId)) }} className={inputCls + ' mt-1'} style={iStyle}>
                     {configs.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </select>
                 </label>
@@ -167,7 +167,7 @@ export default function DocumentsClient({ side, companies, parties, initialDocs,
                   <input value={numberStr} onChange={e => setNumberStr(e.target.value)} className={inputCls + ' mt-1'} style={iStyle} />
                 </label>
                 <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Company (from)
-                  <select value={companyId} onChange={e => setCompanyId(e.target.value)} className={inputCls + ' mt-1'} style={iStyle}>
+                  <select value={companyId} onChange={e => { setCompanyId(e.target.value); setNumberStr(nextNumber(docType, e.target.value)) }} className={inputCls + ' mt-1'} style={iStyle}>
                     <option value="">— pick —</option>
                     {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>

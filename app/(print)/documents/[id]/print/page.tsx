@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: Props) {
 // Per-doc-type header meta + status band (auto per document type).
 const DOC_META: Record<string, { title: string; statusLabel: string; statusTone: BandTone; subNote?: string; noteFallback?: string }> = {
   proforma_gst:     { title: 'Proforma Invoice', statusLabel: 'PROFORMA', statusTone: 'grey',   subNote: 'Not a tax invoice · quotation only', noteFallback: 'This proforma is for quotation purposes and does not constitute a demand for payment.' },
+  sales_order:      { title: 'Sales Order',      statusLabel: 'ORDER',    statusTone: 'blue' },
   credit_note:      { title: 'Credit Note',      statusLabel: 'ISSUED',   statusTone: 'green' },
   debit_note:       { title: 'Debit Note',       statusLabel: 'ISSUED',   statusTone: 'blue' },
   purchase_order:   { title: 'Purchase Order',   statusLabel: 'ORDERED',  statusTone: 'violet', noteFallback: 'Please confirm acceptance. Invoice must quote this PO number.' },

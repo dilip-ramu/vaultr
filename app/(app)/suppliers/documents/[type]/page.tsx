@@ -15,16 +15,17 @@ export default async function SupplierDocumentTypePage({ params }: { params: Pro
   const uid = user!.id
 
   const [{ data: companies }, { data: suppliers }, { data: docs }] = await Promise.all([
-    supabase.from('companies').select('id, name').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
+    supabase.from('companies').select('id, name, invoice_prefix').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
     supabase.from('suppliers').select('id, name, gst_number, address').eq('user_id', uid).eq('is_active', true).order('name'),
     supabase.from('documents').select('*').eq('user_id', uid).eq('doc_type', type).eq('party_kind', 'supplier').order('date', { ascending: false }),
   ])
 
+  const companyOpts = (companies ?? []).map(c => ({ id: c.id as string, name: c.name as string, prefix: (c.invoice_prefix as string | null) ?? '' }))
   const parties = (suppliers ?? []).map(s => ({ id: s.id as string, name: s.name as string, gstin: (s.gst_number as string | null) ?? null, address: (s.address as string | null) ?? null, state: null }))
 
   return (
     <div className="w-full px-4 md:px-8 py-6">
-      <DocumentsClient side="supplier" lockedType={type} companies={(companies ?? []) as { id: string; name: string }[]} parties={parties} initialDocs={(docs ?? []) as DocumentRow[]} />
+      <DocumentsClient side="supplier" lockedType={type} companies={companyOpts} parties={parties} initialDocs={(docs ?? []) as DocumentRow[]} />
     </div>
   )
 }
