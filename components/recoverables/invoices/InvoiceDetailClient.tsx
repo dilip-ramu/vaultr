@@ -7,6 +7,7 @@ import type { RecoverableInvoice, RecoverableInvoiceLine, InvoiceStatus } from '
 import type { Customer } from '@/lib/types'
 import StatusBadge from '@/components/recoverables/shared/StatusBadge'
 import MarkPaidModal from './MarkPaidModal'
+import { downloadPrintRouteAsPdf } from '@/lib/pdf/downloadElementPdf'
 
 interface SellerInfo {
   company_name: string | null
@@ -83,6 +84,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
   const [invoice, setInvoice] = useState(initialInvoice)
   const [busy, setBusy] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPayModal, setShowPayModal] = useState(false)
 
@@ -276,11 +278,24 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             </button>
           )}
           <button
-            onClick={() => router.push(`/recoverables/invoices/${invoice.id}/print`)}
-            className="px-4 py-2 rounded-lg text-sm font-semibold"
-            style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+            onClick={async () => {
+              setDownloading(true)
+              try {
+                await downloadPrintRouteAsPdf(
+                  `/recoverables/invoices/${invoice.id}/print`,
+                  `${invoice.invoice_number || 'Invoice'}.pdf`,
+                )
+              } catch (e) {
+                setError('Could not build the PDF (' + (e as Error).message + '). Try again in a moment.')
+              } finally {
+                setDownloading(false)
+              }
+            }}
+            disabled={downloading}
+            className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-60"
+            style={{ background: 'var(--accent, #2A7A50)', color: '#fff' }}
           >
-            Print / Download PDF
+            {downloading ? 'Preparing PDF…' : '⭳ Download PDF'}
           </button>
           {canDelete && !showDeleteConfirm && (
             <button
