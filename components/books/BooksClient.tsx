@@ -17,6 +17,9 @@ interface Props {
 
 type Period = 'all' | 'fy' | 'month'
 
+interface JLine { account_key: string; debit: number; credit: number }
+interface JEntry { id: string; kind: string; source_txn_id: string | null; date: string; memo: string | null; created_at: string; lines: JLine[] }
+
 function periodRange(p: Period): { from?: string; to?: string; label: string } {
   const now = new Date()
   if (p === 'fy') {
@@ -40,6 +43,32 @@ export default function BooksClient({ accounts, transactions, categories, assets
   const [period, setPeriod] = useState<Period>('all')
   const [fxRates, setFxRates] = useState<Record<string, number>>({})
   const [drill, setDrill] = useState<{ key: string; name: string } | null>(null)
+  const [journal, setJournal] = useState<JEntry[] | null>(null)
+  const [journalErr, setJournalErr] = useState<string | null>(null)
+
+  // Auto-sync the persisted ledger on load and read it back (no manual work).
+  useEffect(() => {
+    let live = true
+    fetch('/api/books/sync', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => { if (!live) return; if (Array.isArray(d.entries)) setJournal(d.entries); else setJournalErr(d.error || 'Ledger unavailable') })
+      .catch(() => { if (live) setJournalErr('Ledger unavailable') })
+    return () => { live = false }
+  }, [])
+
+  const acctNameById = useMemo(() => new Map(accounts.map(a => [a.id, a.name])), [accounts])
+  const catNameById = useMemo(() => new Map(categories.map(c => [c.id, c.name])), [categories])
+  const keyName = (key: string): string => {
+    if (key === 'equity:opening') return 'Opening balance equity'
+    if (key.startsWith('acct:')) return acctNameById.get(key.slice(5)) ?? 'Account'
+    if (key.startsWith('cat:')) {
+      const id = key.slice(4)
+      if (id === 'uncat-income') return 'Uncategorised income'
+      if (id === 'uncat-expense') return 'Uncategorised expense'
+      return catNameById.get(id) ?? 'Category'
+    }
+    return key
+  }
 
   const needsFx = useMemo(() => assets.some(a => { const c = (a.details?.currency as string | undefined)?.toUpperCase(); return c && c !== 'INR' }), [assets])
   useEffect(() => {
@@ -244,7 +273,44 @@ export default function BooksClient({ accounts, transactions, categories, assets
         )}
       </div>
 
-      <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>Derived live from your accounts, transactions and categories — no separate bookkeeping to maintain. Opening balances post to Opening balance equity; the asset module (gold, property…) is added on top of the cash trial balance in Total net worth.</p>
+      {/* Journal — persisted audit trail, auto-synced from your transactions */}
+      <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>Journal <span className="font-medium text-[12px]" style={{ color: 'var(--text-faint)' }}>· audit trail</span></h2>
+          <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{journal ? `${journal.length} entries · auto-synced` : journalErr ? '' : 'Syncing…'}</span>
+        </div>
+        {journalErr ? (
+          <p className="px-5 py-4 text-[12px]" style={{ color: 'var(--text-muted)' }}>Persisted ledger not available yet. Run migration <code>v86</code> in Supabase to store the journal (the statements above work without it).</p>
+        ) : !journal ? (
+          <p className="px-5 py-6 text-center text-[12px]" style={{ color: 'var(--text-faint)' }}>Syncing the ledger…</p>
+        ) : journal.length === 0 ? (
+          <p className="px-5 py-6 text-center text-[12px]" style={{ color: 'var(--text-faint)' }}>No entries yet — record a transaction and it posts here automatically.</p>
+        ) : (
+          <div className="max-h-[420px] overflow-y-auto divide-y" style={{ borderColor: 'var(--border)' }}>
+            {journal.slice(0, 200).map(e => (
+              <div key={e.id} className="px-5 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[11px] tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>{e.date}</span>
+                    <span className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{e.memo || (e.kind === 'opening' ? 'Opening balance' : 'Entry')}</span>
+                  </div>
+                  <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0" style={{ background: 'var(--surface-2)', color: 'var(--text-faint)' }}>{e.kind === 'opening' ? 'Opening' : 'Auto'}</span>
+                </div>
+                <div className="mt-1.5 space-y-0.5">
+                  {e.lines.map((l, i) => (
+                    <div key={i} className="flex items-center justify-between text-[12px]" style={{ paddingLeft: l.credit ? 16 : 0 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{keyName(l.account_key)}</span>
+                      <span className="tabular-nums" style={{ color: 'var(--text)' }}>{l.debit ? `Dr ${inr(l.debit)}` : `Cr ${inr(l.credit)}`}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>Derived live from your accounts, transactions and categories — no separate bookkeeping to maintain. Opening balances post to Opening balance equity; the asset module (gold, property…) is added on top of the cash trial balance in Total net worth. The Journal above is the persisted audit trail, generated automatically from your transactions.</p>
 
       {drill && (() => {
         const entries = ledgerEntries({ accounts, transactions, categories }, drill.key)
