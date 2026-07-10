@@ -109,7 +109,6 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
                 </>}
                 faceBottom={<>
                   <FaceField label="GSTIN" value={c.gstin || '—'} />
-                  <div className="mt-3"><FaceField label="Next invoice" value={`${c.invoice_prefix}${String(c.next_invoice_number).padStart(6, '0')}`} /></div>
                 </>}
               >
                 <div className="flex items-start justify-between gap-2">

@@ -169,6 +169,18 @@ export async function PATCH(
     return NextResponse.json({ invoice: updated })
   }
 
+  // ── Mark as sent (issue a draft) ───────────────────────────────────────
+  if (status === 'sent') {
+    const { data: updated, error: e } = await supabase
+      .from('recoverable_invoices')
+      .update({ status: 'sent' })
+      .eq('id', id)
+      .select()
+      .single()
+    if (e) return NextResponse.json({ error: e.message }, { status: 500 })
+    return NextResponse.json({ invoice: updated })
+  }
+
   // ── Payment recording ──────────────────────────────────────────────────
   const invoiceTotal  = Number(invoice.total)
   const currentBalance = Number(invoice.balance_due)

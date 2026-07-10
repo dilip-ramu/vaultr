@@ -194,6 +194,21 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
     }
   }
 
+  async function handleMarkSent() {
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/recoverables/invoices/${invoice.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sent' }),
+      })
+      const data = await res.json() as { invoice?: RecoverableInvoice; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Failed to mark as sent')
+      if (data.invoice) setInvoice(data.invoice)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error')
+    } finally { setBusy(false) }
+  }
+
   function handlePaidSaved(updated: RecoverableInvoice) {
     setInvoice(updated)
     setShowPayModal(false)
@@ -248,6 +263,16 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
         )}
 
         <div className="flex flex-wrap gap-2 mb-6">
+          {invoice.status === 'draft' && (
+            <button
+              onClick={handleMarkSent}
+              disabled={busy}
+              className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 text-white"
+              style={{ background: 'var(--brand)' }}
+            >
+              ✓ Mark as Sent
+            </button>
+          )}
           {canMarkPaid && (
             <button
               onClick={() => setShowPayModal(true)}
