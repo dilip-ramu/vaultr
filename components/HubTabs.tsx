@@ -34,6 +34,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/customers', label: 'Overview' },
     { href: '/customers/directory', label: 'Directory' },
     { href: '/customers/invoices', label: 'Invoices' },
+    { href: '/customers/documents', label: 'Documents' },
     { href: '/customers/commission', label: 'Incoming' },
     { href: '/recoverables/tds', label: 'TDS' },
   ] },
@@ -41,6 +42,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/suppliers', label: 'Overview' },
     { href: '/suppliers/directory', label: 'Directory' },
     { href: '/suppliers/invoices', label: 'Invoices' },
+    { href: '/suppliers/documents', label: 'Documents' },
     { href: '/suppliers/invoices/fetch', label: 'Fetch' },
   ] },
   { name: 'Payroll', tabs: [

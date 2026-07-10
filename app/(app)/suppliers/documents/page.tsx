@@ -1,0 +1,27 @@
+import { createClient } from '@/lib/supabase/server'
+import DocumentsClient from '@/components/documents/DocumentsClient'
+import { configsForSide, type DocumentRow } from '@/lib/documents/config'
+
+export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Supplier documents — Vaultr' }
+
+export default async function SupplierDocumentsPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const uid = user!.id
+  const types = configsForSide('supplier').map(c => c.id)
+
+  const [{ data: companies }, { data: suppliers }, { data: docs }] = await Promise.all([
+    supabase.from('companies').select('id, name').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
+    supabase.from('suppliers').select('id, name, gst_number, address').eq('user_id', uid).eq('is_active', true).order('name'),
+    supabase.from('documents').select('*').eq('user_id', uid).in('doc_type', types).order('date', { ascending: false }),
+  ])
+
+  const parties = (suppliers ?? []).map(s => ({ id: s.id as string, name: s.name as string, gstin: (s.gst_number as string | null) ?? null, address: (s.address as string | null) ?? null, state: null }))
+
+  return (
+    <div className="w-full px-4 md:px-8 py-6">
+      <DocumentsClient side="supplier" companies={(companies ?? []) as { id: string; name: string }[]} parties={parties} initialDocs={(docs ?? []) as DocumentRow[]} />
+    </div>
+  )
+}
