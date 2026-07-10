@@ -12,7 +12,8 @@ export default async function BooksPage() {
   const uid = user!.id
 
   const [acc, txn, cat, ast, rates, defs] = await Promise.all([
-    supabase.from('accounts').select('id, name, type, initial_balance, include_in_net_worth').eq('user_id', uid).eq('is_active', true),
+    // all accounts (incl. archived) so no transaction is dropped from the ledger
+    supabase.from('accounts').select('id, name, type, initial_balance, include_in_net_worth, is_active').eq('user_id', uid),
     supabase.from('transactions').select('type, account_id, to_account_id, amount, category_id, date').eq('user_id', uid),
     supabase.from('categories').select('id, name, type').eq('user_id', uid),
     supabase.from('assets').select('*').eq('user_id', uid),

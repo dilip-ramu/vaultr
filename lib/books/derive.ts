@@ -12,6 +12,7 @@ export interface BooksAccount {
   type: string
   initial_balance: number
   include_in_net_worth: boolean
+  is_active?: boolean
 }
 export interface BooksTxn {
   type: string                 // 'expense' | 'income' | 'transfer'
@@ -184,7 +185,7 @@ export function deriveBooks(input: BooksInput): BooksResult {
   }
   let accountAssets = 0, liabilities = 0
   for (const a of accounts) {
-    if (!a.include_in_net_worth) continue
+    if (!a.include_in_net_worth || a.is_active === false) continue
     const b = bal.get(a.id) || 0
     if (isLiability(a.type)) liabilities += Math.abs(b)
     else accountAssets += b
