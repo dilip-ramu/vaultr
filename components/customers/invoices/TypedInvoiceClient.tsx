@@ -11,10 +11,21 @@ interface CompanyOption {
   id: string; name: string; is_default: boolean
   cgst_rate: number; sgst_rate: number; hsn_sac: string
 }
+interface InitialInvoice {
+  customerId: string
+  companyId: string
+  invoiceDate: string
+  paymentTerms: string
+  notes: string
+  lines: { description: string; hsn: string; qty: string; rate: string; cgst: string; sgst: string }[]
+}
 interface Props {
   customers: CustomerOption[]
   companies: CompanyOption[]
   initialCustomerId: string | null
+  /** When set, the form edits this existing invoice instead of creating one. */
+  invoiceId?: string | null
+  initial?: InitialInvoice
 }
 
 interface LineDraft {
@@ -41,15 +52,16 @@ const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDi
 let seq = 0
 const newKey = () => `l${++seq}`
 
-export default function TypedInvoiceClient({ customers, companies, initialCustomerId }: Props) {
+export default function TypedInvoiceClient({ customers, companies, initialCustomerId, invoiceId = null, initial }: Props) {
   const router = useRouter()
+  const isEdit = !!invoiceId
   const defaultCompany = companies.find(c => c.is_default) ?? companies[0] ?? null
 
-  const [customerId, setCustomerId] = useState<string>(initialCustomerId ?? '')
-  const [companyId, setCompanyId]   = useState<string>(defaultCompany?.id ?? '')
-  const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [paymentTerms, setPaymentTerms] = useState('due_on_receipt')
-  const [notes, setNotes] = useState('')
+  const [customerId, setCustomerId] = useState<string>(initial?.customerId || initialCustomerId || '')
+  const [companyId, setCompanyId]   = useState<string>(initial?.companyId || defaultCompany?.id || '')
+  const [invoiceDate, setInvoiceDate] = useState(initial?.invoiceDate || new Date().toISOString().slice(0, 10))
+  const [paymentTerms, setPaymentTerms] = useState(initial?.paymentTerms || 'due_on_receipt')
+  const [notes, setNotes] = useState(initial?.notes || '')
   const [saving, setSaving] = useState(false)
 
   const company = companies.find(c => c.id === companyId) ?? defaultCompany
@@ -63,7 +75,8 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
     cgst: String(company?.cgst_rate ?? 9),
     sgst: String(company?.sgst_rate ?? 9),
   })
-  const [lines, setLines] = useState<LineDraft[]>(() => [seedLine()])
+  const [lines, setLines] = useState<LineDraft[]>(() =>
+    initial?.lines?.length ? initial.lines.map(l => ({ key: newKey(), ...l })) : [seedLine()])
 
   function updateLine(key: string, patch: Partial<LineDraft>) {
     setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l))
@@ -107,15 +120,15 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
 
     setSaving(true)
     try {
-      const res = await fetch('/api/recoverables/invoices/typed', {
-        method: 'POST',
+      const res = await fetch(isEdit ? `/api/recoverables/invoices/typed/${invoiceId}` : '/api/recoverables/invoices/typed', {
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId, companyId, invoiceDate, paymentTerms, notes, lines: payloadLines }),
       })
       const data = await res.json()
-      if (!res.ok) { notify(data.error ?? 'Could not create invoice', 'error'); return }
-      notify('Invoice created', 'success')
-      router.push(`/recoverables/invoices/${data.id}`)
+      if (!res.ok) { notify(data.error ?? (isEdit ? 'Could not update invoice' : 'Could not create invoice'), 'error'); return }
+      notify(isEdit ? 'Invoice updated' : 'Invoice created', 'success')
+      router.push(`/recoverables/invoices/${isEdit ? invoiceId : data.id}`)
     } catch {
       notify('Network error', 'error')
     } finally {
@@ -133,9 +146,9 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
           <ChevronLeft className="w-4 h-4" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>New invoice</h1>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{isEdit ? 'Edit invoice' : 'New invoice'}</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            A blank GST tax invoice — type each line and bill it.
+            {isEdit ? 'Edit every detail — customer, dates, terms and line items.' : 'A blank GST tax invoice — type each line and bill it.'}
           </p>
         </div>
       </div>
@@ -245,7 +258,7 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
         <Link href="/customers/invoices/list" className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>Cancel</Link>
         <button onClick={handleCreate} disabled={!canSave || saving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: 'var(--brand)' }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          Create invoice
+          {isEdit ? 'Save changes' : 'Create invoice'}
         </button>
       </div>
     </div>

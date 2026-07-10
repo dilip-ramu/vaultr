@@ -266,6 +266,15 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
               {busy ? 'Reverting…' : '↩ Mark as Unpaid'}
             </button>
           )}
+          {(invoice as { invoice_type?: string }).invoice_type === 'tax_invoice' && canDelete && (
+            <button
+              onClick={() => router.push(`/recoverables/invoices/${invoice.id}/edit`)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold"
+              style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+            >
+              Edit
+            </button>
+          )}
           <button
             onClick={() => router.push(`/recoverables/invoices/${invoice.id}/print`)}
             className="px-4 py-2 rounded-lg text-sm font-semibold"
