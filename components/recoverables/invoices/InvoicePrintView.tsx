@@ -43,7 +43,7 @@ export default function InvoicePrintView({
     if (!el) { window.print(); return }
     setBusy(true)
     try { await downloadElementPdf(el, `${invoice.invoice_number || 'Invoice'}.pdf`) }
-    catch { window.print() }   // fall back to the browser print dialog
+    catch (e) { alert('Could not build the PDF automatically (' + (e as Error).message + '). Opening the print dialog — choose "Save as PDF".'); window.print() }
     finally { setBusy(false) }
   }
   return (

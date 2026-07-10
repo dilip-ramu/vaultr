@@ -25,7 +25,7 @@ export default function DocumentPrintView({ schema, invoice, lines, settings, lo
     if (!el) { window.print(); return }
     setBusy(true)
     try { await downloadElementPdf(el, `${invoice.invoice_number || 'Document'}.pdf`) }
-    catch { window.print() }
+    catch (e) { alert('Could not build the PDF automatically (' + (e as Error).message + '). Opening the print dialog — choose "Save as PDF".'); window.print() }
     finally { setBusy(false) }
   }
   return (

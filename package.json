@@ -17,6 +17,7 @@
     "date-fns": "^4.1.0",
     "docxtemplater": "^3.69.0",
     "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^2.2.3",
     "imapflow": "^1.0.169",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",

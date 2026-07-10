@@ -4,8 +4,10 @@
 // imported so the (large) libs never load until the user actually downloads.
 
 export async function downloadElementPdf(el: HTMLElement, filename: string): Promise<void> {
+  // html2canvas-pro supports modern CSS colours (oklch, color-mix) that the
+  // original html2canvas throws on — the app's theme uses them.
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import('html2canvas'),
+    import('html2canvas-pro'),
     import('jspdf'),
   ])
 
