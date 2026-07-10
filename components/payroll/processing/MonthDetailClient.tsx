@@ -343,6 +343,18 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
     else notify(data.error ?? 'Failed to reverse')
   }
 
+  async function handleRemoveEntry(entry: PayrollEntry & { employee?: Employee }) {
+    if (!await confirmDialog(`Remove ${entry.employee?.name ?? 'this employee'} from ${fmtMonth(month.payroll_month)}? They won't be in this month's payroll, slips or bank CSV. (Regenerating re-adds everyone.)`)) return
+    const res = await fetch(`/api/payroll/months/${month.id}/entries`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entry_id: entry.id }),
+    })
+    const data = await res.json()
+    if (!res.ok) { notify(data.error ?? 'Could not remove'); return }
+    setEntries(prev => prev.filter(e => e.id !== entry.id))
+    setSelectedEntries(prev => { const n = new Set(prev); n.delete(entry.id); return n })
+    router.refresh()
+  }
+
   const saveRow = useCallback(async (entry: PayrollEntry) => {
     const v = rowValues[entry.id]
     if (!v) return
@@ -641,7 +653,12 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
                       ))}
 
                       <td className="px-4 py-2 text-right font-mono font-semibold text-[var(--text)] whitespace-nowrap">
-                        {isSaving ? <span className="text-[var(--text-faint)] text-xs">saving…</span> : fmtInr(livePayable)}
+                        <span className="inline-flex items-center gap-2.5 justify-end">
+                          {isSaving ? <span className="text-[var(--text-faint)] text-xs">saving…</span> : fmtInr(livePayable)}
+                          {!month.is_paid && (
+                            <button type="button" onClick={() => handleRemoveEntry(entry)} title="Remove this employee from the month" className="text-[var(--text-faint)] hover:text-[var(--expense)] font-sans text-sm leading-none">✕</button>
+                          )}
+                        </span>
                       </td>
                     </tr>
                   )

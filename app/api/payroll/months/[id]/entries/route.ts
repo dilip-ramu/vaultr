@@ -75,6 +75,24 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   return NextResponse.json({ entries: entries ?? [] })
 }
 
+// DELETE — remove one employee's entry from this month (run payroll for a subset).
+// Regenerating re-adds all active employees, so remove after generating.
+export async function DELETE(req: NextRequest, { params }: RouteContext) {
+  await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let body: { entry_id?: string }
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+  if (!body.entry_id) return NextResponse.json({ error: 'entry_id is required' }, { status: 400 })
+
+  // Cascade also removes any salary slip via the FK on salary_slips.
+  const { error } = await supabase.from('payroll_entries').delete().eq('id', body.entry_id).eq('user_id', user.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 // PATCH — update a single entry (allowances, overtime, etc.)
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const { id: monthId } = await params
