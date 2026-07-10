@@ -40,6 +40,12 @@ export interface LedgerRow { key: string; name: string; group: LedgerGroup; debi
 export interface BooksResult {
   trial: { rows: LedgerRow[]; totalDebit: number; totalCredit: number; balanced: boolean }
   netWorth: { accountAssets: number; assetHoldings: number; assets: number; liabilities: number; net: number }
+  balanceSheet: {
+    assetsFromAccounts: number; assetHoldings: number; assets: number
+    liabilities: number
+    openingEquity: number; retained: number; equity: number
+    balanced: boolean
+  }
   pnl: { income: number; expense: number; net: number; byCategory: { name: string; amount: number; kind: 'income' | 'expense' }[] }
 }
 
@@ -130,6 +136,21 @@ export function deriveBooks(input: BooksInput): BooksResult {
   const assets = r2(accountAssets + assetHoldings)
   const netWorth = { accountAssets: r2(accountAssets), assetHoldings, assets, liabilities: r2(liabilities), net: r2(assets - liabilities) }
 
+  // ── balance sheet, derived from the (balanced) trial → always reconciles ──
+  const gnet = (grp: LedgerGroup) => rows.filter(r => r.group === grp).reduce((s, r) => s + (r.debit - r.credit), 0)
+  const assetsFromAccounts = r2(gnet('asset'))          // debit-normal
+  const bsLiabilities = r2(-gnet('liability'))           // credit-normal
+  const openingEquity = r2(-gnet('equity'))
+  const retained = r2(-gnet('income') - gnet('expense')) // income (credit) − expense (debit)
+  const bsAssets = r2(assetsFromAccounts + assetHoldings)
+  const bsEquity = r2(openingEquity + retained + assetHoldings)
+  const balanceSheet = {
+    assetsFromAccounts, assetHoldings, assets: bsAssets,
+    liabilities: bsLiabilities,
+    openingEquity, retained, equity: bsEquity,
+    balanced: Math.abs(bsAssets - (bsLiabilities + bsEquity)) < 0.5,
+  }
+
   // ── P&L over the window ──
   const inRange = (t: BooksTxn) => (!input.from || t.date >= input.from) && (!input.to || t.date <= input.to)
   let income = 0, expense = 0
@@ -149,6 +170,7 @@ export function deriveBooks(input: BooksInput): BooksResult {
   return {
     trial: { rows, totalDebit: r2(totalDebit), totalCredit: r2(totalCredit), balanced: Math.abs(totalDebit - totalCredit) < 0.01 },
     netWorth,
+    balanceSheet,
     pnl: { income: r2(income), expense: r2(expense), net: r2(income - expense), byCategory },
   }
 }

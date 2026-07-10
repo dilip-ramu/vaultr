@@ -90,6 +90,49 @@ export default function BooksClient({ accounts, transactions, categories, assets
         </div>
       </div>
 
+      {/* Balance sheet */}
+      {(() => {
+        const bs = books.balanceSheet
+        const Row = ({ label, value, bold, muted }: { label: string; value: number; bold?: boolean; muted?: boolean }) => (
+          <div className="flex items-center justify-between px-5 py-2" style={{ borderTop: '1px solid var(--border-2, var(--border))' }}>
+            <span className={bold ? 'font-extrabold' : ''} style={{ color: muted ? 'var(--text-muted)' : 'var(--text)', fontSize: bold ? 14 : 13, paddingLeft: muted ? 12 : 0 }}>{label}</span>
+            <span className="tabular-nums" style={{ color: muted ? 'var(--text-muted)' : 'var(--text)', fontWeight: bold ? 800 : 500, fontSize: bold ? 14 : 13 }}>{inr(value)}</span>
+          </div>
+        )
+        return (
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}><h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>Balance sheet</h2></div>
+              <Row label="Cash & accounts" value={bs.assetsFromAccounts} muted />
+              <Row label="Investments & assets (market)" value={bs.assetHoldings} muted />
+              <Row label="Total assets" value={bs.assets} bold />
+              <div style={{ height: 8 }} />
+              <Row label="Liabilities (cards, loans)" value={bs.liabilities} bold />
+              <div style={{ height: 8 }} />
+              <Row label="Opening balance equity" value={bs.openingEquity} muted />
+              <Row label="Retained earnings" value={bs.retained} muted />
+              <Row label="Asset holdings reserve" value={bs.assetHoldings} muted />
+              <Row label="Total equity" value={bs.equity} bold />
+            </div>
+            <div className="rounded-2xl border p-5 flex flex-col justify-center" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>The accounting equation</p>
+              <div className="flex items-baseline gap-2 flex-wrap text-[15px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                <span>{inr(bs.assets)}</span><span style={{ color: 'var(--text-faint)' }}>=</span>
+                <span>{inr(bs.liabilities)}</span><span style={{ color: 'var(--text-faint)' }}>+</span>
+                <span>{inr(bs.equity)}</span>
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-faint)' }}>Assets = Liabilities + Equity</p>
+              <div className="mt-3">
+                {bs.balanced
+                  ? <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: 'var(--income)', background: 'color-mix(in srgb, var(--income) 12%, transparent)' }}><Check className="w-3.5 h-3.5" /> Balanced</span>
+                  : <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: 'var(--expense)', background: 'color-mix(in srgb, var(--expense) 12%, transparent)' }}><AlertTriangle className="w-3.5 h-3.5" /> Off by {inr(Math.abs(bs.assets - bs.liabilities - bs.equity))}</span>}
+              </div>
+              <p className="text-[11px] mt-3" style={{ color: 'var(--text-faint)' }}>All active accounts (the accounting view). The net-worth figure above can differ if you excluded any account from net worth.</p>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Trial balance */}
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
