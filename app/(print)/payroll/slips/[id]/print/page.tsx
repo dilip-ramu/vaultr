@@ -1,11 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import SalarySlipPrintView from '@/components/payroll/slips/SalarySlipPrintView'
-import SalarySlip17a from '@/components/payroll/slips/SalarySlip17a'
-import type { SalarySlipDocData } from '@/components/templates/SalarySlipRenderer'
+import SlipPrintView from '@/components/payroll/slips/SlipPrintView'
+import type { SalarySlipDocData } from '@/lib/payroll/slip'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
-import { salarySlipPreset, type DocumentSchema } from '@/lib/templates/schema'
 import { normalizeAccent } from '@/lib/companies/templates'
 import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
 
@@ -59,26 +57,13 @@ export default async function SalarySlipPrintPage({ params }: Props) {
     companyAddress: company?.address ?? null,
   }
 
-  // Claude design (17a) — only for payroll months created under the new design.
-  // Every field is the app's own slip data; only the layout schema is Claude's.
-  if ((e.month as { design_version?: string | null })?.design_version === 'claude') {
-    return <SalarySlip17a data={sdata} logoUrl={logoUrl} signatureUrl={signatureUrl} accent={normalizeAccent(company?.invoice_accent ?? undefined)} />
-  }
-
-  // Resolve the assigned salary-slip template; fall back to the classic preset.
-  let schema: DocumentSchema | null = null
-  {
-    let aq = supabase.from('document_template_assignments').select('template_id')
-      .eq('user_id', user.id).eq('doc_type', 'salary_slip')
-    aq = companyId ? aq.eq('company_id', companyId) : aq.is('company_id', null)
-    const { data: assignment } = await aq.maybeSingle()
-    if (assignment?.template_id) {
-      const { data: tpl } = await supabase.from('document_templates').select('schema')
-        .eq('id', assignment.template_id).eq('user_id', user.id).maybeSingle()
-      schema = (tpl?.schema as DocumentSchema | null) ?? null
-    }
-  }
-  if (!schema) schema = salarySlipPreset('classic', normalizeAccent(company?.invoice_accent ?? undefined))
-
-  return <SalarySlipPrintView schema={schema} data={sdata} />
+  return (
+    <SlipPrintView
+      data={sdata}
+      logoUrl={logoUrl}
+      signatureUrl={signatureUrl}
+      accent={normalizeAccent(company?.invoice_accent ?? undefined)}
+      filename={`Salary Slip — ${employee?.name ?? 'Employee'}.pdf`}
+    />
+  )
 }

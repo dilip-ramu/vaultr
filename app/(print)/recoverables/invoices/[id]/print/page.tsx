@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import InvoicePrintView from '@/components/recoverables/invoices/InvoicePrintView'
-import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
-import { normalizeTemplate, normalizeAccent } from '@/lib/companies/templates'
+import DocPrintView from '@/components/documents/DocPrintView'
+import type { RecoverableInvoice } from '@/lib/recoverables/types'
+import { normalizeAccent } from '@/lib/companies/templates'
 import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
+import { taxInvoiceToModel } from '@/lib/documents/adapters'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -86,24 +87,7 @@ export default async function InvoicePrintPage({ params }: Props) {
     hsn_sac:             pick(company?.hsn_sac,            legacy?.hsn_sac),
   }
 
-  const template = normalizeTemplate(company?.invoice_template)
-  const accent   = normalizeAccent(company?.invoice_accent)
-
-  // Custom block-based template (Feature: fully-customisable templates). If the
-  // invoice's company has one assigned for GST invoices, render it instead of
-  // the built-in layout. No assignment → built-in layout, unchanged.
-  let customSchema: unknown = null
-  {
-    let aq = supabase.from('document_template_assignments')
-      .select('template_id').eq('user_id', user.id).eq('doc_type', 'gst_invoice')
-    aq = inv.company_id ? aq.eq('company_id', inv.company_id) : aq.is('company_id', null)
-    const { data: assignment } = await aq.maybeSingle()
-    if (assignment?.template_id) {
-      const { data: tpl } = await supabase.from('document_templates')
-        .select('schema').eq('id', assignment.template_id).eq('user_id', user.id).maybeSingle()
-      customSchema = tpl?.schema ?? null
-    }
-  }
+  const accent = normalizeAccent(company?.invoice_accent)
 
   // ── Branding image URLs ────────────────────────────────────────────────────
   // Company logos live in the PUBLIC vaultr-avatars bucket (stable public URL);
@@ -128,16 +112,11 @@ export default async function InvoicePrintPage({ params }: Props) {
     signatureUrl = data?.signedUrl ?? null
   }
 
-  return (
-    <InvoicePrintView
-      invoice={invoice as RecoverableInvoice}
-      lines={(lines ?? []) as RecoverableInvoiceLine[]}
-      settings={mergedSettings}
-      logoUrl={logoUrl}
-      signatureUrl={signatureUrl}
-      template={template}
-      accent={accent}
-      schema={customSchema as import('@/lib/templates/schema').DocumentSchema | null}
-    />
+  const model = taxInvoiceToModel(
+    invoice as unknown as Parameters<typeof taxInvoiceToModel>[0],
+    (lines ?? []) as unknown as Parameters<typeof taxInvoiceToModel>[1],
+    mergedSettings,
+    { logoUrl, signatureUrl, accent },
   )
+  return <DocPrintView model={model} filename={`${(invoice as RecoverableInvoice).invoice_number || 'Invoice'}.pdf`} />
 }

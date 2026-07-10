@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
-import DocumentPrintView from '@/components/documents/DocumentPrintView'
-import { presetSchema, type DocType, type DocumentSchema } from '@/lib/templates/schema'
+import DocPrintView from '@/components/documents/DocPrintView'
 import { normalizeAccent } from '@/lib/companies/templates'
 import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
-import type { RecoverableInvoice, RecoverableInvoiceLine } from '@/lib/recoverables/types'
+import { issuedDocToModel, type InvoiceSettings } from '@/lib/documents/adapters'
+import { docConfig } from '@/lib/documents/config'
+import type { BandTone } from '@/lib/documents/model'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -13,6 +14,15 @@ export async function generateMetadata({ params }: Props) {
   const supabase = await createClient()
   const { data } = await supabase.from('documents').select('number').eq('id', id).maybeSingle()
   return { title: (data as { number: string } | null)?.number ?? 'Document' }
+}
+
+// Per-doc-type header meta + status band (auto per document type).
+const DOC_META: Record<string, { title: string; statusLabel: string; statusTone: BandTone; subNote?: string; noteFallback?: string }> = {
+  proforma_gst:     { title: 'Proforma Invoice', statusLabel: 'PROFORMA', statusTone: 'grey',   subNote: 'Not a tax invoice · quotation only', noteFallback: 'This proforma is for quotation purposes and does not constitute a demand for payment.' },
+  credit_note:      { title: 'Credit Note',      statusLabel: 'ISSUED',   statusTone: 'green' },
+  debit_note:       { title: 'Debit Note',       statusLabel: 'ISSUED',   statusTone: 'blue' },
+  purchase_order:   { title: 'Purchase Order',   statusLabel: 'ORDERED',  statusTone: 'violet', noteFallback: 'Please confirm acceptance. Invoice must quote this PO number.' },
+  delivery_challan: { title: 'Delivery Challan', statusLabel: 'DISPATCHED', statusTone: 'blue', subNote: 'Under Rule 55', noteFallback: 'Not a tax invoice. Value stated for transport & e-way bill purposes.' },
 }
 
 export default async function DocumentPrintPage({ params }: Props) {
@@ -27,62 +37,21 @@ export default async function DocumentPrintPage({ params }: Props) {
   ])
   if (!doc) notFound()
   const d = doc as Record<string, unknown>
-  const docType = d.doc_type as DocType
-  const companyId = d.company_id as string | null
+  const docType = String(d.doc_type)
+  const companyId = (d.company_id as string | null) ?? null
+  const cfg = docConfig(docType)
+  const meta = DOC_META[docType] ?? { title: cfg?.label ?? 'Document', statusLabel: 'ISSUED', statusTone: 'grey' as BandTone }
 
-  // Issuing company branding + assigned template
   let company: Record<string, unknown> | null = null
   if (companyId) {
     const { data } = await supabase.from('companies')
-      .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, terms_conditions, hsn_sac, logo_path, invoice_accent')
+      .select('name, address, gstin, phone, email, bank_account_name, bank_account_number, bank_ifsc, bank_name, swift_code, terms_conditions, invoice_accent, logo_path')
       .eq('id', companyId).eq('user_id', user.id).maybeSingle()
     company = (data as Record<string, unknown> | null) ?? null
   }
   const accent = normalizeAccent(company?.invoice_accent)
 
-  // Resolve the assigned template for this doc type + company; else default preset.
-  let schema: DocumentSchema | null = null
-  {
-    let aq = supabase.from('document_template_assignments').select('template_id').eq('user_id', user.id).eq('doc_type', docType)
-    aq = companyId ? aq.eq('company_id', companyId) : aq.is('company_id', null)
-    const { data: assignment } = await aq.maybeSingle()
-    if (assignment?.template_id) {
-      const { data: tpl } = await supabase.from('document_templates').select('schema').eq('id', assignment.template_id).eq('user_id', user.id).maybeSingle()
-      schema = (tpl?.schema as DocumentSchema | undefined) ?? null
-    }
-  }
-  if (!schema) schema = presetSchema(docType, 'classic', accent)
-  if (!schema) notFound()
-
-  // ── Adapt the document to the invoice shape the renderer expects ──
-  const dl = (lines ?? []) as Record<string, unknown>[]
-  const adaptedLines = dl.map((l, i) => {
-    const gst = Number(l.gst_rate) || 0
-    return {
-      id: String(l.id), user_id: user.id, invoice_id: id, allocation_id: null,
-      line_number: Number(l.line_number) || i + 1, awb: '', description: String(l.item ?? ''),
-      item_type: 'tax_invoice_line', client_name: null, shipment_date: null,
-      hsn_sac: (l.hsn_sac as string | null) ?? null,
-      qty: Number(l.qty) || 0, base_rate: Number(l.rate) || 0, rate: Number(l.rate) || 0, amount: Number(l.amount) || 0,
-      cgst_rate: gst / 2, cgst_amount: Number(l.cgst_amount) || 0, sgst_rate: gst / 2, sgst_amount: Number(l.sgst_amount) || 0,
-    } as unknown as RecoverableInvoiceLine
-  })
-  const firstGst = Number(dl[0]?.gst_rate) || 0
-  const total = Number(d.total) || 0
-  const invoice = {
-    id, user_id: user.id, invoice_number: String(d.number ?? ''),
-    customer_name: String(d.party_name ?? ''), customer_id: (d.party_id as string | null) ?? null,
-    customer_address: (d.party_address as string | null) ?? null, customer_gstin: (d.party_gstin as string | null) ?? null,
-    customer_state: (d.party_state as string | null) ?? null,
-    invoice_date: String(d.date ?? ''), due_date: null, payment_terms: (d.reference as string | null) ?? null,
-    markup_type: 'none', markup_value: 0,
-    subtotal: Number(d.subtotal) || 0, cgst_rate: firstGst / 2, sgst_rate: firstGst / 2,
-    cgst_amount: Number(d.cgst_amount) || 0, sgst_amount: Number(d.sgst_amount) || 0,
-    total, paid_amount: 0, balance_due: total, status: 'draft', notes: (d.notes as string | null) ?? null,
-    currency: String(d.currency ?? 'INR'), sent_at: null, paid_at: null, created_at: String(d.created_at ?? ''), updated_at: String(d.created_at ?? ''),
-  } as unknown as RecoverableInvoice
-
-  const settings = {
+  const settings: InvoiceSettings = {
     company_name: (company?.name as string | null) ?? null,
     company_address: (company?.address as string | null) ?? null,
     company_gstin: (company?.gstin as string | null) ?? null,
@@ -93,30 +62,28 @@ export default async function DocumentPrintPage({ params }: Props) {
     bank_ifsc: (company?.bank_ifsc as string | null) ?? null,
     bank_name: (company?.bank_name as string | null) ?? null,
     swift_code: (company?.swift_code as string | null) ?? null,
-    terms_conditions: (d.notes as string | null) || (company?.terms_conditions as string | null) || null,
-    hsn_sac: (company?.hsn_sac as string | null) ?? null,
+    terms_conditions: (company?.terms_conditions as string | null) ?? null,
   }
 
   let logoUrl: string | null = null
-  if (company?.logo_path) {
-    const { data } = supabase.storage.from('vaultr-avatars').getPublicUrl(company.logo_path as string)
-    logoUrl = data?.publicUrl ?? null
-  }
+  if (company?.logo_path) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(company.logo_path as string).data?.publicUrl ?? null
+  const signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: (d.signatory_id as string | null) ?? null, companyId })
 
-  // v89 — authorised signatory signature (chosen → company default).
-  const signatureUrl = await resolveSignatureUrl(supabase, user.id, {
-    signatoryId: (d.signatory_id as string | null) ?? null,
-    companyId,
-  })
-
-  return (
-    <DocumentPrintView
-      schema={schema}
-      invoice={invoice}
-      lines={adaptedLines}
-      settings={settings as unknown as import('@/components/recoverables/invoices/InvoiceDocument').InvoiceDocSettings}
-      logoUrl={logoUrl}
-      signatureUrl={signatureUrl}
-    />
+  const model = issuedDocToModel(
+    d as unknown as Parameters<typeof issuedDocToModel>[0],
+    (lines ?? []) as unknown as Parameters<typeof issuedDocToModel>[1],
+    settings,
+    {
+      title: meta.title,
+      partyLabel: cfg?.partyLabel ?? 'Party',
+      tax: cfg?.tax ?? true,
+      referenceLabel: cfg?.referenceLabel,
+      statusLabel: meta.statusLabel,
+      statusTone: meta.statusTone as 'grey' | 'blue' | 'violet' | 'amber' | 'green',
+      subNote: meta.subNote,
+      noteFallback: meta.noteFallback,
+    },
+    { logoUrl, signatureUrl, accent },
   )
+  return <DocPrintView model={model} filename={`${String(d.number ?? 'Document')}.pdf`} />
 }

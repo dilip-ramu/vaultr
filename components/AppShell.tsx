@@ -8,10 +8,10 @@ import HubTabs from './HubTabs'
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight, ChevronDown,
-  X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign, Search,
+  X, Menu, PanelLeftClose, PanelLeftOpen, DollarSign, Search,
   Moon, Sun, Eye, EyeOff, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
-  Building2, BookOpen, CheckCheck,
+  Building2, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
   CalendarRange, CreditCard, Gem,
 } from 'lucide-react'
@@ -105,7 +105,6 @@ const navSections: NavSection[] = [
         subItems: [
           { href: '/organization/employees', label: 'Employees', icon: Users },
           { href: '/organization/contracts', label: 'Contracts', icon: FileText },
-          { href: '/templates',              label: 'Templates', icon: Layers },
         ],
       },
     ],
@@ -120,7 +119,6 @@ const navSections: NavSection[] = [
           { href: '/downloads', label: 'Downloads', icon: Archive },
         ],
       },
-      { href: '/guide', label: 'Guide', icon: BookOpen },
     ],
   },
 ]

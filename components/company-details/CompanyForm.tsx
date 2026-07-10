@@ -6,11 +6,7 @@ import { notify } from '@/components/shared/Toast'
 import { useFileDrop } from '@/components/shared/useFileDrop'
 import ColorPicker from '@/components/shared/ColorPicker'
 import SignatoriesManager from './SignatoriesManager'
-import {
-  INVOICE_TEMPLATES, ACCENT_PRESETS,
-  DEFAULT_INVOICE_TEMPLATE, DEFAULT_INVOICE_ACCENT,
-  type InvoiceTemplate,
-} from '@/lib/companies/templates'
+import { ACCENT_PRESETS, DEFAULT_INVOICE_ACCENT } from '@/lib/companies/templates'
 
 export interface Company {
   id: string
@@ -42,8 +38,8 @@ export interface Company {
   logo_path: string | null
   // v89 — proprietorship | partnership (drives signatory labels)
   business_type?: 'proprietorship' | 'partnership'
-  // v69 — per-company document look (Feature 1)
-  invoice_template: InvoiceTemplate
+  // Retained column (templates retired) — no longer used by the form.
+  invoice_template?: string | null
   invoice_accent: string
   // v82 — directory card accent (hex). Null = per-directory default.
   color: string | null
@@ -69,45 +65,6 @@ interface Props {
 const inputCls = 'w-full px-3 py-2 rounded-lg text-sm border outline-none'
 const inputStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' } as const
 
-/** Tiny visual preview of a template, tinted with the chosen accent. */
-function TemplateThumb({ id, accent }: { id: InvoiceTemplate; accent: string }) {
-  const muted = 'var(--border-strong)'
-  return (
-    <svg viewBox="0 0 80 56" className="w-full h-auto rounded-md" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-      {id === 'classic' && (
-        <>
-          <rect x="8" y="8" width="16" height="7" rx="1.5" fill="var(--surface-1)" stroke="var(--border)" />
-          <rect x="52" y="9" width="20" height="4" rx="1" fill={accent} />
-          <line x1="8" y1="20" x2="72" y2="20" stroke={muted} />
-          <rect x="8" y="26" width="64" height="6" fill="var(--border)" opacity="0.5" />
-          <line x1="8" y1="37" x2="72" y2="37" stroke={muted} />
-          <line x1="8" y1="43" x2="72" y2="43" stroke={muted} />
-          <rect x="48" y="47" width="24" height="4" rx="1" fill={accent} opacity="0.8" />
-        </>
-      )}
-      {id === 'modern' && (
-        <>
-          <rect x="0" y="0" width="80" height="16" fill={accent} />
-          <rect x="8" y="6" width="26" height="4" rx="1" fill="#fff" opacity="0.95" />
-          <rect x="8" y="24" width="64" height="6" rx="1" fill={accent} opacity="0.9" />
-          <line x1="8" y1="37" x2="72" y2="37" stroke={muted} />
-          <line x1="8" y1="43" x2="72" y2="43" stroke={muted} />
-          <rect x="48" y="47" width="24" height="4" rx="1" fill={accent} />
-        </>
-      )}
-      {id === 'minimal' && (
-        <>
-          <rect x="8" y="9" width="22" height="4" rx="1" fill={accent} />
-          <rect x="8" y="15" width="10" height="2" rx="1" fill={accent} />
-          <line x1="8" y1="28" x2="72" y2="28" stroke={accent} strokeWidth="1.2" />
-          <line x1="8" y1="38" x2="72" y2="38" stroke={muted} />
-          <line x1="8" y1="45" x2="72" y2="45" stroke={muted} />
-          <rect x="52" y="49" width="20" height="3" rx="1" fill={accent} />
-        </>
-      )}
-    </svg>
-  )
-}
 
 export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose }: Props) {
   const isEdit = !!company
@@ -139,7 +96,6 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
   const [logoBusy, setLogoBusy] = useState(false)
   const logoDrop = useFileDrop(f => { if (f[0]) void handleLogoUpload(f[0]) }, { disabled: logoBusy })
   // v69 — document look
-  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplate>(company?.invoice_template ?? DEFAULT_INVOICE_TEMPLATE)
   const [invoiceAccent,   setInvoiceAccent]   = useState<string>(company?.invoice_accent ?? DEFAULT_INVOICE_ACCENT)
   const [color,           setColor]           = useState<string | null>(company?.color ?? null)
   const [businessType,    setBusinessType]    = useState<'proprietorship' | 'partnership'>(company?.business_type ?? 'proprietorship')
@@ -168,7 +124,6 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
         hsn_sac: hsnSac.trim() || '996812',
         payment_terms: paymentTerms,
         terms_conditions: terms.trim() || null,
-        invoice_template: invoiceTemplate,
         invoice_accent: invoiceAccent,
         color: color || null,
         business_type: businessType,
@@ -347,38 +302,13 @@ export default function CompanyForm({ company, existingLogoUrl, onSaved, onClose
             </label>
           </div>
 
-          {/* Invoice appearance (v69) — layout + accent, per company */}
+          {/* Invoice accent colour — per company. All documents use the one
+              built-in design; only the accent changes. */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Invoice appearance</p>
-
-            <div className="grid grid-cols-3 gap-2">
-              {INVOICE_TEMPLATES.map(t => {
-                const active = invoiceTemplate === t.id
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setInvoiceTemplate(t.id)}
-                    className="text-left rounded-xl border p-2.5 relative"
-                    style={{
-                      borderColor: active ? invoiceAccent : 'var(--border)',
-                      background: active ? 'var(--surface-2)' : 'var(--surface)',
-                      boxShadow: active ? `inset 0 0 0 1px ${invoiceAccent}` : 'none',
-                    }}
-                  >
-                    <TemplateThumb id={t.id} accent={invoiceAccent} />
-                    <div className="mt-2 flex items-center gap-1">
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>{t.label}</span>
-                      {active && <Check className="w-3 h-3" style={{ color: invoiceAccent }} />}
-                    </div>
-                    <p className="text-[10px] leading-tight mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.blurb}</p>
-                  </button>
-                )
-              })}
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Document accent colour</p>
 
             <div className="space-y-1.5">
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Accent colour</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Every invoice, note & slip for this company uses this colour</span>
               <div className="flex items-center gap-2 flex-wrap">
                 {ACCENT_PRESETS.map(a => {
                   const active = invoiceAccent.toLowerCase() === a.value.toLowerCase()

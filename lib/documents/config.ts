@@ -4,7 +4,7 @@
 export type DocSide = 'customer' | 'supplier'
 
 export interface DocConfig {
-  id: string                 // matches DocType in lib/templates/schema
+  id: string                 // document type id (credit_note, debit_note, …)
   label: string
   side: DocSide
   prefix: string             // number prefix
