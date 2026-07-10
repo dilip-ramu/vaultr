@@ -11,14 +11,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let body: { expended_rate: number }
+  let body: { expended_rate?: number }
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
-
-  const { expended_rate } = body
-  if (!expended_rate || expended_rate <= 0) {
-    return NextResponse.json({ error: 'Expended Euro Rate is required' }, { status: 400 })
   }
 
   // Verify month exists (finalized months can still be regenerated)
@@ -33,6 +28,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   if (!employees?.length) {
     return NextResponse.json({ error: 'No active employees found' }, { status: 400 })
   }
+
+  // The exchange rate only applies to foreign-currency salaries. Rupee-only
+  // payrolls (paid whenever, no billing/income) don't need a rate — default 1:1
+  // so you can finalize without logging any income.
+  const hasForeign = employees.some(e => (e.salary_currency ?? 'INR') !== 'INR')
+  const rawRate = Number(body.expended_rate) || 0
+  if (hasForeign && rawRate <= 0) {
+    return NextResponse.json({ error: 'Some employees are paid in a foreign currency — enter the exchange rate first.' }, { status: 400 })
+  }
+  const expended_rate = rawRate > 0 ? rawRate : 1
 
   // Delete existing draft entries then regenerate
   await supabase.from('payroll_entries').delete().eq('payroll_month_id', id).eq('user_id', user.id)

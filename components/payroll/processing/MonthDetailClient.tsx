@@ -259,8 +259,9 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
   }
 
   async function handleGenerate() {
-    const rate = parseFloat(expendedRate)
-    if (!rate || rate <= 0) { setGenError('Enter a valid Exchange Rate'); return }
+    // Rate is optional — required only for foreign-currency salaries (the API
+    // enforces that). Rupee-only payrolls generate at 1:1 with no rate.
+    const rate = parseFloat(expendedRate) || 0
     setGenerating(true)
     setGenError(null)
     try {
@@ -507,11 +508,11 @@ export default function MonthDetailClient({ month: initialMonth, entries: initia
         </h2>
         <div className="flex items-end gap-3">
           <div className="flex-1 max-w-xs">
-            <label className="block text-xs font-medium text-[var(--transfer)] mb-1">Exchange Rate (₹ per €)</label>
+            <label className="block text-xs font-medium text-[var(--transfer)] mb-1">Exchange Rate (₹ per €) <span className="font-normal text-[var(--text-faint)]">— only for foreign-currency salaries</span></label>
             <input type="number" min="0" step="0.0001" value={expendedRate}
               onChange={e => setExpendedRate(e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] bg-[var(--surface)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
-              placeholder="e.g. 89.5" />
+              placeholder="Leave blank for ₹ salaries" />
           </div>
           <button onClick={handleGenerate} disabled={generating}
             className="px-5 py-2 btn-brand text-white rounded-lg text-sm font-medium  disabled:opacity-50 transition-colors">
