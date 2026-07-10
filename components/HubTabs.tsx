@@ -28,6 +28,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/budget-insights', label: 'Budgets' },
     { href: '/profitability', label: 'Profitability' },
     { href: '/forecast', label: 'Forecast' },
+    { href: '/books', label: 'Books' },
   ] },
   { name: 'Customers', tabs: [
     { href: '/customers', label: 'Overview' },
