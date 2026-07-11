@@ -2,8 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { Download, AlertTriangle, FileJson, FileSpreadsheet, FileArchive, Loader2 } from 'lucide-react'
-import { gstr1Csv, gstr1Json, type Gstr1, type Gstr3b, type Section } from '@/lib/gst/returns'
+import { Download, AlertTriangle, FileSpreadsheet, FileArchive, Loader2 } from 'lucide-react'
+import { gstr1Csv, type Gstr1, type Gstr3b, type Section } from '@/lib/gst/returns'
 import { zipReturnInvoices, type ZipProgress } from '@/lib/gst/zipInvoices'
 import { notify } from '@/components/shared/Toast'
 
@@ -178,13 +178,6 @@ export default function GstReturnsClient({
               style={{ background: 'var(--brand)' }}
             >
               <FileSpreadsheet className="w-3.5 h-3.5" /> CSV
-            </button>
-            <button
-              onClick={() => download(`GSTR1-${gstr1.period}.json`, JSON.stringify(gstr1Json(gstr1), null, 2), 'application/json')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-            >
-              <FileJson className="w-3.5 h-3.5" /> Offline-tool JSON
             </button>
             <button
               onClick={downloadZip}

@@ -391,68 +391,6 @@ export function buildGstr3b(
 
 // ── Export shapes ───────────────────────────────────────────────────────────
 
-/** The GSTR-1 offline tool's JSON, in the shape the portal accepts. */
-export function gstr1Json(r: Gstr1) {
-  const bySection = (s: Section) => r.rows.filter(x => x.section === s)
-  const inv = (x: Gstr1Row) => ({
-    inum: x.number, idt: fmtDate(x.date), val: x.invoiceValue, pos: (x.placeOfSupply.split('-')[0] || ''),
-    rchrg: 'N', inv_typ: 'R',
-    itms: [{ num: 1, itm_det: { rt: x.rate, txval: x.taxable, iamt: x.igst, camt: x.cgst, samt: x.sgst } }],
-  })
-
-  const b2b = groupBy(bySection('b2b'), x => x.gstin ?? '')
-  const cdnr = groupBy(bySection('cdnr'), x => x.gstin ?? '')
-
-  return {
-    gstin: r.gstin ?? '',
-    fp: r.period,
-    b2b: [...b2b.entries()].map(([ctin, rows]) => ({ ctin, inv: rows.map(inv) })),
-    b2cl: [...groupBy(bySection('b2cl'), x => x.placeOfSupply.split('-')[0]).entries()]
-      .map(([pos, rows]) => ({ pos, inv: rows.map(inv) })),
-    b2cs: bySection('b2cs').map(x => ({
-      sply_ty: x.igst > 0 ? 'INTER' : 'INTRA', typ: 'OE',
-      pos: x.placeOfSupply.split('-')[0], rt: x.rate,
-      txval: x.taxable, iamt: x.igst, camt: x.cgst, samt: x.sgst,
-    })),
-    cdnr: [...cdnr.entries()].map(([ctin, rows]) => ({
-      ctin,
-      nt: rows.map(x => ({
-        ntty: x.noteType, nt_num: x.number, nt_dt: fmtDate(x.date),
-        inum: x.againstNumber ?? '', idt: x.againstDate ? fmtDate(x.againstDate) : '',
-        val: x.invoiceValue, pos: x.placeOfSupply.split('-')[0], rchrg: 'N',
-        itms: [{ num: 1, itm_det: { rt: x.rate, txval: x.taxable, iamt: x.igst, camt: x.cgst, samt: x.sgst } }],
-      })),
-    })),
-    hsn: {
-      data: r.hsn.map((h, i) => ({
-        num: i + 1, hsn_sc: h.hsn, desc: h.description, qty: h.qty, rt: h.rate,
-        txval: h.taxable, iamt: h.igst, camt: h.cgst, samt: h.sgst,
-      })),
-    },
-    doc_issue: {
-      doc_det: r.docs.map((d, i) => ({
-        doc_num: i + 1, doc_typ: d.nature,
-        docs: [{ num: 1, from: d.from, to: d.to, totnum: d.count, cancel: d.cancelled, net_issue: d.count - d.cancelled }],
-      })),
-    },
-  }
-}
-
-/** GST portal wants DD-MM-YYYY. */
-const fmtDate = (iso: string) => {
-  const [y, m, d] = (iso ?? '').split('-')
-  return y && m && d ? `${d}-${m}-${y}` : ''
-}
-
-function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
-  const m = new Map<string, T[]>()
-  for (const r of rows) {
-    const k = key(r)
-    m.set(k, [...(m.get(k) ?? []), r])
-  }
-  return m
-}
-
 /** A flat CSV of every row in the return — what an accountant actually wants. */
 export function gstr1Csv(r: Gstr1): string {
   const head = ['Section', 'GSTIN', 'Party', 'Number', 'Date', 'Place of supply', 'Invoice value', 'Rate', 'Taxable', 'IGST', 'CGST', 'SGST', 'Note type', 'Against invoice', 'Against date']

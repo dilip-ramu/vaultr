@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildGstr1, buildGstr3b, buildHsnSummary, buildDocSummary, sectionFor, isInterState,
-  toFilingPeriod, gstr1Json, gstr1Csv, B2CL_THRESHOLD,
+  toFilingPeriod, gstr1Csv, B2CL_THRESHOLD,
   type GstCompany, type OutwardSupply, type InwardSupply,
 } from '@/lib/gst/returns'
 import { printPath } from '@/lib/gst/returns'
@@ -243,18 +243,6 @@ describe('exports', () => {
     invoice({ id: 'a', number: 'A' }),
     invoice({ id: 'b', number: 'B', kind: 'credit_note', againstNumber: 'A', againstDate: `${MONTH}-11` }),
   ], company, MONTH)
-
-  it('groups B2B and CDNR by counterparty GSTIN, in portal date format', () => {
-    const j = gstr1Json(r)
-    expect(j.gstin).toBe(company.gstin)
-    expect(j.fp).toBe('072026')
-    expect(j.b2b).toHaveLength(1)
-    expect(j.b2b[0].ctin).toBe(TN_GSTIN)
-    expect(j.b2b[0].inv[0].idt).toBe('11-07-2026')
-    expect(j.b2b[0].inv[0].itms[0].itm_det.txval).toBe(1000)
-    expect(j.cdnr[0].nt[0].ntty).toBe('C')
-    expect(j.cdnr[0].nt[0].inum).toBe('A')
-  })
 
   it('writes a CSV with one row per document and a header', () => {
     const lines = gstr1Csv(r).split('\n')
