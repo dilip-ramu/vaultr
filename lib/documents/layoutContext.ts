@@ -47,7 +47,7 @@ export function sampleContext(format: string, accent: string): LayoutContext {
   const title = ({
     tax_invoice: 'TAX INVOICE', quotation: 'QUOTATION', proforma_gst: 'PROFORMA INVOICE',
     sales_order: 'SALES ORDER', delivery_challan: 'DELIVERY CHALLAN', credit_note: 'CREDIT NOTE',
-    purchase_order: 'PURCHASE ORDER', debit_note: 'DEBIT NOTE', salary_slip: 'SALARY SLIP',
+    purchase_order: 'PURCHASE ORDER', debit_note: 'DEBIT NOTE', salary_slip: 'SALARY SLIP', reimbursable: 'INVOICE',
   } as Record<string, string>)[format] ?? 'DOCUMENT'
 
   return {

@@ -151,7 +151,35 @@ export default async function ReimbursablePrintPage({ params }: Props) {
     grandValue: fmtCur(total),
     bankLines,
     signatureUrl,
+    fields: {
+      'doc.title': 'INVOICE',
+      'doc.number': String(invoice.invoice_number ?? ''),
+      'doc.date': String(invoice.invoice_date ?? ''),
+      'doc.reference': '',
+      'doc.currency': cur,
+      'doc.month': monthLabel(invoice.invoice_month as string | null),
+      'company.name': (c?.name as string | null) ?? '',
+      'company.address': (c?.address as string | null) ?? '',
+      'company.gstin': (c?.gstin as string | null) ?? '',
+      'company.phone': (c?.phone as string | null) ?? '',
+      'company.email': (c?.email as string | null) ?? '',
+      'party.label': 'BILL TO',
+      'party.name': (cust?.name as string | null) ?? '',
+      'party.address': [cust?.address, cust?.country].filter(Boolean).join(', '),
+      'party.gstin': '',
+      'totals.grandLabel': 'TOTAL',
+      'totals.grand': fmtCur(total),
+      'totals.inWords': '',
+    },
   }
 
-  return <DocPrintView model={model} filename={`${String(invoice.invoice_number ?? 'Invoice')}.pdf`} />
+  // Custom per-company courier/reimbursable template, if designed.
+  let layout: import('@/lib/documents/layout').DocLayout | null = null
+  if (companyId) {
+    const { data: lay } = await supabase.from('document_layouts').select('schema')
+      .eq('user_id', user.id).eq('company_id', companyId).eq('format', 'reimbursable').maybeSingle()
+    layout = (lay?.schema as import('@/lib/documents/layout').DocLayout | null) ?? null
+  }
+
+  return <DocPrintView model={model} filename={`${String(invoice.invoice_number ?? 'Invoice')}.pdf`} layout={layout} />
 }

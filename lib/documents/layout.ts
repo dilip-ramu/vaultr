@@ -72,8 +72,14 @@ const SLIP_FIELDS: FieldDef[] = [
   { key: 'slip.words', label: 'Net in words' },
 ]
 
+const REIMB_EXTRA: FieldDef[] = [
+  { key: 'doc.currency', label: 'Billing currency' },
+  { key: 'doc.month', label: 'For the month' },
+]
+
 export function fieldsForFormat(format: string): FieldDef[] {
   if (format === 'salary_slip') return SLIP_FIELDS
+  if (format === 'reimbursable') return [...COMMON_FIELDS, ...REIMB_EXTRA]
   return COMMON_FIELDS
 }
 

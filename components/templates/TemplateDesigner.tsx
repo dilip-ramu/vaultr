@@ -8,7 +8,8 @@ import { sampleContext } from '@/lib/documents/layoutContext'
 
 const TITLES: Record<string, string> = {
   tax_invoice: 'TAX INVOICE', quotation: 'QUOTATION', proforma_gst: 'PROFORMA INVOICE', sales_order: 'SALES ORDER',
-  delivery_challan: 'DELIVERY CHALLAN', credit_note: 'CREDIT NOTE', purchase_order: 'PURCHASE ORDER', debit_note: 'DEBIT NOTE', salary_slip: 'SALARY SLIP',
+  delivery_challan: 'DELIVERY CHALLAN', credit_note: 'CREDIT NOTE', purchase_order: 'PURCHASE ORDER', debit_note: 'DEBIT NOTE',
+  salary_slip: 'SALARY SLIP', reimbursable: 'INVOICE',
 }
 
 interface CompanyOpt { id: string; name: string; accent: string }
