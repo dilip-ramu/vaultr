@@ -4,8 +4,25 @@
 // company has no saved layout for a format, the app falls back to the built-in
 // DocDesign, so nothing changes until a template is explicitly designed.
 
-export const PAGE_W = 794
-export const PAGE_H = 1123
+export const PAGE_W = 794     // A4 width  in canvas units (96 dpi)
+export const PAGE_H = 1123    // A4 height in canvas units
+
+// ── Real-world units ────────────────────────────────────────────────────────
+// The canvas is exactly A4, so everything can be expressed in millimetres and
+// points — which is how you actually think about a printed page.
+export const PAGE_W_MM = 210
+export const PAGE_H_MM = 297
+export const PX_PER_MM = PAGE_W / PAGE_W_MM        // ≈ 3.781
+
+export const mmToPx = (mm: number) => mm * PX_PER_MM
+export const pxToMm = (px: number) => px / PX_PER_MM
+/** Round to 1 decimal — enough precision for layout work. */
+export const mm1 = (px: number) => Math.round(pxToMm(px) * 10) / 10
+
+// Font sizes: the canvas is 96 dpi, so 1 pt = 96/72 px.
+export const ptToPx = (pt: number) => pt * (96 / 72)
+export const pxToPt = (px: number) => px * (72 / 96)
+export const pt1 = (px: number) => Math.round(pxToPt(px) * 10) / 10
 
 export type ElType =
   | 'text'       // static text box

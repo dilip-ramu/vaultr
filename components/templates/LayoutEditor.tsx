@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Type, Hash, Trash2, Save, RotateCcw, Loader2, Undo2, Redo2, ImagePlus } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
-import { PAGE_W, PAGE_H, defaultLayout, fieldsForFormat, type DocLayout, type LayoutEl, type ElType } from '@/lib/documents/layout'
+import {
+  PAGE_W, PAGE_H, PAGE_W_MM, PAGE_H_MM, defaultLayout, fieldsForFormat,
+  mmToPx, mm1, ptToPx, pt1,
+  type DocLayout, type LayoutEl, type ElType,
+} from '@/lib/documents/layout'
 import type { LayoutContext } from '@/lib/documents/layoutContext'
 import { ElementContent, elTransform } from './LayoutRenderer'
 
@@ -142,13 +146,13 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
       if ((e.key === 'Delete' || e.key === 'Backspace') && selId) {
         e.preventDefault(); commit(elsRef.current.filter(x => x.id !== selId)); setSelId(null); return
       }
-      // Arrow-key nudge (Shift = 10px)
+      // Arrow-key nudge — 0.5 mm, or 5 mm with Shift
       if (selId && e.key.startsWith('Arrow')) {
         e.preventDefault()
-        const step = e.shiftKey ? 10 : 1
+        const step = mmToPx(e.shiftKey ? 5 : 0.5)
         const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
         const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
-        commit(elsRef.current.map(x => x.id === selId ? { ...x, x: x.x + dx, y: x.y + dy } : x))
+        commit(elsRef.current.map(x => x.id === selId ? { ...x, x: Math.round(x.x + dx), y: Math.round(x.y + dy) } : x))
       }
     }
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey)
@@ -264,14 +268,17 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
         <div className="w-64 shrink-0 space-y-3">
           {!sel && (
             <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Drag any element to move it, use the corner handle to resize. Elements snap to each other and to the page —
-              hold <b>Alt</b> to bypass. Arrow keys nudge (Shift = 10px). <b>⌘Z</b> undo, <b>⇧⌘Z</b> redo.
+              Page is <b>A4 · {PAGE_W_MM} × {PAGE_H_MM} mm</b>. Drag to move, corner handle to resize — all sizes are in
+              millimetres. Elements snap to each other and to the page (hold <b>Alt</b> to bypass). Arrow keys nudge 0.5 mm
+              (Shift = 5 mm). <b>⌘Z</b> undo, <b>⇧⌘Z</b> redo. Drag an element off the edge for a bleed/cut effect.
             </p>
           )}
           {sel && (
             <div className="space-y-2.5 rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{sel.type}</span>
+                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                  {sel.type} <span className="font-normal normal-case" style={{ color: 'var(--text-faint)' }}>· {mm1(sel.w)}×{mm1(sel.h)} mm</span>
+                </span>
                 <button onClick={() => { commit(elsRef.current.filter(x => x.id !== sel.id)); setSelId(null) }} className="text-[var(--expense)]" title="Delete"><Trash2 className="w-4 h-4" /></button>
               </div>
 
@@ -296,8 +303,8 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
               {(sel.type === 'text' || sel.type === 'field' || sel.type === 'bank' || sel.type === 'terms') && (
                 <>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Font size
-                      <input type="number" value={sel.fontSize ?? 11} onChange={e => update(sel.id, { fontSize: Number(e.target.value) || 11 })} className={iCls + ' mt-1'} style={iStyle} />
+                    <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Font size (pt)
+                      <input type="number" step={0.5} value={pt1(sel.fontSize ?? 11)} onChange={e => update(sel.id, { fontSize: ptToPx(Number(e.target.value) || 8) })} className={iCls + ' mt-1'} style={iStyle} />
                     </label>
                     <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Align
                       <select value={sel.align ?? 'left'} onChange={e => update(sel.id, { align: e.target.value as LayoutEl['align'] })} className={iCls + ' mt-1'} style={iStyle}>
@@ -363,12 +370,23 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
                 </select>
               </label>
 
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
-                {(['x', 'y', 'w', 'h'] as const).map(k => (
-                  <label key={k} className="block text-[10px] font-semibold uppercase" style={{ color: 'var(--text-faint)' }}>{k}
-                    <input type="number" value={Math.round(sel[k])} onChange={e => update(sel.id, { [k]: Number(e.target.value) || 0 })} className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle} />
-                  </label>
-                ))}
+              {/* Geometry in millimetres — the page is A4, 210 × 297 mm */}
+              <div className="pt-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--text-faint)' }}>
+                  Position &amp; size (mm) · page {PAGE_W_MM} × {PAGE_H_MM}
+                </p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {(['x', 'y', 'w', 'h'] as const).map(k => (
+                    <label key={k} className="block text-[10px] font-semibold uppercase" style={{ color: 'var(--text-faint)' }}>{k}
+                      <input
+                        type="number" step={0.5}
+                        value={mm1(sel[k])}
+                        onChange={e => update(sel.id, { [k]: Math.round(mmToPx(Number(e.target.value) || 0)) })}
+                        className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle}
+                      />
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
           )}
