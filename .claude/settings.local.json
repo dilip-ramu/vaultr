@@ -42,7 +42,12 @@
       "Bash(psql --version)",
       "Bash(supabase --version)",
       "Bash(npx next *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(grep -E \"^\\(eslint|next\\)$\")",
+      "Bash(cd *)",
+      "Bash(python3 *)",
+      "Bash(rm -f /tmp/vaultr_token.json)",
+      "Read(//private/tmp/**)"
     ]
   }
 }

@@ -3,7 +3,7 @@ import BanksClient from '@/components/setup/banks/BanksClient'
 import type { Bank } from '@/lib/cheque/types'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Banks — Vaultr' }
+export const metadata = { title: 'Cheques — Vaultr' }
 
 export default async function BanksPage() {
   const supabase = await createClient()

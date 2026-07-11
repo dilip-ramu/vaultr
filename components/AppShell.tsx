@@ -113,6 +113,7 @@ const navSections: NavSection[] = [
     id: 'system',
     label: 'System',
     items: [
+      { href: '/setup/banks', label: 'Cheques', icon: CreditCard },
       {
         href: '/setup', label: 'Settings', icon: Settings,
         subItems: [

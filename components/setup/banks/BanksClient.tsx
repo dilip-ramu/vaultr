@@ -55,8 +55,8 @@ export default function BanksClient({ initialBanks, bgUrls, accountCount }: Prop
     <div className="w-full px-4 md:px-8 py-6">
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Banks</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Cheque templates live here. Link an account to a bank and it prints on that bank&apos;s cheque layout.</p>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Cheques</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Add each bank and calibrate its cheque template once. Link an account to a bank and it prints on that bank&apos;s cheque layout.</p>
         </div>
         <button onClick={() => setAdding(true)} className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl shrink-0" style={{ background: 'var(--brand)' }}>
           <Plus className="w-4 h-4" /> Add bank
