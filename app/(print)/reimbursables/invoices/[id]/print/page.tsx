@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveTerms } from '@/lib/documents/terms'
 import { upgradeLayout } from '@/lib/documents/layout'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -152,6 +153,8 @@ export default async function ReimbursablePrintPage({ params }: Props) {
     grandLabel: 'TOTAL',
     grandValue: fmtCur(total),
     bankLines,
+    // Terms for this document type (Templates → Terms & conditions).
+    terms: await resolveTerms(supabase, user.id, 'reimbursable', companyId, (company?.terms_conditions as string | null) ?? null),
     signatureUrl,
     signatureSize: sig.size,
     fields: {

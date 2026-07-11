@@ -18,6 +18,42 @@ function fillTokens(text: string, fields: Record<string, string>): string {
   return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, k) => fields[k] ?? '')
 }
 
+
+// ── Auto-flow ───────────────────────────────────────────────────────────────
+// Text and field boxes are drawn at a designed height, but real data doesn't
+// respect it: a 4-line address in a 3-line box either clips or runs under the
+// element beneath it. So we measure what each text box will ACTUALLY occupy and
+// push everything below it (in the same horizontal column) down by the
+// difference. Empty fields collapse to nothing and pull the block up, so there
+// are never dangling gaps.
+
+const LINE_H = 1.35          // must match baseText.lineHeight
+const CHAR_W = 0.53          // avg glyph width as a fraction of font size (Manrope)
+
+/** Text an element will actually render. */
+function elText(el: LayoutEl, ctx: LayoutContext): string {
+  if (el.type === 'field') return ctx.fields[el.field ?? ''] ?? ''
+  if (el.type === 'text') return fillTokens(el.text ?? '', ctx.fields)
+  return ''
+}
+
+/** Height an element will actually occupy once its text wraps. */
+export function measuredHeight(el: LayoutEl, ctx: LayoutContext): number {
+  if (el.type !== 'field' && el.type !== 'text') return el.h
+  const raw = elText(el, ctx)
+  if (el.type === 'field' && !raw) return 0            // no value → element renders null
+  if (!raw) return el.h
+  const fs = el.fontSize ?? 11
+  const perLine = Math.max(1, Math.floor(el.w / (fs * CHAR_W)))
+  const labelChars = el.label ? el.label.length + 1 : 0
+  let lines = 0
+  raw.split('\n').forEach((seg, i) => {
+    const chars = seg.length + (i === 0 ? labelChars : 0)
+    lines += Math.max(1, Math.ceil(chars / perLine))
+  })
+  return Math.max(el.h, Math.ceil(lines * fs * LINE_H) + 2)
+}
+
 /** Rotation / flip transform for an element — shared by the renderer + editor. */
 export function elTransform(el: LayoutEl): React.CSSProperties {
   const rot = el.rotate ?? 0
@@ -37,8 +73,9 @@ export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }
     textAlign: el.align ?? 'left',
     color,
     lineHeight: 1.35,
-    width: '100%', height: '100%',
-    overflow: 'hidden',
+    width: '100%',
+    height: el.type === 'text' || el.type === 'field' ? 'auto' : '100%',
+    overflow: el.type === 'text' || el.type === 'field' ? 'visible' : 'hidden',
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
   }
@@ -180,6 +217,41 @@ export default function LayoutRenderer({ layout, ctx: rawCtx, scale = 1, print =
 
   const li = layout.elements.find(e => e.type === 'lineItems')
 
+  const onPage = (el: LayoutEl, p: number, pages: number) => {
+    switch (el.on ?? 'first') {
+      case 'all': return true
+      case 'last': return p === pages - 1
+      default: return p === 0
+    }
+  }
+
+  /** How far each element moves on page p once the text above it has grown or
+   *  collapsed. Only elements in the same horizontal column are affected — a
+   *  long address pushes the GSTIN and the table below it, not the date on the
+   *  right. Elements pinned to every page (layer 'back'/'front' letterheads and
+   *  watermarks) are measured too, so headers stay aligned page to page. */
+  const shiftsFor = (p: number, pages: number): Map<string, number> => {
+    const shift = new Map<string, number>()
+    const grown: { x: number; w: number; bottom: number; delta: number }[] = []
+    const ordered = layout.elements
+      .filter(el => onPage(el, p, pages) && el.layer !== 'back' && el.layer !== 'front')
+      .slice()
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+
+    for (const el of ordered) {
+      const overlapsX = (g: { x: number; w: number }) => !(el.x + el.w <= g.x || g.x + g.w <= el.x)
+      let s = 0
+      for (const g of grown) if (el.y >= g.bottom && overlapsX(g)) s += g.delta
+      shift.set(el.id, s)
+      const d = measuredHeight(el, ctx) - el.h
+      if (d !== 0) grown.push({ x: el.x, w: el.w, bottom: el.y + el.h, delta: d })
+      // The table's bottom edge is fixed — it soaks up any growth above it by
+      // holding fewer rows — so nothing below it inherits those shifts.
+      if (li && el.id === li.id) grown.length = 0
+    }
+    return shift
+  }
+
   // Elements that reserve space on a given page — the table flows around them.
   const reservesFor = (p: number) => layout.elements.filter(e => {
     if (e.layer !== 'reserve') return false
@@ -187,10 +259,13 @@ export default function LayoutRenderer({ layout, ctx: rawCtx, scale = 1, print =
     return on === 'all' || (on === 'first' && p === 0)
   })
 
-  /** The table's box on page p after flowing around reserved elements. */
-  const liBox = (p: number) => {
+  /** The table's box on page p: pushed down by any text that grew above it,
+   *  and flowed around reserved elements. Its bottom stays put, so it simply
+   *  holds fewer rows on a page with a long address. */
+  const liBox = (p: number, shift?: Map<string, number>) => {
     if (!li) return { y: 0, h: 0 }
-    let top = li.y
+    const s = shift?.get(li.id) ?? 0
+    let top = li.y + s
     let bottom = li.y + li.h
     for (const b of reservesFor(p)) {
       const bTop = b.y, bBottom = b.y + b.h
@@ -206,7 +281,9 @@ export default function LayoutRenderer({ layout, ctx: rawCtx, scale = 1, print =
   if (li) {
     let i = 0, p = 0
     do {
-      const box = liBox(p)
+      // 'last'-page elements all sit below the table, so they can't affect its
+      // box — a provisional page count is safe here.
+      const box = liBox(p, shiftsFor(p, 9999))
       const cap = Math.max(1, Math.floor((box.h - HEAD_H) / ROW_H))
       chunks.push(ctx.rows.slice(i, i + cap))
       i += cap; p++
@@ -227,7 +304,8 @@ export default function LayoutRenderer({ layout, ctx: rawCtx, scale = 1, print =
   const sheet = (
     <div className="sheet" style={{ position: 'relative', width: PAGE_W, height: PAGE_H * pages, background: '#fff', overflow: 'hidden', fontFamily: "'Manrope', system-ui, -apple-system, sans-serif", boxShadow: print ? 'none' : '0 12px 40px rgba(0,0,0,.16)' }}>
       {Array.from({ length: pages }).map((_, p) => {
-        const box = liBox(p)
+        const shift = shiftsFor(p, pages)
+        const box = liBox(p, shift)
         const pageRows = li ? (chunks[p] ?? []) : []
         const pageCtx: LayoutContext = li ? { ...ctx, rows: pageRows } : ctx
 
@@ -246,13 +324,18 @@ export default function LayoutRenderer({ layout, ctx: rawCtx, scale = 1, print =
               const pinned = (el.on ?? 'first') === 'all'
               // Anything below the table that isn't pinned flows with the content.
               const follows = !isTable && !pinned && li != null && el.y >= designedBottom
+              const grows = el.type === 'text' || el.type === 'field'
+              const mh = grows ? measuredHeight(el, pageCtx) : el.h
               return (
                 <div key={el.id} style={{
                   position: 'absolute',
                   left: el.x,
-                  top: isTable ? box.y : el.y + (follows ? followDelta : 0),
+                  top: isTable
+                    ? box.y
+                    : el.y + (shift.get(el.id) ?? 0) + (follows ? followDelta : 0),
                   width: el.w,
-                  height: isTable ? actualH : el.h,
+                  height: isTable ? actualH : mh,
+                  overflow: grows ? 'visible' : undefined,
                   zIndex: zFor(el),
                   ...elTransform(el),
                 }}>

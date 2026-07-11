@@ -14,6 +14,7 @@ export const TEMPLATE_FORMATS: TemplateFormat[] = [
   { slug: 'signatories', label: 'Signatories',   desc: 'Partners & proprietors, signature images and print size.', group: 'Branding', ready: true },
   { slug: 'assets',      label: 'Image Assets',  desc: 'Reusable letterheads, watermarks and stamps.', group: 'Branding', ready: true },
   { slug: 'cheque',      label: 'Cheque',        desc: 'Per-bank cheque calibration for exact-size printing.', group: 'Branding', ready: true },
+  { slug: 'terms',       label: 'Terms & Conditions', desc: 'The wording printed at the foot of each document type.', group: 'Branding', ready: true },
 
   // Sales documents
   { slug: 'tax_invoice',      label: 'Tax Invoice',           desc: 'The GST invoice you bill customers with.', group: 'Sales' },

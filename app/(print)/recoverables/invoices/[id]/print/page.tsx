@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveTerms } from '@/lib/documents/terms'
 import { upgradeLayout } from '@/lib/documents/layout'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -87,6 +88,11 @@ export default async function InvoicePrintPage({ params }: Props) {
     terms_conditions:    pick(company?.terms_conditions,   legacy?.terms_conditions),
     hsn_sac:             pick(company?.hsn_sac,            legacy?.hsn_sac),
   }
+  // Terms are per document type (Templates → Terms & conditions), falling back
+  // to the company's terms and then to the built-in wording.
+  mergedSettings.terms_conditions = (await resolveTerms(
+    supabase, user.id, 'tax_invoice', (inv.company_id as string | null) ?? null, mergedSettings.terms_conditions,
+  )) ?? null
 
   const accent = normalizeAccent(company?.invoice_accent)
 

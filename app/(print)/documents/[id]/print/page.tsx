@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveTerms } from '@/lib/documents/terms'
 import { upgradeLayout } from '@/lib/documents/layout'
 import { redirect, notFound } from 'next/navigation'
 import DocPrintView from '@/components/documents/DocPrintView'
@@ -67,6 +68,9 @@ export default async function DocumentPrintPage({ params }: Props) {
     swift_code: (company?.swift_code as string | null) ?? null,
     terms_conditions: (company?.terms_conditions as string | null) ?? null,
   }
+  // Terms are per document type (Templates → Terms & conditions), falling back
+  // to the company's legacy terms and then to the built-in wording.
+  settings.terms_conditions = (await resolveTerms(supabase, user.id, docType, companyId, settings.terms_conditions)) ?? null
 
   let logoUrl: string | null = null
   const docLogoPath = (company?.document_logo_path as string | null) ?? (company?.logo_path as string | null)
