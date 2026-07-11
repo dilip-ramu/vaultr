@@ -104,7 +104,6 @@ const navSections: NavSection[] = [
         href: '/organization', label: 'Organization', icon: Building2,
         subItems: [
           { href: '/organization/employees', label: 'Employees', icon: Users },
-          { href: '/organization/contracts', label: 'Contracts', icon: FileText },
         ],
       },
     ],

@@ -10,19 +10,34 @@ export const PAGE_H = 1123
 export type ElType =
   | 'text'       // static text box
   | 'field'      // dynamic value bound to a data key
+  | 'image'      // uploaded image (letterhead, watermark, stamp, banner…)
   | 'logo'       // document logo image
   | 'signature'  // signatory image
-  | 'lineItems'  // the data-bound line-item table
+  | 'lineItems'  // the data-bound line-item table (flows across pages)
   | 'totals'     // totals block (subtotal / tax / grand)
   | 'bank'       // bank details block
   | 'terms'      // terms & conditions
   | 'divider'    // horizontal rule
   | 'accentBar'  // the coloured top strip
 
+/** Which page(s) an element appears on when the document runs to several pages.
+ *  'all' = fixed/repeated on every page (headers, letterheads, watermarks). */
+export type PageRule = 'first' | 'last' | 'all'
+
+/** How an element interacts with the rest of the layout.
+ *  - 'normal'  : stacks in order (default)
+ *  - 'back'    : sits behind everything (background / watermark)
+ *  - 'front'   : sits above everything (stamp / overlay)
+ *  - 'reserve' : content flows around it — the line-item table shrinks/moves
+ *                so it never overlaps this element. */
+export type LayerRule = 'normal' | 'back' | 'front' | 'reserve'
+
 export interface LayoutEl {
   id: string
   type: ElType
   x: number; y: number; w: number; h: number
+  on?: PageRule           // default 'first'
+  layer?: LayerRule       // default 'normal'
   fontSize?: number
   bold?: boolean
   align?: 'left' | 'center' | 'right'
@@ -30,6 +45,9 @@ export interface LayoutEl {
   text?: string           // static text ('text') — supports {{field}} tokens
   field?: string          // data key ('field')
   label?: string          // optional label shown before a field value
+  src?: string            // uploaded image URL ('image')
+  opacity?: number        // 0–1, for watermarks
+  fit?: 'contain' | 'cover'
   columns?: { key: string; label: string; align?: 'left' | 'right' | 'center'; flex?: number }[]
 }
 
@@ -144,22 +162,23 @@ export function defaultLayout(format: string, title: string): DocLayout {
     ] }
   }
   // Invoice-family default (quotation, proforma, SO, DC, CN, PO, DN, tax invoice)
+  // Theme elements (strip, logo, company block) repeat on every page.
   return { version: 1, elements: [
-    { id: eid(), type: 'accentBar', x: 0, y: 0, w: PAGE_W, h: 8 },
-    { id: eid(), type: 'logo', x: 44, y: 40, w: 208, h: 90 },
-    { id: eid(), type: 'field', field: 'company.name', x: 44, y: 138, w: 340, h: 22, fontSize: 14, bold: true },
-    { id: eid(), type: 'field', field: 'company.address', x: 44, y: 162, w: 340, h: 46, fontSize: 10, color: '#888' },
-    { id: eid(), type: 'text', text: title, x: 500, y: 44, w: 250, h: 28, fontSize: 20, bold: true, align: 'right', color: 'accent' },
-    { id: eid(), type: 'field', field: 'doc.number', x: 500, y: 76, w: 250, h: 18, fontSize: 11, align: 'right', color: '#666' },
-    { id: eid(), type: 'field', label: '', field: 'party.label', x: 44, y: 230, w: 200, h: 14, fontSize: 8, bold: true, color: '#aaa' },
-    { id: eid(), type: 'field', field: 'party.name', x: 44, y: 246, w: 320, h: 20, fontSize: 12, bold: true },
-    { id: eid(), type: 'field', field: 'party.address', x: 44, y: 268, w: 320, h: 40, fontSize: 10, color: '#888' },
-    { id: eid(), type: 'field', label: 'Date', field: 'doc.date', x: 500, y: 246, w: 250, h: 16, fontSize: 10, align: 'right', color: '#666' },
+    { id: eid(), type: 'accentBar', x: 0, y: 0, w: PAGE_W, h: 8, on: 'all' },
+    { id: eid(), type: 'logo', x: 44, y: 40, w: 208, h: 90, on: 'all' },
+    { id: eid(), type: 'field', field: 'company.name', x: 44, y: 138, w: 340, h: 22, fontSize: 14, bold: true, on: 'all' },
+    { id: eid(), type: 'field', field: 'company.address', x: 44, y: 162, w: 340, h: 46, fontSize: 10, color: '#888', on: 'all' },
+    { id: eid(), type: 'text', text: title, x: 500, y: 44, w: 250, h: 28, fontSize: 20, bold: true, align: 'right', color: 'accent', on: 'all' },
+    { id: eid(), type: 'field', field: 'doc.number', x: 500, y: 76, w: 250, h: 18, fontSize: 11, align: 'right', color: '#666', on: 'all' },
+    { id: eid(), type: 'field', label: '', field: 'party.label', x: 44, y: 230, w: 200, h: 14, fontSize: 8, bold: true, color: '#aaa', on: 'first' },
+    { id: eid(), type: 'field', field: 'party.name', x: 44, y: 246, w: 320, h: 20, fontSize: 12, bold: true, on: 'first' },
+    { id: eid(), type: 'field', field: 'party.address', x: 44, y: 268, w: 320, h: 40, fontSize: 10, color: '#888', on: 'first' },
+    { id: eid(), type: 'field', label: 'Date', field: 'doc.date', x: 500, y: 246, w: 250, h: 16, fontSize: 10, align: 'right', color: '#666', on: 'first' },
     { id: eid(), type: 'lineItems', x: 44, y: 330, w: 706, h: 300, columns: GST_COLUMNS },
-    { id: eid(), type: 'totals', x: 500, y: 650, w: 250, h: 110 },
-    { id: eid(), type: 'field', field: 'totals.inWords', x: 44, y: 660, w: 380, h: 40, fontSize: 9, color: '#999' },
-    { id: eid(), type: 'bank', x: 44, y: 980, w: 340, h: 80, fontSize: 9 },
-    { id: eid(), type: 'terms', x: 44, y: 1060, w: 340, h: 50, fontSize: 8, color: '#999' },
-    { id: eid(), type: 'signature', x: 560, y: 985, w: 190, h: 90 },
+    { id: eid(), type: 'totals', x: 500, y: 650, w: 250, h: 110, on: 'last' },
+    { id: eid(), type: 'field', field: 'totals.inWords', x: 44, y: 660, w: 380, h: 40, fontSize: 9, color: '#999', on: 'last' },
+    { id: eid(), type: 'bank', x: 44, y: 980, w: 340, h: 80, fontSize: 9, on: 'last' },
+    { id: eid(), type: 'terms', x: 44, y: 1060, w: 340, h: 50, fontSize: 8, color: '#999', on: 'last' },
+    { id: eid(), type: 'signature', x: 560, y: 985, w: 190, h: 90, on: 'last' },
   ] }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Type, Hash, Trash2, Save, RotateCcw, Loader2, Undo2, Redo2 } from 'lucide-react'
+import { Type, Hash, Trash2, Save, RotateCcw, Loader2, Undo2, Redo2, ImagePlus } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { PAGE_W, PAGE_H, defaultLayout, fieldsForFormat, type DocLayout, type LayoutEl, type ElType } from '@/lib/documents/layout'
 import type { LayoutContext } from '@/lib/documents/layoutContext'
@@ -154,6 +154,19 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
     commit([...elsRef.current, el]); setSelId(el.id)
   }
 
+  const [uploading, setUploading] = useState(false)
+  async function uploadImage(file: File) {
+    setUploading(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch('/api/document-layouts/image', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) { notify(data.error ?? 'Upload failed', 'error'); return }
+      addEl('image', { src: data.url as string, w: 240, h: 140, fit: 'contain', opacity: 1 })
+      notify('Image added', 'success')
+    } finally { setUploading(false) }
+  }
+
   async function save() {
     setSaving(true)
     try {
@@ -194,6 +207,12 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
             ))}
           </div>
         </details>
+        <label className={btn + ' cursor-pointer'} style={btnStyle}>
+          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+          {uploading ? 'Uploading…' : 'Image'}
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) void uploadImage(f); e.target.value = '' }} />
+        </label>
         <button onClick={() => addEl('divider', { h: 12 })} className={btn} style={btnStyle}>Divider</button>
 
         <span className="mx-1 h-5 w-px" style={{ background: 'var(--border)' }} />
@@ -286,6 +305,37 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
                   </div>
                 </>
               )}
+
+              {sel.type === 'image' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Fit
+                    <select value={sel.fit ?? 'contain'} onChange={e => update(sel.id, { fit: e.target.value as 'contain' | 'cover' })} className={iCls + ' mt-1'} style={iStyle}>
+                      <option value="contain">Contain</option><option value="cover">Cover</option>
+                    </select>
+                  </label>
+                  <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Opacity
+                    <input type="number" min={0.05} max={1} step={0.05} value={sel.opacity ?? 1} onChange={e => update(sel.id, { opacity: Math.min(1, Math.max(0.05, Number(e.target.value) || 1)) })} className={iCls + ' mt-1'} style={iStyle} />
+                  </label>
+                </div>
+              )}
+
+              {/* Fixed / multi-page behaviour */}
+              <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Show on page
+                <select value={sel.on ?? 'first'} onChange={e => update(sel.id, { on: e.target.value as LayoutEl['on'] })} className={iCls + ' mt-1'} style={iStyle}>
+                  <option value="first">First page only</option>
+                  <option value="all">Every page (fixed)</option>
+                  <option value="last">Last page only</option>
+                </select>
+              </label>
+
+              <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Layer
+                <select value={sel.layer ?? 'normal'} onChange={e => update(sel.id, { layer: e.target.value as LayoutEl['layer'] })} className={iCls + ' mt-1'} style={iStyle}>
+                  <option value="normal">Normal</option>
+                  <option value="back">Background (behind everything)</option>
+                  <option value="front">Foreground (above everything)</option>
+                  <option value="reserve">Reserve space (content flows around)</option>
+                </select>
+              </label>
 
               <div className="grid grid-cols-4 gap-1.5 pt-1">
                 {(['x', 'y', 'w', 'h'] as const).map(k => (

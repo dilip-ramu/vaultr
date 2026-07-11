@@ -45,6 +45,11 @@ export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }
       return <div style={baseText}>{el.label ? <span style={{ color: '#aaa', fontWeight: 700 }}>{el.label} </span> : null}{v}</div>
     }
 
+    case 'image':
+      return el.src
+        ? <img src={el.src} alt="" style={{ width: '100%', height: '100%', objectFit: el.fit ?? 'contain', opacity: el.opacity ?? 1 }} />
+        : <div style={{ width: '100%', height: '100%', border: '1px dashed #cbd5e1', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#94a3b8' }}>IMAGE</div>
+
     case 'logo':
       return ctx.logoUrl
         ? <img src={ctx.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'left center' }} />
@@ -112,21 +117,95 @@ export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }
   }
 }
 
-/** Full A4 sheet rendered from a layout + data. Wrapped in `.vinv > .sheet` so
- *  the existing HTML→PDF download captures it. Scale to fit for on-screen use. */
+// Row metrics used to work out how many line items fit on one page.
+const ROW_H = 26
+const HEAD_H = 24
+
+/**
+ * Renders the document from a layout + data, paginating the line-item table
+ * across as many A4 pages as needed. Elements marked `on: 'all'` repeat on every
+ * page (letterheads, watermarks, headers); `'last'` (totals, signature) only on
+ * the final page. All pages live inside one `.sheet` so the HTML→PDF download
+ * slices them into pages cleanly.
+ */
 export default function LayoutRenderer({ layout, ctx, scale = 1, print = false }: { layout: DocLayout; ctx: LayoutContext; scale?: number; print?: boolean }) {
+  const li = layout.elements.find(e => e.type === 'lineItems')
+
+  // Elements that reserve space on a given page — the table flows around them.
+  const reservesFor = (p: number) => layout.elements.filter(e => {
+    if (e.layer !== 'reserve') return false
+    const on = e.on ?? 'first'
+    return on === 'all' || (on === 'first' && p === 0)
+  })
+
+  /** The table's box on page p after flowing around reserved elements. */
+  const liBox = (p: number) => {
+    if (!li) return { y: 0, h: 0 }
+    let top = li.y
+    let bottom = li.y + li.h
+    for (const b of reservesFor(p)) {
+      const bTop = b.y, bBottom = b.y + b.h
+      if (bBottom <= top || bTop >= bottom) continue          // no overlap
+      if (bTop <= top) top = Math.max(top, bBottom)           // covers the top → push down
+      else bottom = Math.min(bottom, bTop)                    // starts inside → cut short
+    }
+    return { y: top, h: Math.max(HEAD_H + ROW_H, bottom - top) }
+  }
+
+  // Paginate the rows, honouring each page's available table height.
+  const chunks: LayoutContext['rows'][] = []
+  if (li) {
+    let i = 0, p = 0
+    do {
+      const box = liBox(p)
+      const cap = Math.max(1, Math.floor((box.h - HEAD_H) / ROW_H))
+      chunks.push(ctx.rows.slice(i, i + cap))
+      i += cap; p++
+    } while (i < ctx.rows.length && p < 50)
+  }
+  const pages = li ? Math.max(1, chunks.length) : 1
+
+  const visible = (el: LayoutEl, p: number) => {
+    if (el.type === 'lineItems') return true
+    switch (el.on ?? 'first') {
+      case 'all': return true
+      case 'last': return p === pages - 1
+      default: return p === 0
+    }
+  }
+  const zFor = (el: LayoutEl) => el.layer === 'back' ? 0 : el.layer === 'front' ? 100 : 1
+
   const sheet = (
-    <div className="sheet" style={{ position: 'relative', width: PAGE_W, height: PAGE_H, background: '#fff', overflow: 'hidden', fontFamily: "'Manrope', system-ui, -apple-system, sans-serif", boxShadow: print ? 'none' : '0 12px 40px rgba(0,0,0,.16)' }}>
-      {layout.elements.map(el => (
-        <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h }}>
-          <ElementContent el={el} ctx={ctx} />
-        </div>
-      ))}
+    <div className="sheet" style={{ position: 'relative', width: PAGE_W, height: PAGE_H * pages, background: '#fff', overflow: 'hidden', fontFamily: "'Manrope', system-ui, -apple-system, sans-serif", boxShadow: print ? 'none' : '0 12px 40px rgba(0,0,0,.16)' }}>
+      {Array.from({ length: pages }).map((_, p) => {
+        const box = liBox(p)
+        const pageCtx: LayoutContext = li ? { ...ctx, rows: chunks[p] ?? [] } : ctx
+        return (
+          <div key={p} style={{ position: 'absolute', top: p * PAGE_H, left: 0, width: PAGE_W, height: PAGE_H, overflow: 'hidden', borderTop: p > 0 && !print ? '1px dashed #e5e7eb' : 'none' }}>
+            {layout.elements.filter(el => visible(el, p)).map(el => {
+              const isTable = el.type === 'lineItems'
+              return (
+                <div key={el.id} style={{
+                  position: 'absolute',
+                  left: el.x,
+                  top: isTable ? box.y : el.y,
+                  width: el.w,
+                  height: isTable ? box.h : el.h,
+                  zIndex: zFor(el),
+                }}>
+                  <ElementContent el={el} ctx={pageCtx} />
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
     </div>
   )
+
   if (scale === 1) return <div className="vinv" style={{ display: 'flex', justifyContent: 'center' }}>{sheet}</div>
   return (
-    <div className="vinv" style={{ width: PAGE_W * scale, height: PAGE_H * scale }}>
+    <div className="vinv" style={{ width: PAGE_W * scale, height: PAGE_H * pages * scale }}>
       <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>{sheet}</div>
     </div>
   )

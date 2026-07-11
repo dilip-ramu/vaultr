@@ -15,6 +15,7 @@ export const TEMPLATE_FORMATS: TemplateFormat[] = [
   { slug: 'purchase_order',   label: 'Purchase Order' },
   { slug: 'debit_note',       label: 'Debit Note' },
   { slug: 'salary_slip',      label: 'Salary Slip' },
+  { slug: 'contract',         label: 'Employment Contract', ready: true },
 ]
 
 export function templateFormat(slug: string): TemplateFormat | undefined {

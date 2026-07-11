@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic'
 export default async function TemplateFormatPage({ params }: { params: Promise<{ format: string }> }) {
   const { format } = await params
   const fmt = templateFormat(format)
-  if (!fmt || format === 'cheque') notFound()   // cheque has its own editor
+  // cheque + contract have their own dedicated editors
+  if (!fmt || format === 'cheque' || format === 'contract') notFound()
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
