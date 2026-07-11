@@ -23,7 +23,10 @@ const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFra
 export default function DocumentsClient({ side, lockedType, initialDocs }: Props) {
   const cfg = docConfigFor(lockedType, side)!
   const [docs, setDocs] = useState<DocumentRow[]>(initialDocs)
+  const [convertDoc, setConvertDoc] = useState<DocumentRow | null>(null)
   const newHref = `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${lockedType}/new`
+  const convertHref = (targetType: string, kind: 'document' | 'invoice', id: string) =>
+    kind === 'invoice' ? `/customers/invoices/new?fromDoc=${id}` : `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${targetType}/new?from=${id}`
 
   async function del(d: DocumentRow) {
     if (!await confirmDialog(`Delete ${cfg.label} ${d.number}?`)) return
@@ -50,7 +53,7 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
           <Link href={newHref} className="text-sm mt-1 inline-block font-semibold" style={{ color: 'var(--brand)' }}>Create the first one →</Link>
         </div>
       ) : (
-        <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <div className="rounded-2xl border" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
           <table className="w-full text-sm">
             <thead><tr style={{ background: 'var(--surface-2)' }}>
               {['Number', 'Date', cfg.partyLabel, 'Total', ''].map((h, i) => <th key={i} className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide ${i >= 3 ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text-muted)' }}>{h}</th>)}
@@ -70,17 +73,7 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
                   <td className="px-4 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1.5">
                       {convertTargets(lockedType).length > 0 && (
-                        <details className="relative inline-block">
-                          <summary className="w-8 h-8 rounded-lg inline-flex items-center justify-center cursor-pointer list-none" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }} title="Convert to…"><ArrowRight className="w-3.5 h-3.5" /></summary>
-                          <div className="absolute right-0 mt-1 z-20 rounded-xl border py-1 shadow-lg" style={{ background: 'var(--surface)', borderColor: 'var(--border)', minWidth: 170 }}>
-                            {convertTargets(lockedType).map(t => (
-                              <Link key={t.type} href={t.kind === 'invoice' ? `/customers/invoices/new?fromDoc=${d.id}` : `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${t.type}/new?from=${d.id}`}
-                                className="block px-3 py-1.5 text-xs font-semibold hover:bg-[var(--surface-2)]" style={{ color: 'var(--text)' }}>
-                                → {t.label}
-                              </Link>
-                            ))}
-                          </div>
-                        </details>
+                        <button onClick={() => setConvertDoc(d)} className="h-8 px-2.5 rounded-lg inline-flex items-center gap-1 text-xs font-semibold" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }} title="Convert this document into the next step">Convert<ArrowRight className="w-3.5 h-3.5" /></button>
                       )}
                       <Link href={`${newHref.replace(/\/new$/, '')}/${d.id}/edit`} className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }} title="Edit"><Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></Link>
                       <a href={`/documents/${d.id}/print`} target="_blank" rel="noreferrer" className="w-8 h-8 rounded-lg inline-flex items-center justify-center" style={{ background: 'var(--surface-2)' }} title="Print / PDF"><Printer className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></a>
@@ -91,6 +84,28 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {convertDoc && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={e => { if (e.target === e.currentTarget) setConvertDoc(null) }}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden" style={{ background: 'var(--surface)' }}>
+            <div className="px-5 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+              <p className="font-extrabold" style={{ color: 'var(--text)' }}>Convert {cfg.label.toLowerCase()}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{convertDoc.number} — carries the party &amp; line items forward.</p>
+            </div>
+            <div className="p-3 space-y-1.5">
+              {convertTargets(lockedType).map(t => (
+                <Link key={t.type} href={convertHref(t.type, t.kind, convertDoc.id)} onClick={() => setConvertDoc(null)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+                  <span>{t.label}</span><ArrowRight className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                </Link>
+              ))}
+            </div>
+            <div className="px-5 py-3 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
+              <button onClick={() => setConvertDoc(null)} className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
