@@ -168,7 +168,7 @@ export default async function ReimbursablePrintPage({ params }: Props) {
       'party.label': 'BILL TO',
       'party.name': (cust?.name as string | null) ?? '',
       'party.address': [cust?.address, cust?.country].filter(Boolean).join(', '),
-      'party.gstin': '',
+      'party.gstin': String(cust?.gst_number ?? ''),
       'totals.grandLabel': 'TOTAL',
       'totals.grand': fmtCur(total),
       'totals.inWords': '',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Plus, Trash2, Loader2 } from 'lucide-react'
@@ -55,6 +55,20 @@ export default function DocumentForm({ side, docType, companies, parties, existi
   const [lines, setLines] = useState<Line[]>(() =>
     initial?.lines?.length ? initial.lines.map(l => ({ id: ++seq, ...l })) : [{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
   const [saving, setSaving] = useState(false)
+
+  // For NEW documents, show the authoritative next number from the server
+  // (peeked, not consumed) so it's never stale or stuck at 0001.
+  useEffect(() => {
+    if (isEdit || !companyId) return
+    let cancelled = false
+    const prefix = companyPrefix(companyId)
+    fetch(`/api/documents/next-number?company=${companyId}&code=${encodeURIComponent(cfg.code)}&prefix=${encodeURIComponent(prefix)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d?.number) setNumberStr(d.number as string) })
+      .catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, isEdit, cfg.code])
 
   const party = parties.find(p => p.id === partyId)
   const setLine = (id: number, patch: Partial<Line>) => setLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l))

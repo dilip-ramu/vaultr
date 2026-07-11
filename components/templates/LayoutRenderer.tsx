@@ -51,6 +51,8 @@ export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }
 
     case 'field': {
       const v = ctx.fields[el.field ?? ''] ?? ''
+      // Don't print a dangling label when there's no value.
+      if (!v) return null
       return <div style={baseText}>{el.label ? <span style={{ color: '#aaa', fontWeight: 700 }}>{el.label} </span> : null}{v}</div>
     }
 
@@ -197,18 +199,31 @@ export default function LayoutRenderer({ layout, ctx, scale = 1, print = false }
     <div className="sheet" style={{ position: 'relative', width: PAGE_W, height: PAGE_H * pages, background: '#fff', overflow: 'hidden', fontFamily: "'Manrope', system-ui, -apple-system, sans-serif", boxShadow: print ? 'none' : '0 12px 40px rgba(0,0,0,.16)' }}>
       {Array.from({ length: pages }).map((_, p) => {
         const box = liBox(p)
-        const pageCtx: LayoutContext = li ? { ...ctx, rows: chunks[p] ?? [] } : ctx
+        const pageRows = li ? (chunks[p] ?? []) : []
+        const pageCtx: LayoutContext = li ? { ...ctx, rows: pageRows } : ctx
+
+        // The table shrinks to the rows actually on this page, and everything
+        // BELOW it follows — so the totals/signature hug the last row instead of
+        // floating at a fixed spot. Elements pinned to every page never move.
+        const actualH = li ? Math.min(box.h, HEAD_H + pageRows.length * ROW_H) : 0
+        const designedBottom = box.y + box.h
+        const actualBottom = box.y + actualH
+        const followDelta = li ? actualBottom - designedBottom : 0   // ≤ 0
+
         return (
           <div key={p} style={{ position: 'absolute', top: p * PAGE_H, left: 0, width: PAGE_W, height: PAGE_H, overflow: 'hidden', borderTop: p > 0 && !print ? '1px dashed #e5e7eb' : 'none' }}>
             {layout.elements.filter(el => visible(el, p)).map(el => {
               const isTable = el.type === 'lineItems'
+              const pinned = (el.on ?? 'first') === 'all'
+              // Anything below the table that isn't pinned flows with the content.
+              const follows = !isTable && !pinned && li != null && el.y >= designedBottom
               return (
                 <div key={el.id} style={{
                   position: 'absolute',
                   left: el.x,
-                  top: isTable ? box.y : el.y,
+                  top: isTable ? box.y : el.y + (follows ? followDelta : 0),
                   width: el.w,
-                  height: isTable ? box.h : el.h,
+                  height: isTable ? actualH : el.h,
                   zIndex: zFor(el),
                   ...elTransform(el),
                 }}>
