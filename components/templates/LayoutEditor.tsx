@@ -59,7 +59,7 @@ function snapSize(el: LayoutEl, others: LayoutEl[], nw: number, nh: number) {
   return { w: Math.max(24, w), h: Math.max(14, h), gx, gy }
 }
 
-export default function LayoutEditor({ format, companyId, initial, ctx }: { format: string; companyId: string; initial: DocLayout; ctx: LayoutContext }) {
+export default function LayoutEditor({ format, companyId, initial, ctx, onSaved }: { format: string; companyId: string; initial: DocLayout; ctx: LayoutContext; onSaved?: (layout: DocLayout, isCustom: boolean) => void }) {
   const [els, setEls] = useState<LayoutEl[]>(initial.elements)
   const [hist, setHist] = useState<LayoutEl[][]>([initial.elements])
   const [hIdx, setHIdx] = useState(0)
@@ -163,14 +163,17 @@ export default function LayoutEditor({ format, companyId, initial, ctx }: { form
       })
       if (!res.ok) { const d = await res.json(); notify(d.error ?? 'Save failed', 'error'); return }
       notify('Template saved ✓', 'success')
+      onSaved?.({ version: 1, elements: els }, true)
     } finally { setSaving(false) }
   }
 
   async function reset() {
     await fetch(`/api/document-layouts?company=${companyId}&format=${format}`, { method: 'DELETE' })
-    commit(defaultLayout(format, TITLES[format] ?? 'DOCUMENT').elements)
+    const def = defaultLayout(format, TITLES[format] ?? 'DOCUMENT')
+    commit(def.elements)
     setSelId(null)
     notify('Reset to the built-in design', 'success')
+    onSaved?.(def, false)
   }
 
   const iCls = 'w-full px-2 py-1.5 rounded-lg border text-sm'
