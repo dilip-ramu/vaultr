@@ -634,7 +634,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
                                 {selected.has(tx.id) ? <CheckSquare className="w-5 h-5" style={{ color: 'var(--brand)' }} /> : <Square className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />}
                               </button>
                               <div className="flex-1 min-w-0">
-                                <TransactionItem transaction={tx} isFirst={i === 0} isLast={last} onEdit={handleEdit} onDelete={handleDelete} contextAccountId={accountFilter !== 'all' ? accountFilter : undefined} />
+                                <TransactionItem transaction={tx} isFirst={i === 0} isLast={last} onEdit={handleEdit} onDelete={handleDelete} contextAccountId={accountFilter !== 'all' ? accountFilter : undefined} accounts={accounts} categories={categories} onSplit={handleDelete} />
                               </div>
                             </div>
                           )

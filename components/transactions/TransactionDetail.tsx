@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Pencil, Trash2, ArrowRight, Calendar } from 'lucide-react'
+import { X, Pencil, Trash2, ArrowRight, Calendar, Split } from 'lucide-react'
+import SplitTransactionModal from './SplitTransactionModal'
 import type { Transaction, Account, Category } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -16,10 +17,16 @@ interface Props {
   onEdit: (tx: Transaction) => void
   onDelete: (id: string) => void
   onClose: () => void
+  /** Needed for the Split action (categories + destination accounts). */
+  accounts?: Account[]
+  categories?: Category[]
+  /** Called after a successful split — the original is gone, list must refresh. */
+  onSplit?: (originalId: string) => void
 }
 
-export default function TransactionDetail({ transaction: tx, onEdit, onDelete, onClose }: Props) {
+export default function TransactionDetail({ transaction: tx, onEdit, onDelete, onClose, accounts = [], categories = [], onSplit }: Props) {
   const [deleting, setDeleting] = useState(false)
+  const [splitting, setSplitting] = useState(false)
   const account   = tx.account    as Account  | undefined
   const toAccount = tx.to_account as Account  | undefined
   const category  = tx.category   as Category | undefined
@@ -81,6 +88,17 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
           </div>
 
           <div className="flex items-center gap-1 shrink-0 ml-2">
+            {/* Split — replace this transaction with several parts */}
+            {accounts.length > 0 && (
+              <button
+                onClick={() => setSplitting(true)}
+                title="Split into multiple transactions"
+                className="w-11 h-11 flex items-center justify-center rounded-xl"
+                style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}
+              >
+                <Split className="w-4 h-4" />
+              </button>
+            )}
             {/* Edit — 44px touch target */}
             <button
               onClick={() => onEdit(tx)}
@@ -158,6 +176,16 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
           </div>
         </div>
       </div>
+
+      {splitting && (
+        <SplitTransactionModal
+          transaction={tx}
+          accounts={accounts}
+          categories={categories}
+          onClose={() => setSplitting(false)}
+          onDone={() => { setSplitting(false); onSplit?.(tx.id); onClose() }}
+        />
+      )}
     </div>
   )
 }

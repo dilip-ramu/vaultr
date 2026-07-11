@@ -17,9 +17,13 @@ interface Props {
   onDelete: (id: string) => void
   /** When viewing a specific account, transfers show +/- relative to this account */
   contextAccountId?: string
+  /** For the Split action in the detail sheet. */
+  accounts?: import('@/lib/types').Account[]
+  categories?: import('@/lib/types').Category[]
+  onSplit?: (originalId: string) => void
 }
 
-export default function TransactionItem({ transaction: tx, isFirst, isLast, onEdit, onDelete, contextAccountId }: Props) {
+export default function TransactionItem({ transaction: tx, isFirst, isLast, onEdit, onDelete, contextAccountId, accounts, categories, onSplit }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   const account = tx.account as Account | undefined
@@ -156,6 +160,9 @@ export default function TransactionItem({ transaction: tx, isFirst, isLast, onEd
           onEdit={t => { setShowDetail(false); onEdit(t) }}
           onDelete={id => { setShowDetail(false); onDelete(id) }}
           onClose={() => setShowDetail(false)}
+          accounts={accounts}
+          categories={categories}
+          onSplit={onSplit}
         />
       )}
     </>

@@ -60,42 +60,71 @@ export default async function SalarySlipPrintPage({ params }: Props) {
 
   const accent = normalizeAccent(company?.invoice_accent ?? undefined)
 
-  // Custom per-company salary-slip template, if designed.
-  let layout: import('@/lib/documents/layout').DocLayout | null = null
-  let ctx: import('@/lib/documents/layoutContext').LayoutContext | null = null
+  // The salary slip always renders from its template: the company's saved one,
+  // or the built-in default. What you see in Templates is what prints.
+  const { defaultLayout } = await import('@/lib/documents/layout')
+  const { amountToWords } = await import('@/lib/recoverables/invoices/words')
+  let layout: import('@/lib/documents/layout').DocLayout = defaultLayout('salary_slip', 'SALARY SLIP')
   if (companyId) {
     const { data: lay } = await supabase.from('document_layouts').select('schema')
       .eq('user_id', user.id).eq('company_id', companyId).eq('format', 'salary_slip').maybeSingle()
-    layout = (lay?.schema as import('@/lib/documents/layout').DocLayout | null) ?? null
+    if (lay?.schema) layout = lay.schema as import('@/lib/documents/layout').DocLayout
   }
-  if (layout) {
-    const n = (v: unknown) => Number(v ?? 0)
-    const inr = (v: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(v || 0)
-    const basic = n(e.salary_inr)
-    const earn: [string, number][] = [['Basic', basic], ['Allowances', n(e.allowances)], ['Overtime', n(e.overtime)], ['Incentives', n(e.incentives)]]
-    const ded: [string, number][] = [['Deductions', n(e.deductions)], ['Advance', n(e.advance)]]
-    const gross = earn.reduce((s, [, v]) => s + v, 0)
-    const totDed = ded.reduce((s, [, v]) => s + v, 0)
-    const net = n(e.final_payable)
-    const monthLabel = String(e.month?.payroll_month ?? '')
-    ctx = {
-      accent,
-      fields: {
-        'doc.title': 'SALARY SLIP', 'company.name': company?.name ?? '', 'company.address': company?.address ?? '',
-        'employee.name': employee?.name ?? '', 'employee.id': String(employee?.employee_id ?? ''), 'employee.designation': String(employee?.designation ?? ''),
-        'slip.month': monthLabel, 'slip.net': inr(net), 'slip.words': (await import('@/lib/recoverables/invoices/words')).amountToWords(net, 'INR'),
-      },
-      columns: [{ key: 'c', label: 'COMPONENT', flex: 2 }, { key: 'a', label: 'AMOUNT', align: 'right', flex: 1 }],
-      rows: [
-        ...earn.map(([l, v]) => ({ cells: { c: l, a: inr(v) } })),
-        { strong: true, cells: { c: 'Gross earnings', a: inr(gross) } },
-        ...ded.map(([l, v]) => ({ danger: true, cells: { c: l, a: inr(v) } })),
-        { strong: true, cells: { c: 'Total deductions', a: inr(totDed) } },
-      ],
-      totals: [], grandLabel: 'NET PAY', grandValue: inr(net),
-      bankLines: [employee?.bank_name, employee?.account_number ? 'A/C ' + employee.account_number : '', employee?.ifsc ? 'IFSC ' + employee.ifsc : ''].filter(Boolean) as string[],
-      logoUrl, signatureUrl,
-    }
+
+  const n = (v: unknown) => Number(v ?? 0)
+  const inr = (v: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(v || 0)
+  const fmtDate = (d: unknown) => {
+    if (!d) return '—'
+    const dt = new Date(String(d))
+    return isNaN(dt.getTime()) ? String(d) : dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const monthLabel = (() => {
+    const m = String(e.month?.payroll_month ?? '')
+    const p = m.split('T')[0].split('-'); const mi = parseInt(p[1] ?? '', 10) - 1
+    return (mi >= 0 && mi < 12) ? `${MONTHS[mi]} ${p[0]}` : m
+  })()
+
+  const basic = n(e.salary_inr)
+  const earn: [string, number][] = [['Basic', basic], ['Allowances', n(e.allowances)], ['Overtime', n(e.overtime)], ['Incentives', n(e.incentives)]]
+  const ded: [string, number][] = [['Deductions', n(e.deductions)], ['Advance', n(e.advance)]]
+  const gross = earn.reduce((s, [, v]) => s + v, 0)
+  const totDed = ded.reduce((s, [, v]) => s + v, 0)
+  const net = n(e.final_payable)
+  const rate = n(e.expended_rate)
+
+  const ctx: import('@/lib/documents/layoutContext').LayoutContext = {
+    accent,
+    fields: {
+      'doc.title': 'SALARY SLIP',
+      'company.name': company?.name ?? '',
+      'company.address': company?.address ?? '',
+      'employee.name': employee?.name ?? '',
+      'employee.id': String(employee?.employee_id ?? '—'),
+      'employee.designation': String(employee?.designation ?? '—'),
+      'employee.pan': String(employee?.pan_number ?? '—'),
+      'employee.joining': fmtDate(employee?.joining_date),
+      'employee.bank': String(employee?.bank_name ?? '—'),
+      'employee.account': String(employee?.account_number ?? '—'),
+      'employee.ifsc': String(employee?.ifsc ?? '—'),
+      'slip.month': monthLabel,
+      'slip.paidOn': fmtDate(e.month?.payment_date),
+      'slip.gross': inr(gross),
+      'slip.deductions': inr(totDed),
+      'slip.net': inr(net),
+      'slip.words': amountToWords(net, 'INR'),
+      'slip.sourceSalary': `${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2 }).format(n(e.salary_amount))} ${employee?.salary_currency || 'EUR'}`,
+      'slip.fxRate': rate > 0 ? inr(rate) : '—',
+    },
+    columns: [{ key: 'c', label: 'COMPONENT', flex: 2 }, { key: 'a', label: 'AMOUNT', align: 'right', flex: 1 }],
+    rows: [
+      ...earn.map(([l, v]) => ({ cells: { c: l, a: inr(v) } })),
+      { strong: true, cells: { c: 'Gross earnings', a: inr(gross) } },
+      ...ded.map(([l, v]) => ({ danger: true, cells: { c: l, a: inr(v) } })),
+      { strong: true, cells: { c: 'Total deductions', a: inr(totDed) } },
+    ],
+    totals: [], grandLabel: 'NET PAY', grandValue: inr(net),
+    bankLines: [], logoUrl, signatureUrl,
   }
 
   return (

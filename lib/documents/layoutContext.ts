@@ -50,6 +50,36 @@ export function sampleContext(format: string, accent: string): LayoutContext {
     purchase_order: 'PURCHASE ORDER', debit_note: 'DEBIT NOTE', salary_slip: 'SALARY SLIP', reimbursable: 'INVOICE',
   } as Record<string, string>)[format] ?? 'DOCUMENT'
 
+  if (format === 'salary_slip') {
+    return {
+      accent,
+      fields: {
+        'doc.title': 'SALARY SLIP',
+        'company.name': 'Your Company Pvt Ltd', 'company.address': '2/1010F, Road, City 641605',
+        'employee.name': 'Asha Rao', 'employee.id': 'EMP-014', 'employee.designation': 'Designer',
+        'employee.pan': 'ABCDE1234F', 'employee.joining': '01 Apr 2024',
+        'employee.bank': 'HDFC Bank', 'employee.account': '50100XXXXXX', 'employee.ifsc': 'HDFC0000123',
+        'slip.month': 'July 2026', 'slip.paidOn': '05 Aug 2026',
+        'slip.gross': '₹90,000', 'slip.deductions': '₹6,500',
+        'slip.net': '₹83,500', 'slip.words': 'Eighty-three thousand five hundred rupees only',
+        'slip.sourceSalary': '1,000.00 EUR', 'slip.fxRate': '₹80.00',
+      },
+      columns: [{ key: 'c', label: 'COMPONENT', flex: 2 }, { key: 'a', label: 'AMOUNT', align: 'right', flex: 1 }],
+      rows: [
+        { cells: { c: 'Basic', a: '₹80,000' } },
+        { cells: { c: 'Allowances', a: '₹5,000' } },
+        { cells: { c: 'Overtime', a: '₹2,000' } },
+        { cells: { c: 'Incentives', a: '₹3,000' } },
+        { strong: true, cells: { c: 'Gross earnings', a: '₹90,000' } },
+        { danger: true, cells: { c: 'Deductions', a: '₹1,500' } },
+        { danger: true, cells: { c: 'Advance', a: '₹5,000' } },
+        { strong: true, cells: { c: 'Total deductions', a: '₹6,500' } },
+      ],
+      totals: [], grandLabel: 'NET PAY', grandValue: '₹83,500',
+      bankLines: [], logoUrl: null, signatureUrl: null,
+    }
+  }
+
   return {
     accent,
     fields: {

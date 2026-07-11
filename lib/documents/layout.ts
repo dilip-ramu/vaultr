@@ -67,9 +67,19 @@ const SLIP_FIELDS: FieldDef[] = [
   { key: 'employee.name', label: 'Employee name' },
   { key: 'employee.id', label: 'Employee ID' },
   { key: 'employee.designation', label: 'Designation' },
+  { key: 'employee.pan', label: 'PAN' },
+  { key: 'employee.joining', label: 'Joining date' },
+  { key: 'employee.bank', label: 'Bank name' },
+  { key: 'employee.account', label: 'Account number' },
+  { key: 'employee.ifsc', label: 'IFSC' },
   { key: 'slip.month', label: 'Salary month' },
+  { key: 'slip.paidOn', label: 'Paid on' },
+  { key: 'slip.gross', label: 'Gross earnings' },
+  { key: 'slip.deductions', label: 'Total deductions' },
   { key: 'slip.net', label: 'Net pay' },
   { key: 'slip.words', label: 'Net in words' },
+  { key: 'slip.sourceSalary', label: 'Source salary (currency)' },
+  { key: 'slip.fxRate', label: 'Exchange rate' },
 ]
 
 const REIMB_EXTRA: FieldDef[] = [
@@ -101,16 +111,36 @@ export function defaultLayout(format: string, title: string): DocLayout {
     return { version: 1, elements: [
       { id: eid(), type: 'accentBar', x: 0, y: 0, w: PAGE_W, h: 8 },
       { id: eid(), type: 'logo', x: 44, y: 40, w: 208, h: 90 },
-      { id: eid(), type: 'field', field: 'company.name', x: 44, y: 138, w: 320, h: 20, fontSize: 13, bold: true },
-      { id: eid(), type: 'field', field: 'company.address', x: 44, y: 160, w: 320, h: 40, fontSize: 10, color: '#888' },
-      { id: eid(), type: 'field', field: 'doc.title', x: 520, y: 44, w: 230, h: 26, fontSize: 19, bold: true, align: 'right', color: 'accent' },
-      { id: eid(), type: 'field', field: 'slip.month', x: 520, y: 74, w: 230, h: 18, fontSize: 12, align: 'right', color: '#888' },
-      { id: eid(), type: 'field', label: 'Employee', field: 'employee.name', x: 44, y: 230, w: 400, h: 20, fontSize: 12, bold: true },
-      { id: eid(), type: 'field', field: 'employee.designation', x: 44, y: 252, w: 400, h: 18, fontSize: 10, color: '#888' },
-      { id: eid(), type: 'lineItems', x: 44, y: 300, w: 706, h: 260 },
-      { id: eid(), type: 'field', label: 'NET PAY', field: 'slip.net', x: 470, y: 580, w: 280, h: 30, fontSize: 20, bold: true, align: 'right', color: 'accent' },
-      { id: eid(), type: 'field', field: 'slip.words', x: 470, y: 614, w: 280, h: 18, fontSize: 10, align: 'right', color: '#888' },
-      { id: eid(), type: 'signature', x: 560, y: 980, w: 190, h: 90 },
+      { id: eid(), type: 'field', field: 'company.name', x: 44, y: 138, w: 340, h: 22, fontSize: 14, bold: true },
+      { id: eid(), type: 'field', field: 'company.address', x: 44, y: 162, w: 340, h: 40, fontSize: 10, color: '#888' },
+      { id: eid(), type: 'field', field: 'doc.title', x: 500, y: 44, w: 250, h: 28, fontSize: 20, bold: true, align: 'right', color: 'accent' },
+      { id: eid(), type: 'field', field: 'slip.month', x: 500, y: 78, w: 250, h: 18, fontSize: 12, align: 'right', color: '#888' },
+
+      // Employee block
+      { id: eid(), type: 'text', text: 'EMPLOYEE', x: 44, y: 222, w: 200, h: 14, fontSize: 8, bold: true, color: '#888' },
+      { id: eid(), type: 'field', field: 'employee.name', x: 44, y: 238, w: 320, h: 20, fontSize: 13, bold: true },
+      { id: eid(), type: 'field', field: 'employee.designation', x: 44, y: 260, w: 320, h: 16, fontSize: 10, color: '#888' },
+      { id: eid(), type: 'field', label: 'ID', field: 'employee.id', x: 44, y: 278, w: 320, h: 16, fontSize: 10, color: '#888' },
+      { id: eid(), type: 'field', label: 'PAN', field: 'employee.pan', x: 44, y: 294, w: 320, h: 16, fontSize: 10, color: '#888' },
+      { id: eid(), type: 'field', label: 'Joined', field: 'employee.joining', x: 44, y: 310, w: 320, h: 16, fontSize: 10, color: '#888' },
+
+      // Paid-to block
+      { id: eid(), type: 'text', text: 'PAID TO', x: 440, y: 222, w: 200, h: 14, fontSize: 8, bold: true, color: '#888' },
+      { id: eid(), type: 'field', field: 'employee.bank', x: 440, y: 238, w: 310, h: 16, fontSize: 10.5 },
+      { id: eid(), type: 'field', label: 'A/C', field: 'employee.account', x: 440, y: 256, w: 310, h: 16, fontSize: 10.5 },
+      { id: eid(), type: 'field', label: 'IFSC', field: 'employee.ifsc', x: 440, y: 274, w: 310, h: 16, fontSize: 10.5 },
+      { id: eid(), type: 'field', label: 'Paid on', field: 'slip.paidOn', x: 440, y: 298, w: 310, h: 16, fontSize: 10.5, color: '#666' },
+
+      // Earnings + deductions (gross / total deductions are summary rows)
+      { id: eid(), type: 'lineItems', x: 44, y: 355, w: 706, h: 330 },
+
+      { id: eid(), type: 'field', label: 'NET PAY', field: 'slip.net', x: 460, y: 706, w: 290, h: 34, fontSize: 20, bold: true, align: 'right', color: 'accent' },
+      { id: eid(), type: 'field', field: 'slip.words', x: 460, y: 742, w: 290, h: 30, fontSize: 10, align: 'right', color: '#888' },
+
+      // Footer — source salary + FX rate (as on the old slip)
+      { id: eid(), type: 'field', label: 'Salary', field: 'slip.sourceSalary', x: 44, y: 1000, w: 320, h: 16, fontSize: 9, color: '#888' },
+      { id: eid(), type: 'field', label: 'Exchange rate', field: 'slip.fxRate', x: 44, y: 1018, w: 320, h: 16, fontSize: 9, color: '#888' },
+      { id: eid(), type: 'signature', x: 560, y: 985, w: 190, h: 95 },
     ] }
   }
   // Invoice-family default (quotation, proforma, SO, DC, CN, PO, DN, tax invoice)
