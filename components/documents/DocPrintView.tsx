@@ -2,12 +2,15 @@
 
 import { useState } from 'react'
 import DocDesign from './DocDesign'
+import LayoutRenderer from '@/components/templates/LayoutRenderer'
 import type { DocModel } from '@/lib/documents/model'
+import type { DocLayout } from '@/lib/documents/layout'
+import { modelToContext } from '@/lib/documents/layoutContext'
 import { downloadElementPdf, findDocSheet } from '@/lib/pdf/downloadElementPdf'
 
-/** Full-page print/download view for a single document. Owns the grey backdrop
- *  + Download button; renders the unified DocDesign. */
-export default function DocPrintView({ model, filename }: { model: DocModel; filename: string }) {
+/** Full-page print/download view for a single document. Renders the company's
+ *  saved custom template when one exists, else the built-in DocDesign. */
+export default function DocPrintView({ model, filename, layout = null }: { model: DocModel; filename: string; layout?: DocLayout | null }) {
   const [busy, setBusy] = useState(false)
   async function downloadPdf() {
     const el = findDocSheet()
@@ -38,7 +41,9 @@ export default function DocPrintView({ model, filename }: { model: DocModel; fil
         <button className="doc-btn primary" onClick={downloadPdf} disabled={busy}>{busy ? 'Preparing…' : 'Download PDF'}</button>
         <button className="doc-btn ghost" onClick={() => window.print()}>Print</button>
       </div>
-      <DocDesign model={model} />
+      {layout
+        ? <LayoutRenderer layout={layout} ctx={modelToContext(model)} print />
+        : <DocDesign model={model} />}
     </>
   )
 }

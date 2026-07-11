@@ -58,13 +58,55 @@ export default async function SalarySlipPrintPage({ params }: Props) {
     companyAddress: company?.address ?? null,
   }
 
+  const accent = normalizeAccent(company?.invoice_accent ?? undefined)
+
+  // Custom per-company salary-slip template, if designed.
+  let layout: import('@/lib/documents/layout').DocLayout | null = null
+  let ctx: import('@/lib/documents/layoutContext').LayoutContext | null = null
+  if (companyId) {
+    const { data: lay } = await supabase.from('document_layouts').select('schema')
+      .eq('user_id', user.id).eq('company_id', companyId).eq('format', 'salary_slip').maybeSingle()
+    layout = (lay?.schema as import('@/lib/documents/layout').DocLayout | null) ?? null
+  }
+  if (layout) {
+    const n = (v: unknown) => Number(v ?? 0)
+    const inr = (v: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(v || 0)
+    const basic = n(e.salary_inr)
+    const earn: [string, number][] = [['Basic', basic], ['Allowances', n(e.allowances)], ['Overtime', n(e.overtime)], ['Incentives', n(e.incentives)]]
+    const ded: [string, number][] = [['Deductions', n(e.deductions)], ['Advance', n(e.advance)]]
+    const gross = earn.reduce((s, [, v]) => s + v, 0)
+    const totDed = ded.reduce((s, [, v]) => s + v, 0)
+    const net = n(e.final_payable)
+    const monthLabel = String(e.month?.payroll_month ?? '')
+    ctx = {
+      accent,
+      fields: {
+        'doc.title': 'SALARY SLIP', 'company.name': company?.name ?? '', 'company.address': company?.address ?? '',
+        'employee.name': employee?.name ?? '', 'employee.id': String(employee?.employee_id ?? ''), 'employee.designation': String(employee?.designation ?? ''),
+        'slip.month': monthLabel, 'slip.net': inr(net), 'slip.words': (await import('@/lib/recoverables/invoices/words')).amountToWords(net, 'INR'),
+      },
+      columns: [{ key: 'c', label: 'COMPONENT', flex: 2 }, { key: 'a', label: 'AMOUNT', align: 'right', flex: 1 }],
+      rows: [
+        ...earn.map(([l, v]) => ({ cells: { c: l, a: inr(v) } })),
+        { strong: true, cells: { c: 'Gross earnings', a: inr(gross) } },
+        ...ded.map(([l, v]) => ({ danger: true, cells: { c: l, a: inr(v) } })),
+        { strong: true, cells: { c: 'Total deductions', a: inr(totDed) } },
+      ],
+      totals: [], grandLabel: 'NET PAY', grandValue: inr(net),
+      bankLines: [employee?.bank_name, employee?.account_number ? 'A/C ' + employee.account_number : '', employee?.ifsc ? 'IFSC ' + employee.ifsc : ''].filter(Boolean) as string[],
+      logoUrl, signatureUrl,
+    }
+  }
+
   return (
     <SlipPrintView
       data={sdata}
       logoUrl={logoUrl}
       signatureUrl={signatureUrl}
-      accent={normalizeAccent(company?.invoice_accent ?? undefined)}
+      accent={accent}
       filename={`Salary Slip — ${employee?.name ?? 'Employee'}.pdf`}
+      layout={layout}
+      ctx={ctx}
     />
   )
 }

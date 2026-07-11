@@ -2,19 +2,24 @@
 
 import { useState } from 'react'
 import SalarySlip17a from './SalarySlip17a'
+import LayoutRenderer from '@/components/templates/LayoutRenderer'
 import type { SalarySlipDocData } from '@/lib/payroll/slip'
+import type { DocLayout } from '@/lib/documents/layout'
+import type { LayoutContext } from '@/lib/documents/layoutContext'
 import { downloadElementPdf, findDocSheet } from '@/lib/pdf/downloadElementPdf'
 
 /** Full-page print/download view for a salary slip. Owns the grey backdrop +
  *  Download button; renders the restyled SalarySlip17a. */
 export default function SlipPrintView({
-  data, logoUrl = null, signatureUrl = null, accent = '#1F5C3A', filename,
+  data, logoUrl = null, signatureUrl = null, accent = '#1F5C3A', filename, layout = null, ctx = null,
 }: {
   data: SalarySlipDocData
   logoUrl?: string | null
   signatureUrl?: string | null
   accent?: string
   filename: string
+  layout?: DocLayout | null
+  ctx?: LayoutContext | null
 }) {
   const [busy, setBusy] = useState(false)
   async function downloadPdf() {
@@ -46,7 +51,9 @@ export default function SlipPrintView({
         <button className="doc-btn primary" onClick={downloadPdf} disabled={busy}>{busy ? 'Preparing…' : 'Download PDF'}</button>
         <button className="doc-btn ghost" onClick={() => window.print()}>Print</button>
       </div>
-      <SalarySlip17a data={data} logoUrl={logoUrl} signatureUrl={signatureUrl} accent={accent} />
+      {layout && ctx
+        ? <LayoutRenderer layout={layout} ctx={ctx} print />
+        : <SalarySlip17a data={data} logoUrl={logoUrl} signatureUrl={signatureUrl} accent={accent} />}
     </>
   )
 }

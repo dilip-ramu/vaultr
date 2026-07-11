@@ -72,6 +72,14 @@ export default async function DocumentPrintPage({ params }: Props) {
   if (docLogoPath) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(docLogoPath).data?.publicUrl ?? null
   const signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: (d.signatory_id as string | null) ?? null, companyId })
 
+  // Custom per-company template for this format, if designed.
+  let layout: import('@/lib/documents/layout').DocLayout | null = null
+  if (companyId) {
+    const { data: lay } = await supabase.from('document_layouts').select('schema')
+      .eq('user_id', user.id).eq('company_id', companyId).eq('format', docType).maybeSingle()
+    layout = (lay?.schema as import('@/lib/documents/layout').DocLayout | null) ?? null
+  }
+
   const model = issuedDocToModel(
     d as unknown as Parameters<typeof issuedDocToModel>[0],
     (lines ?? []) as unknown as Parameters<typeof issuedDocToModel>[1],
@@ -88,5 +96,5 @@ export default async function DocumentPrintPage({ params }: Props) {
     },
     { logoUrl, signatureUrl, accent },
   )
-  return <DocPrintView model={model} filename={`${String(d.number ?? 'Document')}.pdf`} />
+  return <DocPrintView model={model} filename={`${String(d.number ?? 'Document')}.pdf`} layout={layout} />
 }

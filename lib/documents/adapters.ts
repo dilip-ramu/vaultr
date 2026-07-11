@@ -139,6 +139,24 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
     bankLines: bankLines(settings),
     terms: compact(settings?.terms_conditions) ?? undefined,
     signatureUrl: refs.signatureUrl,
+    fields: {
+      'doc.title': 'TAX INVOICE',
+      'doc.number': String(inv.invoice_number ?? ''),
+      'doc.date': String(inv.invoice_date ?? ''),
+      'doc.reference': String(inv.payment_terms ?? ''),
+      'company.name': settings?.company_name ?? '',
+      'company.address': compact(settings?.company_address) ?? '',
+      'company.gstin': compact(settings?.company_gstin) ?? '',
+      'company.phone': compact(settings?.company_phone) ?? '',
+      'company.email': compact(settings?.company_email) ?? '',
+      'party.label': 'BILL TO',
+      'party.name': String(inv.customer_name ?? ''),
+      'party.address': custLines.join(', '),
+      'party.gstin': compact(inv.customer_gstin) ?? '',
+      'totals.grandLabel': 'TOTAL',
+      'totals.grand': inr(total),
+      'totals.inWords': amountToWords(total, 'INR'),
+    },
   }
 }
 
@@ -218,5 +236,23 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
     terms: compact(settings?.terms_conditions) ?? undefined,
     note: compact(doc.notes) ?? meta.noteFallback,
     signatureUrl: refs.signatureUrl,
+    fields: {
+      'doc.title': meta.title.toUpperCase(),
+      'doc.number': String(doc.number ?? ''),
+      'doc.date': String(doc.date ?? ''),
+      'doc.reference': compact(doc.reference) ?? '',
+      'company.name': settings?.company_name ?? '',
+      'company.address': compact(settings?.company_address) ?? '',
+      'company.gstin': compact(settings?.company_gstin) ?? '',
+      'company.phone': compact(settings?.company_phone) ?? '',
+      'company.email': compact(settings?.company_email) ?? '',
+      'party.label': meta.partyLabel.toUpperCase(),
+      'party.name': String(doc.party_name ?? ''),
+      'party.address': pLines.join(', '),
+      'party.gstin': compact(doc.party_gstin) ?? '',
+      'totals.grandLabel': meta.tax ? 'TOTAL' : 'TOTAL VALUE',
+      'totals.grand': inr(total),
+      'totals.inWords': meta.tax ? amountToWords(total, 'INR') : '',
+    },
   }
 }

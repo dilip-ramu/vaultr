@@ -118,5 +118,14 @@ export default async function InvoicePrintPage({ params }: Props) {
     mergedSettings,
     { logoUrl, signatureUrl, accent },
   )
-  return <DocPrintView model={model} filename={`${(invoice as RecoverableInvoice).invoice_number || 'Invoice'}.pdf`} />
+
+  // Custom per-company tax-invoice template, if designed.
+  let layout: import('@/lib/documents/layout').DocLayout | null = null
+  if (inv.company_id) {
+    const { data: lay } = await supabase.from('document_layouts').select('schema')
+      .eq('user_id', user.id).eq('company_id', inv.company_id).eq('format', 'tax_invoice').maybeSingle()
+    layout = (lay?.schema as import('@/lib/documents/layout').DocLayout | null) ?? null
+  }
+
+  return <DocPrintView model={model} filename={`${(invoice as RecoverableInvoice).invoice_number || 'Invoice'}.pdf`} layout={layout} />
 }

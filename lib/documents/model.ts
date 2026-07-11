@@ -65,6 +65,9 @@ export interface DocModel {
 
   signatureUrl?: string | null
   signatureLabel?: string    // default 'Authorised signatory'
+
+  // Flat scalar values for the coordinate template engine ('field' elements).
+  fields?: Record<string, string>
 }
 
 /** Tone → colours for the status band. */
