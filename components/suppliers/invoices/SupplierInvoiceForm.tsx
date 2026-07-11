@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { stateCodeFromGstin } from '@/lib/gst/states'
 import { X, Upload, FileText, Trash2 } from 'lucide-react'
 import type { SupplierInvoice, Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { INVOICE_CATEGORIES, PAYMENT_TERMS_OPTIONS, calcDueDateFromTerms } from '@/lib/suppliers/types'
@@ -12,6 +13,7 @@ import AmountField from '@/components/shared/AmountField'
 interface Props {
   invoice: SupplierInvoice | null
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
+  companies?: { id: string; name: string; gstin: string | null }[]
   onSaved: (inv: SupplierInvoice) => void
   onClose: () => void
 }
@@ -37,6 +39,14 @@ const EMPTY = {
   attachment_path: null as string | null,
   attachment_name: null as string | null,
   attachment_size: null as number | null,
+  // GST / input tax credit. All optional — a bill with no rate simply claims
+  // nothing, exactly as before this block existed.
+  company_id: '',
+  gst_rate: '0',
+  supplier_gstin: '',
+  hsn_sac: '',
+  itc_eligible: true,
+  reverse_charge: false,
 }
 
 const RECOVERABLE_STATUS_OPTIONS = [
@@ -47,7 +57,7 @@ const RECOVERABLE_STATUS_OPTIONS = [
   { value: 'written_off',      label: 'Written Off' },
 ]
 
-export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClose }: Props) {
+export default function SupplierInvoiceForm({ invoice, suppliers, companies = [], onSaved, onClose }: Props) {
   const [form, setForm] = useState(() => invoice ? {
     ...EMPTY,
     supplier_id: invoice.supplier_id,
@@ -70,7 +80,34 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
     is_recurring: invoice.is_recurring ?? false,
     recurrence_interval: invoice.recurrence_interval ?? 'monthly',
     recurrence_end_date: invoice.recurrence_end_date ?? '',
+    company_id: (invoice as { company_id?: string | null }).company_id ?? '',
+    gst_rate: String((invoice as { gst_rate?: number | null }).gst_rate ?? 0),
+    supplier_gstin: (invoice as { supplier_gstin?: string | null }).supplier_gstin ?? '',
+    hsn_sac: (invoice as { hsn_sac?: string | null }).hsn_sac ?? '',
+    itc_eligible: (invoice as { itc_eligible?: boolean }).itc_eligible !== false,
+    reverse_charge: (invoice as { reverse_charge?: boolean }).reverse_charge === true,
   } : { ...EMPTY })
+
+  // ── GST split ─────────────────────────────────────────────────────────────
+  // The bill total is what you have in front of you, so that's what you type.
+  // Taxable value and the tax heads are worked back OUT of it: a bill of ₹1,180
+  // at 18% is ₹1,000 + ₹180. Whether that ₹180 is IGST or CGST+SGST depends on
+  // whether the supplier is in the same state as the company claiming the credit
+  // — which both GSTINs already tell us.
+  const gstSplit = useMemo(() => {
+    const gross = Number(form.amount) || 0
+    const rate = Number(form.gst_rate) || 0
+    if (!gross || !rate) return { taxable: 0, cgst: 0, sgst: 0, igst: 0, interState: false }
+    const taxable = Math.round((gross / (1 + rate / 100)) * 100) / 100
+    const tax = Math.round((gross - taxable) * 100) / 100
+    const company = companies.find(c => c.id === form.company_id)
+    const mine = stateCodeFromGstin(company?.gstin ?? null)
+    const theirs = stateCodeFromGstin(form.supplier_gstin)
+    const interState = !!mine && !!theirs && mine !== theirs
+    return interState
+      ? { taxable, cgst: 0, sgst: 0, igst: tax, interState }
+      : { taxable, cgst: Math.round((tax / 2) * 100) / 100, sgst: Math.round((tax / 2) * 100) / 100, igst: 0, interState }
+  }, [form.amount, form.gst_rate, form.company_id, form.supplier_gstin, companies])
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -165,6 +202,18 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
         is_recurring: form.is_recurring,
         recurrence_interval: form.is_recurring ? form.recurrence_interval : null,
         recurrence_end_date: form.is_recurring && form.recurrence_end_date ? form.recurrence_end_date : null,
+        // GST. Written even when zero, so clearing a rate correctly withdraws
+        // a credit that was previously claimed.
+        company_id: form.company_id || null,
+        gst_rate: Number(form.gst_rate) || 0,
+        supplier_gstin: form.supplier_gstin.trim().toUpperCase() || null,
+        hsn_sac: form.hsn_sac.trim() || null,
+        taxable_value: gstSplit.taxable,
+        cgst_amount: gstSplit.cgst,
+        sgst_amount: gstSplit.sgst,
+        igst_amount: gstSplit.igst,
+        itc_eligible: form.itc_eligible,
+        reverse_charge: form.reverse_charge,
       }
 
       const url = invoice ? `/api/supplier-invoices/${invoice.id}` : '/api/supplier-invoices'
@@ -263,6 +312,96 @@ export default function SupplierInvoiceForm({ invoice, suppliers, onSaved, onClo
               {INVOICE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
+
+          {/* ── GST / input tax credit ───────────────────────────────────
+              Optional. Leave the rate at "No GST" and this bill behaves exactly
+              as it always has — it just claims no credit in GSTR-3B. */}
+          <div className="rounded-xl border p-3.5 space-y-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-2, var(--bg))' }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[13px] font-extrabold" style={{ color: 'var(--text)' }}>GST &amp; input tax credit</div>
+                <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  Optional — fill this in to claim credit on this bill in GSTR-3B.
+                </div>
+              </div>
+              {gstSplit.taxable > 0 && (
+                <span className="text-[10px] font-extrabold px-2 py-1 rounded-md" style={{ background: 'var(--surface)', color: 'var(--text-muted)' }}>
+                  {gstSplit.interState ? 'INTER-STATE · IGST' : 'INTRA-STATE · CGST+SGST'}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Claiming company">
+                <select
+                  value={form.company_id}
+                  onChange={e => set('company_id', e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                >
+                  <option value="">— none —</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+
+              <Field label="GST rate">
+                <select
+                  value={form.gst_rate}
+                  onChange={e => set('gst_rate', e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                >
+                  {['0', '5', '12', '18', '28'].map(r => (
+                    <option key={r} value={r}>{r === '0' ? 'No GST' : `${r}%`}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Supplier GSTIN">
+                <input
+                  value={form.supplier_gstin}
+                  onChange={e => set('supplier_gstin', e.target.value.toUpperCase())}
+                  placeholder="33AAAAA0000A1Z5"
+                  maxLength={15}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none font-mono"
+                  style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+              </Field>
+
+              <Field label="HSN / SAC">
+                <input
+                  value={form.hsn_sac}
+                  onChange={e => set('hsn_sac', e.target.value)}
+                  placeholder="996812"
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+              </Field>
+            </div>
+
+            {gstSplit.taxable > 0 && (
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] px-1" style={{ color: 'var(--text-muted)' }}>
+                <span>Taxable <b style={{ color: 'var(--text)' }}>₹{gstSplit.taxable.toLocaleString('en-IN')}</b></span>
+                {gstSplit.igst > 0
+                  ? <span>IGST <b style={{ color: 'var(--text)' }}>₹{gstSplit.igst.toLocaleString('en-IN')}</b></span>
+                  : <>
+                      <span>CGST <b style={{ color: 'var(--text)' }}>₹{gstSplit.cgst.toLocaleString('en-IN')}</b></span>
+                      <span>SGST <b style={{ color: 'var(--text)' }}>₹{gstSplit.sgst.toLocaleString('en-IN')}</b></span>
+                    </>}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={form.itc_eligible} onChange={e => set('itc_eligible', e.target.checked)} />
+                Credit is eligible
+              </label>
+              <label className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={form.reverse_charge} onChange={e => set('reverse_charge', e.target.checked)} />
+                Reverse charge
+              </label>
+            </div>
+          </div>
 
           <Field label="Notes">
             <textarea

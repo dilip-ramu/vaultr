@@ -10,7 +10,7 @@ async function InvoicesContent() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: invoices }, { data: suppliers }, { data: accounts }] = await Promise.all([
+  const [{ data: invoices }, { data: suppliers }, { data: accounts }, { data: companies }] = await Promise.all([
     supabase
       .from('supplier_invoices')
       .select('*, supplier:suppliers(id, name, supplier_code, default_category_id)')
@@ -28,6 +28,13 @@ async function InvoicesContent() {
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('name'),
+    // For the GST block on a bill: input tax credit belongs to one of my GSTINs.
+    supabase
+      .from('companies')
+      .select('id, name, gstin')
+      .eq('user_id', user.id)
+      .order('is_default', { ascending: false })
+      .order('name'),
   ])
 
   return (
@@ -35,6 +42,7 @@ async function InvoicesContent() {
       initialInvoices={invoices ?? []}
       suppliers={suppliers ?? []}
       accounts={accounts ?? []}
+      companies={(companies ?? []) as { id: string; name: string; gstin: string | null }[]}
       hideHeader
     />
   )

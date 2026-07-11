@@ -65,6 +65,7 @@ const navSections: NavSection[] = [
         subItems: [
           { href: '/profitability', label: 'Profitability', icon: Scale },
           { href: '/forecast',      label: 'Forecast',      icon: CalendarRange },
+          { href: '/gst',           label: 'GST returns',   icon: Receipt },
         ],
       },
     ],

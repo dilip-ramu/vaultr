@@ -27,12 +27,13 @@ interface Props {
   initialInvoices: SupplierInvoice[]
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
   accounts: PickerAccount[]
+  companies?: { id: string; name: string; gstin: string | null }[]
   hideHeader?: boolean
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SupplierInvoicesClient({ initialInvoices, suppliers, accounts, hideHeader = false }: Props) {
+export default function SupplierInvoicesClient({ initialInvoices, suppliers, accounts, companies = [], hideHeader = false }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -1098,6 +1099,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
         <SupplierInvoiceForm
           invoice={editing}
           suppliers={suppliers}
+          companies={companies}
           onSaved={handleSaved}
           onClose={() => { setShowForm(false); setEditing(null) }}
         />
