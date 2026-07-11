@@ -4,6 +4,7 @@ import {
   toFilingPeriod, gstr1Json, gstr1Csv, B2CL_THRESHOLD,
   type GstCompany, type OutwardSupply, type InwardSupply,
 } from '@/lib/gst/returns'
+import { printPath } from '@/lib/gst/returns'
 import { stateCodeFromGstin, isValidGstin, stateCodeFromName } from '@/lib/gst/states'
 
 // Tamil Nadu (33). Every fixture below is measured against this.
@@ -18,7 +19,7 @@ function invoice(over: Partial<OutwardSupply> = {}): OutwardSupply {
   const taxable = over.taxable ?? 1000
   const cgst = over.cgst ?? 90, sgst = over.sgst ?? 90, igst = over.igst ?? 0
   return {
-    id: 'i1', kind: 'invoice', number: 'L-2600001', date: `${MONTH}-11`,
+    id: 'i1', kind: 'invoice', source: 'tax_invoice', number: 'L-2600001', date: `${MONTH}-11`,
     partyName: 'Amaravathi', partyGstin: TN_GSTIN,
     taxable, cgst, sgst, igst, total: taxable + cgst + sgst + igst,
     lines: [{ hsn: '996812', description: 'Courier', qty: 1, taxable, rate: 18, cgst, sgst, igst }],
@@ -266,5 +267,22 @@ describe('exports', () => {
     const csv = gstr1Csv(buildGstr1([invoice({ partyName: 'Acme, Inc' })], company, MONTH))
     expect(csv).toContain('"Acme, Inc"')
     expect(csv.split('\n')).toHaveLength(2)
+  })
+})
+
+describe('print routes', () => {
+  it('points each document at the route that renders its PDF', () => {
+    expect(printPath({ source: 'tax_invoice', id: 'x' })).toBe('/recoverables/invoices/x/print')
+    expect(printPath({ source: 'reimbursable', id: 'x' })).toBe('/reimbursables/invoices/x/print')
+    expect(printPath({ source: 'document', id: 'x' })).toBe('/documents/x/print')
+  })
+
+  it('carries the id and source through onto every return row, so nothing is unreachable', () => {
+    const r = buildGstr1([
+      invoice({ id: 'a', number: 'A' }),
+      invoice({ id: 'b', number: 'B', kind: 'credit_note', source: 'document', againstNumber: 'A' }),
+    ], company, MONTH)
+    expect(r.rows.map(x => x.id)).toEqual(['a', 'b'])
+    expect(r.rows.map(x => x.source)).toEqual(['tax_invoice', 'document'])
   })
 })

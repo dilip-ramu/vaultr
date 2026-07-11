@@ -34,9 +34,22 @@ export interface SupplyLine {
 
 export type OutwardKind = 'invoice' | 'credit_note' | 'debit_note'
 
+/** Which table the document lives in — decides the print route for its PDF. */
+export type OutwardSource = 'tax_invoice' | 'reimbursable' | 'document'
+
+/** The print route that renders this document's PDF. */
+export function printPath(s: { source: OutwardSource; id: string }): string {
+  switch (s.source) {
+    case 'tax_invoice':  return `/recoverables/invoices/${s.id}/print`
+    case 'reimbursable': return `/reimbursables/invoices/${s.id}/print`
+    default:             return `/documents/${s.id}/print`
+  }
+}
+
 export interface OutwardSupply {
   id: string
   kind: OutwardKind
+  source: OutwardSource
   number: string
   date: string                 // YYYY-MM-DD
   partyName: string
@@ -121,6 +134,9 @@ export const inPeriod = (date: string, month: string): boolean => (date ?? '').s
 
 export interface Gstr1Row {
   section: Section
+  /** Identifies the underlying document, so its PDF can be pulled. */
+  id: string
+  source: OutwardSource
   gstin: string | null
   party: string
   number: string
@@ -196,6 +212,8 @@ export function buildGstr1(supplies: OutwardSupply[], company: GstCompany, month
 
     rows.push({
       section,
+      id: s.id,
+      source: s.source,
       gstin: isRegistered(s) ? (s.partyGstin ?? '').toUpperCase() : null,
       party: s.partyName,
       number: s.number,

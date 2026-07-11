@@ -17,7 +17,8 @@ export function findDocSheet(): HTMLElement | null {
   return pickSheet(document)
 }
 
-async function canvasToPdfDownload(el: HTMLElement, filename: string) {
+/** Rasterise an A4 element into a jsPDF document. */
+async function elementToPdf(el: HTMLElement) {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import('html2canvas-pro'),
     import('jspdf'),
@@ -40,26 +41,30 @@ async function canvasToPdfDownload(el: HTMLElement, filename: string) {
     pdf.addImage(img, 'JPEG', 0, position, pageW, imgH)
     heightLeft -= pageH
   }
-  pdf.save(filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`)
+  return pdf
 }
+
+const withExt = (name: string) => (name.toLowerCase().endsWith('.pdf') ? name : `${name}.pdf`)
 
 /** Download an on-screen element as a PDF. */
 export async function downloadElementPdf(el: HTMLElement, filename: string): Promise<void> {
-  await canvasToPdfDownload(el, filename)
+  const pdf = await elementToPdf(el)
+  pdf.save(withExt(filename))
 }
 
 /**
- * Download a print route (e.g. an invoice) as a PDF WITHOUT navigating away:
- * render it in a hidden off-screen iframe, capture the A4 sheet, then download.
+ * Render a print route in a hidden iframe and hand back the A4 sheet element.
+ * The caller decides what to do with it — download it, or fold it into a zip.
+ * The iframe is always torn down, even if the render throws.
  */
-export async function downloadPrintRouteAsPdf(printUrl: string, filename: string): Promise<void> {
+async function withPrintRoute<T>(printUrl: string, fn: (el: HTMLElement) => Promise<T>): Promise<T> {
   const iframe = document.createElement('iframe')
   iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:1400px;border:0;opacity:0;pointer-events:none;'
   document.body.appendChild(iframe)
   try {
     await new Promise<void>((resolve, reject) => {
       iframe.onload = () => resolve()
-      iframe.onerror = () => reject(new Error('could not load the invoice'))
+      iframe.onerror = () => reject(new Error('could not load the document'))
       iframe.src = printUrl
     })
     // Give fonts, the logo image and the layout a moment to settle.
@@ -67,9 +72,28 @@ export async function downloadPrintRouteAsPdf(printUrl: string, filename: string
     const doc = iframe.contentDocument
     if (!doc) throw new Error('render document unavailable')
     const el = pickSheet(doc)
-    if (!el) throw new Error('invoice element not found')
-    await canvasToPdfDownload(el, filename)
+    if (!el) throw new Error('document element not found')
+    return await fn(el)
   } finally {
     iframe.remove()
   }
+}
+
+/** Render a print route straight to a PDF blob — no download, no new tab. */
+export async function printRouteToPdfBlob(printUrl: string): Promise<Blob> {
+  return withPrintRoute(printUrl, async el => {
+    const pdf = await elementToPdf(el)
+    return pdf.output('blob') as Blob
+  })
+}
+
+/**
+ * Download a print route (e.g. an invoice) as a PDF WITHOUT navigating away:
+ * render it in a hidden off-screen iframe, capture the A4 sheet, then download.
+ */
+export async function downloadPrintRouteAsPdf(printUrl: string, filename: string): Promise<void> {
+  await withPrintRoute(printUrl, async el => {
+    const pdf = await elementToPdf(el)
+    pdf.save(withExt(filename))
+  })
 }

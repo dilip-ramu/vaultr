@@ -71,7 +71,7 @@ export async function collectOutward(
       }
     })
     supplies.push({
-      id: i.id as string, kind: 'invoice',
+      id: i.id as string, kind: 'invoice', source: 'tax_invoice',
       number: String(i.invoice_number ?? ''), date: String(i.invoice_date ?? ''),
       partyName: String(i.customer_name ?? ''),
       partyGstin: (i.customer_gstin as string | null) ?? null,
@@ -112,7 +112,7 @@ export async function collectOutward(
       }
     })
     supplies.push({
-      id: d.id as string,
+      id: d.id as string, source: 'document',
       kind: d.doc_type === 'credit_note' ? 'credit_note' : 'debit_note',
       number: String(d.number ?? ''), date: String(d.date ?? ''),
       partyName: String(d.party_name ?? ''),
@@ -143,7 +143,7 @@ export async function collectOutward(
     const h = heads(subtotal, n(c.cgst_amount), n(c.sgst_amount), total)
     const cust = (custs ?? []).find(x => x.id === c.customer_id) as Record<string, unknown> | undefined
     supplies.push({
-      id: c.id as string, kind: 'invoice',
+      id: c.id as string, kind: 'invoice', source: 'reimbursable',
       number: String(c.invoice_number ?? ''), date: String(c.invoice_date ?? ''),
       partyName: String(cust?.name ?? 'Customer'),
       partyGstin: (cust?.gst_number as string | null) ?? null,

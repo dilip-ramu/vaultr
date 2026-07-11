@@ -2,8 +2,10 @@
 
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { Download, AlertTriangle, FileJson, FileSpreadsheet } from 'lucide-react'
+import { Download, AlertTriangle, FileJson, FileSpreadsheet, FileArchive, Loader2 } from 'lucide-react'
 import { gstr1Csv, gstr1Json, type Gstr1, type Gstr3b, type Section } from '@/lib/gst/returns'
+import { zipReturnInvoices, type ZipProgress } from '@/lib/gst/zipInvoices'
+import { notify } from '@/components/shared/Toast'
 
 interface CompanyOpt { id: string; name: string; gstin: string | null }
 
@@ -26,8 +28,9 @@ const SECTIONS: { key: Section; label: string; note: string }[] = [
   { key: 'cdnur', label: 'Notes — unregistered', note: 'Notes issued to unregistered buyers (table 9B).' },
 ]
 
-function download(name: string, content: string, type: string) {
-  const url = URL.createObjectURL(new Blob([content], { type }))
+function download(name: string, content: string | Blob, type?: string) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type })
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url; a.download = name; a.click()
   URL.revokeObjectURL(url)
@@ -46,6 +49,33 @@ export default function GstReturnsClient({
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<'gstr1' | 'gstr3b'>('gstr1')
+  const [zipping, setZipping] = useState<ZipProgress | null>(null)
+  const [b2bOnly, setB2bOnly] = useState(false)
+
+  // Every document in the return, as one zip of PDFs. Each PDF is rendered from
+  // its print route on the fly — the same file you'd get from its Download
+  // button — so this takes roughly a second per document.
+  async function downloadZip() {
+    if (!gstr1 || !gstr1.rows.length) return
+    setZipping({ done: 0, total: 0, current: '' })
+    try {
+      const { blob, failed, count } = await zipReturnInvoices(gstr1, {
+        sections: b2bOnly ? ['b2b'] : undefined,
+        onProgress: setZipping,
+      })
+      if (!count) { notify('Nothing could be rendered — no zip was made.', 'error'); return }
+      download(`Invoices-${gstr1.period}${b2bOnly ? '-B2B' : ''}.zip`, blob)
+      if (failed.length) {
+        notify(`${count} PDF(s) zipped · ${failed.length} could not be rendered (see FAILED.txt)`, 'info')
+      } else {
+        notify(`${count} PDF(s) zipped ✓`, 'success')
+      }
+    } catch (e) {
+      notify(`Could not build the zip: ${(e as Error).message}`, 'error')
+    } finally {
+      setZipping(null)
+    }
+  }
 
   const go = (patch: { company?: string; month?: string }) => {
     const p = new URLSearchParams({ company: patch.company ?? companyId, month: patch.month ?? month })
@@ -156,10 +186,41 @@ export default function GstReturnsClient({
             >
               <FileJson className="w-3.5 h-3.5" /> Offline-tool JSON
             </button>
+            <button
+              onClick={downloadZip}
+              disabled={!!zipping || gstr1.rows.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold disabled:opacity-60"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              {zipping
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {zipping.total ? `${zipping.done}/${zipping.total}` : 'Starting'} — {zipping.current || '…'}</>
+                : <><FileArchive className="w-3.5 h-3.5" /> All invoices (.zip)</>}
+            </button>
+
+            <label className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+              <input type="checkbox" checked={b2bOnly} disabled={!!zipping} onChange={e => setB2bOnly(e.target.checked)} />
+              B2B only
+            </label>
+
             <span className="text-[12px]" style={{ color: 'var(--text-faint)' }}>
               {gstr1.rows.length} document(s) · taxable {inr(gstr1.totals.taxable)} · tax {inr(gstr1.totals.igst + gstr1.totals.cgst + gstr1.totals.sgst)}
             </span>
           </div>
+
+          {zipping && (
+            <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="flex items-center justify-between text-[12px] font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                <span>Rendering each invoice to PDF — leave this tab open.</span>
+                <span>{zipping.done} / {zipping.total || '…'}</span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${zipping.total ? (zipping.done / zipping.total) * 100 : 0}%`, background: 'var(--brand)' }}
+                />
+              </div>
+            </div>
+          )}
 
           {SECTIONS.map(s => {
             const rows = bySection.get(s.key) ?? []
