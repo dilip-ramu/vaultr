@@ -8,7 +8,7 @@ import HubTabs from './HubTabs'
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, Tag, Receipt,
   Users, Settings, Plus, LogOut, ChevronRight, ChevronDown,
-  X, Menu, PanelLeftClose, PanelLeftOpen, DollarSign, Search,
+  X, Menu, PanelLeftClose, PanelLeftOpen, Layers, DollarSign, Search,
   Moon, Sun, Eye, EyeOff, Target, RefreshCw, Lightbulb, FileText,
   Banknote, UserSquare, CalendarClock, History,
   Building2, CheckCheck,
@@ -113,7 +113,7 @@ const navSections: NavSection[] = [
     id: 'system',
     label: 'System',
     items: [
-      { href: '/setup/banks', label: 'Cheques', icon: CreditCard },
+      { href: '/templates', label: 'Templates', icon: Layers },
       {
         href: '/setup', label: 'Settings', icon: Settings,
         subItems: [
