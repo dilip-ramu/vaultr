@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import DocumentForm, { type DocInitial } from '@/components/documents/DocumentForm'
+import DocChainFlow from '@/components/documents/DocChainFlow'
 import { docConfigFor } from '@/lib/documents/config'
+import { resolveBuyChain } from '@/lib/documents/chain'
+
+const BUY_CHAIN_TYPES = ['purchase_order', 'debit_note']
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +41,18 @@ export default async function EditSupplierDocumentPage({ params }: { params: Pro
     lines: (lines ?? []).map((l: Record<string, unknown>) => ({ item: String(l.item ?? ''), hsn: String(l.hsn_sac ?? ''), qty: String(l.qty ?? '1'), rate: String(l.rate ?? ''), gst: String(l.gst_rate ?? 18) })),
   }
 
+  const chain = BUY_CHAIN_TYPES.includes(type)
+    ? await resolveBuyChain(supabase, uid, { kind: 'document', id })
+    : null
+
   return (
-    <DocumentForm side="supplier" docType={type} docId={id} initial={initial} companies={companyOpts} parties={parties} existing={(existing ?? []) as { company_id: string | null; number: string }[]} />
+    <>
+      {chain && (
+        <div className="w-full max-w-5xl mx-auto px-4 md:px-8 pt-6">
+          <DocChainFlow nodes={chain} />
+        </div>
+      )}
+      <DocumentForm side="supplier" docType={type} docId={id} initial={initial} companies={companyOpts} parties={parties} existing={(existing ?? []) as { company_id: string | null; number: string }[]} />
+    </>
   )
 }

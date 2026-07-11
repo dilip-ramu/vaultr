@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Plus, Trash2, FileText, Printer, Pencil, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
@@ -21,9 +22,23 @@ const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFra
 /** List of one document type for a side. Creation happens on a full page
  *  (DocumentForm), not a popup. */
 export default function DocumentsClient({ side, lockedType, initialDocs }: Props) {
+  const router = useRouter()
   const cfg = docConfigFor(lockedType, side)!
   const [docs, setDocs] = useState<DocumentRow[]>(initialDocs)
   const [convertDoc, setConvertDoc] = useState<DocumentRow | null>(null)
+  const [converting, setConverting] = useState(false)
+
+  async function convertToBill(id: string) {
+    setConverting(true)
+    try {
+      const res = await fetch(`/api/documents/${id}/convert-to-bill`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { notify(data.error ?? 'Could not convert', 'error'); return }
+      setConvertDoc(null)
+      notify('Draft supplier bill created ✓', 'success')
+      router.push('/suppliers/invoices')
+    } finally { setConverting(false) }
+  }
   const newHref = `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${lockedType}/new`
   const convertHref = (targetType: string, kind: 'document' | 'invoice', id: string) =>
     kind === 'invoice' ? `/customers/invoices/new?fromDoc=${id}` : `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${targetType}/new?from=${id}`
@@ -95,7 +110,12 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{convertDoc.number} — carries the party &amp; line items forward.</p>
             </div>
             <div className="p-3 space-y-1.5">
-              {convertTargets(lockedType).map(t => (
+              {convertTargets(lockedType).map(t => t.kind === 'bill' ? (
+                <button key={t.type} disabled={converting} onClick={() => convertToBill(convertDoc.id)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+                  <span>{converting ? 'Creating…' : t.label}</span><ArrowRight className="w-4 h-4" style={{ color: 'var(--brand)' }} />
+                </button>
+              ) : (
                 <Link key={t.type} href={convertHref(t.type, t.kind, convertDoc.id)} onClick={() => setConvertDoc(null)}
                   className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
                   <span>{t.label}</span><ArrowRight className="w-4 h-4" style={{ color: 'var(--brand)' }} />

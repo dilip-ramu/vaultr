@@ -5,9 +5,9 @@
 export type LinkKind = 'document' | 'recoverable_invoice' | 'supplier_invoice'
 
 export interface ConvertTarget {
-  type: string                 // target doc_type, or 'tax_invoice'
+  type: string                 // target doc_type, or 'tax_invoice' / 'supplier_bill'
   label: string
-  kind: 'document' | 'invoice' // 'document' → documents table, 'invoice' → recoverable_invoices
+  kind: 'document' | 'invoice' | 'bill' // document | tax invoice | supplier bill
 }
 
 /** What each document type can be converted into. Start anywhere; every path
@@ -30,7 +30,10 @@ export const CONVERT_MAP: Record<string, ConvertTarget[]> = {
   delivery_challan: [
     { type: 'tax_invoice', label: 'Tax Invoice', kind: 'invoice' },
   ],
-  // Credit/debit notes and purchase orders don't convert forward.
+  // Buy side: a PO becomes a supplier bill (draft) you then reconcile.
+  purchase_order: [
+    { type: 'supplier_bill', label: 'Supplier Bill', kind: 'bill' },
+  ],
 }
 
 export function convertTargets(docType: string): ConvertTarget[] {

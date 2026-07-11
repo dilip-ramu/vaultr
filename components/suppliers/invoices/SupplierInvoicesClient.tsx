@@ -1063,6 +1063,14 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                       <Pencil className="w-3 h-3" /> Edit
                     </button>
                     <button
+                      onClick={() => router.push(`/suppliers/documents/debit_note/new?against=${inv.id}`)}
+                      title="Raise a debit note against this bill"
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium border flex items-center gap-1"
+                      style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                    >
+                      + Debit note
+                    </button>
+                    <button
                       onClick={() => handleDelete(inv.id)}
                       className="px-3 py-1.5 rounded-xl text-xs font-medium"
                       style={{ background: 'color-mix(in srgb, var(--expense) 8%, transparent)', color: 'var(--expense)', border: '1px solid color-mix(in srgb, var(--expense) 20%, transparent)' }}
