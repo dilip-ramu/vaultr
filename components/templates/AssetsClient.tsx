@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Upload, Trash2, Loader2, ImagePlus } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import NumberField from '@/components/shared/NumberField'
 import { mmToPx, mm1 } from '@/lib/documents/layout'
 
 export interface TemplateAsset {
@@ -108,10 +109,10 @@ export default function AssetsClient() {
 
                   <div className="grid grid-cols-3 gap-2">
                     <label className="block text-[10px] font-semibold uppercase" style={{ color: 'var(--text-faint)' }}>W (mm)
-                      <input type="number" step={0.5} value={mm1(a.width_px)} onChange={e => patch(a.id, { width_px: Math.round(mmToPx(Number(e.target.value) || 0)) })} className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle} />
+                      <NumberField step={0.5} min={1} value={mm1(a.width_px)} onCommit={mm => patch(a.id, { width_px: Math.round(mmToPx(mm)) })} className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle} />
                     </label>
                     <label className="block text-[10px] font-semibold uppercase" style={{ color: 'var(--text-faint)' }}>H (mm)
-                      <input type="number" step={0.5} value={mm1(a.height_px)} onChange={e => patch(a.id, { height_px: Math.round(mmToPx(Number(e.target.value) || 0)) })} className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle} />
+                      <NumberField step={0.5} min={1} value={mm1(a.height_px)} onCommit={mm => patch(a.id, { height_px: Math.round(mmToPx(mm)) })} className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle} />
                     </label>
                     <label className="block text-[10px] font-semibold uppercase" style={{ color: 'var(--text-faint)' }}>Fit
                       <select value={a.fit} onChange={e => patch(a.id, { fit: e.target.value as 'contain' | 'cover' })} className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle}>

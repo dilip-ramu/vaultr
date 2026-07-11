@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import NumberField from '@/components/shared/NumberField'
 import { X, Upload, Trash2, Image as ImageIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
@@ -120,10 +121,10 @@ export default function ChequeTemplateEditor({ bank, bgUrl: initialBg, onSaved, 
             <p className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Dimensions (mm)</p>
             <div className="flex gap-2">
               <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>Width
-                <input type="number" value={width} onChange={e => setWidth(parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2.5 py-2 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                <NumberField step={1} min={50} value={width} onCommit={setWidth} className="w-full mt-1 px-2.5 py-2 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
               </label>
               <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>Height
-                <input type="number" value={height} onChange={e => setHeight(parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2.5 py-2 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                <NumberField step={1} min={20} value={height} onCommit={setHeight} className="w-full mt-1 px-2.5 py-2 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
               </label>
             </div>
           </div>
@@ -167,7 +168,7 @@ export default function ChequeTemplateEditor({ bank, bgUrl: initialBg, onSaved, 
               <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{CHEQUE_FIELD_LABELS[sel.key]} formatting</p>
               <div className="flex gap-2">
                 <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>Font (pt)
-                  <input type="number" value={sel.fontSize} onChange={e => patchField(sel.key, { fontSize: parseFloat(e.target.value) || 8 })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                  <NumberField step={0.5} min={4} max={72} value={sel.fontSize} onCommit={v => patchField(sel.key, { fontSize: v })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
                 </label>
                 <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>Colour
                   <input type="color" value={sel.color} onChange={e => patchField(sel.key, { color: e.target.value })} className="w-full mt-1 h-9 rounded-lg border p-0.5" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)' }} />
@@ -185,18 +186,18 @@ export default function ChequeTemplateEditor({ bank, bgUrl: initialBg, onSaved, 
               </div>
               <div className="flex gap-2">
                 <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>Box width (mm, optional)
-                  <input type="number" value={sel.w ?? ''} onChange={e => patchField(sel.key, { w: e.target.value ? parseFloat(e.target.value) : undefined })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                  <NumberField step={1} min={0} value={sel.w ?? 0} onCommit={v => patchField(sel.key, { w: v || undefined })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
                 </label>
                 <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>Letter spacing (pt)
-                  <input type="number" value={sel.letterSpacing ?? 0} onChange={e => patchField(sel.key, { letterSpacing: parseFloat(e.target.value) || 0 })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                  <NumberField step={0.5} value={sel.letterSpacing ?? 0} onCommit={v => patchField(sel.key, { letterSpacing: v })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
                 </label>
               </div>
               <div className="flex gap-2">
                 <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>X (mm)
-                  <input type="number" value={sel.x} onChange={e => patchField(sel.key, { x: parseFloat(e.target.value) || 0 })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                  <NumberField step={0.5} value={sel.x} onCommit={v => patchField(sel.key, { x: v })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
                 </label>
                 <label className="flex-1 text-[11px]" style={{ color: 'var(--text-faint)' }}>Y (mm)
-                  <input type="number" value={sel.y} onChange={e => patchField(sel.key, { y: parseFloat(e.target.value) || 0 })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                  <NumberField step={0.5} value={sel.y} onCommit={v => patchField(sel.key, { y: v })} className="w-full mt-1 px-2 py-1.5 rounded-lg border text-sm" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }} />
                 </label>
               </div>
             </div>

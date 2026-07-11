@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Type, Hash, Trash2, Save, RotateCcw, Loader2, Undo2, Redo2, ImagePlus } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
+import NumberField from '@/components/shared/NumberField'
 import {
   PAGE_W, PAGE_H, PAGE_W_MM, PAGE_H_MM, defaultLayout, fieldsForFormat, LAYOUT_VERSION,
   mmToPx, mm1, ptToPx, pt1,
@@ -336,7 +337,7 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
                 <>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Font size (pt)
-                      <input type="number" step={0.5} value={pt1(sel.fontSize ?? 11)} onChange={e => update(sel.id, { fontSize: ptToPx(Number(e.target.value) || 8) })} className={iCls + ' mt-1'} style={iStyle} />
+                      <NumberField step={0.5} min={4} max={96} value={pt1(sel.fontSize ?? 11)} onCommit={pt => update(sel.id, { fontSize: ptToPx(pt) })} className={iCls + ' mt-1'} style={iStyle} />
                     </label>
                     <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Align
                       <select value={sel.align ?? 'left'} onChange={e => update(sel.id, { align: e.target.value as LayoutEl['align'] })} className={iCls + ' mt-1'} style={iStyle}>
@@ -374,7 +375,7 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
               {/* Tilt / flip — works on any element, handy for stamps & banners */}
               <div className="grid grid-cols-2 gap-2">
                 <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Tilt (°)
-                  <input type="number" step={1} min={-180} max={180} value={sel.rotate ?? 0} onChange={e => update(sel.id, { rotate: Number(e.target.value) || 0 })} className={iCls + ' mt-1'} style={iStyle} />
+                  <NumberField step={1} min={-180} max={180} value={sel.rotate ?? 0} onCommit={r => update(sel.id, { rotate: r })} className={iCls + ' mt-1'} style={iStyle} />
                 </label>
                 <div className="flex items-end gap-3 pb-1">
                   <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text)' }}>
@@ -412,10 +413,10 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
                 <div className="grid grid-cols-4 gap-1.5">
                   {(['x', 'y', 'w', 'h'] as const).map(k => (
                     <label key={k} className="block text-[10px] font-semibold uppercase" style={{ color: 'var(--text-faint)' }}>{k}
-                      <input
-                        type="number" step={0.5}
+                      <NumberField
+                        step={0.5}
                         value={mm1(sel[k])}
-                        onChange={e => update(sel.id, { [k]: Math.round(mmToPx(Number(e.target.value) || 0)) })}
+                        onCommit={mm => update(sel.id, { [k]: Math.round(mmToPx(mm)) })}
                         className="w-full px-1.5 py-1 rounded-lg border text-xs mt-0.5" style={iStyle}
                       />
                     </label>

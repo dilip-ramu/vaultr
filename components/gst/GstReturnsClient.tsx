@@ -10,6 +10,14 @@ interface CompanyOpt { id: string; name: string; gstin: string | null }
 const inr = (n: number) =>
   (n < 0 ? '−' : '') + '₹' + new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n))
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+// Returns are filed for past periods; a couple of years back covers any late
+// filing or amendment, and there's no reason to offer a period that hasn't
+// happened yet.
+const THIS_YEAR = new Date().getFullYear()
+const YEARS = Array.from({ length: 6 }, (_, i) => THIS_YEAR - 4 + i)
+
 const SECTIONS: { key: Section; label: string; note: string }[] = [
   { key: 'b2b', label: 'B2B', note: 'Supplies to registered buyers (table 4).' },
   { key: 'b2cl', label: 'B2C Large', note: 'Unregistered, inter-state, above ₹2.5 lakh (table 5).' },
@@ -76,13 +84,24 @@ export default function GstReturnsClient({
           >
             {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <input
-            type="month"
-            value={month}
-            onChange={e => e.target.value && go({ month: e.target.value })}
+          <select
+            value={month.slice(5, 7)}
+            onChange={e => go({ month: `${month.slice(0, 4)}-${e.target.value}` })}
             className="px-3 py-2 rounded-lg border text-sm font-semibold"
             style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
-          />
+          >
+            {MONTHS.map((m, i) => (
+              <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+            ))}
+          </select>
+          <select
+            value={month.slice(0, 4)}
+            onChange={e => go({ month: `${e.target.value}-${month.slice(5, 7)}` })}
+            className="px-3 py-2 rounded-lg border text-sm font-semibold"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+          >
+            {YEARS.map(y => <option key={y} value={String(y)}>{y}</option>)}
+          </select>
         </div>
       </div>
 
