@@ -4,6 +4,10 @@ import type { LayoutContext } from '@/lib/documents/layoutContext'
 
 const num: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' }
 
+// Row metrics — the renderer and the paginator MUST agree on these exactly.
+const ROW_H = 30
+const HEAD_H = 26
+
 function resolveColor(c: string | undefined, accent: string): string {
   if (!c) return '#111'
   return c === 'accent' ? accent : c
@@ -88,14 +92,21 @@ export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }
     case 'lineItems': {
       const cols = el.columns?.length ? el.columns : ctx.columns
       const grid = cols.map(c => `${c.flex ?? 1}fr`).join(' ')
+      // Row and header boxes are sized EXACTLY to ROW_H / HEAD_H — the same
+      // constants the paginator uses — so a row is never half-sliced by the
+      // table's overflow, and every row is the same height regardless of text.
+      const cell: React.CSSProperties = {
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+        overflow: 'hidden', lineHeight: 1.25, alignSelf: 'center',
+      } as React.CSSProperties
       return (
         <div style={{ width: '100%', height: '100%', overflow: 'hidden', border: '1px solid #eee', borderRadius: 8 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: grid, background: `color-mix(in srgb, ${ctx.accent} 8%, #fff)`, padding: '7px 10px', fontSize: 8, fontWeight: 800, letterSpacing: '.04em', color: ctx.accent }}>
+          <div style={{ display: 'grid', gridTemplateColumns: grid, alignItems: 'center', height: HEAD_H, boxSizing: 'border-box', padding: '0 10px', gap: 8, background: `color-mix(in srgb, ${ctx.accent} 8%, #fff)`, fontSize: 8, fontWeight: 800, letterSpacing: '.04em', color: ctx.accent }}>
             {cols.map(c => <span key={c.key} style={{ textAlign: c.align ?? 'left' }}>{c.label}</span>)}
           </div>
           {ctx.rows.map((r, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: grid, padding: '7px 10px', fontSize: 9.5, color: r.danger ? '#c0392b' : (r.strong ? '#111' : '#333'), fontWeight: r.strong ? 700 : 400, borderTop: '1px solid #f2f2f2', background: r.strong ? '#fafafa' : 'transparent' }}>
-              {cols.map(c => <span key={c.key} style={{ textAlign: c.align ?? 'left', ...(c.align && c.align !== 'left' ? num : {}) }}>{r.cells[c.key] ?? ''}</span>)}
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: grid, alignItems: 'center', height: ROW_H, boxSizing: 'border-box', padding: '0 10px', gap: 8, fontSize: 9.5, color: r.danger ? '#c0392b' : (r.strong ? '#111' : '#333'), fontWeight: r.strong ? 700 : 400, borderTop: '1px solid #f2f2f2', background: r.strong ? '#fafafa' : 'transparent' }}>
+              {cols.map(c => <span key={c.key} style={{ ...cell, textAlign: c.align ?? 'left', ...(c.align && c.align !== 'left' ? num : {}) }}>{r.cells[c.key] ?? ''}</span>)}
             </div>
           ))}
         </div>
@@ -124,22 +135,21 @@ export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }
         </div>
       )
 
-    case 'terms':
+    case 'terms': {
+      if (!ctx.terms || !ctx.terms.trim()) return null
       return (
         <div style={{ ...baseText, color: el.color ? color : '#999' }}>
           <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '.08em', color: '#aaa', marginBottom: 3 }}>TERMS &amp; CONDITIONS</div>
-          {ctx.terms ?? ''}
+          {ctx.terms}
         </div>
       )
+    }
 
     default:
       return null
   }
 }
 
-// Row metrics used to work out how many line items fit on one page.
-const ROW_H = 26
-const HEAD_H = 24
 
 /**
  * Renders the document from a layout + data, paginating the line-item table
@@ -148,7 +158,26 @@ const HEAD_H = 24
  * the final page. All pages live inside one `.sheet` so the HTML→PDF download
  * slices them into pages cleanly.
  */
-export default function LayoutRenderer({ layout, ctx, scale = 1, print = false }: { layout: DocLayout; ctx: LayoutContext; scale?: number; print?: boolean }) {
+export default function LayoutRenderer({ layout, ctx: rawCtx, scale = 1, print = false }: { layout: DocLayout; ctx: LayoutContext; scale?: number; print?: boolean }) {
+  // GST compliance guard. Both parties' GSTINs must appear on every document.
+  // The default layout carries dedicated GSTIN elements, but a template designed
+  // before those existed (or one where the user removed them) would silently drop
+  // them — so if the layout binds no element to a GSTIN field, fold that GSTIN
+  // into the corresponding address block. Never both: no duplication.
+  const ctx: LayoutContext = (() => {
+    const bound = new Set(layout.elements.map(e => e.field).filter(Boolean) as string[])
+    const fields = { ...rawCtx.fields }
+    const fold = (gstKey: string, addrKey: string) => {
+      const gst = (fields[gstKey] ?? '').trim()
+      if (!gst || bound.has(gstKey)) return
+      const addr = (fields[addrKey] ?? '').trim()
+      fields[addrKey] = addr ? `${addr}\nGSTIN: ${gst}` : `GSTIN: ${gst}`
+    }
+    fold('company.gstin', 'company.address')
+    fold('party.gstin', 'party.address')
+    return { ...rawCtx, fields }
+  })()
+
   const li = layout.elements.find(e => e.type === 'lineItems')
 
   // Elements that reserve space on a given page — the table flows around them.

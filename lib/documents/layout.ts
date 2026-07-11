@@ -71,8 +71,14 @@ export interface LayoutEl {
   columns?: { key: string; label: string; align?: 'left' | 'right' | 'center'; flex?: number }[]
 }
 
+/** Bump when the built-in defaults change in a way that older saved layouts
+ *  can't render correctly. A saved layout below this version is regenerated
+ *  from the current default (see `upgradeLayout`).
+ *  v2 — correct row metrics, non-overlapping bands, GSTIN + amount-in-words. */
+export const LAYOUT_VERSION = 2
+
 export interface DocLayout {
-  version: 1
+  version: number
   elements: LayoutEl[]
 }
 
@@ -135,18 +141,10 @@ export function fieldsForFormat(format: string): FieldDef[] {
 let _id = 0
 const eid = () => `el_${Date.now().toString(36)}_${_id++}`
 
-const GST_COLUMNS: LayoutEl['columns'] = [
-  { key: 'desc', label: 'DESCRIPTION', flex: 2.6 },
-  { key: 'hsn', label: 'HSN', align: 'center', flex: 0.7 },
-  { key: 'qty', label: 'QTY', align: 'center', flex: 0.6 },
-  { key: 'rate', label: 'RATE', align: 'right', flex: 0.9 },
-  { key: 'amt', label: 'AMOUNT', align: 'right', flex: 0.9 },
-]
-
 /** A sensible starting layout for a format (used when a company has none). */
 export function defaultLayout(format: string, title: string): DocLayout {
   if (format === 'salary_slip') {
-    return { version: 1, elements: [
+    return { version: LAYOUT_VERSION, elements: [
       { id: eid(), type: 'accentBar', x: 0, y: 0, w: PAGE_W, h: 8 },
       { id: eid(), type: 'logo', x: 44, y: 40, w: 208, h: 90 },
       { id: eid(), type: 'field', field: 'company.name', x: 44, y: 138, w: 340, h: 22, fontSize: 14, bold: true },
@@ -183,26 +181,50 @@ export function defaultLayout(format: string, title: string): DocLayout {
   }
   // Invoice-family default (quotation, proforma, SO, DC, CN, PO, DN, tax invoice)
   // Theme elements (strip, logo, company block) repeat on every page.
-  return { version: 1, elements: [
+  // Vertical bands (px on the A4 canvas) — deliberately non-overlapping, with
+  // enough height for a full 3-line address plus its GSTIN line.
+  return { version: LAYOUT_VERSION, elements: [
     { id: eid(), type: 'accentBar', x: 0, y: 0, w: PAGE_W, h: 8, on: 'all' },
-    { id: eid(), type: 'logo', x: 44, y: 40, w: 208, h: 90, on: 'all' },
-    { id: eid(), type: 'field', field: 'company.name', x: 44, y: 138, w: 340, h: 22, fontSize: 14, bold: true, on: 'all' },
-    { id: eid(), type: 'field', field: 'company.address', x: 44, y: 162, w: 340, h: 32, fontSize: 10, color: '#888', on: 'all' },
+
+    // Header band: logo + seller identity (left), title + number (right)
+    { id: eid(), type: 'logo', x: 44, y: 34, w: 208, h: 84, on: 'all' },
+    { id: eid(), type: 'text', text: title, x: 470, y: 40, w: 280, h: 28, fontSize: 20, bold: true, align: 'right', color: 'accent', on: 'all' },
+    { id: eid(), type: 'field', field: 'doc.number', x: 470, y: 72, w: 280, h: 18, fontSize: 11, align: 'right', color: '#666', on: 'all' },
+
+    // Seller band: 130 → 224
+    { id: eid(), type: 'field', field: 'company.name', x: 44, y: 130, w: 380, h: 22, fontSize: 14, bold: true, on: 'all' },
+    { id: eid(), type: 'field', field: 'company.address', x: 44, y: 154, w: 380, h: 48, fontSize: 10, color: '#888', on: 'all' },
     // GSTIN of the seller — legally required on every document.
-    { id: eid(), type: 'field', label: 'GSTIN', field: 'company.gstin', x: 44, y: 196, w: 340, h: 16, fontSize: 10, color: '#666', on: 'all' },
-    { id: eid(), type: 'text', text: title, x: 500, y: 44, w: 250, h: 28, fontSize: 20, bold: true, align: 'right', color: 'accent', on: 'all' },
-    { id: eid(), type: 'field', field: 'doc.number', x: 500, y: 76, w: 250, h: 18, fontSize: 11, align: 'right', color: '#666', on: 'all' },
-    { id: eid(), type: 'field', label: '', field: 'party.label', x: 44, y: 234, w: 200, h: 14, fontSize: 8, bold: true, color: '#aaa', on: 'first' },
-    { id: eid(), type: 'field', field: 'party.name', x: 44, y: 250, w: 320, h: 20, fontSize: 12, bold: true, on: 'first' },
-    { id: eid(), type: 'field', field: 'party.address', x: 44, y: 272, w: 320, h: 30, fontSize: 10, color: '#888', on: 'first' },
+    { id: eid(), type: 'field', label: 'GSTIN', field: 'company.gstin', x: 44, y: 204, w: 380, h: 16, fontSize: 10, color: '#666', on: 'all' },
+
+    // Party band: 244 → 348
+    { id: eid(), type: 'field', label: '', field: 'party.label', x: 44, y: 244, w: 200, h: 14, fontSize: 8, bold: true, color: '#aaa', on: 'first' },
+    { id: eid(), type: 'field', field: 'party.name', x: 44, y: 260, w: 380, h: 20, fontSize: 12, bold: true, on: 'first' },
+    { id: eid(), type: 'field', field: 'party.address', x: 44, y: 282, w: 380, h: 48, fontSize: 10, color: '#888', on: 'first' },
     // GSTIN of the buyer/counterparty — legally required on every document.
-    { id: eid(), type: 'field', label: 'GSTIN', field: 'party.gstin', x: 44, y: 302, w: 320, h: 16, fontSize: 10, color: '#666', on: 'first' },
-    { id: eid(), type: 'field', label: 'Date', field: 'doc.date', x: 500, y: 250, w: 250, h: 16, fontSize: 10, align: 'right', color: '#666', on: 'first' },
-    { id: eid(), type: 'lineItems', x: 44, y: 340, w: 706, h: 290, columns: GST_COLUMNS },
-    { id: eid(), type: 'totals', x: 500, y: 650, w: 250, h: 110, on: 'last' },
-    { id: eid(), type: 'field', field: 'totals.inWords', x: 44, y: 660, w: 380, h: 40, fontSize: 9, color: '#999', on: 'last' },
-    { id: eid(), type: 'bank', x: 44, y: 980, w: 340, h: 80, fontSize: 9, on: 'last' },
-    { id: eid(), type: 'terms', x: 44, y: 1060, w: 340, h: 50, fontSize: 8, color: '#999', on: 'last' },
-    { id: eid(), type: 'signature', x: 560, y: 985, w: 190, h: 90, on: 'last' },
+    { id: eid(), type: 'field', label: 'GSTIN', field: 'party.gstin', x: 44, y: 332, w: 380, h: 16, fontSize: 10, color: '#666', on: 'first' },
+    { id: eid(), type: 'field', label: 'Date', field: 'doc.date', x: 470, y: 260, w: 280, h: 16, fontSize: 10, align: 'right', color: '#666', on: 'first' },
+
+    // Items: 372 → 852 (shrinks to the rows actually used; everything below follows up)
+    { id: eid(), type: 'lineItems', x: 44, y: 372, w: 706, h: 480 },
+
+    // Summary band
+    { id: eid(), type: 'field', label: 'Amount in words:', field: 'totals.inWords', x: 44, y: 872, w: 400, h: 40, fontSize: 9, color: '#999', on: 'last' },
+    { id: eid(), type: 'totals', x: 500, y: 872, w: 250, h: 110, on: 'last' },
+
+    // Footer band
+    { id: eid(), type: 'bank', x: 44, y: 940, w: 380, h: 80, fontSize: 9, on: 'last' },
+    { id: eid(), type: 'signature', x: 560, y: 990, w: 190, h: 90, on: 'last' },
+    { id: eid(), type: 'terms', x: 44, y: 1028, w: 400, h: 64, fontSize: 8, color: '#999', on: 'last' },
   ] }
+}
+
+/** Normalise a layout loaded from the database.
+ *  Layouts saved against an older engine (wrong row metrics, overlapping
+ *  bands, missing GSTIN) are rebuilt from the current default — a stale
+ *  template must never produce a wrong document. */
+export function upgradeLayout(saved: DocLayout | null | undefined, format: string, title: string): DocLayout | null {
+  if (!saved || !Array.isArray(saved.elements) || saved.elements.length === 0) return null
+  if ((saved.version ?? 1) < LAYOUT_VERSION) return defaultLayout(format, title)
+  return saved
 }

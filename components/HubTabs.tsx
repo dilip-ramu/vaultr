@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { TEMPLATE_FORMATS } from '@/lib/documents/templateFormats'
 
 /**
  * Route-based sub-tabs for the restructured hubs (mirrors the sidebar IA).
@@ -69,7 +68,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/setup/currencies',    label: 'Currencies' },
     { href: '/setup/export',        label: 'Downloads' },
   ] },
-  { name: 'Templates', tabs: TEMPLATE_FORMATS.map(f => ({ href: `/templates/${f.slug}`, label: f.label })) },
+  // Templates has no tab row — it's a tile hub at /templates.
 ]
 
 function matchLen(pathname: string, href: string): number {

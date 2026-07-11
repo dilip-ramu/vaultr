@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Type, Hash, Trash2, Save, RotateCcw, Loader2, Undo2, Redo2, ImagePlus } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import {
-  PAGE_W, PAGE_H, PAGE_W_MM, PAGE_H_MM, defaultLayout, fieldsForFormat,
+  PAGE_W, PAGE_H, PAGE_W_MM, PAGE_H_MM, defaultLayout, fieldsForFormat, LAYOUT_VERSION,
   mmToPx, mm1, ptToPx, pt1,
-  type DocLayout, type LayoutEl, type ElType,
-} from '@/lib/documents/layout'
+  type DocLayout, type LayoutEl, type ElType } from '@/lib/documents/layout'
 import type { LayoutContext } from '@/lib/documents/layoutContext'
 import { ElementContent, elTransform } from './LayoutRenderer'
 import type { TemplateAsset } from './AssetsClient'
@@ -205,11 +204,11 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
     try {
       const res = await fetch('/api/document-layouts', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, format, schema: { version: 1, elements: els } as DocLayout }),
+        body: JSON.stringify({ companyId, format, schema: { version: LAYOUT_VERSION, elements: els } as DocLayout }),
       })
       if (!res.ok) { const d = await res.json(); notify(d.error ?? 'Save failed', 'error'); return }
       notify('Template saved ✓', 'success')
-      onSaved?.({ version: 1, elements: els }, true)
+      onSaved?.({ version: LAYOUT_VERSION, elements: els }, true)
     } finally { setSaving(false) }
   }
 

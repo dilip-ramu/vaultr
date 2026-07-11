@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { upgradeLayout } from '@/lib/documents/layout'
 import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import SlipPrintView from '@/components/payroll/slips/SlipPrintView'
@@ -69,7 +70,7 @@ export default async function SalarySlipPrintPage({ params }: Props) {
   if (companyId) {
     const { data: lay } = await supabase.from('document_layouts').select('schema')
       .eq('user_id', user.id).eq('company_id', companyId).eq('format', 'salary_slip').maybeSingle()
-    if (lay?.schema) layout = lay.schema as import('@/lib/documents/layout').DocLayout
+    if (lay?.schema) layout = upgradeLayout(lay.schema as import('@/lib/documents/layout').DocLayout, 'salary_slip', 'SALARY SLIP') ?? layout
   }
 
   const n = (v: unknown) => Number(v ?? 0)

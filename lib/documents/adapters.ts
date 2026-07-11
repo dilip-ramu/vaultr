@@ -185,7 +185,7 @@ interface DocMeta2 {
 
 export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: InvoiceSettings | null, meta: DocMeta2, refs: BrandRefs): DocModel {
   const cols: DocColumn[] = [
-    { key: 'item', label: 'ITEM', flex: 2 },
+    { key: 'desc', label: 'DESCRIPTION', flex: 2 },
     { key: 'hsn', label: 'HSN', align: 'center', flex: 0.7 },
     { key: 'qty', label: 'QTY', align: 'center', flex: 0.6 },
     { key: 'rate', label: 'RATE', align: 'right', flex: 0.9 },
@@ -193,7 +193,7 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
   ]
   const rows: DocRow[] = lines.map(l => ({
     cells: {
-      item: String(l.item ?? ''), hsn: String(l.hsn_sac ?? ''),
+      desc: String(l.item ?? ''), hsn: String(l.hsn_sac ?? ''),
       qty: plain(Number(l.qty) || 0), rate: plain(Number(l.rate) || 0), amt: plain(Number(l.amount) || 0),
     },
   }))

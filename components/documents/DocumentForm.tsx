@@ -113,7 +113,10 @@ export default function DocumentForm({ side, docType, companies, parties, existi
       }
       let savedId = docId
       if (isEdit && docId) {
-        const { error } = await sb.from('documents').update(fields).eq('id', docId).eq('user_id', user.id)
+        // The document number is immutable once issued — strip it from the update.
+        const { number: _keep, ...editable } = fields
+        void _keep
+        const { error } = await sb.from('documents').update(editable).eq('id', docId).eq('user_id', user.id)
         if (error) { notify(error.message, 'error'); return }
         await sb.from('document_lines').delete().eq('document_id', docId).eq('user_id', user.id)
       } else {
@@ -164,13 +167,13 @@ export default function DocumentForm({ side, docType, companies, parties, existi
       <div className="rounded-2xl border p-5 space-y-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Company (from)
-            <select value={companyId} onChange={e => { setCompanyId(e.target.value); setNumberStr(nextNumber(e.target.value)) }} className={iCls} style={iStyle}>
+            <select value={companyId} onChange={e => { setCompanyId(e.target.value); if (!isEdit) setNumberStr(nextNumber(e.target.value)) }} className={iCls} style={iStyle}>
               <option value="">— pick —</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
-          <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Number {!isEdit && <span style={{ color: 'var(--text-faint)' }}>(auto)</span>}
-            <input value={numberStr} onChange={e => setNumberStr(e.target.value)} readOnly={!isEdit} className={iCls} style={{ ...iStyle, opacity: isEdit ? 1 : 0.7 }} />
+          <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Number <span style={{ color: 'var(--text-faint)' }}>({isEdit ? 'locked' : 'auto'})</span>
+            <input value={numberStr} readOnly className={iCls} style={{ ...iStyle, opacity: 0.7, cursor: 'not-allowed' }} />
           </label>
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{cfg.partyLabel}
             <select value={partyId} onChange={e => setPartyId(e.target.value)} className={iCls} style={iStyle}>

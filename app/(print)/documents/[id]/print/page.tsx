@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { upgradeLayout } from '@/lib/documents/layout'
 import { redirect, notFound } from 'next/navigation'
 import DocPrintView from '@/components/documents/DocPrintView'
 import { normalizeAccent } from '@/lib/companies/templates'
@@ -78,7 +79,7 @@ export default async function DocumentPrintPage({ params }: Props) {
   if (companyId) {
     const { data: lay } = await supabase.from('document_layouts').select('schema')
       .eq('user_id', user.id).eq('company_id', companyId).eq('format', docType).maybeSingle()
-    layout = (lay?.schema as import('@/lib/documents/layout').DocLayout | null) ?? null
+    layout = upgradeLayout((lay?.schema as import('@/lib/documents/layout').DocLayout | null) ?? null, docType, meta.title)
   }
 
   const model = issuedDocToModel(
