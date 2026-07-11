@@ -14,6 +14,15 @@ function fillTokens(text: string, fields: Record<string, string>): string {
   return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, k) => fields[k] ?? '')
 }
 
+/** Rotation / flip transform for an element — shared by the renderer + editor. */
+export function elTransform(el: LayoutEl): React.CSSProperties {
+  const rot = el.rotate ?? 0
+  const sx = el.flipX ? -1 : 1
+  const sy = el.flipY ? -1 : 1
+  if (!rot && sx === 1 && sy === 1) return {}
+  return { transform: `rotate(${rot}deg) scale(${sx}, ${sy})`, transformOrigin: 'center center' }
+}
+
 /** Inner content of a single element (no positioning) — shared by the renderer
  *  and the editor so the visuals always match. */
 export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }) {
@@ -192,6 +201,7 @@ export default function LayoutRenderer({ layout, ctx, scale = 1, print = false }
                   width: el.w,
                   height: isTable ? box.h : el.h,
                   zIndex: zFor(el),
+                  ...elTransform(el),
                 }}>
                   <ElementContent el={el} ctx={pageCtx} />
                 </div>

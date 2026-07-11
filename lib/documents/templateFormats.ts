@@ -4,6 +4,8 @@
 export interface TemplateFormat { slug: string; label: string; ready?: boolean }
 
 export const TEMPLATE_FORMATS: TemplateFormat[] = [
+  { slug: 'accent',           label: 'Accent Colour', ready: true },
+  { slug: 'signatories',      label: 'Signatories', ready: true },
   { slug: 'cheque',           label: 'Cheque', ready: true },
   { slug: 'tax_invoice',      label: 'Tax Invoice' },
   { slug: 'reimbursable',     label: 'Courier / Reimbursable' },

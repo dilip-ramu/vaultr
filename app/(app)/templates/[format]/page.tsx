@@ -10,8 +10,9 @@ export const dynamic = 'force-dynamic'
 export default async function TemplateFormatPage({ params }: { params: Promise<{ format: string }> }) {
   const { format } = await params
   const fmt = templateFormat(format)
-  // cheque + contract have their own dedicated editors
-  if (!fmt || format === 'cheque' || format === 'contract') notFound()
+  // These tabs have their own dedicated pages, not the layout designer.
+  const OWN_PAGE = ['cheque', 'contract', 'accent', 'signatories']
+  if (!fmt || OWN_PAGE.includes(format)) notFound()
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

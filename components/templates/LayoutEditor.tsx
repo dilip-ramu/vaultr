@@ -5,7 +5,7 @@ import { Type, Hash, Trash2, Save, RotateCcw, Loader2, Undo2, Redo2, ImagePlus }
 import { notify } from '@/components/shared/Toast'
 import { PAGE_W, PAGE_H, defaultLayout, fieldsForFormat, type DocLayout, type LayoutEl, type ElType } from '@/lib/documents/layout'
 import type { LayoutContext } from '@/lib/documents/layoutContext'
-import { ElementContent } from './LayoutRenderer'
+import { ElementContent, elTransform } from './LayoutRenderer'
 
 const SCALE = 0.66
 const SNAP = 6                     // snap threshold in canvas px
@@ -104,7 +104,13 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
     if (d.mode === 'move') {
       const raw = { x: Math.round(d.ox + dx), y: Math.round(d.oy + dy) }
       const s = e.altKey ? { ...raw, gx: [], gy: [] } : snap(cur, others, raw.x, raw.y)   // hold Alt to bypass snapping
-      live(d.id, { x: Math.max(0, Math.min(PAGE_W - 8, s.x)), y: Math.max(0, Math.min(PAGE_H - 8, s.y)) })
+      // Elements may bleed off ANY edge (negative x/y included) so images can be
+      // cropped by the page for a cut/bleed effect.
+      const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
+      live(d.id, {
+        x: clamp(s.x, -cur.w + 12, PAGE_W - 12),
+        y: clamp(s.y, -cur.h + 12, PAGE_H - 12),
+      })
       setGuides({ gx: s.gx, gy: s.gy })
     } else {
       const raw = { w: Math.round(d.ow + dx), h: Math.round(d.oh + dy) }
@@ -230,11 +236,16 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
         {/* Canvas */}
         <div className="rounded-xl overflow-auto" style={{ background: '#e5e7eb', padding: 16 }}>
           <div style={{ width: PAGE_W * SCALE, height: PAGE_H * SCALE, position: 'relative' }} onMouseDown={() => setSelId(null)}>
-            <div style={{ width: PAGE_W, height: PAGE_H, transform: `scale(${SCALE})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, background: '#fff' }}>
+            <div style={{ width: PAGE_W, height: PAGE_H, transform: `scale(${SCALE})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, background: '#fff', overflow: 'hidden' }}>
               {els.map(el => (
                 <div key={el.id}
                   onMouseDown={e => onDown(e, el.id, 'move')}
-                  style={{ position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h, cursor: 'move', outline: selId === el.id ? '2px solid var(--brand)' : '1px dashed rgba(0,0,0,.12)' }}>
+                  style={{
+                    position: 'absolute', left: el.x, top: el.y, width: el.w, height: el.h, cursor: 'move',
+                    outline: selId === el.id ? '2px solid var(--brand)' : '1px dashed rgba(0,0,0,.12)',
+                    zIndex: el.layer === 'back' ? 0 : el.layer === 'front' ? 100 : 1,
+                    ...elTransform(el),
+                  }}>
                   <div style={{ pointerEvents: 'none', width: '100%', height: '100%' }}><ElementContent el={el} ctx={ctx} /></div>
                   {selId === el.id && (
                     <div onMouseDown={e => onDown(e, el.id, 'resize')} style={{ position: 'absolute', right: -5, bottom: -5, width: 12, height: 12, background: 'var(--brand)', borderRadius: 3, cursor: 'nwse-resize' }} />
@@ -318,6 +329,21 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
                   </label>
                 </div>
               )}
+
+              {/* Tilt / flip — works on any element, handy for stamps & banners */}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Tilt (°)
+                  <input type="number" step={1} min={-180} max={180} value={sel.rotate ?? 0} onChange={e => update(sel.id, { rotate: Number(e.target.value) || 0 })} className={iCls + ' mt-1'} style={iStyle} />
+                </label>
+                <div className="flex items-end gap-3 pb-1">
+                  <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text)' }}>
+                    <input type="checkbox" checked={!!sel.flipX} onChange={e => update(sel.id, { flipX: e.target.checked })} /> Flip H
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text)' }}>
+                    <input type="checkbox" checked={!!sel.flipY} onChange={e => update(sel.id, { flipY: e.target.checked })} /> Flip V
+                  </label>
+                </div>
+              </div>
 
               {/* Fixed / multi-page behaviour */}
               <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Show on page

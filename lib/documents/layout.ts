@@ -48,6 +48,9 @@ export interface LayoutEl {
   src?: string            // uploaded image URL ('image')
   opacity?: number        // 0–1, for watermarks
   fit?: 'contain' | 'cover'
+  rotate?: number         // degrees, for tilted stamps/banners
+  flipX?: boolean         // mirror horizontally
+  flipY?: boolean         // mirror vertically
   columns?: { key: string; label: string; align?: 'left' | 'right' | 'center'; flex?: number }[]
 }
 
