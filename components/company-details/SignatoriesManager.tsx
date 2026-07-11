@@ -132,6 +132,24 @@ export default function SignatoriesManager({ companyId, businessType }: Props) {
                   onBlur={e => { const v = e.target.value.trim(); if (v !== (sig.designation ?? '')) void patch(sig.id, { designation: v }) }}
                   placeholder={businessType === 'partnership' ? 'Partner' : 'Proprietor'} />
               </div>
+              {/* Fixed print size — pick width OR height; the ratio is preserved */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Print size</span>
+                <select
+                  defaultValue={(sig as Row & { sign_size_mode?: string }).sign_size_mode ?? 'width'}
+                  onChange={e => void patch(sig.id, { sign_size_mode: e.target.value })}
+                  className="px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+                  <option value="width">Width</option>
+                  <option value="height">Height</option>
+                </select>
+                <input
+                  type="number" step={1} min={5} max={120}
+                  defaultValue={Number((sig as Row & { sign_size_mm?: number }).sign_size_mm ?? 50)}
+                  onBlur={e => void patch(sig.id, { sign_size_mm: Number(e.target.value) || 50 })}
+                  className="w-20 px-2 py-1 rounded-lg border text-xs" style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>mm — the other side scales to keep the ratio</span>
+              </div>
+
               <div className="flex items-center gap-2 flex-wrap">
                 <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer" style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}>
                   {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}

@@ -1,5 +1,5 @@
 import React from 'react'
-import { PAGE_W, PAGE_H, type DocLayout, type LayoutEl } from '@/lib/documents/layout'
+import { PAGE_W, PAGE_H, mmToPx, type DocLayout, type LayoutEl } from '@/lib/documents/layout'
 import type { LayoutContext } from '@/lib/documents/layoutContext'
 
 const num: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' }
@@ -64,15 +64,24 @@ export function ElementContent({ el, ctx }: { el: LayoutEl; ctx: LayoutContext }
         ? <img src={ctx.logoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'left center' }} />
         : <div style={{ width: '100%', height: '100%', border: '1px dashed #cbd5e1', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#94a3b8' }}>LOGO</div>
 
-    case 'signature':
+    case 'signature': {
+      // A fixed size set on the signatory wins (width OR height in mm, ratio
+      // preserved); otherwise the signature fits the element box.
+      const s = ctx.signatureSize
+      const sizeStyle: React.CSSProperties = s
+        ? (s.mode === 'width'
+          ? { width: mmToPx(s.mm), height: 'auto' }
+          : { height: mmToPx(s.mm), width: 'auto' })
+        : { maxWidth: '100%', maxHeight: '70%', objectFit: 'contain' }
       return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
           {ctx.signatureUrl
-            ? <img src={ctx.signatureUrl} alt="" style={{ maxWidth: '100%', maxHeight: '70%', objectFit: 'contain' }} />
+            ? <img src={ctx.signatureUrl} alt="" style={sizeStyle} />
             : <div style={{ width: '80%', borderBottom: '1px solid #cbd5e1', height: '60%' }} />}
           <div style={{ fontSize: 9, color: '#888', marginTop: 4 }}>Authorised signatory</div>
         </div>
       )
+    }
 
     case 'lineItems': {
       const cols = el.columns?.length ? el.columns : ctx.columns

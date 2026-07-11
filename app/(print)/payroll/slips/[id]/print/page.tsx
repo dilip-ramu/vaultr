@@ -5,7 +5,7 @@ import SlipPrintView from '@/components/payroll/slips/SlipPrintView'
 import type { SalarySlipDocData } from '@/lib/payroll/slip'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import { normalizeAccent } from '@/lib/companies/templates'
-import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
+import { resolveSignature } from '@/lib/companies/resolveSignature'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -47,10 +47,11 @@ export default async function SalarySlipPrintPage({ params }: Props) {
   }
 
   // v89 — signature from the run's chosen signatory (fallback company default).
-  const signatureUrl = await resolveSignatureUrl(supabase, user.id, {
+  const sig = await resolveSignature(supabase, user.id, {
     signatoryId: (e.month as { signatory_id?: string | null })?.signatory_id ?? null,
     companyId,
   })
+  const signatureUrl = sig.url
 
   const sdata: SalarySlipDocData = {
     entry: e, month: e.month, employee,
@@ -124,7 +125,7 @@ export default async function SalarySlipPrintPage({ params }: Props) {
       { strong: true, cells: { c: 'Total deductions', a: inr(totDed) } },
     ],
     totals: [], grandLabel: 'NET PAY', grandValue: inr(net),
-    bankLines: [], logoUrl, signatureUrl,
+    bankLines: [], logoUrl, signatureUrl, signatureSize: sig.size,
   }
 
   return (

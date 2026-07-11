@@ -16,6 +16,9 @@ export interface LayoutContext {
   terms?: string
   logoUrl?: string | null
   signatureUrl?: string | null
+  /** Fixed print size for the signature: pick width OR height (mm); the other
+   *  dimension follows the image's aspect ratio. */
+  signatureSize?: { mode: 'width' | 'height'; mm: number } | null
 }
 
 export function modelToContext(model: DocModel): LayoutContext {
@@ -32,6 +35,7 @@ export function modelToContext(model: DocModel): LayoutContext {
     terms: model.terms,
     logoUrl: model.logoUrl ?? null,
     signatureUrl: model.signatureUrl ?? null,
+    signatureSize: model.signatureSize ?? null,
   }
 }
 

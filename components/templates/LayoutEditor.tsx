@@ -10,6 +10,7 @@ import {
 } from '@/lib/documents/layout'
 import type { LayoutContext } from '@/lib/documents/layoutContext'
 import { ElementContent, elTransform } from './LayoutRenderer'
+import type { TemplateAsset } from './AssetsClient'
 
 const SCALE = 0.66
 const SNAP = 6                     // snap threshold in canvas px
@@ -164,16 +165,38 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
     commit([...elsRef.current, el]); setSelId(el.id)
   }
 
+  // ── Image assets ──────────────────────────────────────────────────────────
   const [uploading, setUploading] = useState(false)
+  const [assets, setAssets] = useState<TemplateAsset[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/template-assets').then(r => r.json()).then(d => setAssets(d.assets ?? [])).catch(() => {})
+  }, [])
+
+  /** Drop an asset in using its saved size / opacity / fit / rotation. */
+  function addAsset(a: TemplateAsset) {
+    addEl('image', {
+      src: a.url, w: a.width_px, h: a.height_px,
+      fit: (a.fit as 'contain' | 'cover') ?? 'contain',
+      opacity: Number(a.opacity ?? 1),
+      rotate: Number(a.rotate ?? 0),
+    })
+    setPickerOpen(false)
+  }
+
+  /** Upload from the computer — also saved to the asset library so it's reusable. */
   async function uploadImage(file: File) {
     setUploading(true)
     try {
       const fd = new FormData(); fd.append('file', file)
-      const res = await fetch('/api/document-layouts/image', { method: 'POST', body: fd })
+      const res = await fetch('/api/template-assets', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { notify(data.error ?? 'Upload failed', 'error'); return }
-      addEl('image', { src: data.url as string, w: 240, h: 140, fit: 'contain', opacity: 1 })
-      notify('Image added', 'success')
+      const a = data.asset as TemplateAsset
+      setAssets(prev => [a, ...prev])
+      addAsset(a)
+      notify('Image added (saved to your assets)', 'success')
     } finally { setUploading(false) }
   }
 
@@ -217,12 +240,22 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
             ))}
           </div>
         </details>
-        <label className={btn + ' cursor-pointer'} style={btnStyle}>
-          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-          {uploading ? 'Uploading…' : 'Image'}
-          <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) void uploadImage(f); e.target.value = '' }} />
-        </label>
+        <details className="relative [&_summary::-webkit-details-marker]:hidden">
+          <summary className={btn + ' cursor-pointer list-none'} style={btnStyle}>
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+            {uploading ? 'Uploading…' : 'Image'}
+          </summary>
+          <div className="absolute left-0 mt-1 z-30 rounded-xl border py-1 shadow-lg" style={{ background: 'var(--surface)', borderColor: 'var(--border)', minWidth: 210 }}>
+            <button onClick={() => setPickerOpen(true)} className="block w-full text-left px-3 py-1.5 text-xs font-semibold hover:bg-[var(--surface-2)]" style={{ color: 'var(--text)' }}>
+              From assets{assets.length ? ` (${assets.length})` : ''}
+            </button>
+            <label className="block px-3 py-1.5 text-xs font-semibold hover:bg-[var(--surface-2)] cursor-pointer" style={{ color: 'var(--text)' }}>
+              Upload from computer…
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) void uploadImage(f); e.target.value = '' }} />
+            </label>
+          </div>
+        </details>
         <button onClick={() => addEl('divider', { h: 12 })} className={btn} style={btnStyle}>Divider</button>
 
         <span className="mx-1 h-5 w-px" style={{ background: 'var(--border)' }} />
@@ -331,8 +364,10 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
                       <option value="contain">Contain</option><option value="cover">Cover</option>
                     </select>
                   </label>
-                  <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Opacity
-                    <input type="number" min={0.05} max={1} step={0.05} value={sel.opacity ?? 1} onChange={e => update(sel.id, { opacity: Math.min(1, Math.max(0.05, Number(e.target.value) || 1)) })} className={iCls + ' mt-1'} style={iStyle} />
+                  <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                    Opacity — {Math.round((sel.opacity ?? 1) * 100)}%
+                    <input type="range" min={5} max={100} step={5} value={Math.round((sel.opacity ?? 1) * 100)}
+                      onChange={e => update(sel.id, { opacity: Number(e.target.value) / 100 })} className="w-full mt-2" />
                   </label>
                 </div>
               )}
@@ -392,6 +427,38 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
           )}
         </div>
       </div>
+
+      {/* Asset picker */}
+      {pickerOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.6)' }} onClick={e => { if (e.target === e.currentTarget) setPickerOpen(false) }}>
+          <div className="w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col max-h-[80vh]" style={{ background: 'var(--surface)' }}>
+            <div className="px-5 py-3 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
+              <p className="font-extrabold" style={{ color: 'var(--text)' }}>Add from assets</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Each image arrives with its saved size, opacity and fit.</p>
+            </div>
+            <div className="overflow-y-auto p-4">
+              {assets.length === 0 ? (
+                <p className="text-sm py-8 text-center" style={{ color: 'var(--text-muted)' }}>No assets yet — add some in <b>Templates → Image Assets</b>.</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {assets.map(a => (
+                    <button key={a.id} onClick={() => addAsset(a)} className="rounded-xl border p-2 text-left hover:border-[var(--brand)]" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                      <div className="h-20 flex items-center justify-center overflow-hidden mb-1.5">
+                        <img src={a.url} alt={a.name} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: a.fit, opacity: a.opacity }} />
+                      </div>
+                      <p className="text-xs font-semibold truncate" style={{ color: 'var(--text)' }}>{a.name}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{mm1(a.width_px)}×{mm1(a.height_px)} mm · {Math.round(a.opacity * 100)}%</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t flex justify-end shrink-0" style={{ borderColor: 'var(--border)' }}>
+              <button onClick={() => setPickerOpen(false)} className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

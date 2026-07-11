@@ -9,7 +9,12 @@ const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFract
 const plain = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
 const compact = (v: string | null | undefined) => (v && String(v).trim()) || null
 
-interface BrandRefs { logoUrl?: string | null; signatureUrl?: string | null; accent: string }
+interface BrandRefs {
+  logoUrl?: string | null
+  signatureUrl?: string | null
+  signatureSize?: { mode: 'width' | 'height'; mm: number } | null
+  accent: string
+}
 
 export interface InvoiceSettings {
   company_name?: string | null; company_address?: string | null; company_gstin?: string | null
@@ -139,6 +144,7 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
     bankLines: bankLines(settings),
     terms: compact(settings?.terms_conditions) ?? undefined,
     signatureUrl: refs.signatureUrl,
+    signatureSize: refs.signatureSize ?? null,
     fields: {
       'doc.title': 'TAX INVOICE',
       'doc.number': String(inv.invoice_number ?? ''),
@@ -236,6 +242,7 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
     terms: compact(settings?.terms_conditions) ?? undefined,
     note: compact(doc.notes) ?? meta.noteFallback,
     signatureUrl: refs.signatureUrl,
+    signatureSize: refs.signatureSize ?? null,
     fields: {
       'doc.title': meta.title.toUpperCase(),
       'doc.number': String(doc.number ?? ''),

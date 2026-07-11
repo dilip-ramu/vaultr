@@ -4,7 +4,7 @@ import type { Metadata } from 'next'
 import DocPrintView from '@/components/documents/DocPrintView'
 import type { RecoverableInvoice } from '@/lib/recoverables/types'
 import { normalizeAccent } from '@/lib/companies/templates'
-import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
+import { resolveSignature } from '@/lib/companies/resolveSignature'
 import { taxInvoiceToModel } from '@/lib/documents/adapters'
 
 type Props = { params: Promise<{ id: string }> }
@@ -105,7 +105,8 @@ export default async function InvoicePrintPage({ params }: Props) {
   }
   // v89 — signature comes from the chosen signatory (fallback: company default).
   const invSignatoryId = (inv as { signatory_id?: string | null }).signatory_id ?? null
-  signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: invSignatoryId, companyId: inv.company_id ?? null })
+  const sig = await resolveSignature(supabase, user.id, { signatoryId: invSignatoryId, companyId: inv.company_id ?? null })
+  signatureUrl = sig.url
   // Legacy fallback (old single-signature settings) if no signatory image found.
   if (!signatureUrl && legacy?.signature_path) {
     const { data } = await supabase.storage.from('vaultr-attachments').createSignedUrl(legacy.signature_path, 600)
@@ -116,7 +117,7 @@ export default async function InvoicePrintPage({ params }: Props) {
     invoice as unknown as Parameters<typeof taxInvoiceToModel>[0],
     (lines ?? []) as unknown as Parameters<typeof taxInvoiceToModel>[1],
     mergedSettings,
-    { logoUrl, signatureUrl, accent },
+    { logoUrl, signatureUrl, signatureSize: sig.size, accent },
   )
 
   // Custom per-company tax-invoice template, if designed.

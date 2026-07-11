@@ -3,7 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import DocPrintView from '@/components/documents/DocPrintView'
 import { normalizeAccent } from '@/lib/companies/templates'
-import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
+import { resolveSignature } from '@/lib/companies/resolveSignature'
 import { invoiceStatusBand, type DocModel, type DocRow } from '@/lib/documents/model'
 
 type Props = { params: Promise<{ id: string }> }
@@ -55,7 +55,8 @@ export default async function ReimbursablePrintPage({ params }: Props) {
   let logoUrl: string | null = null
   const docLogoPath = (c?.document_logo_path as string | null) ?? (c?.logo_path as string | null)
   if (docLogoPath) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(docLogoPath).data?.publicUrl ?? null
-  const signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: (invoice.signatory_id as string | null) ?? null, companyId })
+  const sig = await resolveSignature(supabase, user.id, { signatoryId: (invoice.signatory_id as string | null) ?? null, companyId })
+  const signatureUrl = sig.url
 
   const cur = (invoice.currency as string | null) ?? 'EUR'
   const fmtCur = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: 2 }).format(n || 0)
@@ -151,6 +152,7 @@ export default async function ReimbursablePrintPage({ params }: Props) {
     grandValue: fmtCur(total),
     bankLines,
     signatureUrl,
+    signatureSize: sig.size,
     fields: {
       'doc.title': 'INVOICE',
       'doc.number': String(invoice.invoice_number ?? ''),

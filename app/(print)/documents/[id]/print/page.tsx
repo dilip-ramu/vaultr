@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import DocPrintView from '@/components/documents/DocPrintView'
 import { normalizeAccent } from '@/lib/companies/templates'
-import { resolveSignatureUrl } from '@/lib/companies/resolveSignature'
+import { resolveSignature } from '@/lib/companies/resolveSignature'
 import { issuedDocToModel, type InvoiceSettings } from '@/lib/documents/adapters'
 import { docConfigFor, type DocSide } from '@/lib/documents/config'
 import type { BandTone } from '@/lib/documents/model'
@@ -70,7 +70,8 @@ export default async function DocumentPrintPage({ params }: Props) {
   let logoUrl: string | null = null
   const docLogoPath = (company?.document_logo_path as string | null) ?? (company?.logo_path as string | null)
   if (docLogoPath) logoUrl = supabase.storage.from('vaultr-avatars').getPublicUrl(docLogoPath).data?.publicUrl ?? null
-  const signatureUrl = await resolveSignatureUrl(supabase, user.id, { signatoryId: (d.signatory_id as string | null) ?? null, companyId })
+  const sig = await resolveSignature(supabase, user.id, { signatoryId: (d.signatory_id as string | null) ?? null, companyId })
+  const signatureUrl = sig.url
 
   // Custom per-company template for this format, if designed.
   let layout: import('@/lib/documents/layout').DocLayout | null = null
@@ -94,7 +95,7 @@ export default async function DocumentPrintPage({ params }: Props) {
       subNote: meta.subNote,
       noteFallback: meta.noteFallback,
     },
-    { logoUrl, signatureUrl, accent },
+    { logoUrl, signatureUrl, signatureSize: sig.size, accent },
   )
   return <DocPrintView model={model} filename={`${String(d.number ?? 'Document')}.pdf`} layout={layout} />
 }

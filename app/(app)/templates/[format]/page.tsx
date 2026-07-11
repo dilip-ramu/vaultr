@@ -11,7 +11,7 @@ export default async function TemplateFormatPage({ params }: { params: Promise<{
   const { format } = await params
   const fmt = templateFormat(format)
   // These tabs have their own dedicated pages, not the layout designer.
-  const OWN_PAGE = ['cheque', 'contract', 'accent', 'signatories']
+  const OWN_PAGE = ['cheque', 'contract', 'accent', 'signatories', 'assets']
   if (!fmt || OWN_PAGE.includes(format)) notFound()
 
   const supabase = await createClient()

@@ -65,6 +65,8 @@ export interface DocModel {
 
   signatureUrl?: string | null
   signatureLabel?: string    // default 'Authorised signatory'
+  /** Fixed print size chosen on the signatory (ratio preserved). */
+  signatureSize?: { mode: 'width' | 'height'; mm: number } | null
 
   // Flat scalar values for the coordinate template engine ('field' elements).
   fields?: Record<string, string>

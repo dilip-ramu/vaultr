@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 
 type Ctx = { params: Promise<{ id: string; sigId: string }> }
 
-const UPDATABLE = new Set(['name', 'designation', 'is_default', 'sort_order'])
+const UPDATABLE = new Set(['name', 'designation', 'is_default', 'sort_order', 'sign_size_mode', 'sign_size_mm'])
 
 // PATCH — edit a signatory (name / designation / default flag / order).
 export async function PATCH(req: NextRequest, { params }: Ctx) {
