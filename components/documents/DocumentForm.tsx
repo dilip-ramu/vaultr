@@ -154,10 +154,10 @@ export default function DocumentForm({ side, docType, companies, parties, existi
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href={listHref} className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><ChevronLeft className="w-4 h-4" /></Link>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>{isEdit ? 'Edit' : 'New'} {cfg.label.toLowerCase()}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href={listHref} className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><ChevronLeft className="w-4 h-4" /></Link>
+          <h1 className="text-lg md:text-2xl font-extrabold tracking-tight truncate" style={{ color: 'var(--text)' }}>{isEdit ? 'Edit' : 'New'} {cfg.label.toLowerCase()}</h1>
         </div>
         <button onClick={save} disabled={saving} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-60" style={{ background: 'var(--brand)' }}>
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}{saving ? 'Saving…' : (isEdit ? 'Save changes' : `Save ${cfg.label.toLowerCase()}`)}
@@ -192,37 +192,81 @@ export default function DocumentForm({ side, docType, companies, parties, existi
           </label>
         </div>
 
-        {/* line items */}
+        {/* Line items.
+            Phone / tablet: each line becomes its own card — a 7-column grid of
+            90px inputs cannot fit a 390px screen, and squeezing it just makes
+            every field unusable. Desktop (md and up) keeps the single-row grid. */}
         <div>
-          <div className="grid gap-2 text-[10px] font-bold uppercase tracking-wide px-1 mb-1 overflow-x-auto" style={{ gridTemplateColumns: gridCols, color: 'var(--text-muted)' }}>
+          <div className="hidden md:grid gap-2 text-[10px] font-bold uppercase tracking-wide px-1 mb-1" style={{ gridTemplateColumns: gridCols, color: 'var(--text-muted)' }}>
             <span>Item</span><span>HSN/SAC</span><span>Qty</span><span>Rate</span>{cfg.tax && <span>GST %</span>}<span className="text-right">Amount</span><span />
           </div>
-          <div className="space-y-1.5">
-            {lines.map(l => {
+
+          <div className="space-y-3 md:space-y-1.5">
+            {lines.map((l, idx) => {
               const amt = (parseFloat(l.qty) || 0) * (parseFloat(l.rate) || 0)
+              const del = () => setLines(prev => prev.length > 1 ? prev.filter(x => x.id !== l.id) : prev)
               return (
-                <div key={l.id} className="grid gap-2 items-center" style={{ gridTemplateColumns: gridCols }}>
-                  <input value={l.item} onChange={e => setLine(l.id, { item: e.target.value })} placeholder="Description" className="px-2 py-1.5 rounded-lg border text-sm" style={iStyle} />
-                  <input value={l.hsn} onChange={e => setLine(l.id, { hsn: e.target.value })} placeholder="HSN" className="px-2 py-1.5 rounded-lg border text-sm" style={iStyle} />
-                  <input value={l.qty} onChange={e => setLine(l.id, { qty: e.target.value })} inputMode="decimal" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />
-                  <input value={l.rate} onChange={e => setLine(l.id, { rate: e.target.value })} inputMode="decimal" placeholder="0.00" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />
-                  {cfg.tax && <input value={l.gst} onChange={e => setLine(l.id, { gst: e.target.value })} inputMode="decimal" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />}
-                  <span className="text-right text-[13px] tabular-nums" style={{ color: 'var(--text)' }}>{money(amt)}</span>
-                  <button onClick={() => setLines(prev => prev.length > 1 ? prev.filter(x => x.id !== l.id) : prev)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                <div key={l.id}>
+                  {/* ── Phone / tablet ── */}
+                  <div className="md:hidden rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Item {idx + 1}</span>
+                      <button onClick={del} className="w-8 h-8 -mr-1 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface)' }} aria-label="Remove line">
+                        <Trash2 className="w-4 h-4 text-[var(--expense)]" />
+                      </button>
+                    </div>
+
+                    <input value={l.item} onChange={e => setLine(l.id, { item: e.target.value })} placeholder="Description" className="w-full px-3 py-2.5 rounded-lg border text-sm" style={{ ...iStyle, background: 'var(--surface)' }} />
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>HSN / SAC
+                        <input value={l.hsn} onChange={e => setLine(l.id, { hsn: e.target.value })} placeholder="HSN" className="w-full px-3 py-2.5 rounded-lg border text-sm mt-0.5" style={{ ...iStyle, background: 'var(--surface)' }} />
+                      </label>
+                      <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Qty
+                        <input value={l.qty} onChange={e => setLine(l.id, { qty: e.target.value })} inputMode="decimal" className="w-full px-3 py-2.5 rounded-lg border text-sm mt-0.5" style={{ ...iStyle, background: 'var(--surface)' }} />
+                      </label>
+                      <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Rate
+                        <input value={l.rate} onChange={e => setLine(l.id, { rate: e.target.value })} inputMode="decimal" placeholder="0.00" className="w-full px-3 py-2.5 rounded-lg border text-sm mt-0.5" style={{ ...iStyle, background: 'var(--surface)' }} />
+                      </label>
+                      {cfg.tax && (
+                        <label className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>GST %
+                          <input value={l.gst} onChange={e => setLine(l.id, { gst: e.target.value })} inputMode="decimal" className="w-full px-3 py-2.5 rounded-lg border text-sm mt-0.5" style={{ ...iStyle, background: 'var(--surface)' }} />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Amount</span>
+                      <span className="text-[15px] font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{money(amt)}</span>
+                    </div>
+                  </div>
+
+                  {/* ── Desktop (unchanged) ── */}
+                  <div className="hidden md:grid gap-2 items-center" style={{ gridTemplateColumns: gridCols }}>
+                    <input value={l.item} onChange={e => setLine(l.id, { item: e.target.value })} placeholder="Description" className="px-2 py-1.5 rounded-lg border text-sm" style={iStyle} />
+                    <input value={l.hsn} onChange={e => setLine(l.id, { hsn: e.target.value })} placeholder="HSN" className="px-2 py-1.5 rounded-lg border text-sm" style={iStyle} />
+                    <input value={l.qty} onChange={e => setLine(l.id, { qty: e.target.value })} inputMode="decimal" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />
+                    <input value={l.rate} onChange={e => setLine(l.id, { rate: e.target.value })} inputMode="decimal" placeholder="0.00" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />
+                    {cfg.tax && <input value={l.gst} onChange={e => setLine(l.id, { gst: e.target.value })} inputMode="decimal" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />}
+                    <span className="text-right text-[13px] tabular-nums" style={{ color: 'var(--text)' }}>{money(amt)}</span>
+                    <button onClick={del} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
+                  </div>
                 </div>
               )
             })}
           </div>
-          <button onClick={() => setLines(prev => [...prev, { id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])} className="mt-2 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: 'var(--brand)' }}><Plus className="w-3.5 h-3.5" /> Add line</button>
+
+          <button onClick={() => setLines(prev => [...prev, { id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])} className="mt-3 md:mt-2 flex items-center justify-center md:justify-start gap-1.5 w-full md:w-auto py-2.5 md:py-0 rounded-xl md:rounded-none text-[13px] md:text-[12px] font-bold" style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}><Plus className="w-4 h-4 md:w-3.5 md:h-3.5" /> Add line</button>
         </div>
 
         <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes / terms" rows={2} className="w-full px-3 py-2 rounded-lg border text-sm resize-none" style={iStyle} />
 
-        <div className="flex items-center justify-end gap-6 text-[13px]" style={{ color: 'var(--text-muted)' }}>
-          <span>Subtotal <b style={{ color: 'var(--text)' }}>{money(totals.subtotal)}</b></span>
-          {cfg.tax && <span>CGST <b style={{ color: 'var(--text)' }}>{money(totals.cgst)}</b></span>}
-          {cfg.tax && <span>SGST <b style={{ color: 'var(--text)' }}>{money(totals.sgst)}</b></span>}
-          <span className="text-[15px]">Total <b style={{ color: 'var(--text)' }}>{money(totals.total)}</b></span>
+        {/* Totals: a right-aligned row of four on desktop; a readable stack on a phone. */}
+        <div className="rounded-xl md:rounded-none border md:border-0 p-3 md:p-0 space-y-1.5 md:space-y-0 md:flex md:items-center md:justify-end md:gap-6 text-[13px]" style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}>
+          <div className="flex justify-between md:block"><span>Subtotal</span> <b style={{ color: 'var(--text)' }}>{money(totals.subtotal)}</b></div>
+          {cfg.tax && <div className="flex justify-between md:block"><span>CGST</span> <b style={{ color: 'var(--text)' }}>{money(totals.cgst)}</b></div>}
+          {cfg.tax && <div className="flex justify-between md:block"><span>SGST</span> <b style={{ color: 'var(--text)' }}>{money(totals.sgst)}</b></div>}
+          <div className="flex justify-between md:block text-[15px] pt-1.5 md:pt-0" style={{ borderTop: '1px solid var(--border)' }}><span>Total</span> <b style={{ color: 'var(--text)' }}>{money(totals.total)}</b></div>
         </div>
       </div>
     </div>

@@ -269,9 +269,10 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
         </button>
       </div>
 
-      <div className="flex gap-4 items-start">
-        {/* Canvas */}
-        <div className="rounded-xl overflow-auto" style={{ background: '#e5e7eb', padding: 16 }}>
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        {/* Canvas. Dragging elements needs the page at a usable size, so on a
+            phone/tablet the canvas scrolls inside its box instead of shrinking. */}
+        <div className="rounded-xl overflow-auto w-full lg:w-auto" style={{ background: '#e5e7eb', padding: 16 }}>
           <div style={{ width: PAGE_W * SCALE, height: PAGE_H * SCALE, position: 'relative' }} onMouseDown={() => setSelId(null)}>
             <div style={{ width: PAGE_W, height: PAGE_H, transform: `scale(${SCALE})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, background: '#fff', overflow: 'hidden' }}>
               {els.map(el => (
@@ -298,7 +299,7 @@ export default function LayoutEditor({ format, companyId, initial, ctx, onSaved 
         </div>
 
         {/* Properties */}
-        <div className="w-64 shrink-0 space-y-3">
+        <div className="w-full lg:w-64 shrink-0 space-y-3">
           {!sel && (
             <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               Page is <b>A4 · {PAGE_W_MM} × {PAGE_H_MM} mm</b>. Drag to move, corner handle to resize — all sizes are in

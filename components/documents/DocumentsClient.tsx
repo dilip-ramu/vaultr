@@ -53,9 +53,9 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>{cfg.label}s</h1>
+          <h1 className="text-xl md:text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>{cfg.label}s</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>GST-compliant {cfg.label.toLowerCase()}s, numbered per company.</p>
         </div>
         <Link href={newHref} className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl" style={{ background: 'var(--brand)' }}><Plus className="w-4 h-4" /> New {cfg.label.toLowerCase()}</Link>
@@ -68,7 +68,44 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
           <Link href={newHref} className="text-sm mt-1 inline-block font-semibold" style={{ color: 'var(--brand)' }}>Create the first one →</Link>
         </div>
       ) : (
-        <div className="rounded-2xl border" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+        <>
+        {/* Phone / tablet: one card per document. A 5-column table cannot fit a
+            phone without either truncating the party name or side-scrolling —
+            both worse than just stacking. Desktop keeps the table below. */}
+        <div className="md:hidden space-y-2">
+          {docs.map(d => {
+            const m = statusMeta(d.status ?? 'open')
+            const c = BADGE[m.tone]
+            return (
+              <div key={d.id} className="rounded-2xl border p-3.5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-[15px] truncate" style={{ color: 'var(--text)' }}>{d.number}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0" style={{ background: c.bg, color: c.fg }}>{m.label}</span>
+                    </div>
+                    <div className="text-[13px] mt-0.5 truncate" style={{ color: 'var(--text)' }}>{d.party_name}</div>
+                    <div className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{d.date}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{money(d.total)}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                  {convertTargets(lockedType).length > 0 && (
+                    <button onClick={() => setConvertDoc(d)} className="flex-1 h-9 rounded-lg inline-flex items-center justify-center gap-1 text-xs font-bold" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>Convert<ArrowRight className="w-3.5 h-3.5" /></button>
+                  )}
+                  <Link href={`${newHref.replace(/\/new$/, '')}/${d.id}/edit`} className="w-10 h-9 rounded-lg inline-flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }} aria-label="Edit"><Pencil className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></Link>
+                  <a href={`/documents/${d.id}/print`} target="_blank" rel="noreferrer" className="w-10 h-9 rounded-lg inline-flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }} aria-label="Print"><Printer className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></a>
+                  <button onClick={() => del(d)} className="w-10 h-9 rounded-lg inline-flex items-center justify-center shrink-0" style={{ background: 'var(--surface-2)' }} aria-label="Delete"><Trash2 className="w-4 h-4 text-[var(--expense)]" /></button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="hidden md:block rounded-2xl border" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
           <table className="w-full text-sm">
             <thead><tr style={{ background: 'var(--surface-2)' }}>
               {['Number', 'Date', cfg.partyLabel, 'Total', ''].map((h, i) => <th key={i} className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide ${i >= 3 ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text-muted)' }}>{h}</th>)}
@@ -100,6 +137,7 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {convertDoc && (

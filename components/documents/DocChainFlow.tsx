@@ -15,7 +15,10 @@ const CLIP_FIRST = 'polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px
  *  stages (except the current one) link straight to that document. */
 export default function DocChainFlow({ nodes }: { nodes: ChainNode[] }) {
   return (
-    <div className="flex items-stretch w-full select-none" style={{ minHeight: 46 }}>
+    // On a phone the chevrons stay full size and the strip scrolls sideways —
+    // squashing five stages into 380px makes every label illegible.
+    <div className="-mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto no-scrollbar">
+      <div className="flex items-stretch w-full select-none min-w-[560px] md:min-w-0" style={{ minHeight: 46 }}>
       {nodes.map((n, i) => {
         const bg = COLORS[n.status]
         const inner = (
@@ -44,6 +47,7 @@ export default function DocChainFlow({ nodes }: { nodes: ChainNode[] }) {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

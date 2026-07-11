@@ -97,19 +97,19 @@ export default function GstReturnsClient({
 
   return (
     <div className="w-full px-4 md:px-8 py-6 space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:flex-wrap md:items-end md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>GST returns</h1>
+          <h1 className="text-xl md:text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>GST returns</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Derived from the invoices and notes already in Vaultr. Nothing here is filed for you — check it, then upload.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 md:flex md:items-center gap-2">
           <select
             value={companyId}
             onChange={e => go({ company: e.target.value })}
-            className="px-3 py-2 rounded-lg border text-sm font-semibold"
+            className="col-span-2 md:col-span-1 px-3 py-2 rounded-lg border text-sm font-semibold"
             style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
           >
             {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -224,8 +224,8 @@ export default function GstReturnsClient({
                   <div className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>{s.label}</div>
                   <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{s.note}</div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-px">
+                  <table className="w-full min-w-[820px] md:min-w-0">
                     <thead style={{ background: 'var(--surface-2)' }}>
                       <tr style={{ color: 'var(--text-muted)' }}>
                         <th className={th}>Number</th>
@@ -277,7 +277,8 @@ export default function GstReturnsClient({
                 <div className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>HSN summary</div>
                 <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Table 12 — every supply rolled up by HSN and rate.</div>
               </div>
-              <table className="w-full">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] md:min-w-0">
                 <thead style={{ background: 'var(--surface-2)' }}>
                   <tr style={{ color: 'var(--text-muted)' }}>
                     <th className={th}>HSN</th>
@@ -305,6 +306,7 @@ export default function GstReturnsClient({
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
