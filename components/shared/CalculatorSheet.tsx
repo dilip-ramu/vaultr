@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { evalExpr, hasOperator, prettyExpr, OP_CHARS } from '@/lib/calc'
 
@@ -71,8 +72,13 @@ export default function CalculatorSheet({ initial, title = 'Amount', onDone, onC
   const showExpr = hasOperator(expr)
   const bigValue = showExpr ? total.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : expr
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true">
+  // The keypad is opened FROM other dialogs (record a sale, add a transaction…),
+  // and those sit at z-70/z-80. At z-60 the keypad rendered *behind* the very
+  // dialog that opened it — Done was physically under the modal and unclickable.
+  // So: portal it to <body>, out of any parent stacking context, and put it above
+  // every modal in the app (but below toasts, which must stay visible).
+  const sheet = (
+    <div className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div
         className="relative w-full sm:max-w-sm rounded-t-[24px] sm:rounded-[24px] sm:shadow-2xl"
@@ -119,4 +125,9 @@ export default function CalculatorSheet({ initial, title = 'Amount', onDone, onC
       </div>
     </div>
   )
+
+  // Rendered outside the React tree it was called from, so a parent's overflow,
+  // transform or z-index can never trap it again.
+  if (typeof document === 'undefined') return null
+  return createPortal(sheet, document.body)
 }
