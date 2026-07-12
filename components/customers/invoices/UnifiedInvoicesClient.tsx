@@ -21,6 +21,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { CheckCircle2, DollarSign, Clock, Loader2, Truck, FileText, Filter, Pencil, Trash2, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import MarkPaidModal from '@/components/recoverables/invoices/MarkPaidModal'
+import type { RecoverableInvoice } from '@/lib/recoverables/types'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import EmptyState from '@/components/shared/EmptyState'
@@ -88,6 +90,7 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
     router.push(typedHref)
   }
   const [markingId,  setMarkingId]  = useState<string | null>(null)
+  const [payFor,     setPayFor]     = useState<RecoverableInvoice | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [filterType,   setFilterType]   = useState<'all' | 'tax_invoice' | 'reimbursement'>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'paid'>('all')
@@ -141,24 +144,33 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
     return `/recoverables/invoices/${inv.id}`
   }
 
+  /**
+   * Record a payment against an invoice.
+   *
+   * This used to flip the invoice straight to 'paid' with a direct update — no
+   * account, no transaction, no TDS. The invoice read as PAID while not a rupee
+   * entered any account, so the bank balance, Books and GSTR-3B never saw the
+   * money. It now opens the same payment modal the invoice detail page uses:
+   * pick the account, full or partial, the date and any TDS — and a real income
+   * transaction is booked against that account.
+   */
   async function handleMarkPaid(inv: Invoice) {
     setMarkingId(inv.id)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { notify('Session expired'); return }
-      const { error } = await supabase
+
+      // The list row is only a summary; the payment modal needs the full invoice.
+      const { data, error } = await supabase
         .from('recoverable_invoices')
-        .update({
-          status:      'paid',
-          paid_amount: inv.total,
-          balance_due: 0,
-          paid_at:     new Date().toISOString(),
-        })
+        .select('*')
         .eq('id', inv.id)
         .eq('user_id', user.id)
-      if (error) { notify(error.message); return }
-      router.refresh()
+        .single()
+
+      if (error || !data) { notify(error?.message ?? 'Could not load that invoice'); return }
+      setPayFor(data as RecoverableInvoice)
     } finally {
       setMarkingId(null)
     }
@@ -263,6 +275,16 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
             />
           ))}
         </div>
+      )}
+
+      {/* The real payment flow: account, amount, date, TDS — and an income
+          transaction booked against the account that received the money. */}
+      {payFor && (
+        <MarkPaidModal
+          invoice={payFor}
+          onClose={() => setPayFor(null)}
+          onSaved={() => { setPayFor(null); router.refresh() }}
+        />
       )}
     </div>
   )

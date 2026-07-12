@@ -11,6 +11,8 @@ import {
 import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
 import { notify } from '@/components/shared/Toast'
 import { createClient } from '@/lib/supabase/client'
+import MarkPaidModal from '@/components/recoverables/invoices/MarkPaidModal'
+import type { RecoverableInvoice } from '@/lib/recoverables/types'
 
 import ReimbursableDownloadButton from './ReimbursableDownloadButton'
 
@@ -158,31 +160,38 @@ function InvoiceRow({
     setConfirmDelete(false)
   }
 
-  /** Flip status to 'paid'. The DB trigger v65 does the rest:
-   *   ─ bundled courier tax invoices become paid (settled via the customer's
-   *     reimbursement payment)
-   *   ─ the linked payroll month status becomes 'ready_to_process' so the
-   *     "Process payroll" CTA lights up. */
+  /**
+   * Record the customer's payment of this reimbursement invoice.
+   *
+   * This used to flip the status straight to 'paid' with no account and no
+   * transaction — the invoice read as PAID while the money existed nowhere. It
+   * now opens the standard payment modal (account, full/partial, date, TDS),
+   * which books a real income transaction against the account that received it.
+   *
+   * The v65 DB trigger still does the rest, because the payment API sets the
+   * very same status: bundled courier tax invoices settle, and the linked
+   * payroll month becomes 'ready_to_process'.
+   */
   const [markingPaid, setMarkingPaid] = useState(false)
+  const [payFor, setPayFor] = useState<RecoverableInvoice | null>(null)
+
   const handleMarkPaid = async () => {
     setMarkingPaid(true)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { notify('Session expired'); return }
-      const { error } = await supabase
+
+      const { data, error } = await supabase
         .from('recoverable_invoices')
-        .update({
-          status:      'paid',
-          paid_amount: inv.total,
-          balance_due: 0,
-          paid_at:     new Date().toISOString(),
-        })
+        .select('*')
         .eq('id', inv.id)
         .eq('user_id', user.id)
         .eq('invoice_type', 'reimbursement')
-      if (error) { notify(error.message); return }
-      router.refresh()
+        .single()
+
+      if (error || !data) { notify(error?.message ?? 'Could not load that invoice'); return }
+      setPayFor(data as RecoverableInvoice)
     } finally {
       setMarkingPaid(false)
     }
@@ -199,6 +208,15 @@ function InvoiceRow({
           onCancel={() => setConfirmDelete(false)}
           onConfirm={handleDelete}
           deleting={deleting}
+        />
+      )}
+
+      {/* Real payment: account, amount, date, TDS → an income transaction. */}
+      {payFor && (
+        <MarkPaidModal
+          invoice={payFor}
+          onClose={() => setPayFor(null)}
+          onSaved={() => { setPayFor(null); router.refresh() }}
         />
       )}
 
