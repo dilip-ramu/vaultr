@@ -27,7 +27,7 @@ interface Props {
   initialInvoices: SupplierInvoice[]
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
   accounts: PickerAccount[]
-  companies?: { id: string; name: string; gstin: string | null }[]
+  companies?: { id: string; name: string; gstin: string | null; is_default?: boolean }[]
   hideHeader?: boolean
 }
 

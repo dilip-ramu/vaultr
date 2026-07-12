@@ -31,7 +31,7 @@ async function InvoicesContent() {
     // For the GST block on a bill: input tax credit belongs to one of my GSTINs.
     supabase
       .from('companies')
-      .select('id, name, gstin')
+      .select('id, name, gstin, is_default')
       .eq('user_id', user.id)
       .order('is_default', { ascending: false })
       .order('name'),
@@ -42,7 +42,7 @@ async function InvoicesContent() {
       initialInvoices={invoices ?? []}
       suppliers={suppliers ?? []}
       accounts={accounts ?? []}
-      companies={(companies ?? []) as { id: string; name: string; gstin: string | null }[]}
+      companies={(companies ?? []) as { id: string; name: string; gstin: string | null; is_default?: boolean }[]}
       hideHeader
     />
   )

@@ -13,7 +13,7 @@ import AmountField from '@/components/shared/AmountField'
 interface Props {
   invoice: SupplierInvoice | null
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
-  companies?: { id: string; name: string; gstin: string | null }[]
+  companies?: { id: string; name: string; gstin: string | null; is_default?: boolean }[]
   onSaved: (inv: SupplierInvoice) => void
   onClose: () => void
 }
@@ -108,6 +108,16 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
       ? { taxable, cgst: 0, sgst: 0, igst: tax, interState }
       : { taxable, cgst: Math.round((tax / 2) * 100) / 100, sgst: Math.round((tax / 2) * 100) / 100, igst: 0, interState }
   }, [form.amount, form.gst_rate, form.company_id, form.supplier_gstin, companies])
+
+  // A new bill lands on the default company rather than nowhere. An untagged
+  // bill is a debt nobody owes — which is never true, and it's how every
+  // existing bill ended up invisible to the company view.
+  useEffect(() => {
+    if (invoice || form.company_id || companies.length === 0) return
+    const fallback = companies.find(c => c.is_default) ?? companies[0]
+    if (fallback) set('company_id', fallback.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companies, invoice])
 
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
