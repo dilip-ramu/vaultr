@@ -45,6 +45,7 @@ export default async function CompanyViewPage({ params }: Props) {
     { data: invoiceRows },
     { data: billRows },
     { data: employeeRows },
+    { data: mirrorRows },
   ] = await Promise.all([
     supabase.from('companies').select('id, name').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
     // company_id lives on `accounts`; the live balance lives on the view — join by id.
@@ -54,12 +55,17 @@ export default async function CompanyViewPage({ params }: Props) {
     supabase.from('market_rates').select('*').order('rate_date', { ascending: false }).limit(120),
     supabase.from('asset_rate_defaults').select('*').eq('user_id', uid),
     supabase.from('recoverable_invoices')
-      .select('id, invoice_number, customer_name, company_id, balance_due, due_date, status')
+      .select('id, invoice_number, customer_name, customer_id, company_id, balance_due, due_date, status')
       .eq('user_id', uid).neq('status', 'cancelled'),
     supabase.from('supplier_invoices')
       .select('id, invoice_number, company_id, amount, due_date, is_paid, status, supplier:suppliers(name)')
       .eq('user_id', uid).eq('is_paid', false),
     supabase.from('employees').select('id, company_id, is_active').eq('user_id', uid).eq('is_active', true),
+    // A customer can BE one of your own companies (migration v67 mirrors it into
+    // the customers table). That's how cross-company billing works, and it's the
+    // only way to know that an invoice A→B is a debt for B.
+    supabase.from('customers').select('id, mirrored_company_id').eq('user_id', uid)
+      .not('mirrored_company_id', 'is', null),
   ])
 
   const balanceById = new Map(
@@ -100,6 +106,15 @@ export default async function CompanyViewPage({ params }: Props) {
     dueDate: (i.due_date as string | null) ?? null,
   }))
 
+  // Which of my customers are actually my own companies.
+  const mirrorOf = new Map(
+    ((mirrorRows ?? []) as { id: string; mirrored_company_id: string }[])
+      .map(m => [m.id, m.mirrored_company_id]),
+  )
+  const companyName = new Map(
+    ((companies ?? []) as { id: string; name: string }[]).map(c => [c.id, c.name]),
+  )
+
   const payables: SheetPayable[] = ((billRows ?? []) as Record<string, unknown>[]).map(b => {
     const sup = b.supplier as { name?: string } | null
     return {
@@ -111,6 +126,31 @@ export default async function CompanyViewPage({ params }: Props) {
       dueDate: (b.due_date as string | null) ?? null,
     }
   })
+
+  // ── The other side of an inter-company invoice ──────────────────────────────
+  // When company A bills company B, that is ONE event with TWO sides: a
+  // receivable for A and a payable for B. Only the receivable was ever recorded,
+  // so B looked like it owed nothing and the group's books didn't balance.
+  // The customer on the invoice carries mirrored_company_id when it IS one of
+  // your companies — that's what lets us book the matching debt.
+  for (const i of (invoiceRows ?? []) as Record<string, unknown>[]) {
+    const buyerCompanyId = mirrorOf.get(String(i.customer_id ?? ''))
+    const sellerCompanyId = (i.company_id as string | null) ?? null
+    const outstanding = Number(i.balance_due) || 0
+
+    // Not inter-company, nothing owed, or a company somehow billing itself.
+    if (!buyerCompanyId || outstanding <= 0 || buyerCompanyId === sellerCompanyId) continue
+
+    payables.push({
+      id: `ic-${i.id as string}`,
+      number: String(i.invoice_number ?? ''),
+      party: sellerCompanyId ? (companyName.get(sellerCompanyId) ?? 'Own company') : 'Own company',
+      companyId: buyerCompanyId,
+      outstanding,
+      dueDate: (i.due_date as string | null) ?? null,
+      interCompany: true,
+    })
+  }
 
   const employeeCount = ((employeeRows ?? []) as { company_id: string | null }[])
     .filter(e => e.company_id === id).length

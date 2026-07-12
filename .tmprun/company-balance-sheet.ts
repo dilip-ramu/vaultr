@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from './shim'
 import {
   buildBalanceSheet, unassignedSheet, isLiabilityAccount,
   type SheetAccount, type SheetAsset, type SheetReceivable, type SheetPayable,
-} from '@/lib/companies/balanceSheet'
+} from '../lib/companies/balanceSheet'
 
 const A = 'company-a'
 const B = 'company-b'

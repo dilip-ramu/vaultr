@@ -150,7 +150,12 @@ export default function CompanyViewClient({
           <List
             empty="Nothing owed — every supplier bill is paid."
             rows={payables.map(p => ({
-              key: p.id, title: p.party, sub: `${p.number}${p.dueDate ? ` · due ${p.dueDate}` : ''}`,
+              key: p.id,
+              // An inter-company bill is money owed to another of YOUR companies.
+              // Saying so matters: at group level it cancels out against their
+              // receivable, so it isn't debt to the outside world.
+              title: p.interCompany ? `${p.party} (own company)` : p.party,
+              sub: `${p.number}${p.dueDate ? ` · due ${p.dueDate}` : ''}${p.interCompany ? ' · inter-company' : ''}`,
               value: m(p.outstanding), tone: 'expense' as const,
             }))}
           />

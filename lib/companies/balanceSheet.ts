@@ -45,6 +45,20 @@ export interface SheetPayable {
   /** Still owed by you. */
   outstanding: number
   dueDate?: string | null
+  /**
+   * True when this is the OTHER SIDE of an invoice one of your own companies
+   * raised on this one. Company A billing company B is a receivable for A and a
+   * payable for B — one event, two entries. Without this the money only ever
+   * appears once and the group's books don't balance.
+   */
+  interCompany?: boolean
+}
+
+/** Same, for the receiving side. */
+export interface InterCompanyNote {
+  fromCompanyId: string
+  toCompanyId: string
+  amount: number
 }
 
 /** Account types that represent money you OWE, not money you have. */
