@@ -18,7 +18,7 @@ async function InvoicesContent() {
       .order('invoice_date', { ascending: false }),
     supabase
       .from('suppliers')
-      .select('id, name, supplier_code, payment_terms, custom_terms_days, currency')
+      .select('id, name, supplier_code, payment_terms, custom_terms_days, currency, default_invoice_category')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('name'),

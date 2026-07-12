@@ -12,7 +12,8 @@ import AmountField from '@/components/shared/AmountField'
 
 interface Props {
   invoice: SupplierInvoice | null
-  suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
+  suppliers: (Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>
+    & { default_invoice_category?: string | null })[]
   companies?: { id: string; name: string; gstin: string | null; is_default?: boolean }[]
   onSaved: (inv: SupplierInvoice) => void
   onClose: () => void
@@ -108,6 +109,16 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
       ? { taxable, cgst: 0, sgst: 0, igst: tax, interState }
       : { taxable, cgst: Math.round((tax / 2) * 100) / 100, sgst: Math.round((tax / 2) * 100) / 100, igst: 0, interState }
   }, [form.amount, form.gst_rate, form.company_id, form.supplier_gstin, companies])
+
+  // Picking a supplier fills in the category it always bills for (DHL → Courier).
+  // Only on a NEW bill, and only when the category is still blank — it must never
+  // overwrite a category you deliberately chose.
+  useEffect(() => {
+    if (invoice || !form.supplier_id || form.category) return
+    const sup = suppliers.find(s => s.id === form.supplier_id) as { default_invoice_category?: string | null } | undefined
+    if (sup?.default_invoice_category) set('category', sup.default_invoice_category)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.supplier_id, invoice])
 
   // A new bill lands on the default company rather than nowhere. An untagged
   // bill is a debt nobody owes — which is never true, and it's how every
