@@ -8,12 +8,17 @@ import type { Asset, MarketRate } from '@/lib/assets/types'
 import { categoryDef } from '@/lib/assets/types'
 import { inr, pctStr, valueSeries, type Valuation } from '@/lib/assets/valuation'
 import type { AssetRateDefault } from '@/lib/assets/types'
+import { realisedGain, unsellPatch } from '@/lib/assets/sale'
+import AssetSaleModal from './AssetSaleModal'
+import type { PickerAccount } from '@/components/shared/AccountChipPicker'
+import { notify } from '@/components/shared/Toast'
 
 interface Props {
   asset: Asset
   valuation: Valuation
   marketRates: MarketRate[]
   defaults?: AssetRateDefault[]
+  accounts?: PickerAccount[]
   fx?: number
   onEdit: () => void
   onSaved: (a: Asset) => void
@@ -23,27 +28,37 @@ interface Props {
 
 const GOLD_GRAD = 'linear-gradient(150deg,#8A6D1F,#5C4711)'
 
-export default function AssetDetail({ asset, valuation, marketRates, defaults = [], fx = 1, onEdit, onSaved, onDeleted, onClose }: Props) {
+export default function AssetDetail({ asset, valuation, marketRates, defaults = [], accounts = [], fx = 1, onEdit, onSaved, onDeleted, onClose }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [lightbox, setLightbox] = useState<number | null>(null)
   const isSold = asset.status === 'sold'
-  const [soldOpen, setSoldOpen] = useState(false)
+  const isPaid = asset.sale_payment_status === 'received'
+  const [saleModal, setSaleModal] = useState<null | 'sell' | 'settle'>(null)
   const [saving, setSaving] = useState(false)
-  const [priceStr, setPriceStr] = useState(String(asset.sold_price ?? Math.round(valuation.current)))
-  const [dateStr, setDateStr] = useState(asset.sold_date ?? new Date().toISOString().slice(0, 10))
-  const realised = (asset.sold_price ?? 0) - valuation.cost
-  const previewRealised = (Number(priceStr) || 0) - valuation.cost
 
-  const saveSale = async (status: 'held' | 'sold') => {
+  // Realised gain is measured on what REACHED the account — charges and tax are
+  // a cost of selling, not profit. (sale_net is null on pre-v99 sales.)
+  const realised = realisedGain(
+    { gross: asset.sold_price ?? 0, charges: asset.sale_charges, tax: asset.sale_tax },
+    valuation.cost,
+  )
+  const netReceived = asset.sale_net ?? (asset.sold_price ?? 0)
+
+  /** Undo the sale — and reverse the credit, so no orphan income is left behind. */
+  const unsell = async () => {
+    if (!await confirmDialog(
+      asset.sale_transaction_id
+        ? 'Un-sell this asset? The income transaction that credited the sale will also be deleted.'
+        : 'Un-sell this asset?',
+    )) return
     setSaving(true)
     const supabase = createClient()
-    const patch = status === 'sold'
-      ? { status: 'sold', sold_price: Number(priceStr) || 0, sold_date: dateStr }
-      : { status: 'held', sold_price: null, sold_date: null }
-    const { data, error } = await supabase.from('assets').update(patch).eq('id', asset.id).select().single()
+    if (asset.sale_transaction_id) {
+      await supabase.from('transactions').delete().eq('id', asset.sale_transaction_id)
+    }
+    const { data, error } = await supabase.from('assets').update(unsellPatch()).eq('id', asset.id).select().single()
     setSaving(false)
-    if (error || !data) return
-    setSoldOpen(false)
+    if (error || !data) { notify(error?.message ?? 'Could not un-sell', 'error'); return }
     onSaved(data as Asset)
   }
   const series = valueSeries(asset, marketRates, defaults, fx)
@@ -147,36 +162,74 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
             </div>
           </div>
 
-          {/* sale / realised profit */}
+          {/* Sale & settlement. A sale is only finished when the money is in. */}
           {isSold ? (
-            <div className="flex items-center justify-between rounded-[14px] px-4 py-3 mb-5" style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                <span className="text-[12.5px] font-bold" style={{ color: 'var(--text)' }}>Marked sold</span>
-              </div>
-              <button onClick={() => saveSale('held')} disabled={saving} className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg disabled:opacity-60" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>{saving ? '…' : 'Mark as held'}</button>
-            </div>
-          ) : soldOpen ? (
-            <div className="rounded-[15px] p-4 mb-5" style={{ border: '1px solid var(--border)' }}>
-              <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>RECORD A SALE</p>
-              <div className="flex gap-2.5">
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold" style={{ color: 'var(--text-faint)' }}>Selling price (₹)</label>
-                  <input inputMode="decimal" value={priceStr} onChange={e => setPriceStr(e.target.value.replace(/[^0-9.]/g, ''))} className="w-full mt-1 rounded-[10px] px-3 py-2 text-[13px]" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+            <div className="rounded-[15px] mb-5 overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--surface-2)' }}>
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+                  <span className="text-[12.5px] font-extrabold" style={{ color: 'var(--text)' }}>Sold</span>
+                  <span
+                    className="text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                    style={isPaid
+                      ? { background: 'rgba(31,92,58,.12)', color: 'var(--income, #1F5C3A)' }
+                      : { background: 'rgba(240,195,109,.20)', color: '#b7791f' }}
+                  >
+                    {isPaid ? 'Payment received' : 'Awaiting payment'}
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <label className="text-[10px] font-bold" style={{ color: 'var(--text-faint)' }}>Sold on</label>
-                  <input type="date" value={dateStr} onChange={e => setDateStr(e.target.value)} className="w-full mt-1 rounded-[10px] px-3 py-2 text-[13px]" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }} />
+                <button onClick={unsell} disabled={saving} className="text-[11.5px] font-bold px-3 py-1.5 rounded-lg disabled:opacity-60" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                  {saving ? '…' : 'Un-sell'}
+                </button>
+              </div>
+
+              <div className="px-4 py-3 space-y-1.5">
+                <SaleRow label="Sale price" value={inr(asset.sold_price ?? 0)} />
+                {asset.sale_charges > 0 && <SaleRow label="Less bank charges" value={'− ' + inr(asset.sale_charges)} muted />}
+                {asset.sale_tax > 0 && <SaleRow label="Less tax deducted" value={'− ' + inr(asset.sale_tax)} muted />}
+                <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  <span className="text-[12.5px] font-extrabold" style={{ color: 'var(--text)' }}>Net {isPaid ? 'received' : 'receivable'}</span>
+                  <span className="text-[15px] font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{inr(netReceived)}</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Realised {realised >= 0 ? 'gain' : 'loss'}</span>
+                  <span className="text-[12.5px] font-bold tabular-nums" style={{ color: realised >= 0 ? 'var(--income)' : 'var(--expense)' }}>
+                    {realised >= 0 ? '+' : ''}{inr(realised)}
+                  </span>
+                </div>
+                {(asset.sale_buyer || asset.sale_reference || asset.sold_date) && (
+                  <p className="text-[11px] pt-1" style={{ color: 'var(--text-faint)' }}>
+                    {[asset.sold_date, asset.sale_buyer, asset.sale_reference].filter(Boolean).join(' · ')}
+                  </p>
+                )}
               </div>
-              <p className="text-[11px] mt-2.5" style={{ color: 'var(--text-muted)' }}>Realised profit <span style={{ color: previewRealised >= 0 ? 'var(--income)' : 'var(--expense)', fontWeight: 800 }}>{previewRealised >= 0 ? '+' : ''}{inr(previewRealised)}</span> · cost {inr(valuation.cost)}</p>
-              <div className="flex gap-2 mt-3">
-                <button onClick={() => saveSale('sold')} disabled={saving || !priceStr} className="flex-1 text-white rounded-[11px] py-2.5 text-[12.5px] font-bold disabled:opacity-60" style={{ background: 'var(--brand)' }}>{saving ? 'Saving…' : 'Confirm sale'}</button>
-                <button onClick={() => setSoldOpen(false)} className="px-3.5 rounded-[11px] text-[12.5px] font-bold" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>Cancel</button>
-              </div>
+
+              {!isPaid && (
+                <button
+                  onClick={() => setSaleModal('settle')}
+                  className="w-full py-2.5 text-[12.5px] font-bold text-white"
+                  style={{ background: 'var(--brand)' }}
+                >
+                  Record payment received
+                </button>
+              )}
             </div>
           ) : (
-            <button onClick={() => setSoldOpen(true)} className="w-full flex items-center justify-center gap-1.5 rounded-[12px] py-2.5 mb-5 text-[12.5px] font-bold" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}><Tag className="w-3.5 h-3.5" /> Mark as sold</button>
+            <button onClick={() => setSaleModal('sell')} className="w-full flex items-center justify-center gap-1.5 rounded-[12px] py-2.5 mb-5 text-[12.5px] font-bold" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}>
+              <Tag className="w-3.5 h-3.5" /> Sell this asset
+            </button>
+          )}
+
+          {saleModal && (
+            <AssetSaleModal
+              asset={asset}
+              currentValue={valuation.current}
+              cost={valuation.cost}
+              accounts={accounts}
+              mode={saleModal}
+              onSaved={onSaved}
+              onClose={() => setSaleModal(null)}
+            />
           )}
 
           {/* cost breakdown */}
@@ -273,6 +326,15 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function SaleRow({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{label}</span>
+      <span className="text-[12.5px] font-semibold tabular-nums" style={{ color: muted ? 'var(--text-muted)' : 'var(--text)' }}>{value}</span>
     </div>
   )
 }

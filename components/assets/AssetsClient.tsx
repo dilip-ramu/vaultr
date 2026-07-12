@@ -9,6 +9,8 @@ import { valueAsset, assetFx, inr, pctStr, type Valuation } from '@/lib/assets/v
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
 import AssetDetail from './AssetDetail'
+import type { PickerAccount } from '@/components/shared/AccountChipPicker'
+import { netProceeds } from '@/lib/assets/sale'
 import RatesTab from './RatesTab'
 import MarketTab from './MarketTab'
 
@@ -18,9 +20,10 @@ interface Props {
   initialAssets: Asset[]
   marketRates: MarketRate[]
   initialDefaults: AssetRateDefault[]
+  accounts?: PickerAccount[]
 }
 
-export default function AssetsClient({ initialAssets, marketRates, initialDefaults }: Props) {
+export default function AssetsClient({ initialAssets, marketRates, initialDefaults, accounts = [] }: Props) {
   const { hidden } = useBalanceVisibility()
   const m = (n: number) => hidden ? '••••' : inr(n)
   const [assets, setAssets] = useState<Asset[]>(initialAssets)
@@ -53,8 +56,16 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
   }, [assets, marketRates, defaults, fxRates])
 
   const isSold = (a: Asset) => a.status === 'sold'
-  // What a line is worth today: sold → the agreed selling price; held → live value.
-  const dispValue = (a: Asset) => (isSold(a) ? (a.sold_price ?? 0) : valued.get(a.id)!.current)
+  const isAwaiting = (a: Asset) => isSold(a) && a.sale_payment_status !== 'received'
+
+  // What a sale was actually worth: the NET proceeds, after the bank's charges
+  // and any tax withheld — not the headline price. (sale_net is null on sales
+  // recorded before v99, so fall back to computing it.)
+  const netOf = (a: Asset) =>
+    a.sale_net ?? netProceeds({ gross: a.sold_price ?? 0, charges: a.sale_charges, tax: a.sale_tax })
+
+  // What a line is worth today: sold → what actually came in; held → live value.
+  const dispValue = (a: Asset) => (isSold(a) ? netOf(a) : valued.get(a.id)!.current)
   // Realised (sold) or unrealised (held) gain for a single asset.
   const lineGain = (a: Asset) => dispValue(a) - valued.get(a.id)!.cost
 
@@ -71,7 +82,8 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
       if (catFilter !== 'all' && a.category !== catFilter) continue
       const v = valued.get(a.id)!
       if (isSold(a)) {
-        sold++; proceeds += a.sold_price ?? 0; soldCost += v.cost; realised += (a.sold_price ?? 0) - v.cost
+        // Proceeds and realised gain are both measured on what reached the bank.
+        sold++; proceeds += netOf(a); soldCost += v.cost; realised += netOf(a) - v.cost
         continue
       }
       if (!a.include_in_net_worth) continue
@@ -268,12 +280,14 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
                               <div className="flex items-center gap-1.5">
                                 <p className="text-[13px] font-bold truncate" style={{ color: 'var(--text)' }}>{a.name}</p>
                                 {sold && <span className="text-[8.5px] font-extrabold tracking-wide px-1.5 py-0.5 rounded shrink-0" style={{ color: 'var(--text-muted)', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>SOLD</span>}
+                                {/* A sale with no money in is unfinished business — say so on the row. */}
+                                {isAwaiting(a) && <span className="text-[8.5px] font-extrabold tracking-wide px-1.5 py-0.5 rounded shrink-0" style={{ color: '#b7791f', background: 'rgba(240,195,109,.20)' }}>AWAITING PAYMENT</span>}
                               </div>
                               <p className="text-[10.5px] truncate" style={{ color: 'var(--text-faint)' }}>{sold ? `Sold${a.sold_date ? ' ' + fmtMon(a.sold_date) : ''}` : subLabelHint(a)}</p>
                             </div>
                           </div>
                           <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>COST</p><p className="text-[12.5px]" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{inr(v.cost)}</p></div>
-                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>{sold ? 'SOLD FOR' : 'CURRENT'}</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(dispValue(a))}</p></div>
+                          <div><p className="text-[9px] font-bold" style={{ color: 'var(--text-faint)' }}>{sold ? (isAwaiting(a) ? 'NET RECEIVABLE' : 'NET RECEIVED') : 'CURRENT'}</p><p className="text-[13px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(dispValue(a))}</p></div>
                           <div className="text-right">
                             {sold ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full" style={{ color: gain >= 0 ? 'var(--income)' : 'var(--expense)', background: gain >= 0 ? 'color-mix(in srgb, var(--income) 12%, transparent)' : 'color-mix(in srgb, var(--expense) 10%, transparent)' }}>{gain >= 0 ? '+' : ''}{inr(gain)}</span>
@@ -370,7 +384,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
       )}
 
       {detail && (
-        <AssetDetail asset={detail} valuation={valued.get(detail.id)!} marketRates={marketRates} defaults={defaults} fx={assetFx(detail, fxRates)}
+        <AssetDetail asset={detail} valuation={valued.get(detail.id)!} marketRates={marketRates} defaults={defaults} accounts={accounts} fx={assetFx(detail, fxRates)}
           onEdit={() => { setFormFor({ asset: detail, category: detail.category, subcategory: detail.subcategory ?? '' }); setDetail(null) }}
           onSaved={(a) => { onSaved(a); setDetail(a) }}
           onDeleted={onDeleted} onClose={() => setDetail(null)} />

@@ -168,6 +168,12 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       manual_value: appMode === 'manual' ? (num(manualValue) ?? null) : null,
       manual_value_date: null, photo_url: null, include_in_net_worth: true, notes: null,
       status: asset?.status ?? 'held', sold_price: asset?.sold_price ?? null, sold_date: asset?.sold_date ?? null,
+      // Sale settlement (preview only — the form never edits these; the sale modal does).
+      sale_charges: asset?.sale_charges ?? 0, sale_tax: asset?.sale_tax ?? 0, sale_net: asset?.sale_net ?? null,
+      sale_account_id: asset?.sale_account_id ?? null, sale_transaction_id: asset?.sale_transaction_id ?? null,
+      sale_payment_status: asset?.sale_payment_status ?? 'awaiting',
+      sale_received_date: asset?.sale_received_date ?? null,
+      sale_buyer: asset?.sale_buyer ?? null, sale_reference: asset?.sale_reference ?? null,
       created_at: '', updated_at: '',
     }
     return valueAsset(a, marketRates, defaults, fx || 1)

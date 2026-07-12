@@ -78,11 +78,22 @@ export interface Asset {
   photo_url: string | null
   include_in_net_worth: boolean
   notes: string | null
-  // Sale tracking — any asset can be marked sold with a price + date.
-  // Realised profit = sold_price − cost_total. Sold assets leave net worth.
+  // Sale tracking. A sale has two stages: the price is agreed (status 'sold',
+  // payment 'awaiting'), then the money lands in an account net of charges and
+  // tax (payment 'received', with a real transaction behind it).
+  // Realised profit = sale_net − cost_total — NOT sold_price − cost_total.
   status: 'held' | 'sold'
-  sold_price: number | null
+  sold_price: number | null          // gross, what the buyer agreed to pay
   sold_date: string | null
+  sale_charges: number               // bank / brokerage fees deducted
+  sale_tax: number                   // TDS or tax withheld at source
+  sale_net: number | null            // what actually reached the account
+  sale_account_id: string | null
+  sale_transaction_id: string | null
+  sale_payment_status: 'awaiting' | 'received'
+  sale_received_date: string | null
+  sale_buyer: string | null
+  sale_reference: string | null
   created_at: string
   updated_at: string
 }
