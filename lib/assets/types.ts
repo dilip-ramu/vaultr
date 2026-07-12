@@ -94,6 +94,10 @@ export interface Asset {
   sale_received_date: string | null
   sale_buyer: string | null
   sale_reference: string | null
+  /** The expense that bought this asset, if it was created from a transaction. */
+  purchase_transaction_id: string | null
+  /** Which company owns it. NULL = personal / unassigned. */
+  company_id: string | null
   created_at: string
   updated_at: string
 }

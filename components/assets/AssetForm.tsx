@@ -185,6 +185,8 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       sale_payment_status: asset?.sale_payment_status ?? 'awaiting',
       sale_received_date: asset?.sale_received_date ?? null,
       sale_buyer: asset?.sale_buyer ?? null, sale_reference: asset?.sale_reference ?? null,
+      purchase_transaction_id: asset?.purchase_transaction_id ?? null,
+      company_id: companyId || null,
       created_at: '', updated_at: '',
     }
     return valueAsset(a, marketRates, defaults, fx || 1)

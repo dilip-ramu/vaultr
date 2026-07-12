@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Pencil, Trash2, ArrowRight, Calendar, Split } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { X, Pencil, Trash2, ArrowRight, Calendar, Split, Gem } from 'lucide-react'
 import SplitTransactionModal from './SplitTransactionModal'
+import MarkAsAssetModal from './MarkAsAssetModal'
 import type { Transaction, Account, Category } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -46,6 +48,23 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
     onDelete(tx.id)
     onClose()
   }
+
+  // An expense can BE a purchase: the money left, but the thing it bought is
+  // still yours and belongs on the balance sheet. Only expenses, and only if
+  // this transaction hasn't already been claimed by an asset.
+  const [assetModal, setAssetModal] = useState(false)
+  const [linkedAsset, setLinkedAsset] = useState<{ id: string; name: string } | null>(null)
+  const [checkedLink, setCheckedLink] = useState(false)
+
+  useEffect(() => {
+    if (tx.type !== 'expense') { setCheckedLink(true); return }
+    const sb = createClient()
+    sb.from('assets').select('id, name').eq('purchase_transaction_id', tx.id).maybeSingle()
+      .then(({ data }) => {
+        setLinkedAsset((data as { id: string; name: string } | null) ?? null)
+        setCheckedLink(true)
+      })
+  }, [tx.id, tx.type])
 
   const amountColor  = tx.type === 'income' ? 'var(--income)' : tx.type === 'expense' ? 'var(--expense)' : '#3b82f6'
   const amountPrefix = tx.type === 'income' ? '+' : tx.type === 'expense' ? '-' : '↔'
@@ -99,6 +118,17 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
                 <Split className="w-4 h-4" />
               </button>
             )}
+            {/* This expense bought something you still own → make it an asset. */}
+            {tx.type === 'expense' && checkedLink && !linkedAsset && (
+              <button
+                onClick={() => setAssetModal(true)}
+                title="Mark as asset — this expense bought something you still own"
+                className="w-11 h-11 flex items-center justify-center rounded-xl"
+                style={{ color: 'var(--text-muted)', background: 'var(--surface-2)' }}
+              >
+                <Gem className="w-4 h-4" />
+              </button>
+            )}
             {/* Edit — 44px touch target */}
             <button
               onClick={() => onEdit(tx)}
@@ -126,6 +156,21 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
             backgroundColor: 'var(--surface)',
           }}
         >
+          {/* This expense didn't disappear — it bought something you still own. */}
+          {linkedAsset && (
+            <Link
+              href="/assets"
+              className="flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+            >
+              <Gem className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-bold truncate" style={{ color: 'var(--text)' }}>{linkedAsset.name}</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>This expense bought an asset you still hold</p>
+              </div>
+            </Link>
+          )}
+
           {/* Amount */}
           <div className="text-center py-2">
             <p className="text-3xl font-bold" style={{ color: amountColor }}>
@@ -176,6 +221,21 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
           </div>
         </div>
       </div>
+
+      {assetModal && (
+
+        <MarkAsAssetModal
+
+          transaction={{ id: tx.id, name: tx.name ?? null, amount: tx.amount, date: tx.date, notes: tx.notes }}
+
+          onSaved={a => setLinkedAsset({ id: a.id, name: a.name })}
+
+          onClose={() => setAssetModal(false)}
+
+        />
+
+      )}
+
 
       {splitting && (
         <SplitTransactionModal

@@ -117,3 +117,28 @@ describe('an overdrawn current account', () => {
     expect(sheet.net).toBe(-10000)
   })
 })
+
+// An asset bought from a transaction must not be double-counted: the expense
+// already left the account (so cash is lower), and the asset now stands in its
+// place. Net position is unchanged by the purchase itself — that's the whole
+// point of calling it an asset rather than a cost.
+describe('buying an asset with money from an account', () => {
+  it('leaves the net position unchanged — cash became a thing you own', () => {
+    const before = buildBalanceSheet(A, {
+      accounts: [{ id: 'c', name: 'Current', type: 'checking', companyId: A, balance: 500000 }],
+      assets: [], receivables: [], payables: [],
+    })
+
+    // Spend 400000 on a machine: cash drops, the asset appears.
+    const after = buildBalanceSheet(A, {
+      accounts: [{ id: 'c', name: 'Current', type: 'checking', companyId: A, balance: 100000 }],
+      assets: [{ id: 'm', name: 'Machine', category: 'machinery', companyId: A, value: 400000, status: 'held' }],
+      receivables: [], payables: [],
+    })
+
+    expect(before.net).toBe(500000)
+    expect(after.net).toBe(500000)      // not 100000 — the machine is still yours
+    expect(after.cash).toBe(100000)
+    expect(after.assets).toBe(400000)
+  })
+})
