@@ -171,6 +171,24 @@ export default function TransactionDetail({ transaction: tx, onEdit, onDelete, o
             </Link>
           )}
 
+          {/* A labelled, full-width action — a bare icon in the header row is too
+              easy to miss next to Split / Edit / Close. */}
+          {tx.type === 'expense' && checkedLink && !linkedAsset && (
+            <button
+              onClick={() => setAssetModal(true)}
+              className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+            >
+              <Gem className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>Mark as asset</p>
+                <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+                  This expense bought something you still own
+                </p>
+              </div>
+            </button>
+          )}
+
           {/* Amount */}
           <div className="text-center py-2">
             <p className="text-3xl font-bold" style={{ color: amountColor }}>
