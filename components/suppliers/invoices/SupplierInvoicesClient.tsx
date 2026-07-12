@@ -153,6 +153,34 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     if (res.ok) setInvoices(prev => prev.filter(i => i.id !== id))
   }
 
+  /**
+   * Tag the selected bills with the company that owes them.
+   *
+   * Bills predate the company column entirely (it arrived with v98), so every
+   * existing one is unassigned and shows up under no company's payables. Making
+   * you re-open each bill to fix that would be absurd.
+   */
+  async function handleBulkAssignCompany(companyId: string) {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    const target = companyId === '__none' ? null : companyId
+    const label = target ? (companies.find(c => c.id === target)?.name ?? 'that company') : 'no company'
+    if (!await confirmDialog(`Assign ${ids.length} bill(s) to ${label}?`)) return
+
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error } = await supabase.from('supplier_invoices')
+      .update({ company_id: target }).in('id', ids).eq('user_id', user.id)
+
+    if (error) { notify(error.message, 'error'); return }
+
+    setInvoices(prev => prev.map(i => (ids.includes(i.id) ? { ...i, company_id: target } as InvoiceExt : i)))
+    setSelected(new Set())
+    notify(`${ids.length} bill(s) assigned to ${label} ✓`, 'success')
+  }
+
   async function handleBulkDelete() {
     const ids = Array.from(selected)
     if (ids.length === 0) return
@@ -635,6 +663,19 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Mark Paid ({selUnpaidCount})
               </button>
+            )}
+            {companies.length > 0 && (
+              <select
+                value=""
+                onChange={e => { if (e.target.value) void handleBulkAssignCompany(e.target.value) }}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                style={{ background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+                title="Assign the selected bills to a company"
+              >
+                <option value="">Assign to company…</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="__none">— Unassign —</option>
+              </select>
             )}
             {selPaidCount > 0 && (
               <button

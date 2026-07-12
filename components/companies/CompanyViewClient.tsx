@@ -21,12 +21,13 @@ interface Data {
 }
 
 export default function CompanyViewClient({
-  company, companies, data, employeeCount,
+  company, companies, data, employeeCount, untagged,
 }: {
   company: { id: string; name: string; gstin: string | null; accent: string | null }
   companies: { id: string; name: string }[]
   data: Data
   employeeCount: number
+  untagged?: { bills: number; billsValue: number; invoices: number }
 }) {
   const router = useRouter()
   const { hidden } = useBalanceVisibility()
@@ -87,6 +88,24 @@ export default function CompanyViewClient({
         <Stat icon={<CreditCard className="w-4 h-4" />} label="Debt" value={m(sheet.debt)} sub="cards & loans" tone="expense" />
         <Stat icon={<ArrowUpRight className="w-4 h-4" />} label="Payable" value={m(sheet.payables)} sub={`${sheet.counts.payables} bill(s)`} tone="expense" />
       </div>
+
+      {/* Unpaid bills that belong to no company at all. Showing ₹0 payable while
+          these exist would be a lie, so name the number. */}
+      {(untagged?.bills ?? 0) > 0 && (
+        <div className="rounded-2xl border p-4 flex items-start gap-2.5" style={{ borderColor: '#f0c36d', background: 'rgba(240,195,109,.10)' }}>
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#b7791f' }} />
+          <div>
+            <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>
+              {untagged!.bills} unpaid supplier bill(s) — {m(untagged!.billsValue)} — belong to no company
+            </p>
+            <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              They aren&apos;t counted in any company&apos;s payables. Select them in{' '}
+              <Link href="/suppliers/invoices" className="font-semibold" style={{ color: 'var(--brand)' }}>Suppliers → Invoices</Link>{' '}
+              and use &ldquo;Assign to company&rdquo;.
+            </p>
+          </div>
+        </div>
+      )}
 
       {nothingTagged && (
         <div className="rounded-2xl border p-4 flex items-start gap-2.5" style={{ borderColor: '#f0c36d', background: 'rgba(240,195,109,.10)' }}>

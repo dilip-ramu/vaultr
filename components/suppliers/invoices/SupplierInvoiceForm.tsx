@@ -301,6 +301,23 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
             </Field>
           </div>
 
+          {/* Which company owes this bill. It drives the company view's payables —
+              an untagged bill is a debt nobody owes, which is never true. */}
+          <Field label="Company">
+            <select
+              value={form.company_id}
+              onChange={e => set('company_id', e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+              style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              <option value="">— Unassigned —</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>
+              Which of your companies owes this. Shows up under that company&apos;s payables.
+            </p>
+          </Field>
+
           <Field label="Category">
             <select
               value={form.category}
@@ -332,18 +349,6 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Claiming company">
-                <select
-                  value={form.company_id}
-                  onChange={e => set('company_id', e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
-                  style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
-                >
-                  <option value="">— none —</option>
-                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </Field>
-
               <Field label="GST rate">
                 <select
                   value={form.gst_rate}

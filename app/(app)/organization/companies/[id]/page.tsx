@@ -155,6 +155,16 @@ export default async function CompanyViewPage({ params }: Props) {
   const employeeCount = ((employeeRows ?? []) as { company_id: string | null }[])
     .filter(e => e.company_id === id).length
 
+  // Bills and invoices that belong to NO company. Existing supplier bills all
+  // look like this (the company column only arrived with v98), and a company
+  // page showing zero payables when you're sitting on unpaid bills is worse than
+  // useless — it's wrong. Say so.
+  const untagged = {
+    bills: payables.filter(p => !p.companyId && !p.interCompany).length,
+    billsValue: payables.filter(p => !p.companyId && !p.interCompany).reduce((t, p) => t + p.outstanding, 0),
+    invoices: receivables.filter(r => !r.companyId && r.outstanding > 0).length,
+  }
+
   return (
     <CompanyViewClient
       company={{
@@ -166,6 +176,7 @@ export default async function CompanyViewPage({ params }: Props) {
       companies={((companies ?? []) as { id: string; name: string }[])}
       data={{ accounts, assets, receivables, payables }}
       employeeCount={employeeCount}
+      untagged={untagged}
     />
   )
 }
