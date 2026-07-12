@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import type { Employee } from '@/lib/payroll/types'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -197,6 +198,11 @@ export default function StaffClient({ employees: initialEmployees, customers = [
 
   const activeCount = employees.filter(e => e.is_active).length
 
+  // Salaries are masked on every page load. The reveal is deliberately NOT
+  // persisted: it resets each time you come back, so an open laptop or a shared
+  // screen never leaves everyone's pay on display.
+  const [salariesShown, setSalariesShown] = useState(false)
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -205,12 +211,23 @@ export default function StaffClient({ employees: initialEmployees, customers = [
           <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Staff</h1>
           <p className="text-sm text-[var(--text-muted)] mt-0.5">{activeCount} active employee{activeCount !== 1 ? 's' : ''} · salary &amp; bank details</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="px-4 py-2 btn-brand text-white rounded-xl text-sm font-bold transition-colors"
-        >
-          + Add staff
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSalariesShown(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+            title={salariesShown ? 'Hide salaries' : 'Show salaries (this visit only)'}
+          >
+            {salariesShown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {salariesShown ? 'Hide salaries' : 'Show salaries'}
+          </button>
+          <button
+            onClick={openCreate}
+            className="px-4 py-2 btn-brand text-white rounded-xl text-sm font-bold transition-colors"
+          >
+            + Add staff
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -263,9 +280,10 @@ export default function StaffClient({ employees: initialEmployees, customers = [
           {filtered.map(emp => {
             const color = autoColor(emp.id, emp.color)
             const last4 = emp.account_number ? String(emp.account_number).replace(/\s/g, '').slice(-4) : ''
-            const salary = emp.salary_currency && emp.salary_currency !== 'INR'
+            const salaryReal = emp.salary_currency && emp.salary_currency !== 'INR'
               ? `${emp.salary_currency} ${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
               : `₹${Number(emp.salary_amount || 0).toLocaleString('en-IN')}`
+            const salary = salariesShown ? salaryReal : '••••••'
             const companyName = emp.company_id ? companies.find(c => c.id === emp.company_id)?.name : null
             return (
               <div key={emp.id} style={{ opacity: emp.is_active ? 1 : 0.6 }}>

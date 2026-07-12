@@ -156,6 +156,18 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
 
   // v83 — bank link (drives the cheque template used when printing cheques).
   const [bankId, setBankId] = useState(account?.bank_id ?? '')
+
+  // Which company this account belongs to. Optional — blank means personal, and
+  // the company view will list it as unassigned rather than assuming.
+  const [companyId, setCompanyId] = useState<string>(
+    (account as (typeof account & { company_id?: string | null }) | undefined)?.company_id ?? '',
+  )
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('companies').select('id, name').order('is_default', { ascending: false }).order('name')
+      .then(({ data }) => setCompanies((data ?? []) as { id: string; name: string }[]))
+  }, [])
   const [banks, setBanks] = useState<{ id: string; name: string }[]>([])
   useEffect(() => {
     let live = true
@@ -196,6 +208,7 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
     const payload = {
       name: name.trim(),
       type,
+      company_id: companyId || null,
       custom_type_id: customTypeId || null,
       initial_balance: parseFloat(balance) || 0,
       color,
@@ -508,6 +521,15 @@ export default function AccountForm({ account, holders = [], onSaved, onClose, o
                           {holders.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                         </select>
                         <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>{holders.length === 0 ? 'Add people in Settings → Users, then pick them here.' : 'Name & photo come from the user — edit them in Settings → Users.'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Company</label>
+                        <select value={companyId} onChange={e => setCompanyId(e.target.value)}
+                          className="w-full px-3 py-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-sm appearance-none" style={{ color: 'var(--text)' }}>
+                          <option value="">Personal / unassigned</option>
+                          {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <p className="text-[10.5px] mt-1" style={{ color: 'var(--text-faint)' }}>Used by the company view. Leave blank for a personal account.</p>
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Bank (cheque template)</label>

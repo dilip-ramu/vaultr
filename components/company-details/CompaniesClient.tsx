@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Star, Building2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Star, Building2, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { notify } from '@/components/shared/Toast'
@@ -120,6 +121,10 @@ export default function CompaniesClient({ initialCompanies, logoUrls: initialUrl
                     {c.bank_name && <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{c.bank_name}</p>}
                   </div>
                   <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    {/* The company's own balance sheet: cash, assets, debt, receivables, payables. */}
+                    <Link href={`/organization/companies/${c.id}`} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Company view — assets & liabilities">
+                      <BarChart3 className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                    </Link>
                     {!c.is_default && <button onClick={() => setDefault(c)} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Set as default"><Star className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>}
                     <button onClick={() => { setEditing(c); setShowForm(true) }} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Edit"><Pencil className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} /></button>
                     <button onClick={() => handleDelete(c)} className={iconBtn} style={{ background: 'var(--surface-2)' }} title="Delete"><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>

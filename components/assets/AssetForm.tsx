@@ -71,6 +71,17 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const [uploadingDoc, setUploadingDoc] = useState(false)
   // attachments — Photo + Invoice (separate)
   const [photoUrl, setPhotoUrl] = useState(asset?.photo_url ?? '')
+
+  // Which company owns this asset. Optional — untagged means personal.
+  const [companyId, setCompanyId] = useState<string>(
+    (asset as (Asset & { company_id?: string | null }) | undefined)?.company_id ?? '',
+  )
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('companies').select('id, name').order('is_default', { ascending: false }).order('name')
+      .then(({ data }) => setCompanies((data ?? []) as { id: string; name: string }[]))
+  }, [])
   const [invoiceUrl, setInvoiceUrl] = useState(d0.invoice_url ?? '')
   const [uploading, setUploading] = useState<'' | 'photo' | 'invoice'>('')
   const photoRef = useRef<HTMLInputElement>(null)
@@ -188,6 +199,8 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
     const { data: { user } } = await supabase.auth.getUser()
     const payload = {
       name: name.trim(), category, subcategory, valuation_type: valuation,
+      // Which company owns this. NULL = personal / unassigned — never guessed.
+      company_id: companyId || null,
       purchase_date: purchaseDate || null, cost_total: cost, details,
       metal: isMarket ? category : null, metal_purity: isMarket ? (purity || null) : null,
       quantity_g: isMarket ? (num(weight) ?? null) : null,
@@ -226,6 +239,15 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
             {error && <div className="text-[13px] rounded-xl px-3 py-2" style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }}>{error}</div>}
             <div className="grid grid-cols-[1fr_auto] gap-2.5">
               <div><label className={lbl}>Name</label><input className={fld} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Wedding set" /></div>
+              {/* Owning company. Left blank = personal; it then shows under
+                  "unassigned" in the company view rather than being guessed. */}
+              <div>
+                <label className={lbl}>Company <span style={{ color: 'var(--text-faint)', fontWeight: 400 }}>(optional)</span></label>
+                <select className={fld} value={companyId} onChange={e => setCompanyId(e.target.value)}>
+                  <option value="">Personal / unassigned</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
               <div><label className={lbl}>Currency</label>
                 <select className={`${fld} appearance-none`} style={{ color: 'var(--text)' }} value={currency} onChange={e => setCurrency(e.target.value)}>
                   {ASSET_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
