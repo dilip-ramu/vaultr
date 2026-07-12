@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   netProceeds, totalDeductions, realisedGain, realisedPct, validateSale, salePatch, unsellPatch,
+  SALE_CATEGORY_NAME, saleTransactionName, saleTransactionNote,
 } from '@/lib/assets/sale'
 
 describe('net proceeds', () => {
@@ -138,5 +139,38 @@ describe('the row we write', () => {
     expect(p.sale_tax).toBe(0)
     expect(p.sale_account_id).toBeNull()
     expect(p.sale_transaction_id).toBeNull()
+  })
+})
+
+describe('the transaction we book', () => {
+  const sale = { gross: 100000, charges: 500, tax: 10000 }
+
+  // THE BUG: the credit landed in the transaction list with no title and no
+  // category, reading as a bare "Uncategorised" income line.
+  it('titles the row with the asset that was sold', () => {
+    expect(saleTransactionName('Gold chain 22k')).toBe('Sale of Gold chain 22k')
+  })
+
+  it('files every asset sale under one category', () => {
+    expect(SALE_CATEGORY_NAME).toBe('Sale of Asset')
+  })
+
+  it('explains the money trail in the note', () => {
+    const note = saleTransactionNote(sale, { buyer: 'Ravi', reference: 'UTR9' })
+    expect(note).toContain('Buyer: Ravi')
+    expect(note).toContain('Gross 100000')
+    expect(note).toContain('charges 500')
+    expect(note).toContain('tax 10000')
+    expect(note).toContain('89500')      // the net that actually landed
+    expect(note).toContain('Ref: UTR9')
+  })
+
+  it('says nothing about deductions when there were none', () => {
+    const note = saleTransactionNote({ gross: 5000 }, { buyer: 'Ravi' })
+    expect(note).toBe('Buyer: Ravi')
+  })
+
+  it('is empty rather than noisy when there is nothing to add', () => {
+    expect(saleTransactionNote({ gross: 5000 }, {})).toBe('')
   })
 })

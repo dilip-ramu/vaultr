@@ -7,7 +7,10 @@ import { notify } from '@/components/shared/Toast'
 import AmountField from '@/components/shared/AmountField'
 import AccountChipPicker, { type PickerAccount } from '@/components/shared/AccountChipPicker'
 import type { Asset } from '@/lib/assets/types'
-import { netProceeds, realisedGain, validateSale, salePatch } from '@/lib/assets/sale'
+import {
+  netProceeds, realisedGain, validateSale, salePatch,
+  SALE_CATEGORY_NAME, saleTransactionName, saleTransactionNote,
+} from '@/lib/assets/sale'
 
 const inr = (n: number) =>
   (n < 0 ? '−' : '') + '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(Math.abs(n))
@@ -74,14 +77,34 @@ export default function AssetSaleModal({
       // the day it landed. That is the line the bank will show.
       let transactionId: string | null = asset.sale_transaction_id ?? null
       if (received && accountId && !transactionId) {
+        // File it under "Sale of Asset" so it doesn't land in the transaction
+        // list as an untitled, uncategorised credit. Create the category once if
+        // it isn't there yet — an asset sale always has somewhere to go.
+        let categoryId: string | null = null
+        const { data: cat } = await sb.from('categories')
+          .select('id').eq('user_id', user.id).eq('type', 'income')
+          .ilike('name', SALE_CATEGORY_NAME).maybeSingle()
+
+        if (cat?.id) {
+          categoryId = cat.id as string
+        } else {
+          const { data: made } = await sb.from('categories').insert({
+            user_id: user.id, name: SALE_CATEGORY_NAME, type: 'income',
+            icon: 'tag', color: '#1F5C3A',
+          }).select('id').single()
+          categoryId = (made?.id as string) ?? null
+        }
+
         const { data: txn, error: txnErr } = await sb.from('transactions').insert({
           user_id: user.id,
           account_id: accountId,
+          category_id: categoryId,
           type: 'income',
+          // `name` is what the transaction list shows as the row title.
+          name: saleTransactionName(asset.name),
           amount: net,
           date: receivedDate || soldDate,
-          notes: `Sale of ${asset.name}${buyer.trim() ? ` to ${buyer.trim()}` : ''}`
-            + (sale.charges || sale.tax ? ` (gross ${inr(sale.gross)}, less charges ${inr(sale.charges)} and tax ${inr(sale.tax)})` : ''),
+          notes: saleTransactionNote(sale, { buyer, reference }) || null,
         }).select('id').single()
 
         if (txnErr || !txn) { notify(txnErr?.message ?? 'Could not record the credit', 'error'); return }

@@ -127,3 +127,29 @@ export const unsellPatch = () => ({
   sale_received_date: null,
   sale_transaction_id: null,
 })
+
+// ── The transaction booked when the money arrives ───────────────────────────
+
+/** The category every asset sale is filed under. */
+export const SALE_CATEGORY_NAME = 'Sale of Asset'
+
+/** The title shown on the transaction row. */
+export const saleTransactionName = (assetName: string) => `Sale of ${assetName}`.trim()
+
+/** The note under it — the full money trail, so the row explains itself. */
+export function saleTransactionNote(
+  sale: SaleInput,
+  opts: { buyer?: string | null; reference?: string | null },
+): string {
+  const parts: string[] = []
+  if (opts.buyer?.trim()) parts.push(`Buyer: ${opts.buyer.trim()}`)
+  const d = totalDeductions(sale)
+  if (d > 0) {
+    const bits: string[] = []
+    if (num(sale.charges) > 0) bits.push(`charges ${num(sale.charges)}`)
+    if (num(sale.tax) > 0) bits.push(`tax ${num(sale.tax)}`)
+    parts.push(`Gross ${num(sale.gross)} less ${bits.join(' and ')} = ${netProceeds(sale)}`)
+  }
+  if (opts.reference?.trim()) parts.push(`Ref: ${opts.reference.trim()}`)
+  return parts.join(' · ')
+}
