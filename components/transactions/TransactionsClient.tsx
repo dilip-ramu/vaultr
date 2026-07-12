@@ -3,7 +3,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, Search, ArrowLeftRight, Filter, X, CheckSquare, Square, Trash2, Download, FileText, ExternalLink, Pencil, Paperclip } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Search, ArrowLeftRight, Filter, X, CheckSquare, Square, Trash2, Download, FileText, ExternalLink, Pencil, Paperclip, Gem } from 'lucide-react'
+import MarkAsAssetModal from './MarkAsAssetModal'
 import type { Transaction, Account, Category, Payee } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
@@ -236,6 +238,23 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
 
   // Selected transaction → right-side sliding panel (like Assets)
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null)
+
+  // Expenses that already became assets: transaction id → asset name. Loaded
+  // once, so a linked expense says what it bought instead of offering to
+  // create a second asset against the same payment.
+  const [assetTx, setAssetTx] = useState<Transaction | null>(null)
+  const [assetByTxn, setAssetByTxn] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('assets').select('name, purchase_transaction_id').not('purchase_transaction_id', 'is', null)
+      .then(({ data }) => {
+        const map: Record<string, string> = {}
+        for (const a of (data ?? []) as { name: string; purchase_transaction_id: string }[]) {
+          map[a.purchase_transaction_id] = a.name
+        }
+        setAssetByTxn(map)
+      })
+  }, [])
   useEffect(() => {
     if (!selectedTx) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedTx(null) }
@@ -359,6 +378,36 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
             )}
           </div>
         )}
+        {/* An expense can BE a purchase: the money left, but the thing it bought
+            is still yours and belongs on the balance sheet. */}
+        {tx.type === 'expense' && (
+          assetByTxn[tx.id] ? (
+            <Link
+              href="/assets"
+              className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-3 mt-4"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+            >
+              <Gem className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+              <div className="min-w-0 text-left">
+                <p className="text-[13px] font-bold truncate" style={{ color: 'var(--text)' }}>{assetByTxn[tx.id]}</p>
+                <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>This expense bought an asset you still hold</p>
+              </div>
+            </Link>
+          ) : (
+            <button
+              onClick={() => setAssetTx(tx)}
+              className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-3 mt-4 text-left"
+              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+            >
+              <Gem className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>Mark as asset</p>
+                <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>This expense bought something you still own</p>
+              </div>
+            </button>
+          )
+        )}
+
         <div className="flex gap-2 mt-4">
           <button onClick={() => handleEdit(tx)} className="flex-1 flex items-center justify-center gap-1.5 text-white rounded-xl py-2.5 text-[12.5px] font-bold" style={{ background: 'var(--brand)' }}>
             <Pencil className="w-3.5 h-3.5" /> Edit
@@ -710,6 +759,14 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
           </div>
         )
       })()}
+
+      {assetTx && (
+        <MarkAsAssetModal
+          transaction={{ id: assetTx.id, name: assetTx.name ?? null, amount: assetTx.amount, date: assetTx.date, notes: assetTx.notes }}
+          onSaved={a => setAssetByTxn(m => ({ ...m, [assetTx.id]: a.name }))}
+          onClose={() => setAssetTx(null)}
+        />
+      )}
 
       {showForm && (
         <TransactionForm
