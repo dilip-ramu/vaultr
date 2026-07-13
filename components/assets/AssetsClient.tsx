@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { notify } from '@/components/shared/Toast'
 import { refreshAllRates, summarise } from '@/lib/rates/refreshAll'
 import type { Asset, MarketRate, AssetRateDefault } from '@/lib/assets/types'
-import { ASSET_CATEGORIES, categoryDef } from '@/lib/assets/types'
+import { ASSET_CATEGORIES, categoryDef, subcategoryLabel, dedupeLabels } from '@/lib/assets/types'
 import { valueAsset, assetFx, inr, pctStr, type Valuation } from '@/lib/assets/valuation'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
@@ -379,26 +379,49 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
         const builtinByLabel = new Map(ASSET_CATEGORIES.map(c => [c.label.toLowerCase(), c.key]))
         const resolveCat = (name: string) => builtinByLabel.get(name.trim().toLowerCase()) ?? name.trim()
         // Known sub-categories (built-in labels + whatever the user already uses)
-        // Alphabetical, always — including the ones you just invented. A list
-        // ordered by "whichever I happened to create first" is a list you have to
-        // read end-to-end every time instead of jumping to the letter.
-        const alpha = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
-        const knownSubs = Array.from(new Set([
+        // Alphabetical, and each thing ONCE.
+        //
+        // The old list showed every built-in type twice — "Land" and "land",
+        // "Jewellery" and "jewellery" — because it mixed built-in LABELS with the
+        // raw values stored on your assets, which are KEYS. Same type, two
+        // spellings, and nothing to tell you they were the same. So: resolve every
+        // stored value to its label first, then dedupe case-insensitively, keeping
+        // the capitalised spelling.
+        const knownSubs = dedupeLabels([
           ...ASSET_CATEGORIES.flatMap(c => c.subcategories.map(s => s.label)),
-          ...assets.map(a => a.subcategory).filter(Boolean) as string[],
-        ])).sort(alpha)
-        const knownCats = Array.from(new Set([
+          ...(assets.map(a => subcategoryLabel(a.subcategory ?? '', a.category)).filter(Boolean) as string[]),
+        ])
+        const knownCats = dedupeLabels([
           ...ASSET_CATEGORIES.map(c => c.label),
           ...assets.map(a => categoryDef(a.category)?.label ?? a.category),
-        ])).sort(alpha)
+        ])
         // Learned sub-category → category (built-in first, then user's own overrides)
         const subToCat = new Map<string, string>()
         ASSET_CATEGORIES.forEach(c => c.subcategories.forEach(s => { if (!subToCat.has(s.label.toLowerCase())) subToCat.set(s.label.toLowerCase(), c.label) }))
-        assets.forEach(a => { if (a.subcategory) subToCat.set(a.subcategory.toLowerCase(), categoryDef(a.category)?.label ?? a.category) })
-        // Recover built-in sub-category key so detailed land/building forms still trigger
+        assets.forEach(a => {
+          if (!a.subcategory) return
+          const cat = categoryDef(a.category)?.label ?? a.category
+          // Both spellings map to the same category, so whichever the user picks
+          // (or types) fills in the right one.
+          subToCat.set(a.subcategory.toLowerCase(), cat)
+          subToCat.set(subcategoryLabel(a.subcategory, a.category).toLowerCase(), cat)
+        })
+        // Recover the built-in sub-category KEY (so the land/building forms still
+        // trigger), and fold a new one onto an existing type when it differs only
+        // in case. Typing "watches" when "Watches" already exists should not create
+        // a second, identical-looking type — that's how the duplicates got in.
         const resolveSub = (subLabel: string, catKey: string) => {
+          const typed = subLabel.trim()
           const def = categoryDef(catKey)
-          return def?.subcategories.find(s => s.label.toLowerCase() === subLabel.trim().toLowerCase())?.key ?? subLabel.trim()
+          const builtin = def?.subcategories.find(s =>
+            s.label.toLowerCase() === typed.toLowerCase() || s.key.toLowerCase() === typed.toLowerCase())
+          if (builtin) return builtin.key
+
+          // An existing custom one, however you spelled it this time.
+          const existing = assets
+            .map(a => a.subcategory)
+            .find(sub => !!sub && sub.toLowerCase() === typed.toLowerCase())
+          return existing ?? typed
         }
         const subValue = subSel === '__new' ? newSub.trim() : subSel
         const catValue = catSel === '__new' ? newCat.trim() : catSel

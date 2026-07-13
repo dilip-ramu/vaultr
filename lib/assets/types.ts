@@ -252,3 +252,51 @@ export const DEFAULT_RATES: Record<string, number> = {
 export function sortedCategoryDef(key: string): CategoryDef | undefined {
   return ASSET_CATEGORIES_SORTED.find(c => c.key === key)
 }
+
+/**
+ * The label to SHOW for a stored sub-category value.
+ *
+ * Assets store the built-in KEY ("land", "jewellery", "equity"), while the
+ * pickers were also listing the built-in LABEL ("Land", "Jewellery", "Equity").
+ * Both went into the same dropdown and you got every built-in type twice, once
+ * in each case. This maps a stored value back to its label so the two collapse
+ * into one.
+ *
+ * A custom sub-category has no key/label split — it's stored as typed — so it
+ * comes back unchanged.
+ */
+export function subcategoryLabel(sub: string, categoryKey?: string): string {
+  if (!sub) return sub
+  const inCat = categoryKey
+    ? categoryDef(categoryKey)?.subcategories.find(s => s.key === sub)?.label
+    : undefined
+  if (inCat) return inCat
+
+  // No category given (the picker doesn't have one yet) — match on key across all
+  // of them. The built-in keys don't collide, so this is unambiguous.
+  for (const c of ASSET_CATEGORIES) {
+    const hit = c.subcategories.find(s => s.key === sub)
+    if (hit) return hit.label
+  }
+  return sub
+}
+
+/**
+ * Dedupe a list of labels case-insensitively, keeping the capitalised spelling.
+ *
+ * Two entries differing only in case are the same thing to a human, and a
+ * dropdown that shows both is a dropdown that will eventually get both used.
+ */
+export function dedupeLabels(labels: string[]): string[] {
+  const best = new Map<string, string>()
+  for (const raw of labels) {
+    const label = raw.trim()
+    if (!label) continue
+    const k = label.toLowerCase()
+    const held = best.get(k)
+    // Prefer the one that starts with a capital: "Watches" over "watches".
+    if (!held || (/^[a-z]/.test(held) && /^[A-Z]/.test(label))) best.set(k, label)
+  }
+  return Array.from(best.values())
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
