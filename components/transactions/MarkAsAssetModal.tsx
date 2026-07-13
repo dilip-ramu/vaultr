@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
-import { ASSET_CATEGORIES, categoryDef } from '@/lib/assets/types'
+import { ASSET_CATEGORIES_SORTED, sortedCategoryDef } from '@/lib/assets/types'
 import type { Asset } from '@/lib/assets/types'
 
 const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0)
@@ -31,8 +31,10 @@ export default function MarkAsAssetModal({
   onClose: () => void
 }) {
   const [name, setName] = useState(transaction.name?.trim() || '')
-  const [categoryKey, setCategoryKey] = useState(ASSET_CATEGORIES[0].key)
-  const cat = useMemo(() => categoryDef(categoryKey)!, [categoryKey])
+  const [categoryKey, setCategoryKey] = useState(ASSET_CATEGORIES_SORTED[0].key)
+  // Sorted def: its sub-categories come out alphabetical, so the dropdown below
+  // needs no sorting of its own and cannot drift out of step with the others.
+  const cat = useMemo(() => sortedCategoryDef(categoryKey)!, [categoryKey])
   const [subKey, setSubKey] = useState(cat.subcategories[0]?.key ?? '')
   const [companyId, setCompanyId] = useState('')
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
@@ -131,13 +133,13 @@ export default function MarkAsAssetModal({
                 value={categoryKey}
                 onChange={e => {
                   setCategoryKey(e.target.value)
-                  const c = categoryDef(e.target.value)
+                  const c = sortedCategoryDef(e.target.value)
                   setSubKey(c?.subcategories[0]?.key ?? '')
                 }}
                 className={iCls}
                 style={iStyle}
               >
-                {ASSET_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>)}
+                {ASSET_CATEGORIES_SORTED.map(c => <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>)}
               </select>
             </label>
             <label className={lbl} style={{ color: 'var(--text-muted)' }}>Type

@@ -30,7 +30,21 @@ export default function RatesTab({ assets, defaults, setDefaults }: Props) {
     for (const cd of ASSET_CATEGORIES) if (!METAL.includes(cd.key)) for (const sc of cd.subcategories) add(cd.key, sc.key)
     assets.forEach(a => add(a.category, a.subcategory))
     defaults.forEach(d => add(d.category, d.subcategory))
-    return Array.from(m.entries()).map(([key, subs]) => ({ key, label: categoryDef(key)?.label ?? key, emoji: categoryDef(key)?.emoji ?? '💠', subs: Array.from(subs) }))
+    // Alphabetical at both levels, by the label you actually see — the same order
+    // as the Assets list and the pickers. A rate you're hunting for should be in
+    // the same place here as the asset it applies to.
+    const alpha = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
+    const subLabel = (c: string, s: string) =>
+      categoryDef(c)?.subcategories.find(x => x.key === s)?.label ?? s
+
+    return Array.from(m.entries())
+      .map(([key, subs]) => ({
+        key,
+        label: categoryDef(key)?.label ?? key,
+        emoji: categoryDef(key)?.emoji ?? '💠',
+        subs: Array.from(subs).sort((a, b) => alpha(subLabel(key, a), subLabel(key, b))),
+      }))
+      .sort((a, b) => alpha(a.label, b.label))
   }, [assets, defaults])
 
   const rateFor = (category: string, sub: string): number => {

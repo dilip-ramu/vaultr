@@ -133,14 +133,30 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
 
   // group: category -> subcategory -> assets
   const grouped = useMemo(() => {
-    const order = ASSET_CATEGORIES.map(c => c.key)
+    // Everything alphabetical, at every level — categories, sub-categories, and
+    // the assets inside them. Sorted by the LABEL you see, not the key underneath,
+    // because "real_estate" and "Real estate" don't land in the same place and
+    // only one of them is on screen.
+    const alpha = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
+    const catLabel = (k: string) => categoryDef(k)?.label ?? k
+
     const keys = Array.from(new Set(visible.map(a => a.category)))
       .filter(k => catFilter === 'all' || k === catFilter)
-      .sort((a, b) => { const ia = order.indexOf(a), ib = order.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b) })
+      .sort((a, b) => alpha(catLabel(a), catLabel(b)))
+
     return keys.map(key => {
       const list = visible.filter(a => a.category === key)
+      const def0 = categoryDef(key)
+      const subLabel = (k: string) => def0?.subcategories.find(s => s.key === k)?.label ?? k
+
       const subs = new Map<string, Asset[]>()
-      for (const a of list) { const k = a.subcategory ?? '—'; if (!subs.has(k)) subs.set(k, []); subs.get(k)!.push(a) }
+      const subKeys = Array.from(new Set(list.map(a => a.subcategory ?? '—')))
+        .sort((a, b) => alpha(subLabel(a), subLabel(b)))
+      for (const k of subKeys) {
+        subs.set(k, list
+          .filter(a => (a.subcategory ?? '—') === k)
+          .sort((a, b) => alpha(a.name, b.name)))
+      }
       let cCost = 0, cCur = 0
       for (const a of list) { cCost += valued.get(a.id)!.cost; cCur += dispValue(a) }
       const def = categoryDef(key)
@@ -363,14 +379,18 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
         const builtinByLabel = new Map(ASSET_CATEGORIES.map(c => [c.label.toLowerCase(), c.key]))
         const resolveCat = (name: string) => builtinByLabel.get(name.trim().toLowerCase()) ?? name.trim()
         // Known sub-categories (built-in labels + whatever the user already uses)
+        // Alphabetical, always — including the ones you just invented. A list
+        // ordered by "whichever I happened to create first" is a list you have to
+        // read end-to-end every time instead of jumping to the letter.
+        const alpha = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' })
         const knownSubs = Array.from(new Set([
           ...ASSET_CATEGORIES.flatMap(c => c.subcategories.map(s => s.label)),
           ...assets.map(a => a.subcategory).filter(Boolean) as string[],
-        ]))
+        ])).sort(alpha)
         const knownCats = Array.from(new Set([
           ...ASSET_CATEGORIES.map(c => c.label),
           ...assets.map(a => categoryDef(a.category)?.label ?? a.category),
-        ]))
+        ])).sort(alpha)
         // Learned sub-category → category (built-in first, then user's own overrides)
         const subToCat = new Map<string, string>()
         ASSET_CATEGORIES.forEach(c => c.subcategories.forEach(s => { if (!subToCat.has(s.label.toLowerCase())) subToCat.set(s.label.toLowerCase(), c.label) }))

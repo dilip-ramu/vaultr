@@ -217,6 +217,26 @@ export function categoryDef(key: string): CategoryDef | undefined {
   return ASSET_CATEGORIES.find(c => c.key === key)
 }
 
+/**
+ * The categories, and each one's sub-categories, in alphabetical order.
+ *
+ * Every picker in the app shows this rather than ASSET_CATEGORIES directly. The
+ * registry above is grouped by how the valuation works — metals together, then
+ * currency, then stocks — which is the right way to READ the code and the wrong
+ * way to scan a dropdown. A list ordered by the order someone happened to write
+ * it in is a list you have to read end to end every single time.
+ *
+ * ASSET_CATEGORIES itself is left alone: DEFAULT_RATES and the seeding logic walk
+ * it, and reordering data other code indexes into is how you get a silent bug.
+ */
+export const ASSET_CATEGORIES_SORTED: CategoryDef[] = [...ASSET_CATEGORIES]
+  .map(c => ({
+    ...c,
+    subcategories: [...c.subcategories].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
+  }))
+  .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
+
 // Sensible starting defaults for rate defaults (seeded lazily in the Rates tab).
 export const DEFAULT_RATES: Record<string, number> = {
   real_estate: 8,
@@ -226,4 +246,9 @@ export const DEFAULT_RATES: Record<string, number> = {
   electronics: -25,
   'electronics:computers': -25,
   'electronics:phones': -30,
+}
+
+/** categoryDef(), but with its sub-categories already in alphabetical order. */
+export function sortedCategoryDef(key: string): CategoryDef | undefined {
+  return ASSET_CATEGORIES_SORTED.find(c => c.key === key)
 }
