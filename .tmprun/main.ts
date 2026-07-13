@@ -9,5 +9,6 @@ import './fx'
 import './stocks'
 import './forex-asset'
 import './networth'
+import './improvements'
 import { run } from './shim'
 run()

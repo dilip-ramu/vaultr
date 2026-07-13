@@ -1,3 +1,5 @@
+import type { Improvement } from './improvements'
+
 // Assets domain types (frames 25a–j).
 
 export type ValuationType = 'market' | 'rate' | 'depreciate' | 'building' | 'stock' | 'fx'
@@ -70,6 +72,9 @@ export interface StockDetails {
 
 export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & ElectronicsDetails & StockDetails & ForexDetails & {
   stones?: StoneEntry[]
+  /** Things done to the asset after purchase — a building on land, a renovation.
+   *  Each carries its OWN date and rate. See lib/assets/improvements.ts. */
+  improvements?: Improvement[]
   location?: string
   documents?: DocEntry[]
   currency?: string          // purchase currency (ISO code); INR/blank = native

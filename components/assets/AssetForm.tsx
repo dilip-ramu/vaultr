@@ -10,6 +10,8 @@ import { refreshAllRates, summarise } from '@/lib/rates/refreshAll'
 import { notify } from '@/components/shared/Toast'
 import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType, StoneEntry, DocEntry } from '@/lib/assets/types'
 import { categoryDef, STONE_TYPES, DOC_TYPES, ASSET_CURRENCIES } from '@/lib/assets/types'
+import type { Improvement } from '@/lib/assets/improvements'
+import ImprovementsEditor from './ImprovementsEditor'
 import { useFileDrop } from '@/components/shared/useFileDrop'
 import { computeCost, perGramRate, valueAsset, inr } from '@/lib/assets/valuation'
 
@@ -74,6 +76,11 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   // location + documents (repeatable, like stones)
   const [location, setLocation] = useState(d0.location ?? '')
   const [documents, setDocuments] = useState<DocEntry[]>(Array.isArray(d0.documents) ? d0.documents : [])
+  // Things built or added AFTER purchase. Each one is valued from its own date —
+  // a house built last year on land bought in 2019 must not be aged from 2019.
+  const [improvements, setImprovements] = useState<Improvement[]>(
+    Array.isArray(d0.improvements) ? d0.improvements : [],
+  )
   const docRef = useRef<HTMLInputElement>(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   // attachments — Photo + Invoice (separate)
@@ -232,6 +239,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
 
   const details: AssetDetails = useMemo(() => {
     const docs = documents.length ? documents : undefined
+    const imps = improvements.length ? improvements : undefined
     const cur = currency && currency !== 'INR' ? currency : undefined
     const cleanStones = stones
       .map(s => ({ type: s.type, weight_ct: Number(s.weight_ct) || undefined, cost: Number(s.cost) || undefined, present: Number(s.present) || undefined }))
@@ -256,12 +264,12 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       avg_cost: num(avgCost),
       last_price: num(lastPrice),
       last_price_at: lastPriceAt || undefined,
-      documents: docs, currency: cur,
+      documents: docs, currency: cur, improvements: imps,
     }
-    if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs, currency: cur }
-    if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs, currency: cur }
-    return { purchase_cost: num(purchaseCost), documents: docs, currency: cur }
-  }, [isMarket, isLand, isBuilding, isStock, isForex, fxCcy, fxAmount, fxAcquired, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, symbol, exchange, qty, avgCost, lastPrice, lastPriceAt, currency])
+    if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs, currency: cur, improvements: imps }
+    if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs, currency: cur, improvements: imps }
+    return { purchase_cost: num(purchaseCost), documents: docs, currency: cur, improvements: imps }
+  }, [isMarket, isLand, isBuilding, isStock, isForex, fxCcy, fxAmount, fxAcquired, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, improvements, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, symbol, exchange, qty, avgCost, lastPrice, lastPriceAt, currency])
 
   const { cost, lines } = computeCost(category, valuation, details)
 
@@ -675,6 +683,11 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
                 {appMode === 'manual' && <input className="num w-full bg-[var(--surface)] border-[1.5px] border-[var(--brand)] rounded-[9px] px-3 py-2 text-[13px] font-bold" placeholder="Current value ₹" value={manualValue} onChange={e => setManualValue(e.target.value)} inputMode="decimal" style={{ color: 'var(--text)' }} />}
               </div>
             </>}
+
+            {/* Improvements — a building on land, a renovation. Shown for every
+                kind of asset: you can renovate a house, re-set a necklace, rebuild
+                an engine. It only affects the value once you add one. */}
+            <ImprovementsEditor value={improvements} onChange={setImprovements} />
 
             {/* Documents — repeatable (parent doc, patta, chitta, …) */}
             <div {...docDrop.dropProps} className="rounded-xl overflow-hidden transition-all" style={{ border: docDrop.dragOver ? '1px dashed var(--brand)' : '1px solid var(--border)', background: docDrop.dragOver ? 'var(--brand-light)' : undefined }}>

@@ -26,6 +26,9 @@ function core(v: unknown, neg: boolean, msg?: string) {
     toBeGreaterThan: (n: number) => chk((v as number) > n, `expected ${v} ${neg ? 'not ' : ''}> ${n}`),
     toBeGreaterThanOrEqual: (n: number) => chk((v as number) >= n, `expected ${v} ${neg ? 'not ' : ''}>= ${n}`),
     toBeLessThan: (n: number) => chk((v as number) < n, `expected ${v} ${neg ? 'not ' : ''}< ${n}`),
+    toBeCloseTo: (n: number, digits = 2) =>
+      chk(Math.abs((v as number) - n) < Math.pow(10, -digits) / 2,
+        `expected ${v} ${neg ? 'not ' : ''}close to ${n} (${digits} digits)`),
     toBeLessThanOrEqual: (n: number) => chk((v as number) <= n, `expected ${v} ${neg ? 'not ' : ''}<= ${n}`),
   }
 }

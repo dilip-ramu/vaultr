@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { improvementValue, yearsSince, type Improvement } from '@/lib/assets/improvements'
 import { X, Pencil, Trash2, FileText, Paperclip, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -96,6 +97,7 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
   const location = (asset.details as { location?: string }).location
   if (location) detailRows.push(['Location', location])
   const docs = ((asset.details as { documents?: { type?: string; url?: string; name?: string }[] }).documents) ?? []
+  const improvements = ((asset.details as { improvements?: Improvement[] }).improvements) ?? []
   const invoiceUrl = (asset.details as { invoice_url?: string }).invoice_url
 
   // Everything openable, in one list, for the lightbox + attachments strip.
@@ -255,6 +257,41 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
               <span className="text-[13.5px] font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(valuation.cost)}</span>
             </div>
           </div>
+
+          {/* ── Improvements ──────────────────────────────────────────────────
+              What you built or added after buying it, each valued from the day it
+              was FINISHED — not from the day you bought the asset. The age is
+              printed so a wrong date is visible rather than merely wrong: a house
+              you built last year showing "7 years old" is a typo you can see. */}
+          {improvements.length > 0 && (
+            <>
+              <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>IMPROVEMENTS</p>
+              <div className="rounded-[14px] overflow-hidden mb-5" style={{ border: '1px solid var(--border)' }}>
+                {improvements.map((imp, i) => {
+                  const now = improvementValue(imp)
+                  const age = yearsSince(imp.date)
+                  const gain = now - imp.cost
+                  return (
+                    <div key={imp.id ?? i} className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ borderBottom: '1px solid var(--border-2, var(--border))' }}>
+                      <div className="min-w-0">
+                        <p className="text-[12.5px] font-semibold truncate" style={{ color: 'var(--text)' }}>{imp.name}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                          {imp.date} · {age < 1 ? `${Math.round(age * 12)} months` : `${age.toFixed(1)} years`}
+                          {imp.kind !== 'flat' && ` · ${imp.kind === 'appreciate' ? '+' : '−'}${imp.rate_pct}%/yr`}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[12.5px] font-bold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(now)}</p>
+                        <p className="text-[10.5px]" style={{ color: gain >= 0 ? 'var(--income)' : 'var(--expense)', fontVariantNumeric: 'tabular-nums' }}>
+                          {gain >= 0 ? '+' : '−'}{inr(Math.abs(gain))} on {inr(imp.cost)}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
 
           {/* value history */}
           {chart && (

@@ -4,8 +4,9 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Search, ArrowLeftRight, Filter, X, CheckSquare, Square, Trash2, Download, FileText, ExternalLink, Pencil, Paperclip, Gem } from 'lucide-react'
+import { Plus, Search, ArrowLeftRight, Filter, X, CheckSquare, Square, Trash2, Download, FileText, ExternalLink, Pencil, Paperclip, Gem, Hammer } from 'lucide-react'
 import MarkAsAssetModal from './MarkAsAssetModal'
+import AddToAssetModal from './AddToAssetModal'
 import type { Transaction, Account, Category, Payee } from '@/lib/types'
 import { getCategoryEmoji } from '@/lib/types'
 import { formatCurrency, getRelativeDate, accountGroupRank } from '@/lib/utils'
@@ -243,6 +244,7 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
   // once, so a linked expense says what it bought instead of offering to
   // create a second asset against the same payment.
   const [assetTx, setAssetTx] = useState<Transaction | null>(null)
+  const [improveTx, setImproveTx] = useState<Transaction | null>(null)
   const [assetByTxn, setAssetByTxn] = useState<Record<string, string>>({})
   useEffect(() => {
     const sb = createClient()
@@ -394,17 +396,36 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
               </div>
             </Link>
           ) : (
-            <button
-              onClick={() => setAssetTx(tx)}
-              className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-3 mt-4 text-left"
-              style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
-            >
-              <Gem className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>Mark as asset</p>
-                <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>This expense bought something you still own</p>
-              </div>
-            </button>
+            <div className="space-y-2 mt-4">
+              <button
+                onClick={() => setAssetTx(tx)}
+                className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+              >
+                <Gem className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>Mark as asset</p>
+                  <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>This expense bought something you still own</p>
+                </div>
+              </button>
+
+              {/* The other half. Cement for a house on land you already own didn't
+                  buy a NEW asset — you can't sell the cement — it went INTO one.
+                  Without this, that money either becomes a phantom asset or
+                  disappears into expenses, and the land's cost is understated by
+                  the price of a house. */}
+              <button
+                onClick={() => setImproveTx(tx)}
+                className="w-full flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
+              >
+                <Hammer className="w-4 h-4 shrink-0" style={{ color: 'var(--brand)' }} />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>Add to an existing asset</p>
+                  <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>This went into something you already own — a building, a renovation</p>
+                </div>
+              </button>
+            </div>
           )
         )}
 
@@ -759,6 +780,14 @@ export default function TransactionsClient({ initialTransactions, accounts, cate
           </div>
         )
       })()}
+
+      {improveTx && (
+        <AddToAssetModal
+          transaction={{ id: improveTx.id, name: improveTx.name ?? null, amount: improveTx.amount, date: improveTx.date, notes: improveTx.notes }}
+          onSaved={(assetName, impName) => setAssetByTxn(m => ({ ...m, [improveTx.id]: `${impName} · ${assetName}` }))}
+          onClose={() => setImproveTx(null)}
+        />
+      )}
 
       {assetTx && (
         <MarkAsAssetModal

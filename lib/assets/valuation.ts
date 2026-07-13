@@ -2,6 +2,7 @@
 // Pure functions — no I/O — so they run identically on server and client.
 
 import type { Asset, MarketRate, AssetRateDefault } from './types'
+import { improvementsCost, improvementsValue, type Improvement } from './improvements'
 import { stockCost, stockValue, isPriceStale } from './stocks'
 import { forexCost, forexValue } from './forex'
 
@@ -16,6 +17,12 @@ export interface Valuation {
 }
 
 const n = (v: unknown) => Number(v ?? 0) || 0
+
+/** Improvements stored on the asset, if any. */
+const improvementList = (d: Asset['details']): Improvement[] =>
+  Array.isArray((d as { improvements?: Improvement[] }).improvements)
+    ? (d as { improvements: Improvement[] }).improvements
+    : []
 
 /** Years elapsed between a date string and now (fractional). */
 export function yearsSince(dateStr: string | null | undefined): number {
@@ -250,6 +257,37 @@ export function valueAsset(
   } else { // rate (appreciating)
     const pct = effectiveRatePct(asset, defaults)
     current = cost * Math.pow(1 + pct / 100, yrs)
+  }
+
+  // ── Improvements ──────────────────────────────────────────────────────────
+  // Things done to the asset AFTER you bought it: a house built on old land, a
+  // compound wall, a renovation. Each one runs on ITS OWN clock — see
+  // lib/assets/improvements.ts. Adding them here rather than folding them into
+  // `cost` is deliberate: fold them in and the building would be depreciated from
+  // the day you bought the LAND, which would age a new house by years it hasn't
+  // lived and show you a loss you never took.
+  //
+  // manual_value overrides everything, including these: if you've said what the
+  // whole thing is worth, that's the answer, and adding a building on top of it
+  // would double-count the very thing you were valuing.
+  const imps = improvementList(asset.details)
+  if (imps.length > 0 && asset.manual_value == null) {
+    const impCost = improvementsCost(imps) * fx
+    const impValue = improvementsValue(imps) * fx
+
+    current += impValue
+    // Improvement costs are part of what the asset cost you — that's what makes
+    // the gain honest when you eventually sell.
+    lines.push(...imps.map(i => ({ label: `${i.name} (${i.date})`, amount: n(i.cost) * fx })))
+
+    return {
+      cost: cost + impCost,
+      costLines: lines,
+      current,
+      gain: current - (cost + impCost),
+      returnPct: (cost + impCost) > 0 ? (current - (cost + impCost)) / (cost + impCost) : 0,
+      currentNote: note,
+    }
   }
 
   const gain = current - cost
