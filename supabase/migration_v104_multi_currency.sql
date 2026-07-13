@@ -29,8 +29,12 @@ COMMENT ON COLUMN transactions.to_amount IS
   'Cross-currency transfers: the amount received, in the destination account''s currency. NULL when both sides share a currency.';
 
 -- The balance view must credit what ARRIVED, not what left.
--- (The view lists columns explicitly; CREATE OR REPLACE requires the same column
---  order, so this is the v73 view with exactly one line changed.)
+--
+-- CAREFUL: this is the CURRENT view (as left by v80 — account holders), with
+-- exactly ONE line changed. CREATE OR REPLACE VIEW cannot drop or reorder
+-- columns, so every column must be reproduced in the same order. Basing this on
+-- an older version of the view fails with:
+--     ERROR: 42P16: cannot drop columns from view
 CREATE OR REPLACE VIEW account_balances AS
 SELECT
   a.id, a.user_id, a.household_id, a.created_by, a.name, a.type, a.currency,
@@ -51,8 +55,9 @@ SELECT
         WHEN t.type = 'income'   THEN  t.amount
         WHEN t.type = 'expense'  THEN -t.amount
         WHEN t.type = 'transfer' AND t.account_id    = a.id THEN -t.amount
-        -- CHANGED: credit what arrived. COALESCE keeps every existing
-        -- same-currency transfer behaving exactly as it does today.
+        -- ── THE ONE CHANGED LINE ──────────────────────────────────────────
+        -- Credit what ARRIVED, not what left. COALESCE means every existing
+        -- same-currency transfer (to_amount IS NULL) behaves exactly as before.
         WHEN t.type = 'transfer' AND t.to_account_id = a.id THEN  COALESCE(t.to_amount, t.amount)
         ELSE 0
       END
@@ -61,7 +66,10 @@ SELECT
   a.account_holder,
   a.card_network,
   a.card_expiry_month,
-  a.card_expiry_year
+  a.card_expiry_year,
+  a.bank_customer_id,
+  a.bank_logo_url,
+  a.account_holder_id
 FROM accounts a
 LEFT JOIN custom_account_types ct ON ct.id = a.custom_type_id
 LEFT JOIN transactions t ON (t.account_id = a.id OR t.to_account_id = a.id)

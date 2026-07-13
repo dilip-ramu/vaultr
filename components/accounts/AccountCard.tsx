@@ -46,6 +46,9 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
   const typeAvatarUrl = account.custom_type_avatar_url ?? null
 
   const balance = account.balance ?? account.initial_balance
+  // A €500 account holds €500, not ₹500. Show what it actually holds — the
+  // conversion belongs in the totals, never on the account itself.
+  const ccy = (account.currency || 'INR').toUpperCase()
   const credit = isCredit(account.type)
   const loan = isLoan(account.type)
   const cm = credit ? creditMetrics(account) : null
@@ -171,7 +174,7 @@ export default function AccountCard({ account, onEdit, onDelete, txns, currencyB
         ) : (
           <>
             <p className={`font-bold text-sm ${balance < 0 ? 'text-[var(--expense)]' : 'text-[var(--text)]'}`}>
-              {formatCurrency(balance)}
+              {formatCurrency(balance, ccy)}
             </p>
             {!account.include_in_net_worth && (
               <p className="text-[10px] text-[var(--text-faint)]">Excluded</p>

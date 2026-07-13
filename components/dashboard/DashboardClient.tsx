@@ -21,6 +21,7 @@ import TransactionItem from '../transactions/TransactionItem'
 import PayeeSpendRings, { type PayeeRing } from './PayeeSpendRings'
 import TopSpendCard from './TopSpendCard'
 import MarkCardPaidModal from './MarkCardPaidModal'
+import { rateMap, sumInBase, BASE_CURRENCY } from '@/lib/fx'
 
 const TransactionForm = dynamic(() => import('../transactions/TransactionForm'), { ssr: false })
 
@@ -60,6 +61,8 @@ function buildChartData(transactions: { type: string; amount: number; date: stri
 
 interface Props {
   accounts: Account[]
+  /** Market rates so foreign-currency accounts can be totalled. */
+  fxRates?: { currency: string; market_rate: number }[]
   recentTransactions: Transaction[]
   monthlyTransactions: { type: string; amount: number; date: string }[]
   chartTransactions?: { type: string; amount: number; date: string }[]
@@ -152,8 +155,7 @@ export default function DashboardClient({
   billsDueCount = 0,
   profitMTD,
   cardDues = [],
-  payeeRings = [],
-}: Props) {
+  payeeRings = [], fxRates = []}: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
   const [payCard, setPayCard] = useState<CardDue | null>(null)
@@ -167,8 +169,22 @@ export default function DashboardClient({
 
   const assetAccounts      = accounts.filter(a => !isLiability(a.type) && a.include_in_net_worth)
   const liabilityAccounts  = accounts.filter(a =>  isLiability(a.type) && a.include_in_net_worth)
-  const totalAssets        = assetAccounts.reduce((s, a) => s + (a.balance ?? 0), 0)
-  const totalLiabilities   = liabilityAccounts.reduce((s, a) => s + Math.abs(a.balance ?? 0), 0)
+
+  // Accounts may hold different currencies. Adding a ₹ balance to a € balance
+  // produces a number that means nothing, so convert first — and be honest about
+  // anything we have no rate for rather than counting it as zero.
+  const rates = useMemo(() => rateMap(fxRates), [fxRates])
+  const assetTotal = useMemo(
+    () => sumInBase(assetAccounts.map(a => ({ balance: a.balance ?? 0, currency: a.currency })), rates),
+    [assetAccounts, rates],
+  )
+  const liabilityTotal = useMemo(
+    () => sumInBase(liabilityAccounts.map(a => ({ balance: Math.abs(a.balance ?? 0), currency: a.currency })), rates),
+    [liabilityAccounts, rates],
+  )
+
+  const totalAssets        = assetTotal.base
+  const totalLiabilities   = liabilityTotal.base
   const credit             = creditSummary(accounts)
   const netWorth           = totalAssets - totalLiabilities
   const monthlyIncome      = monthlyTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
@@ -300,6 +316,31 @@ export default function DashboardClient({
                 <span className="mx-2" style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
                 Debt <span className="font-bold" style={{ color: '#FCA5A5' }}>{mc(totalLiabilities)}</span>
               </p>
+
+              {/* A converted total is a magic number unless it says what it
+                  converted and at what rate. Show the foreign holdings, natively. */}
+              {assetTotal.multiCurrency && (
+                <p className="text-[10.5px] mt-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  Includes{' '}
+                  {assetTotal.holdings
+                    .filter(h => h.currency !== BASE_CURRENCY && h.base !== null)
+                    .map(h => `${h.native.toLocaleString('en-IN')} ${h.currency} @ ${h.rate}`)
+                    .join(' · ')}
+                </p>
+              )}
+
+              {/* Money we CANNOT convert is excluded from the total above. Saying
+                  so is the whole point — a silent zero would just delete it. */}
+              {assetTotal.missingRates.length > 0 && (
+                <p className="text-[10.5px] mt-1" style={{ color: '#FCD34D' }}>
+                  Not included:{' '}
+                  {assetTotal.holdings
+                    .filter(h => h.base === null)
+                    .map(h => `${h.native.toLocaleString('en-IN')} ${h.currency}`)
+                    .join(' · ')}
+                  {' '}— no exchange rate. Set one in Settings → Currencies.
+                </p>
+              )}
             </div>
 
             {/* Income / Expenses */}

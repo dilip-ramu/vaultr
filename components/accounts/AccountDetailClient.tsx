@@ -241,7 +241,7 @@ export default function AccountDetailClient({ account: initialAccount, recentTra
             <div className="bg-[var(--surface-2)] rounded-xl px-4 py-3">
               <p className="text-xs text-[var(--text-muted)] mb-0.5">Current Balance</p>
               <p className={`text-2xl font-bold ${balance < 0 ? 'text-[var(--expense)]' : 'text-[var(--text)]'}`}>
-                {formatCurrency(balance)}
+                {formatCurrency(balance, (account.currency || 'INR').toUpperCase())}
               </p>
               {account.initial_balance !== 0 && (
                 <p className="text-xs text-[var(--text-faint)] mt-0.5">
