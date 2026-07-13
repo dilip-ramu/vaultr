@@ -27,6 +27,17 @@ export interface CardCycle {
   hiddenCharges: number | null // bankAmount − calculatedAmount
   paidSinceClose: number      // payments made after the close date
   remainingDue: number        // max(0, owed − paidSinceClose)
+  /**
+   * Is this statement done with?
+   *
+   * TWO things can settle it, and BOTH must count — this was the bug. The Cards
+   * page treated a statement as paid once you'd recorded a payment against it
+   * (card_statements.payment_transaction_id), while the dashboard only looked at
+   * remainingDue. Pay on or before the close date and the payment falls INSIDE
+   * the cycle rather than after it, so remainingDue never drops — the card read
+   * "paid" on the Cards page and kept nagging you on the dashboard forever.
+   */
+  settled: boolean
 }
 
 export interface CardOverview {
@@ -125,10 +136,13 @@ export function cardOverview(opts: {
   dueDay: number | null
   txns: CardTxn[]              // all transactions touching this card
   bankAmounts: Record<string, number>
+  /** Statement dates you've explicitly recorded a payment against. */
+  paidDates?: string[]
   today: string                // YYYY-MM-DD
   historyMonths?: number       // how many closed cycles to show (default 12)
 }): CardOverview {
   const { accountId, initialBalance, statementDay, dueDay, txns, bankAmounts, today } = opts
+  const paid = new Set(opts.paidDates ?? [])
   const months = opts.historyMonths ?? 12
 
   const lastClose = lastStatementDate(statementDay, today)
@@ -158,6 +172,8 @@ export function cardOverview(opts: {
       hiddenCharges: bank === null ? null : round2(bank - calculated),
       paidSinceClose: round2(after.payments),
       remainingDue: round2(Math.max(0, owed - after.payments)),
+      // Explicitly paid, or nothing left owing. Either settles it.
+      settled: paid.has(close) || round2(Math.max(0, owed - after.payments)) <= 0,
     })
   }
 

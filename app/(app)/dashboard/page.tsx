@@ -38,15 +38,22 @@ async function fetchCardDues(supabase: SupabaseClient, uid: string, today: strin
       .or(`account_id.in.(${idList}),to_account_id.in.(${idList})`),
     supabase
       .from('card_statements')
-      .select('account_id, statement_date, bank_amount')
+      // payment_transaction_id is what says "you already paid this statement".
+      // Without it the dashboard can't know, and nags you forever.
+      .select('account_id, statement_date, bank_amount, payment_transaction_id')
       .eq('user_id', uid),
   ])
 
   const dues: CardDue[] = []
   for (const card of cards) {
     const bankAmounts: Record<string, number> = {}
+    const paidDates: string[] = []
     for (const s of statements ?? []) {
-      if (s.account_id === card.id) bankAmounts[s.statement_date] = Number(s.bank_amount)
+      if (s.account_id !== card.id) continue
+      bankAmounts[s.statement_date] = Number(s.bank_amount)
+      if ((s as { payment_transaction_id?: string | null }).payment_transaction_id) {
+        paidDates.push(s.statement_date)
+      }
     }
     const o = cardOverview({
       accountId: card.id,
@@ -55,11 +62,14 @@ async function fetchCardDues(supabase: SupabaseClient, uid: string, today: strin
       dueDay: card.statement_due_day,
       txns: (txns ?? []) as CardTxn[],
       bankAmounts,
+      paidDates,
       today,
       historyMonths: 2,
     })
     const latest = o.cycles[0]
-    if (latest && latest.remainingDue > 0) {
+    // `settled` — the same rule the Cards page uses. Checking remainingDue alone
+    // meant a statement you paid ON its close date stayed "due" forever.
+    if (latest && !latest.settled && latest.remainingDue > 0) {
       dues.push({ id: card.id, name: card.name, color: card.color, amount: latest.remainingDue, dueDate: latest.dueDate })
     }
   }

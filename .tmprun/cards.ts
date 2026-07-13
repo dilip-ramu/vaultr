@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from './shim'
 import {
   lastStatementDate, statementDates, dueDateFor, debtAt, cardOverview,
   type CardTxn,
-} from '../cards'
+} from '../lib/cards'
 
 const CARD = 'card1'
 

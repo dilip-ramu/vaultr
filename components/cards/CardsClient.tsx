@@ -93,6 +93,13 @@ export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onS
 
   const today = new Date().toISOString().split('T')[0]
 
+  // Statements you've explicitly recorded a payment against. Feeding these in is
+  // what lets `settled` mean the same thing here as it does on the dashboard.
+  const paidDates = useMemo(
+    () => Object.values(stmtRows).filter(r => r.payment_transaction_id).map(r => r.statement_date),
+    [stmtRows],
+  )
+
   const overview = useMemo(() => {
     if (!stmtDay) return null
     return cardOverview({
@@ -102,10 +109,11 @@ export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onS
       dueDay: dueDay,
       txns,
       bankAmounts,
+      paidDates,
       today,
       historyMonths: 12,
     })
-  }, [card.id, card.initial_balance, stmtDay, dueDay, txns, bankAmounts, today])
+  }, [card.id, card.initial_balance, stmtDay, dueDay, txns, bankAmounts, paidDates, today])
 
   async function saveDay(field: 'statement_day' | 'statement_due_day', value: number) {
     if (field === 'statement_day') setStmtDay(value)
@@ -132,7 +140,9 @@ export function SingleCard({ card, txns, bankAmounts, stmtRows, payAccounts, onS
 
   const latest = overview?.cycles[0]
   const latestRow = latest ? stmtRows[latest.statementDate] : undefined
-  const latestPaid = !!latestRow?.payment_transaction_id || (latest ? latest.remainingDue <= 0 && latest.paidSinceClose > 0 : false)
+  // One rule, from lib/cards.ts — so this page and the dashboard can never
+  // disagree about whether a card is paid again.
+  const latestPaid = latest?.settled ?? false
 
   // Derived display values for the spec card visual + stats
   const remainingDue = latest ? latest.remainingDue : 0
