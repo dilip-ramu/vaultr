@@ -384,13 +384,12 @@ export default function DashboardClient({
                 </p>
               )}
 
-              {/* Counted, but at what it COST — not today's market price. A real
-                  number, just not the one you think you're reading. */}
-              {nw.caveats.length > 0 && (
-                <p className="text-[10.5px] mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                  At cost: {nw.caveats.map(c => c.what).join(' · ')} — no live price
-                </p>
-              )}
+              {/* No "at cost" line here. Assets without a live price are held at
+                  cost — a real number, and the asset itself already says so on the
+                  Assets page. Repeating it on the dashboard as a list of seven
+                  currencies is clutter on the one screen that should be readable
+                  at a glance. `nw.caveats` is still computed; it just doesn't
+                  shout from here. */}
             </div>
 
             {/* Income / Expenses */}
