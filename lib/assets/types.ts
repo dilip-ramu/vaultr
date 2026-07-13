@@ -46,7 +46,7 @@ export interface StoneEntry { type?: string; weight_ct?: number; cost?: number; 
 export interface DocEntry { type?: string; url?: string; name?: string }
 
 export const STONE_TYPES = ['Diamond', 'Ruby', 'Emerald', 'Sapphire', 'Pearl', 'Coral', 'Topaz', 'Cubic Zirconia', 'Other']
-export const DOC_TYPES = ['Parent document', 'Sale deed', 'Patta', 'Chitta', 'Adangal', 'FMB sketch', 'EC (Encumbrance)', 'Tax receipt', 'Approval / Plan', 'Khata', 'Other']
+export const DOC_TYPES = ['Photo', 'Invoice', 'Parent document', 'Sale deed', 'Patta', 'Chitta', 'Adangal', 'FMB sketch', 'EC (Encumbrance)', 'Tax receipt', 'Approval / Plan', 'Khata', 'Other']
 
 // Foreign currency HELD (not spent). Valued at the rate from the Currencies
 // page. See lib/assets/forex.ts — a currency with no rate is worth "unknown",

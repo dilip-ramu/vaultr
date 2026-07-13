@@ -104,6 +104,15 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
   if (asset.photo_url) media.push({ url: asset.photo_url, name: `${asset.name} photo`, label: 'Photo', kind: 'image' })
   if (invoiceUrl) media.push({ url: invoiceUrl, name: 'Invoice', label: 'Invoice', kind: isPdf(invoiceUrl) ? 'pdf' : 'image' })
   for (const dc of docs) if (dc.url) media.push({ url: dc.url, name: dc.name || dc.type || 'Document', label: dc.type || 'Document', kind: isPdf(dc.url, dc.name) ? 'pdf' : 'image' })
+
+  // The cover photo is ALSO in documents (an asset can hold several photos, and
+  // photo_url just names which one goes on the card). Without this, it would be
+  // listed twice — once as the photo, once as itself.
+  const seen = new Set<string>()
+  const uniqueMedia = media.filter(m => (seen.has(m.url) ? false : (seen.add(m.url), true)))
+  media.length = 0
+  media.push(...uniqueMedia)
+
   const lb = lightbox != null ? media[lightbox] : null
 
   const chartColor = isMarket ? 'var(--amber)' : 'var(--brand)'
