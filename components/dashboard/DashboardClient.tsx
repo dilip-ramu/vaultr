@@ -516,6 +516,7 @@ export default function DashboardClient({
         <MarkCardPaidModal
           cardId={payCard.id}
           cardName={payCard.name}
+          statementDate={payCard.statementDate}
           remainingDue={payCard.amount}
           accounts={accounts}
           onClose={() => setPayCard(null)}

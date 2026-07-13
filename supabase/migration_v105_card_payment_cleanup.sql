@@ -1,0 +1,56 @@
+-- ── Migration v105: clean up the duplicate card payments ────────────────────
+--
+-- The dashboard's "Mark paid" created a TRANSFER but never recorded that the
+-- statement was settled (card_statements.payment_transaction_id). The dashboard
+-- then decided "still due?" from remainingDue alone, which only counts payments
+-- made AFTER the statement close date — so paying on or before close left the
+-- card nagging forever.
+--
+-- Clicking Mark paid again didn't help. It just made ANOTHER transfer. So the
+-- card balance is now wrong by however many extra payments were recorded.
+--
+-- This is NOT run blind. Look first, delete what you recognise as duplicates.
+
+-- ── 1. What card payments exist? ────────────────────────────────────────────
+-- Repeated identical transfers to the same card on the same day are the
+-- duplicates the broken button created.
+--
+--   SELECT t.id, t.date, t.amount, a.name AS card, src.name AS paid_from, t.created_at
+--     FROM transactions t
+--     JOIN accounts a   ON a.id = t.to_account_id
+--     LEFT JOIN accounts src ON src.id = t.account_id
+--    WHERE t.type = 'transfer'
+--      AND a.type = 'credit'
+--    ORDER BY a.name, t.date DESC, t.created_at;
+
+-- ── 2. Find the exact duplicate groups ──────────────────────────────────────
+--   SELECT to_account_id, date, amount, count(*) AS times, min(created_at) AS kept
+--     FROM transactions
+--    WHERE type = 'transfer'
+--    GROUP BY to_account_id, date, amount
+--   HAVING count(*) > 1;
+
+-- ── 3. Delete the duplicates, keeping the FIRST of each group ───────────────
+-- Uncomment to run. It keeps one payment per (card, date, amount) and removes
+-- the accidental repeats.
+--
+-- DELETE FROM transactions t
+--  WHERE t.type = 'transfer'
+--    AND EXISTS (
+--          SELECT 1 FROM accounts a
+--           WHERE a.id = t.to_account_id AND a.type = 'credit'
+--        )
+--    AND t.id NOT IN (
+--          SELECT DISTINCT ON (to_account_id, date, amount) id
+--            FROM transactions
+--           WHERE type = 'transfer'
+--           ORDER BY to_account_id, date, amount, created_at
+--        );
+
+-- ── 4. Then mark the statement itself paid ─────────────────────────────────
+-- Do this from the app (Cards → the card → Mark paid), which now records both
+-- the transfer AND the settled flag. Or check what's already flagged:
+--
+--   SELECT a.name, cs.statement_date, cs.bank_amount, cs.payment_transaction_id
+--     FROM card_statements cs JOIN accounts a ON a.id = cs.account_id
+--    ORDER BY a.name, cs.statement_date DESC;

@@ -5,5 +5,6 @@ import './gst-returns'
 import './asset-sale'
 import './company-balance-sheet'
 import './cards'
+import './fx'
 import { run } from './shim'
 run()

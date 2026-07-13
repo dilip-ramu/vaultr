@@ -9,6 +9,8 @@ import { getBillablePayeeIds } from '@/lib/reimbursables/customers'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface CardDue {
+  /** The statement this due belongs to. Marking it paid needs this. */
+  statementDate: string
   id: string
   name: string
   color: string | null
@@ -70,7 +72,11 @@ async function fetchCardDues(supabase: SupabaseClient, uid: string, today: strin
     // `settled` — the same rule the Cards page uses. Checking remainingDue alone
     // meant a statement you paid ON its close date stayed "due" forever.
     if (latest && !latest.settled && latest.remainingDue > 0) {
-      dues.push({ id: card.id, name: card.name, color: card.color, amount: latest.remainingDue, dueDate: latest.dueDate })
+      dues.push({
+        id: card.id, name: card.name, color: card.color,
+        amount: latest.remainingDue, dueDate: latest.dueDate,
+        statementDate: latest.statementDate,
+      })
     }
   }
   return dues.sort((a, b) => a.dueDate.localeCompare(b.dueDate))

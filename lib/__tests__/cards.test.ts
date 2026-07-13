@@ -179,3 +179,58 @@ describe('a statement you have already paid', () => {
     expect(cycle.settled).toBe(false)
   })
 })
+
+
+// The dashboard's Mark-paid button created a transfer but never recorded that
+// the STATEMENT was settled. So the nag came back, you clicked again, and got a
+// second transfer. This is the shape of the data that produced that loop.
+describe('the dashboard mark-paid loop', () => {
+  const base = {
+    accountId: CARD,
+    initialBalance: 0,
+    statementDay: 25,
+    dueDay: 10,
+    today: '2026-02-05',
+    historyMonths: 2,
+  }
+
+  it('a payment made BEFORE the close date never reduces remainingDue — which is why it nagged', () => {
+    const cycle = cardOverview({
+      ...base,
+      txns: [spend(84492, '2026-01-05'), payment(84492, '2026-01-20')],   // paid before close
+      bankAmounts: { '2026-01-25': 84492 },
+    }).cycles[0]
+
+    expect(cycle.remainingDue).toBe(84492)   // still "due", though you paid it
+    expect(cycle.settled).toBe(false)        // and nothing said otherwise…
+  })
+
+  it('…until the payment is recorded against the statement, which is what the button now does', () => {
+    const cycle = cardOverview({
+      ...base,
+      txns: [spend(84492, '2026-01-05'), payment(84492, '2026-01-20')],
+      bankAmounts: { '2026-01-25': 84492 },
+      paidDates: ['2026-01-25'],             // card_statements.payment_transaction_id
+    }).cycles[0]
+
+    expect(cycle.settled).toBe(true)         // the nag clears
+  })
+
+  it('clicking pay three times leaves three payments — the data the old button produced', () => {
+    const cycle = cardOverview({
+      ...base,
+      txns: [
+        spend(84492, '2026-01-05'),
+        payment(84492, '2026-01-30'),
+        payment(84492, '2026-01-30'),
+        payment(84492, '2026-01-30'),
+      ],
+      bankAmounts: { '2026-01-25': 84492 },
+    }).cycles[0]
+
+    // Overpaid by 2×. remainingDue floors at 0, so the UI looked fine while the
+    // card's actual balance was wrong by ₹1,68,984.
+    expect(cycle.paidSinceClose).toBe(253476)
+    expect(cycle.remainingDue).toBe(0)
+  })
+})

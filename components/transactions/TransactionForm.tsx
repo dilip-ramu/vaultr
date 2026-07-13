@@ -5,6 +5,7 @@ import { X, TrendingDown, TrendingUp, ArrowLeftRight, Plus, Search, ChevronDown,
 import type { Transaction, Account, Category, TransactionType, Payee } from '@/lib/types'
 import { getCategoryEmoji, ACCOUNT_TYPE_CONFIG, resolveAccountTypeDisplay } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
+import { isCrossCurrency, impliedRate, validateCrossTransfer } from '@/lib/fx'
 import { getTodayString, accountGroupRank } from '@/lib/utils'
 import { CURRENCIES, getCurrencyMeta } from '@/lib/currencies'
 import { parseAmount, dateError } from '@/lib/validation'
@@ -31,6 +32,15 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const [currency, setCurrency] = useState(transaction?.original_currency ?? 'INR')
   const [accountId, setAccountId] = useState(transaction?.account_id ?? '')
   const [toAccountId, setToAccountId] = useState(transaction?.to_account_id ?? '')
+
+  // A cross-currency transfer is TWO amounts. The balance view used to credit the
+  // destination with the SOURCE number — send ₹91,000 to a EUR account and it
+  // credited €91,000. So when the currencies differ we must ask what ACTUALLY
+  // arrived; we never compute it from a market rate, because your bank's rate on
+  // the day is a fact and the market's is a guess.
+  const [toAmount, setToAmount] = useState(
+    (transaction as { to_amount?: number | null } | undefined)?.to_amount?.toString() ?? '',
+  )
   const [categoryId, setCategoryId] = useState(transaction?.category_id ?? '')
   const [payeeId, setPayeeId] = useState(transaction?.payee_id ?? '')
   const [usedForCompanyId, setUsedForCompanyId] = useState<string | ''>(transaction?.used_for_company_id ?? '')
@@ -152,6 +162,15 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   // back to the same category (e.g. 50k Vacation expense + 25k Vacation income = 25k net)
   const filteredCategories = type === 'transfer' ? [] : categories.filter(c => c.type === 'expense')
 
+  const fromAcct = accounts.find(a => a.id === accountId)
+  const toAcct = accounts.find(a => a.id === toAccountId)
+  const fromCcy = (fromAcct?.currency || 'INR').toUpperCase()
+  const toCcy = (toAcct?.currency || 'INR').toUpperCase()
+  const crossCurrency = type === 'transfer' && !!accountId && !!toAccountId && isCrossCurrency(fromCcy, toCcy)
+  const gotRate = crossCurrency
+    ? impliedRate({ amount: parseFloat(originalAmount) || 0, toAmount: parseFloat(toAmount) || 0 })
+    : null
+
   const typeConfig = {
     expense:  { label: 'Expense',  icon: TrendingDown,    color: 'bg-[var(--expense)]',   light: ' ' },
     income:   { label: 'Income',   icon: TrendingUp,      color: 'bg-[var(--income)]', light: ' ' },
@@ -188,6 +207,13 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
   const handleSave = async () => {
     if (!originalAmount || !accountId) { setError('Amount and account are required'); return }
     if (type === 'transfer' && !toAccountId) { setError('Select destination account'); return }
+    if (crossCurrency) {
+      const check = validateCrossTransfer({
+        amount: parseFloat(originalAmount) || 0,
+        toAmount: parseFloat(toAmount) || 0,
+      })
+      if (!check.ok) { setError(check.errors[0]); return }
+    }
     if (currency !== 'INR' && !inrAmount) { setError('Could not get exchange rate for ' + currency); return }
     const amountCheck = parseAmount(originalAmount)
     if (amountCheck.error) { setError(amountCheck.error); return }
@@ -209,6 +235,10 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
       name: txName.trim() || null,
       account_id: accountId,
       to_account_id: type === 'transfer' ? toAccountId : null,
+      // What actually ARRIVED, in the destination's currency. NULL when both
+      // sides share a currency — which keeps every ordinary transfer untouched.
+      to_amount: crossCurrency ? parseFloat(toAmount) : null,
+      fx_rate: crossCurrency ? gotRate : null,
       category_id: type !== 'transfer' && categoryId ? categoryId : null,
       payee_id: payeeId || null,
       used_for_company_id: usedForCompanyId || null,
@@ -405,6 +435,40 @@ export default function TransactionForm({ transaction, accounts: propAccounts, c
               </div>
             )}
           </div>
+          )}
+
+          {/* A cross-currency transfer: ask what ACTUALLY arrived.
+              We deliberately do NOT compute this from the market rate — the rate
+              your bank gave you is a fact, the market's is a guess, and quietly
+              inventing the destination amount is how the old code credited
+              €91,000 for a ₹91,000 transfer. */}
+          {showAccounts && step === 'to' && crossCurrency && (
+            <div className="rounded-xl border p-3.5 mb-4 space-y-2.5" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                  {fromCcy} → {toCcy}
+                </span>
+                <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>These accounts hold different currencies</span>
+              </div>
+
+              <label className="block text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                Amount received ({toCcy})
+                <input
+                  value={toAmount}
+                  onChange={e => setToAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                  inputMode="decimal"
+                  placeholder={`How much ${toCcy} actually landed`}
+                  className="w-full px-3 py-2.5 rounded-xl border text-sm mt-1"
+                  style={{ background: 'var(--surface)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+              </label>
+
+              <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                {gotRate
+                  ? <>Rate you got: 1 {fromCcy} = {gotRate} {toCcy}. {parseFloat(originalAmount) || 0} {fromCcy} left, {parseFloat(toAmount) || 0} {toCcy} arrived.</>
+                  : <>Enter the amount that landed in the destination account — from the statement, not the market rate.</>}
+              </p>
+            </div>
           )}
 
           {/* Accounts — from/to step (stepped list, for both new and edit) */}

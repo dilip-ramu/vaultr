@@ -14,6 +14,8 @@ interface Props {
   cardName: string
   /** Amount the dashboard says is still due. The user can override. */
   remainingDue: number
+  /** The statement being paid. Without this we can't record that it's settled. */
+  statementDate: string
   /** All the user's active accounts — we filter to non-liability accounts as
    *  valid sources. */
   accounts: Account[]
@@ -24,7 +26,7 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export default function MarkCardPaidModal({ cardId, cardName, remainingDue, accounts, onClose }: Props) {
+export default function MarkCardPaidModal({ cardId, cardName, statementDate, remainingDue, accounts, onClose }: Props) {
   const router = useRouter()
   const sourceOptions = accounts.filter(a => !isLiability(a.type) && a.is_active && a.id !== cardId)
   const [fromId, setFromId] = useState<string>(sourceOptions[0]?.id ?? '')
@@ -41,7 +43,7 @@ export default function MarkCardPaidModal({ cardId, cardName, remainingDue, acco
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      const { error: insErr } = await supabase
+      const { data: txn, error: insErr } = await supabase
         .from('transactions')
         .insert({
           user_id: user!.id,
@@ -53,7 +55,35 @@ export default function MarkCardPaidModal({ cardId, cardName, remainingDue, acco
           date,
           name: `${cardName} payment`,
         })
-      if (insErr) { setError(insErr.message); setBusy(false); return }
+        .select('id')
+        .single()
+      if (insErr || !txn) { setError(insErr?.message ?? 'Could not record the payment'); setBusy(false); return }
+
+      // THE BUG THIS FIXES: this modal used to create the transfer and stop
+      // there. It never recorded that the STATEMENT was paid — that flag lives
+      // on card_statements, and only the Cards page was writing it. The dashboard
+      // then fell back to "remainingDue > 0", which only counts payments made
+      // AFTER the close date. Pay on or before close and the nag never cleared,
+      // however many times you clicked Mark paid (and every click made another
+      // transfer). Record the fact, once, like the Cards page does.
+      const { error: stmtErr } = await supabase.from('card_statements').upsert(
+        {
+          user_id: user!.id,
+          account_id: cardId,
+          statement_date: statementDate,
+          bank_amount: amt,
+          payment_transaction_id: txn.id,
+        },
+        { onConflict: 'account_id,statement_date' },
+      )
+      if (stmtErr) {
+        // Never leave a half-recorded payment: undo the transfer.
+        await supabase.from('transactions').delete().eq('id', txn.id).eq('user_id', user!.id)
+        setError(stmtErr.message)
+        setBusy(false)
+        return
+      }
+
       notify(`₹${amt.toLocaleString('en-IN')} paid to ${cardName}`, 'success')
       onClose()
       router.refresh()
