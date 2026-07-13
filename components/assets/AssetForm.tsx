@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { X, TrendingUp, TrendingDown, ImagePlus, FileText, Gem, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { quoteSymbol, stockValue, stockGain, isPriceStale, priceAgeHours } from '@/lib/assets/stocks'
+import { notify } from '@/components/shared/Toast'
 import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType, StoneEntry, DocEntry } from '@/lib/assets/types'
 import { categoryDef, STONE_TYPES, DOC_TYPES, ASSET_CURRENCIES } from '@/lib/assets/types'
 import { useFileDrop } from '@/components/shared/useFileDrop'
@@ -36,6 +38,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const isBuilding = valuation === 'building'
   const isLand = category === 'real_estate' && subcategory === 'land' && (valuation === 'rate' || valuation === 'depreciate')
   const isRate = (valuation === 'rate' || valuation === 'depreciate') && !isLand   // generic: electronics, watch, artwork, custom…
+  const isStock = valuation === 'stock'
 
   const d0 = (asset?.details ?? {}) as AssetDetails
   const [name, setName] = useState(asset?.name ?? '')
@@ -137,6 +140,40 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const [structDep, setStructDep] = useState(d0.structure_depreciation_pct?.toString() ?? '3')
   // electronics
   const [purchaseCost, setPurchaseCost] = useState(d0.purchase_cost?.toString() ?? '')
+
+  // ── Stocks ────────────────────────────────────────────────────────────────
+  const [symbol, setSymbol] = useState((d0.symbol as string) ?? '')
+  const [exchange, setExchange] = useState<'NSE' | 'BSE'>(((d0.exchange as 'NSE' | 'BSE') ?? 'NSE'))
+  const [qty, setQty] = useState(d0.quantity?.toString() ?? '')
+  const [avgCost, setAvgCost] = useState(d0.avg_cost?.toString() ?? '')
+  const [lastPrice, setLastPrice] = useState(d0.last_price?.toString() ?? '')
+  const [lastPriceAt, setLastPriceAt] = useState((d0.last_price_at as string) ?? '')
+  const [fetching, setFetching] = useState(false)
+
+  /** Pull the live exchange price for this symbol. Manual — nothing polls. */
+  async function fetchPrice() {
+    const q = quoteSymbol({ symbol, exchange })
+    if (!q) { notify('Enter a ticker symbol first', 'info'); return }
+    setFetching(true)
+    try {
+      const res = await fetch(`/api/stocks/quote?symbols=${encodeURIComponent(q)}`)
+      const data = await res.json() as { quotes?: Record<string, { price: number; at: string }>; failed?: string[] }
+      const hit = data.quotes?.[q]
+      if (!hit) {
+        // Say we couldn't price it. Leaving the old number sitting there looking
+        // freshly fetched is the one thing we must not do.
+        notify(`Could not get a price for ${q}. Check the symbol and exchange.`, 'error')
+        return
+      }
+      setLastPrice(String(hit.price))
+      setLastPriceAt(hit.at)
+      notify(`${q} — ₹${hit.price.toLocaleString('en-IN')}`, 'success')
+    } catch {
+      notify('Could not reach the price service', 'error')
+    } finally {
+      setFetching(false)
+    }
+  }
   // shared
   const [purchaseDate, setPurchaseDate] = useState(asset?.purchase_date ?? '')
   const [currency, setCurrency] = useState((d0.currency as string | undefined) ?? 'INR')
@@ -162,10 +199,19 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       stones: cleanStones.length ? cleanStones : undefined,
       invoice_url: invoiceUrl || undefined, documents: docs, currency: cur,
     }
+    if (isStock) return {
+      symbol: symbol.trim().toUpperCase() || undefined,
+      exchange,
+      quantity: num(qty),
+      avg_cost: num(avgCost),
+      last_price: num(lastPrice),
+      last_price_at: lastPriceAt || undefined,
+      documents: docs, currency: cur,
+    }
     if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs, currency: cur }
     if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs, currency: cur }
     return { purchase_cost: num(purchaseCost), documents: docs, currency: cur }
-  }, [isMarket, isLand, isBuilding, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, currency])
+  }, [isMarket, isLand, isBuilding, isStock, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, symbol, exchange, qty, avgCost, lastPrice, lastPriceAt, currency])
 
   const { cost, lines } = computeCost(category, valuation, details)
 
@@ -347,6 +393,85 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
                 )}
               </div>
               <div><label className={lbl}>Purchased</label><input type="date" className={fld} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} /></div>
+            </>}
+
+            {isStock && <>
+              <div className="grid grid-cols-[1fr_100px] gap-2.5">
+                <div>
+                  <label className={lbl}>Ticker symbol</label>
+                  <input className={fld} value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} placeholder="RELIANCE" />
+                </div>
+                <div>
+                  <label className={lbl}>Exchange</label>
+                  <select className={fld} value={exchange} onChange={e => setExchange(e.target.value as 'NSE' | 'BSE')}>
+                    <option value="NSE">NSE</option>
+                    <option value="BSE">BSE</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div><label className={lbl}>Shares held</label><input className={fld} inputMode="decimal" value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="100" /></div>
+                <div><label className={lbl}>Average cost / share</label><input className={fld} inputMode="decimal" value={avgCost} onChange={e => setAvgCost(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="2400" /></div>
+              </div>
+
+              {/* The price is FETCHED, not typed — and it can be missing or old.
+                  Both states are shown plainly rather than hidden behind a number
+                  that looks current. */}
+              <div className="rounded-[12px] p-3 space-y-2" style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                <div className="flex items-end gap-2.5">
+                  <div className="flex-1">
+                    <label className={lbl}>Market price / share</label>
+                    <input className={fld} inputMode="decimal" value={lastPrice} onChange={e => { setLastPrice(e.target.value.replace(/[^0-9.]/g, '')); setLastPriceAt(new Date().toISOString()) }} placeholder="Fetch, or type it in" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchPrice}
+                    disabled={fetching || !symbol.trim()}
+                    className="rounded-[10px] px-3.5 py-2.5 text-[12.5px] font-bold text-white disabled:opacity-50"
+                    style={{ background: 'var(--brand)' }}
+                  >
+                    {fetching ? 'Fetching…' : 'Fetch price'}
+                  </button>
+                </div>
+
+                {lastPriceAt ? (
+                  <p className="text-[11px]" style={{ color: isPriceStale({ last_price: num(lastPrice), last_price_at: lastPriceAt }) ? 'var(--amber)' : 'var(--text-faint)' }}>
+                    Priced {(() => {
+                      const h = priceAgeHours({ last_price_at: lastPriceAt })
+                      if (h === null) return 'never'
+                      if (h < 1) return 'just now'
+                      if (h < 24) return `${Math.round(h)}h ago`
+                      return `${Math.round(h / 24)}d ago`
+                    })()}
+                    {isPriceStale({ last_price: num(lastPrice), last_price_at: lastPriceAt }) && ' — stale, fetch again'}
+                  </p>
+                ) : (
+                  <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                    No price yet — the holding is shown at cost until you fetch one.
+                  </p>
+                )}
+
+                {(() => {
+                  const d = { symbol, quantity: num(qty), avg_cost: num(avgCost), last_price: num(lastPrice), last_price_at: lastPriceAt }
+                  const v = stockValue(d)
+                  const g = stockGain(d)
+                  if (v === null || g === null) return null
+                  return (
+                    <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+                      <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Worth {inr(v)}</span>
+                      <span className="text-[12.5px] font-bold" style={{ color: g >= 0 ? 'var(--income)' : 'var(--expense)' }}>
+                        {g >= 0 ? '+' : ''}{inr(g)}
+                      </span>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                Prices come from the exchange (NSE/BSE) via a public quote service, not from your broker —
+                HDFC Securities has no public API. It&apos;s the same market price, and the fetch is always manual.
+              </p>
             </>}
 
             {isLand && <>

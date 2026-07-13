@@ -2,6 +2,7 @@
 // Pure functions — no I/O — so they run identically on server and client.
 
 import type { Asset, MarketRate, AssetRateDefault } from './types'
+import { stockCost, stockValue, isPriceStale } from './stocks'
 
 export interface CostLine { label: string; amount: number }
 export interface Valuation {
@@ -95,6 +96,14 @@ export function electronicsCost(d: Asset['details']): { cost: number; lines: Cos
 
 /** Compute the cost for any asset from its category + details. */
 export function computeCost(category: string, valuation: string, details: Asset['details']): { cost: number; lines: CostLine[] } {
+  // A stock's cost is simply what you paid: shares × average price.
+  if (valuation === 'stock' || category === 'stocks') {
+    const cost = stockCost(details)
+    return {
+      cost,
+      lines: [{ label: `${Number(details.quantity) || 0} × ₹${Number(details.avg_cost) || 0}`, amount: cost }],
+    }
+  }
   if (category === 'gold' || category === 'silver') return goldCost(details)
   if (valuation === 'building') return buildingCost(details)
   if (category === 'real_estate') return landCost(details)
@@ -184,6 +193,21 @@ export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRat
     const land = n(d.land_cost) * Math.pow(1 + n(d.land_appreciation_pct) / 100, yrs)
     const structure = n(d.structure_cost) * Math.pow(1 - n(d.structure_depreciation_pct) / 100, yrs)
     current = (land + structure) * fx
+  } else if (asset.valuation_type === 'stock') {
+    // Quantity × the last fetched price. If there IS no price, we do NOT invent
+    // one: the value falls back to cost and the note says so, rather than
+    // silently presenting cost as if it were today's market value.
+    const v = stockValue(asset.details)
+    if (v === null) {
+      current = cost
+      note = 'No price fetched yet — held at cost'
+    } else {
+      current = v * fx
+      const stale = isPriceStale(asset.details)
+      const px = Number(asset.details.last_price) || 0
+      note = `${Number(asset.details.quantity) || 0} × ₹${px.toLocaleString('en-IN')}`
+        + (stale ? ' · price is stale, fetch again' : '')
+    }
   } else if (asset.valuation_type === 'depreciate') {
     const pct = Math.abs(effectiveRatePct(asset, defaults) || n(asset.details.depreciation_pct))
     current = cost * Math.pow(1 - pct / 100, yrs)

@@ -1,6 +1,6 @@
 // Assets domain types (frames 25a–j).
 
-export type ValuationType = 'market' | 'rate' | 'depreciate' | 'building'
+export type ValuationType = 'market' | 'rate' | 'depreciate' | 'building' | 'stock'
 
 export interface GoldDetails {
   weight_g?: number          // net metal weight
@@ -48,7 +48,18 @@ export interface DocEntry { type?: string; url?: string; name?: string }
 export const STONE_TYPES = ['Diamond', 'Ruby', 'Emerald', 'Sapphire', 'Pearl', 'Coral', 'Topaz', 'Cubic Zirconia', 'Other']
 export const DOC_TYPES = ['Parent document', 'Sale deed', 'Patta', 'Chitta', 'Adangal', 'FMB sketch', 'EC (Encumbrance)', 'Tax receipt', 'Approval / Plan', 'Khata', 'Other']
 
-export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & ElectronicsDetails & {
+// Stocks: quantity × a fetched price. See lib/assets/stocks.ts — the price can
+// be missing or stale, and the maths there is honest about both.
+export interface StockDetails {
+  symbol?: string
+  exchange?: 'NSE' | 'BSE'
+  quantity?: number
+  avg_cost?: number
+  last_price?: number
+  last_price_at?: string
+}
+
+export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & ElectronicsDetails & StockDetails & {
   stones?: StoneEntry[]
   location?: string
   documents?: DocEntry[]
@@ -163,6 +174,15 @@ export const ASSET_CATEGORIES: CategoryDef[] = [
       { key: 'jewellery', label: 'Jewellery', valuation: 'market' },
       { key: 'coins', label: 'Coins', valuation: 'market' },
       { key: 'bars', label: 'Bars', valuation: 'market' },
+    ],
+  },
+  {
+    key: 'stocks', label: 'Stocks', emoji: '📈', valuation: 'stock',
+    blurb: 'market-priced',
+    subcategories: [
+      { key: 'equity', label: 'Equity', valuation: 'stock' },
+      { key: 'etf', label: 'ETF', valuation: 'stock' },
+      { key: 'mutual_fund', label: 'Mutual fund', valuation: 'stock' },
     ],
   },
   {

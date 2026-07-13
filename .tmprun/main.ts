@@ -6,5 +6,6 @@ import './asset-sale'
 import './company-balance-sheet'
 import './cards'
 import './fx'
+import './stocks'
 import { run } from './shim'
 run()
