@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import CurrencySelect from '@/components/shared/CurrencySelect'
 import { stateCodeFromGstin } from '@/lib/gst/states'
 import { X, Upload, FileText, Trash2 } from 'lucide-react'
 import type { SupplierInvoice, Supplier, PaymentTerms } from '@/lib/suppliers/types'
@@ -311,14 +312,13 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
               </div>
             </Field>
             <Field label="Currency">
-              <select
-                value={form.currency}
-                onChange={e => set('currency', e.target.value)}
+              <CurrencySelect
+                value={form.currency ?? 'INR'}
+                onChange={v => set('currency', v)}
+                preferred={['INR', 'USD', 'EUR', 'GBP', 'AED']}
                 className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
                 style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
-              >
-                {['INR','USD','EUR','GBP','AED'].map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              />
             </Field>
           </div>
 

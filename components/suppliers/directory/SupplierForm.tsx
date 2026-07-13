@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import CurrencySelect from '@/components/shared/CurrencySelect'
 import { X } from 'lucide-react'
 import type { Supplier, PaymentTerms } from '@/lib/suppliers/types'
 import { PAYMENT_TERMS_OPTIONS } from '@/lib/suppliers/types'
@@ -35,7 +36,6 @@ const EMPTY: Omit<Supplier, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
   color: null,
 }
 
-const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']
 
 export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
   const [form, setForm] = useState(supplier
@@ -180,14 +180,13 @@ export default function SupplierForm({ supplier, onSaved, onClose }: Props) {
                 </Field>
               )}
               <Field label="Currency">
-                <select
-                  value={form.currency}
-                  onChange={e => set('currency', e.target.value)}
+                <CurrencySelect
+                  value={form.currency ?? 'INR'}
+                  onChange={v => set('currency', v)}
+                  preferred={['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD']}
                   className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
                   style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
-                >
-                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                />
               </Field>
               <Field label="Bank Name">
                 <Input value={form.bank_name ?? ''} onChange={v => set('bank_name', v)} placeholder="HDFC Bank" />

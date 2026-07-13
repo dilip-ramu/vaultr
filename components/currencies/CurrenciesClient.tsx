@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { refreshAllRates } from '@/lib/rates/refreshAll'
 import { RefreshCw, Search, Info, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { CURRENCIES } from '@/lib/currencies'
@@ -47,6 +48,10 @@ export default function CurrenciesClient({ initialRates }: Props) {
         setLastFetched(new Date())
         saveRatesToDB(json.rates)
       }
+      // Same button, same promise as everywhere else: metals and stock prices
+      // refresh too. Pressing "refresh" on ONE page and silently leaving the
+      // other two stale is exactly how a stale number gets mistaken for a live one.
+      refreshAllRates().catch(() => { /* the currency table above is already updated */ })
     } catch (e) {
       console.error('Failed to fetch rates', e)
     }

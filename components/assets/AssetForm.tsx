@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState, useRef } from 'react'
+import CurrencySelect from '@/components/shared/CurrencySelect'
 import { X, TrendingUp, TrendingDown, ImagePlus, FileText, Gem, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { quoteSymbol, stockValue, stockGain, isPriceStale, priceAgeHours } from '@/lib/assets/stocks'
 import { forexValue, forexGain, forexRateChangePct } from '@/lib/assets/forex'
-import { CURRENCIES } from '@/lib/currencies'
+import { refreshAllRates, summarise } from '@/lib/rates/refreshAll'
 import { notify } from '@/components/shared/Toast'
 import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType, StoneEntry, DocEntry } from '@/lib/assets/types'
 import { categoryDef, STONE_TYPES, DOC_TYPES, ASSET_CURRENCIES } from '@/lib/assets/types'
@@ -175,26 +176,44 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       })
   }, [isForex])
 
-  /** Pull the live exchange price for this symbol. Manual — nothing polls. */
+  /**
+   * Refresh EVERY price in the app — metals, currencies and stocks — then pull
+   * this symbol's new price into the form.
+   *
+   * Whichever fetch button you press, all three refresh. Three buttons each
+   * refreshing a third of your portfolio is three chances to read a stale number
+   * as if it were current.
+   */
   async function fetchPrice() {
-    const q = quoteSymbol({ symbol, exchange })
-    if (!q) { notify('Enter a ticker symbol first', 'info'); return }
     setFetching(true)
     try {
-      const res = await fetch(`/api/stocks/quote?symbols=${encodeURIComponent(q)}`)
-      const data = await res.json() as { quotes?: Record<string, { price: number; at: string }>; failed?: string[] }
-      const hit = data.quotes?.[q]
-      if (!hit) {
-        // Say we couldn't price it. Leaving the old number sitting there looking
-        // freshly fetched is the one thing we must not do.
-        notify(`Could not get a price for ${q}. Check the symbol and exchange.`, 'error')
-        return
+      const result = await refreshAllRates()
+      const { message, tone } = summarise(result)
+      notify(message, tone)
+
+      // Pull the currency rates back in — they may have just moved too.
+      const sb = createClient()
+      const { data: ccy } = await sb.from('currency_rates').select('currency, market_rate')
+      const m: Record<string, number> = {}
+      for (const r of (ccy ?? []) as { currency: string; market_rate: number }[]) {
+        const rate = Number(r.market_rate)
+        if (r.currency && rate > 0) m[r.currency.toUpperCase()] = rate
       }
+      setCcyRates(m)
+
+      // And this symbol's price, if it has one.
+      const q = quoteSymbol({ symbol, exchange })
+      if (!q) return
+      const res = await fetch(`/api/stocks/quote?symbols=${encodeURIComponent(q)}`)
+      const data = await res.json() as { quotes?: Record<string, { price: number; at: string }> }
+      const hit = data.quotes?.[q]
+      // No price → leave the old one alone and say nothing new. We must NEVER
+      // stamp a fresh timestamp onto a price we didn't actually get.
+      if (!hit) return
       setLastPrice(String(hit.price))
       setLastPriceAt(hit.at)
-      notify(`${q} — ₹${hit.price.toLocaleString('en-IN')}`, 'success')
-    } catch {
-      notify('Could not reach the price service', 'error')
+    } catch (e) {
+      notify((e as Error).message || 'Could not reach the price service', 'error')
     } finally {
       setFetching(false)
     }
@@ -331,9 +350,13 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
                 </select>
               </div>
               <div><label className={lbl}>Currency</label>
-                <select className={`${fld} appearance-none`} style={{ color: 'var(--text)' }} value={currency} onChange={e => setCurrency(e.target.value)}>
-                  {ASSET_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <CurrencySelect
+                  value={currency}
+                  onChange={setCurrency}
+                  preferred={ASSET_CURRENCIES}
+                  className={`${fld} appearance-none`}
+                  style={{ color: 'var(--text)' }}
+                />
               </div>
             </div>
             {currency !== 'INR' && (
@@ -430,12 +453,20 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
             </>}
 
             {isForex && <>
-              <div className="grid grid-cols-[110px_1fr] gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 <div>
                   <label className={lbl}>Currency</label>
-                  <select className={fld} value={fxCcy} onChange={e => setFxCcy(e.target.value)}>
-                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
-                  </select>
+                  {/* Every world currency, with flag and full name — the ones you
+                      already have a rate for float to the top, because those are the
+                      only ones that can actually be valued. INR is excluded: rupees
+                      you hold are an ACCOUNT, not a foreign-currency asset. */}
+                  <CurrencySelect
+                    value={fxCcy}
+                    onChange={setFxCcy}
+                    preferred={Object.keys(ccyRates)}
+                    exclude={['INR']}
+                    className={fld}
+                  />
                 </div>
                 <div>
                   <label className={lbl}>Amount held</label>
@@ -452,6 +483,18 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
                   here. If it isn't set, say so and point at where to set it,
                   rather than valuing the holding at cost and calling it current. */}
               <div className="rounded-[12px] p-3 space-y-1.5" style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Today&apos;s value</span>
+                  <button
+                    type="button"
+                    onClick={fetchPrice}
+                    disabled={fetching}
+                    className="rounded-[9px] px-2.5 py-1 text-[11.5px] font-bold text-white disabled:opacity-50"
+                    style={{ background: 'var(--brand)' }}
+                  >
+                    {fetching ? 'Refreshing…' : 'Refresh rates'}
+                  </button>
+                </div>
                 {(() => {
                   const d = { fx_currency: fxCcy, fx_amount: num(fxAmount), fx_acquired_rate: num(fxAcquired) }
                   const rate = ccyRates[fxCcy.toUpperCase()]

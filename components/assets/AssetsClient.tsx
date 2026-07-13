@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Gem, Percent, TrendingUp, Map as MapIcon, Home, Upload } from 'lucide-react'
+import { Plus, Gem, Percent, TrendingUp, Map as MapIcon, Home, Upload, RefreshCw } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { notify } from '@/components/shared/Toast'
+import { refreshAllRates, summarise } from '@/lib/rates/refreshAll'
 import type { Asset, MarketRate, AssetRateDefault } from '@/lib/assets/types'
 import { ASSET_CATEGORIES, categoryDef } from '@/lib/assets/types'
 import { valueAsset, assetFx, inr, pctStr, type Valuation } from '@/lib/assets/valuation'
@@ -25,6 +28,7 @@ interface Props {
 }
 
 export default function AssetsClient({ initialAssets, marketRates, initialDefaults, accounts = [] }: Props) {
+  const router = useRouter()
   const { hidden } = useBalanceVisibility()
   const m = (n: number) => hidden ? '••••' : inr(n)
   const [assets, setAssets] = useState<Asset[]>(initialAssets)
@@ -45,6 +49,23 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
   // currency is valued from these — not from a live API — so the number can
   // always be traced back to a rate you can see and change.
   const [currencyRates, setCurrencyRates] = useState<Record<string, number>>({})
+  const [refreshing, setRefreshing] = useState(false)
+
+  /** Metals, currencies and stocks — all three, from one button. */
+  async function refreshRates() {
+    setRefreshing(true)
+    try {
+      const result = await refreshAllRates()
+      const { message, tone } = summarise(result)
+      notify(message, tone)
+      // Pull the new numbers into this page without a reload.
+      router.refresh()
+    } catch (e) {
+      notify((e as Error).message || 'Could not refresh prices', 'error')
+    } finally {
+      setRefreshing(false)
+    }
+  }
   useEffect(() => {
     const sb = createClient()
     sb.from('currency_rates').select('currency, market_rate')
@@ -165,6 +186,19 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
         </div>
         {tab === 'assets' && (
           <div className="flex items-center gap-2">
+            {/* ONE refresh for everything: metal rates, currency rates, stock
+                prices. Whichever fetch button you press anywhere in the app, this
+                is what runs — so no corner of the portfolio is quietly stale. */}
+            <button
+              onClick={refreshRates}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl disabled:opacity-60"
+              style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+              title="Refresh metal rates, currency rates and stock prices"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing…' : 'Refresh prices'}
+            </button>
             <Link href="/assets/import" className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl" style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
               <Upload className="w-4 h-4" /> Import
             </Link>
