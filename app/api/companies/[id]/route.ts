@@ -15,6 +15,8 @@ const UPDATABLE = new Set([
   'logo_path',
   'invoice_template', 'invoice_accent',
   'color', 'business_type',
+  // v106 — your share of this company (drives net worth).
+  'ownership_pct',
 ])
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {

@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
     invoice_accent:      normalizeAccent(body.invoice_accent),
     color:               body.color               ?? null,
     business_type:       (body.business_type === 'partnership' ? 'partnership' : 'proprietorship'),
+    // v106 — your stake. Absent means 100: a new company is yours until you say
+    // it isn't. Defaulting to 0 would quietly value it at nothing.
+    ownership_pct:       Math.min(100, Math.max(0, Number(body.ownership_pct ?? 100) || 0)),
   }
 
   const { data, error } = await supabase.from('companies').insert(insertRow).select('*').single()

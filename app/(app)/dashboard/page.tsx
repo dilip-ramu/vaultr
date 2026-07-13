@@ -6,6 +6,8 @@ import { fetchProfitLines } from '@/lib/profitability-server'
 import { summarize } from '@/lib/profitability'
 import { cardOverview, type CardTxn } from '@/lib/cards'
 import { getBillablePayeeIds } from '@/lib/reimbursables/customers'
+import { fetchNetWorthData } from '@/lib/networth-server'
+import { computeNetWorth } from '@/lib/networth'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface CardDue {
@@ -276,7 +278,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Fast path: ONE round trip for all dashboard data (migration_v34) + profit lines + card dues
   // Also: every payee linked to a customer = reimbursable, exclude them from
   // "your" spending (generalised from the old "Contrast"-by-name rule).
-  const [{ data: dash, error: dashError }, profitLines, cardDues, billablePayeeIds, { data: fxRows }] = await Promise.all([
+  const [{ data: dash, error: dashError }, profitLines, cardDues, billablePayeeIds, netWorthData] = await Promise.all([
     supabase.rpc('get_dashboard_data', {
       p_month_start: startOfMonth,
       p_month_end: endOfMonth,
@@ -286,10 +288,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     fetchProfitLines(supabase, user!.id),
     fetchCardDues(supabase, user!.id, todayStr),
     getBillablePayeeIds(supabase, user!.id),
-    // Accounts can hold foreign currency. Totalling them without rates would be
-    // adding rupees to euros — so the rates come with the data, not after it.
-    supabase.from('currency_rates').select('currency, market_rate').eq('user_id', user!.id),
+    // Net worth is no longer "add up the bank accounts". It is personal cash and
+    // assets, plus YOUR SHARE of each company's equity, plus what your companies
+    // owe you. Gathered by the same function the company page uses, so the two
+    // screens cannot drift apart and quietly disagree.
+    fetchNetWorthData(supabase, user!.id),
   ])
+
+  const netWorth = computeNetWorth(netWorthData)
   const billableSet = new Set<string>(billablePayeeIds)
 
   const d: DashboardData = !dashError && dash
@@ -439,7 +445,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       billsDueCount={billsDueCount}
       profitMTD={profitMTD}
       cardDues={cardDues}
-      fxRates={(fxRows ?? []) as { currency: string; market_rate: number }[]}
+      netWorth={netWorth}
       unbilledInvoices={d.unbilledInvoices as unknown as { id: string; amount: number; invoice_date: string; linked_customer_name: string | null; supplier: { name: string } | null }[]}
       payeeRings={payeeRings}
     />

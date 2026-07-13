@@ -40,6 +40,8 @@ export interface Company {
   document_logo_path?: string | null
   // v89 — proprietorship | partnership (drives signatory labels)
   business_type?: 'proprietorship' | 'partnership'
+  // v106 — your share of this company, 0–100. Applied to its EQUITY in net worth.
+  ownership_pct?: number
   // Retained column (templates retired) — no longer used by the form.
   invoice_template?: string | null
   invoice_accent: string
@@ -104,6 +106,9 @@ export default function CompanyForm({ company, existingLogoUrl, existingDocLogoU
   const [invoiceAccent,   setInvoiceAccent]   = useState<string>(company?.invoice_accent ?? DEFAULT_INVOICE_ACCENT)
   const [color,           setColor]           = useState<string | null>(company?.color ?? null)
   const [businessType,    setBusinessType]    = useState<'proprietorship' | 'partnership'>(company?.business_type ?? 'proprietorship')
+  // v106 — 100% unless you say otherwise, which is what every company was before
+  // this field existed. The default cannot move a number that was already right.
+  const [ownershipPct,    setOwnershipPct]    = useState<string>(String(company?.ownership_pct ?? 100))
 
   async function handleSave() {
     if (!name.trim()) { setError('Company name is required'); return }
@@ -132,6 +137,9 @@ export default function CompanyForm({ company, existingLogoUrl, existingDocLogoU
         invoice_accent: invoiceAccent,
         color: color || null,
         business_type: businessType,
+        // Clamped here as well as in the DB: a 120% stake is not a thing, and a
+        // blank field means 100 (you own it), not 0 (you own none of it).
+        ownership_pct: Math.min(100, Math.max(0, parseFloat(ownershipPct) || 0)),
       }
       const url = isEdit ? `/api/companies/${company!.id}` : '/api/companies'
       const method = isEdit ? 'PATCH' : 'POST'
@@ -392,6 +400,43 @@ export default function CompanyForm({ company, existingLogoUrl, existingDocLogoU
                 })()}
               </div>
             </div>
+          </div>
+
+          {/* ── Your stake (v106) ───────────────────────────────────────────
+              This drives the net worth on the dashboard. It multiplies the
+              company's EQUITY — what's left after its debts — not its cash, so a
+              60% share of a company that owes more than it owns correctly makes
+              you poorer, not richer. */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Your stake</p>
+            <div className="flex items-center gap-2">
+              <div className="relative w-32">
+                <input
+                  type="number" min={0} max={100} step={0.01}
+                  value={ownershipPct}
+                  onChange={e => setOwnershipPct(e.target.value)}
+                  className="w-full px-3 py-2.5 pr-8 rounded-xl border text-sm outline-none"
+                  style={{ backgroundColor: 'var(--surface-2, var(--bg))', borderColor: 'var(--border)', color: 'var(--text)' }}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold" style={{ color: 'var(--text-faint)' }}>%</span>
+              </div>
+              {[100, 50].map(v => (
+                <button key={v} type="button" onClick={() => setOwnershipPct(String(v))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+                  style={{
+                    borderColor: parseFloat(ownershipPct) === v ? 'var(--brand)' : 'var(--border)',
+                    background: parseFloat(ownershipPct) === v ? 'var(--brand-light)' : 'var(--surface-2)',
+                    color: parseFloat(ownershipPct) === v ? 'var(--brand)' : 'var(--text-muted)',
+                  }}>
+                  {v}%
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+              {parseFloat(ownershipPct) >= 100
+                ? 'Entirely yours — all of its equity counts towards your net worth.'
+                : `${parseFloat(ownershipPct) || 0}% of this company's equity (assets + cash + money owed to it, less what it owes) counts towards your net worth. The rest belongs to your partners.`}
+            </p>
           </div>
 
           {/* Authorised signatories (v89) */}

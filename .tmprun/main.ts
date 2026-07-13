@@ -8,5 +8,6 @@ import './cards'
 import './fx'
 import './stocks'
 import './forex-asset'
+import './networth'
 import { run } from './shim'
 run()

@@ -9,6 +9,7 @@ import {
   type SheetAccount, type SheetAsset, type SheetReceivable, type SheetPayable,
 } from '@/lib/companies/balanceSheet'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
+import OwnerLoansPanel, { type OwnerLoanEntry } from './OwnerLoansPanel'
 
 const inr = (n: number) =>
   (n < 0 ? '−' : '') + '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.abs(n))
@@ -22,12 +23,21 @@ interface Data {
 
 export default function CompanyViewClient({
   company, companies, data, employeeCount, untagged,
+  loans = [], loanBalance = 0, equity = 0, yourShare = 0,
 }: {
-  company: { id: string; name: string; gstin: string | null; accent: string | null }
+  company: { id: string; name: string; gstin: string | null; accent: string | null; ownershipPct?: number }
   companies: { id: string; name: string }[]
   data: Data
   employeeCount: number
   untagged?: { bills: number; billsValue: number; invoices: number }
+  /** Money you personally put in or took out. */
+  loans?: OwnerLoanEntry[]
+  /** Positive: the company owes you. */
+  loanBalance?: number
+  /** Net position AFTER your loan is booked as a debt of the company. */
+  equity?: number
+  /** stake% × equity — the part of this that is actually yours. */
+  yourShare?: number
 }) {
   const router = useRouter()
   const { hidden } = useBalanceVisibility()
@@ -50,6 +60,7 @@ export default function CompanyViewClient({
   const card = { borderColor: 'var(--border)', background: 'var(--surface)' }
 
   const nothingTagged = accounts.length === 0 && assets.length === 0
+  const ownership = company.ownershipPct ?? 100
 
   return (
     <div className="w-full px-4 md:px-8 py-6 space-y-5">
@@ -72,13 +83,24 @@ export default function CompanyViewClient({
         </select>
       </div>
 
-      {/* Net position */}
+      {/* ── Net position ─────────────────────────────────────────────────────
+          Two different numbers, and confusing them is the whole risk: what the
+          COMPANY is worth, and what YOU own of it. At 100% they're the same; at
+          anything less, only the second one belongs in your net worth. */}
       <div className="rounded-2xl p-5" style={{ background: accent }}>
         <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.75)' }}>Net position</p>
-        <p className="text-[32px] font-extrabold tracking-tight tabular-nums text-white">{m(sheet.net)}</p>
+        <p className="text-[32px] font-extrabold tracking-tight tabular-nums text-white">{m(equity)}</p>
         <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,.8)' }}>
-          owns {m(sheet.assets + sheet.cash + sheet.receivables)} · owes {m(sheet.debt + sheet.payables)}
+          owns {m(sheet.assets + sheet.cash + sheet.receivables)} · owes {m(sheet.debt + sheet.payables + Math.max(0, loanBalance))}
+          {loanBalance > 0 && <> (incl. {m(loanBalance)} to you)</>}
         </p>
+
+        {ownership < 100 && (
+          <p className="text-[12.5px] mt-2.5 font-semibold" style={{ color: 'rgba(255,255,255,.95)' }}>
+            Your {ownership}% share: <span className="font-extrabold">{m(yourShare)}</span>
+            <span className="font-normal" style={{ color: 'rgba(255,255,255,.7)' }}> — this is what counts towards your net worth</span>
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -119,6 +141,14 @@ export default function CompanyViewClient({
           </div>
         </div>
       )}
+
+      {/* Your loan account — the money you personally moved in or out. */}
+      <OwnerLoansPanel
+        companyId={company.id}
+        companyName={company.name}
+        loans={loans}
+        balance={loanBalance}
+      />
 
       {/* Detail */}
       <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid var(--border)' }}>

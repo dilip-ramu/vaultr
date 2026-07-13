@@ -5,13 +5,13 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ChevronRight, Plus,
-  ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale, CreditCard,
+  ChevronRight, ChevronDown, Plus,
+  ArrowLeftRight, AlertTriangle, Clock, Wallet, Scale, CreditCard, Building2,
 } from 'lucide-react'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import type { ProfitSummary } from '@/lib/profitability'
 import type { CardDue } from '@/app/(app)/dashboard/page'
-import { creditSummary, isLiability } from '@/lib/account-metrics'
+import { creditSummary } from '@/lib/account-metrics'
 import type { Account, Transaction, Profile, BuiltinTypeOverride, Budget, Bill } from '@/lib/types'
 import { resolveAccountTypeDisplay, EMOJI_MAP, getCategoryEmoji } from '@/lib/types'
 import type { Insight } from '@/lib/insights'
@@ -21,7 +21,7 @@ import TransactionItem from '../transactions/TransactionItem'
 import PayeeSpendRings, { type PayeeRing } from './PayeeSpendRings'
 import TopSpendCard from './TopSpendCard'
 import MarkCardPaidModal from './MarkCardPaidModal'
-import { rateMap, sumInBase, BASE_CURRENCY } from '@/lib/fx'
+import type { GrandNetWorth } from '@/lib/networth'
 
 const TransactionForm = dynamic(() => import('../transactions/TransactionForm'), { ssr: false })
 
@@ -62,7 +62,6 @@ function buildChartData(transactions: { type: string; amount: number; date: stri
 interface Props {
   accounts: Account[]
   /** Market rates so foreign-currency accounts can be totalled. */
-  fxRates?: { currency: string; market_rate: number }[]
   recentTransactions: Transaction[]
   monthlyTransactions: { type: string; amount: number; date: string }[]
   chartTransactions?: { type: string; amount: number; date: string }[]
@@ -85,6 +84,8 @@ interface Props {
   billsDueTotal?: number
   billsDueCount?: number
   profitMTD?: ProfitSummary
+  /** Personal + your share of each company. Computed on the server, one source. */
+  netWorth: GrandNetWorth
   cardDues?: CardDue[]
   payeeRings?: PayeeRing[]
 }
@@ -154,11 +155,13 @@ export default function DashboardClient({
   billsDueTotal = 0,
   billsDueCount = 0,
   profitMTD,
+  netWorth: nw,
   cardDues = [],
-  payeeRings = [], fxRates = []}: Props) {
+  payeeRings = []}: Props) {
   const [txs, setTxs] = useState<Transaction[]>(recentTransactions)
   const [showAddTx, setShowAddTx] = useState(false)
   const [payCard, setPayCard] = useState<CardDue | null>(null)
+  const [showCompanies, setShowCompanies] = useState(false)
   const router = useRouter()
   const [showCustom, setShowCustom] = useState(period === 'custom')
   const [customFrom, setCustomFrom] = useState(periodFrom)
@@ -167,26 +170,12 @@ export default function DashboardClient({
 
   // ── Money math ──────────────────────────────────────────────────────────────
 
-  const assetAccounts      = accounts.filter(a => !isLiability(a.type) && a.include_in_net_worth)
-  const liabilityAccounts  = accounts.filter(a =>  isLiability(a.type) && a.include_in_net_worth)
-
-  // Accounts may hold different currencies. Adding a ₹ balance to a € balance
-  // produces a number that means nothing, so convert first — and be honest about
-  // anything we have no rate for rather than counting it as zero.
-  const rates = useMemo(() => rateMap(fxRates), [fxRates])
-  const assetTotal = useMemo(
-    () => sumInBase(assetAccounts.map(a => ({ balance: a.balance ?? 0, currency: a.currency })), rates),
-    [assetAccounts, rates],
-  )
-  const liabilityTotal = useMemo(
-    () => sumInBase(liabilityAccounts.map(a => ({ balance: Math.abs(a.balance ?? 0), currency: a.currency })), rates),
-    [liabilityAccounts, rates],
-  )
-
-  const totalAssets        = assetTotal.base
-  const totalLiabilities   = liabilityTotal.base
+  // Net worth itself is computed on the SERVER now (lib/networth), because it
+  // needs assets, invoices, bills and company stakes — not just the accounts this
+  // component happens to have. The currency conversion, the "unknown is not zero"
+  // exclusions and the inter-company netting all live there, in one tested place,
+  // rather than being re-derived slightly differently on every screen.
   const credit             = creditSummary(accounts)
-  const netWorth           = totalAssets - totalLiabilities
   const monthlyIncome      = monthlyTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const monthlyExpense     = monthlyTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const leftover           = monthlyIncome - monthlyExpense
@@ -305,40 +294,101 @@ export default function DashboardClient({
           style={{ background: 'linear-gradient(135deg, var(--brand-deep) 0%, var(--brand-dark) 100%)', boxShadow: 'var(--shadow-lg)' }}
         >
           <div className="grid grid-cols-2 md:grid-cols-[1.5fr_1fr_1fr] gap-y-6 gap-x-4 md:gap-x-8">
-            {/* Net Worth — prominent */}
+            {/* ── Net Worth ────────────────────────────────────────────────
+                You, plus your SHARE of each company — not the companies' gross
+                cash. Cash and Assets are personal; Business is Σ (stake% × the
+                company's equity). Receivables and payables live INSIDE that
+                equity rather than standing next to it as separate tiles, because
+                a tile you can add to cash is a tile that double-counts every
+                invoice you ever raised. Expand to see how each one gets there. */}
             <div className="col-span-2 md:col-span-1">
               <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: 'rgba(255,255,255,0.55)' }}>Net Worth</p>
               <div className="flex items-end gap-2 mt-1">
-                <p className="text-4xl font-extrabold text-white tracking-tight leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>{mc(netWorth)}</p>
+                <p className="text-4xl font-extrabold text-white tracking-tight leading-none" style={{ fontVariantNumeric: 'tabular-nums' }}>{mc(nw.grand)}</p>
               </div>
-              <p className="text-[11px] mt-2.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                Assets <span className="font-bold text-white">{mc(totalAssets)}</span>
-                <span className="mx-2" style={{ color: 'rgba(255,255,255,0.25)' }}>·</span>
-                Debt <span className="font-bold" style={{ color: '#FCA5A5' }}>{mc(totalLiabilities)}</span>
-              </p>
 
-              {/* A converted total is a magic number unless it says what it
-                  converted and at what rate. Show the foreign holdings, natively. */}
-              {assetTotal.multiCurrency && (
-                <p className="text-[10.5px] mt-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                  Includes{' '}
-                  {assetTotal.holdings
-                    .filter(h => h.currency !== BASE_CURRENCY && h.base !== null)
-                    .map(h => `${h.native.toLocaleString('en-IN')} ${h.currency} @ ${h.rate}`)
-                    .join(' · ')}
+              {/* The three things it is made of. */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5 text-[11px]" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                <span>Cash <span className="font-bold text-white">{mc(nw.personal.cash)}</span></span>
+                <span>Assets <span className="font-bold text-white">{mc(nw.personal.assets)}</span></span>
+                {nw.companies.length > 0 && (
+                  <button
+                    onClick={() => setShowCompanies(v => !v)}
+                    className="flex items-center gap-1 hover:opacity-100"
+                    style={{ color: 'rgba(255,255,255,0.5)' }}
+                  >
+                    Business <span className="font-bold" style={{ color: nw.business < 0 ? '#FCA5A5' : '#FFFFFF' }}>{mc(nw.business)}</span>
+                    {showCompanies
+                      ? <ChevronDown className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.6)' }} />
+                      : <ChevronRight className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.6)' }} />}
+                  </button>
+                )}
+                {nw.personal.debt > 0 && (
+                  <span>Debt <span className="font-bold" style={{ color: '#FCA5A5' }}>{mc(nw.personal.debt)}</span></span>
+                )}
+                {nw.ownerLoans !== 0 && (
+                  <span title="Money you lent your companies. It is a receivable to you and a payable inside them — counted once, on both sides.">
+                    {nw.ownerLoans > 0 ? 'Owed to you' : 'You owe'}{' '}
+                    <span className="font-bold" style={{ color: nw.ownerLoans > 0 ? '#7FD9A4' : '#FCA5A5' }}>{mc(Math.abs(nw.ownerLoans))}</span>
+                  </span>
+                )}
+              </div>
+
+              {/* ── Per company ─────────────────────────────────────────────── */}
+              {showCompanies && nw.companies.length > 0 && (
+                <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: 'rgba(0,0,0,0.16)' }}>
+                  {nw.companies.map(c => (
+                    <Link
+                      key={c.company.id}
+                      href={`/organization/companies/${c.company.id}`}
+                      className="flex items-center gap-3 px-3.5 py-2.5"
+                      style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+                    >
+                      <Building2 className="w-3.5 h-3.5 shrink-0" style={{ color: c.company.color ?? 'rgba(255,255,255,0.5)' }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] font-bold text-white truncate">
+                          {c.company.name}
+                          {c.company.ownershipPct !== 100 && (
+                            <span className="ml-1.5 font-semibold" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                              {c.company.ownershipPct}%
+                            </span>
+                          )}
+                        </p>
+                        {/* Where the equity comes from. Cash + assets + owed to it,
+                            less what it owes. This is the drill-down, not a set of
+                            numbers you are invited to add to your own cash. */}
+                        <p className="text-[10.5px] truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                          {c.noAccounts
+                            ? 'No accounts tagged — cash not counted'
+                            : <>Cash {fmt(c.sheet.cash)} · Assets {fmt(c.sheet.assets)} · In {fmt(c.sheet.receivables)} · Out {fmt(c.sheet.debt + c.sheet.payables)}</>}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[13px] font-extrabold" style={{ color: c.yourShare < 0 ? '#FCA5A5' : '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>
+                          {mc(c.yourShare)}
+                        </p>
+                        {c.company.ownershipPct !== 100 && (
+                          <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>of {fmt(c.equity)}</p>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Money we CANNOT value is NOT in the total above. Saying so is the
+                  whole point — a silent zero would just delete it. */}
+              {nw.excluded.length > 0 && (
+                <p className="text-[10.5px] mt-2" style={{ color: '#FCD34D' }}>
+                  Not counted: {nw.excluded.map(e => `${e.what} (${e.why})`).join(' · ')}
                 </p>
               )}
 
-              {/* Money we CANNOT convert is excluded from the total above. Saying
-                  so is the whole point — a silent zero would just delete it. */}
-              {assetTotal.missingRates.length > 0 && (
-                <p className="text-[10.5px] mt-1" style={{ color: '#FCD34D' }}>
-                  Not included:{' '}
-                  {assetTotal.holdings
-                    .filter(h => h.base === null)
-                    .map(h => `${h.native.toLocaleString('en-IN')} ${h.currency}`)
-                    .join(' · ')}
-                  {' '}— no exchange rate. Set one in Settings → Currencies.
+              {/* Counted, but at what it COST — not today's market price. A real
+                  number, just not the one you think you're reading. */}
+              {nw.caveats.length > 0 && (
+                <p className="text-[10.5px] mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  At cost: {nw.caveats.map(c => c.what).join(' · ')} — no live price
                 </p>
               )}
             </div>
