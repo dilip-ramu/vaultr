@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Wallet, Gem, CreditCard, ArrowDownLeft, ArrowUpRight, Users, AlertTriangle } from 'lucide-react'
 import {
-  buildBalanceSheet, unassignedSheet, isLiabilityAccount,
+  buildBalanceSheet, isLiabilityAccount,
   type SheetAccount, type SheetAsset, type SheetReceivable, type SheetPayable,
 } from '@/lib/companies/balanceSheet'
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
@@ -44,7 +44,6 @@ export default function CompanyViewClient({
   const m = (n: number) => (hidden ? '••••' : inr(n))
 
   const sheet = useMemo(() => buildBalanceSheet(company.id, data), [company.id, data])
-  const unassigned = useMemo(() => unassignedSheet(data), [data])
 
   const [tab, setTab] = useState<'cash' | 'assets' | 'receivables' | 'payables'>('cash')
 
@@ -59,7 +58,6 @@ export default function CompanyViewClient({
   const accent = company.accent || 'var(--brand)'
   const card = { borderColor: 'var(--border)', background: 'var(--surface)' }
 
-  const nothingTagged = accounts.length === 0 && assets.length === 0
   const ownership = company.ownershipPct ?? 100
 
   return (
@@ -129,18 +127,6 @@ export default function CompanyViewClient({
         </div>
       )}
 
-      {nothingTagged && (
-        <div className="rounded-2xl border p-4 flex items-start gap-2.5" style={{ borderColor: '#f0c36d', background: 'rgba(240,195,109,.10)' }}>
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#b7791f' }} />
-          <div>
-            <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>No accounts or assets are tagged to this company yet</p>
-            <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Open an account or an asset and set its Company. Until then only invoices and bills — which already carry a company — show up here.
-              {unassigned.net !== 0 && <> There&apos;s currently {m(unassigned.net)} sitting untagged.</>}
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Your loan account — the money you personally moved in or out. */}
       <OwnerLoansPanel

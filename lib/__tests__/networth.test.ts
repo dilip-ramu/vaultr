@@ -142,11 +142,13 @@ describe('owner loans are booked on BOTH sides', () => {
 })
 
 describe('unknown is not zero', () => {
-  it('a company with no accounts tagged says so instead of showing ₹0 cash', () => {
+  // A company with no account is a company with no cash — you'd have made an
+  // account if it had any. So this is NOT a warning: it's just zero. Crying
+  // "unknown!" over every company at once is how a real warning gets ignored.
+  it('a company with no accounts tagged is simply worth its assets, silently', () => {
     const nw = computeNetWorth({ ...base, companies: [A], assets: [asset({ id: 'g', companyId: 'a', value: 50000 })] })
-    expect(nw.companies[0].noAccounts).toBe(true)
-    expect(nw.excluded.map(e => e.what)).toContain('Company A')
-    expect(nw.excluded[0].why).toContain('cash is not counted')
+    expect(nw.excluded).toEqual([])
+    expect(nw.companies[0].yourShare).toBe(50000)
   })
 
   it('carries through exclusions it was handed — a stock with no price stays named', () => {

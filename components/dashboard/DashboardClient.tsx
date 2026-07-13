@@ -356,11 +356,11 @@ export default function DashboardClient({
                         </p>
                         {/* Where the equity comes from. Cash + assets + owed to it,
                             less what it owes. This is the drill-down, not a set of
-                            numbers you are invited to add to your own cash. */}
+                            numbers you are invited to add to your own cash.
+                            No account simply means no cash — you'd have made one
+                            if there were any — so it reads as ₹0, not as a warning. */}
                         <p className="text-[10.5px] truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                          {c.noAccounts
-                            ? 'No accounts tagged — cash not counted'
-                            : <>Cash {fmt(c.sheet.cash)} · Assets {fmt(c.sheet.assets)} · In {fmt(c.sheet.receivables)} · Out {fmt(c.sheet.debt + c.sheet.payables)}</>}
+                          Cash {fmt(c.sheet.cash)} · Assets {fmt(c.sheet.assets)} · In {fmt(c.sheet.receivables)} · Out {fmt(c.sheet.debt + c.sheet.payables)}
                         </p>
                       </div>
                       <div className="text-right shrink-0">

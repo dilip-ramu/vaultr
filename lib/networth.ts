@@ -158,18 +158,14 @@ export function computeNetWorth(data: {
     }
   })
 
+  // NOTE: a company with no accounts tagged is NOT flagged as an exclusion.
+  // It used to be, on the reasoning that "we don't know its cash". But that
+  // reasoning was wrong for how this app is actually used: if a company has cash,
+  // an account gets created for it. No account therefore means no cash — a fact,
+  // not a gap. Warning about it made the dashboard shout about five companies at
+  // once, and a warning that fires when nothing is wrong trains you to ignore the
+  // ones that mean something.
   const excluded: Exclusion[] = [...(data.excluded ?? [])]
-
-  // A company with no accounts tagged has cash we don't know, not cash of zero.
-  // Saying "₹0" here would be a confident lie; this makes it a visible gap.
-  for (const c of companies) {
-    if (c.noAccounts) {
-      excluded.push({
-        what: c.company.name,
-        why: 'no accounts tagged to it — its cash is not counted',
-      })
-    }
-  }
 
   const ownerLoans = sum(companies.map(c => c.ownerLoan))
   const business = sum(companies.map(c => c.yourShare))
