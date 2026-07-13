@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { X, TrendingUp, TrendingDown, ImagePlus, FileText, Gem, Plus, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { quoteSymbol, stockValue, stockGain, isPriceStale, priceAgeHours } from '@/lib/assets/stocks'
+import { forexValue, forexGain, forexRateChangePct } from '@/lib/assets/forex'
+import { CURRENCIES } from '@/lib/currencies'
 import { notify } from '@/components/shared/Toast'
 import type { Asset, MarketRate, AssetRateDefault, AssetDetails, ValuationType, StoneEntry, DocEntry } from '@/lib/assets/types'
 import { categoryDef, STONE_TYPES, DOC_TYPES, ASSET_CURRENCIES } from '@/lib/assets/types'
@@ -39,6 +41,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const isLand = category === 'real_estate' && subcategory === 'land' && (valuation === 'rate' || valuation === 'depreciate')
   const isRate = (valuation === 'rate' || valuation === 'depreciate') && !isLand   // generic: electronics, watch, artwork, custom…
   const isStock = valuation === 'stock'
+  const isForex = valuation === 'fx'
 
   const d0 = (asset?.details ?? {}) as AssetDetails
   const [name, setName] = useState(asset?.name ?? '')
@@ -150,6 +153,28 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
   const [lastPriceAt, setLastPriceAt] = useState((d0.last_price_at as string) ?? '')
   const [fetching, setFetching] = useState(false)
 
+  // ── Foreign currency held ─────────────────────────────────────────────────
+  const [fxCcy, setFxCcy] = useState((d0.fx_currency as string) ?? 'EUR')
+  const [fxAmount, setFxAmount] = useState(d0.fx_amount?.toString() ?? '')
+  const [fxAcquired, setFxAcquired] = useState(d0.fx_acquired_rate?.toString() ?? '')
+
+  // The rate comes from the Currencies page — the same one you set there. We read
+  // it, we never invent it: if it isn't set, we say so instead of guessing.
+  const [ccyRates, setCcyRates] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!isForex) return
+    const sb = createClient()
+    sb.from('currency_rates').select('currency, market_rate')
+      .then(({ data }: { data: { currency: string; market_rate: number }[] | null }) => {
+        const m: Record<string, number> = {}
+        for (const r of (data ?? [])) {
+          const rate = Number(r.market_rate)
+          if (r.currency && rate > 0) m[r.currency.toUpperCase()] = rate
+        }
+        setCcyRates(m)
+      })
+  }, [isForex])
+
   /** Pull the live exchange price for this symbol. Manual — nothing polls. */
   async function fetchPrice() {
     const q = quoteSymbol({ symbol, exchange })
@@ -199,6 +224,12 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       stones: cleanStones.length ? cleanStones : undefined,
       invoice_url: invoiceUrl || undefined, documents: docs, currency: cur,
     }
+    if (isForex) return {
+      fx_currency: fxCcy.toUpperCase(),
+      fx_amount: num(fxAmount),
+      fx_acquired_rate: num(fxAcquired),
+      documents: docs, currency: cur,
+    }
     if (isStock) return {
       symbol: symbol.trim().toUpperCase() || undefined,
       exchange,
@@ -211,7 +242,7 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
     if (isLand) return { area_cent: num(areaCent), price_per_cent: num(ppc), documentation: num(doc), broker: num(broker), location: location || undefined, documents: docs, currency: cur }
     if (isBuilding) return { land_cost: num(landCost), land_appreciation_pct: num(landApp), structure_cost: num(structCost), structure_depreciation_pct: num(structDep), location: location || undefined, documents: docs, currency: cur }
     return { purchase_cost: num(purchaseCost), documents: docs, currency: cur }
-  }, [isMarket, isLand, isBuilding, isStock, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, symbol, exchange, qty, avgCost, lastPrice, lastPriceAt, currency])
+  }, [isMarket, isLand, isBuilding, isStock, isForex, fxCcy, fxAmount, fxAcquired, weight, grossW, purity, ppg, valueAdd, makingG, certif, discount, taxPct, stones, invoiceUrl, documents, location, areaCent, ppc, doc, broker, landCost, landApp, structCost, structDep, purchaseCost, symbol, exchange, qty, avgCost, lastPrice, lastPriceAt, currency])
 
   const { cost, lines } = computeCost(category, valuation, details)
 
@@ -235,8 +266,11 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
       company_id: companyId || null,
       created_at: '', updated_at: '',
     }
-    return valueAsset(a, marketRates, defaults, fx || 1)
-  }, [asset, name, category, subcategory, valuation, purchaseDate, cost, details, isMarket, purity, weight, appMode, overrideRate, manualValue, marketRates, defaults, fx])
+    // Pass the Currencies-page rates so the live preview values a held foreign
+    // currency the same way the assets page will. A preview that disagrees with
+    // the saved result is just a lie you see first.
+    return valueAsset(a, marketRates, defaults, fx || 1, ccyRates)
+  }, [asset, name, category, subcategory, valuation, purchaseDate, cost, details, isMarket, purity, weight, appMode, overrideRate, manualValue, marketRates, defaults, fx, ccyRates])
 
   const todayRate = isMarket ? perGramRate(category, purity || null, marketRates) : null
 
@@ -393,6 +427,64 @@ export default function AssetForm({ asset, category, subcategory, marketRates, d
                 )}
               </div>
               <div><label className={lbl}>Purchased</label><input type="date" className={fld} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} /></div>
+            </>}
+
+            {isForex && <>
+              <div className="grid grid-cols-[110px_1fr] gap-2.5">
+                <div>
+                  <label className={lbl}>Currency</label>
+                  <select className={fld} value={fxCcy} onChange={e => setFxCcy(e.target.value)}>
+                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lbl}>Amount held</label>
+                  <input className={fld} inputMode="decimal" value={fxAmount} onChange={e => setFxAmount(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="500" />
+                </div>
+              </div>
+
+              <div>
+                <label className={lbl}>Rate you got it at (₹ per {fxCcy})</label>
+                <input className={fld} inputMode="decimal" value={fxAcquired} onChange={e => setFxAcquired(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="91" />
+              </div>
+
+              {/* Today's rate is READ from the Currencies page — never invented
+                  here. If it isn't set, say so and point at where to set it,
+                  rather than valuing the holding at cost and calling it current. */}
+              <div className="rounded-[12px] p-3 space-y-1.5" style={{ border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                {(() => {
+                  const d = { fx_currency: fxCcy, fx_amount: num(fxAmount), fx_acquired_rate: num(fxAcquired) }
+                  const rate = ccyRates[fxCcy.toUpperCase()]
+                  const v = forexValue(d, ccyRates)
+                  const g = forexGain(d, ccyRates)
+                  const pct = forexRateChangePct(d, ccyRates)
+
+                  if (v === null || g === null) {
+                    return (
+                      <p className="text-[11.5px]" style={{ color: 'var(--amber)' }}>
+                        No {fxCcy} rate set. Add it in <b>Settings → Currencies</b> and this will value itself.
+                        Until then it&apos;s held at cost.
+                      </p>
+                    )
+                  }
+
+                  return <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Today&apos;s rate · ₹{rate} / {fxCcy}</span>
+                      <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>from Currencies page</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+                      <span className="text-[12.5px] font-bold" style={{ color: 'var(--text)' }}>Worth {inr(v)}</span>
+                      <span className="text-[12.5px] font-bold" style={{ color: g >= 0 ? 'var(--income)' : 'var(--expense)' }}>
+                        {g >= 0 ? '+' : ''}{inr(g)}{pct !== null ? ` · ${pct >= 0 ? '+' : ''}${pct}%` : ''}
+                      </span>
+                    </div>
+                    <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                      You haven&apos;t spent anything — this moves only because the rate did.
+                    </p>
+                  </>
+                })()}
+              </div>
             </>}
 
             {isStock && <>

@@ -1,6 +1,6 @@
 // Assets domain types (frames 25a–j).
 
-export type ValuationType = 'market' | 'rate' | 'depreciate' | 'building' | 'stock'
+export type ValuationType = 'market' | 'rate' | 'depreciate' | 'building' | 'stock' | 'fx'
 
 export interface GoldDetails {
   weight_g?: number          // net metal weight
@@ -48,6 +48,15 @@ export interface DocEntry { type?: string; url?: string; name?: string }
 export const STONE_TYPES = ['Diamond', 'Ruby', 'Emerald', 'Sapphire', 'Pearl', 'Coral', 'Topaz', 'Cubic Zirconia', 'Other']
 export const DOC_TYPES = ['Parent document', 'Sale deed', 'Patta', 'Chitta', 'Adangal', 'FMB sketch', 'EC (Encumbrance)', 'Tax receipt', 'Approval / Plan', 'Khata', 'Other']
 
+// Foreign currency HELD (not spent). Valued at the rate from the Currencies
+// page. See lib/assets/forex.ts — a currency with no rate is worth "unknown",
+// never zero.
+export interface ForexDetails {
+  fx_currency?: string
+  fx_amount?: number
+  fx_acquired_rate?: number
+}
+
 // Stocks: quantity × a fetched price. See lib/assets/stocks.ts — the price can
 // be missing or stale, and the maths there is honest about both.
 export interface StockDetails {
@@ -59,7 +68,7 @@ export interface StockDetails {
   last_price_at?: string
 }
 
-export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & ElectronicsDetails & StockDetails & {
+export type AssetDetails = GoldDetails & LandDetails & BuildingDetails & ElectronicsDetails & StockDetails & ForexDetails & {
   stones?: StoneEntry[]
   location?: string
   documents?: DocEntry[]
@@ -174,6 +183,14 @@ export const ASSET_CATEGORIES: CategoryDef[] = [
       { key: 'jewellery', label: 'Jewellery', valuation: 'market' },
       { key: 'coins', label: 'Coins', valuation: 'market' },
       { key: 'bars', label: 'Bars', valuation: 'market' },
+    ],
+  },
+  {
+    key: 'foreign_currency', label: 'Foreign currency', emoji: '💱', valuation: 'fx',
+    blurb: 'rate-linked',
+    subcategories: [
+      { key: 'cash', label: 'Cash in hand', valuation: 'fx' },
+      { key: 'holding', label: 'Held abroad', valuation: 'fx' },
     ],
   },
   {

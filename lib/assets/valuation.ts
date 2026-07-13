@@ -3,6 +3,7 @@
 
 import type { Asset, MarketRate, AssetRateDefault } from './types'
 import { stockCost, stockValue, isPriceStale } from './stocks'
+import { forexCost, forexValue } from './forex'
 
 export interface CostLine { label: string; amount: number }
 export interface Valuation {
@@ -96,6 +97,17 @@ export function electronicsCost(d: Asset['details']): { cost: number; lines: Cos
 
 /** Compute the cost for any asset from its category + details. */
 export function computeCost(category: string, valuation: string, details: Asset['details']): { cost: number; lines: CostLine[] } {
+  // Held foreign currency: what it cost you is amount × the rate you got.
+  if (valuation === 'fx' || category === 'foreign_currency') {
+    const cost = forexCost(details)
+    return {
+      cost,
+      lines: [{
+        label: `${Number(details.fx_amount) || 0} ${(details.fx_currency as string) ?? ''} × ₹${Number(details.fx_acquired_rate) || 0}`,
+        amount: cost,
+      }],
+    }
+  }
   // A stock's cost is simply what you paid: shares × average price.
   if (valuation === 'stock' || category === 'stocks') {
     const cost = stockCost(details)
@@ -163,7 +175,16 @@ export function assetFx(asset: Asset, fxRates?: Record<string, number>): number 
 
 // ── Full valuation ─────────────────────────────────────────────────────────
 // `fx` converts the purchase-currency amounts to INR at the *current* rate.
-export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRateDefault[], fx = 1): Valuation {
+export function valueAsset(
+  asset: Asset,
+  rates: MarketRate[],
+  defaults: AssetRateDefault[],
+  fx = 1,
+  /** Currency rates as set on the Currencies page — ₹ per unit. Held foreign
+   *  currency is valued from these, and ONLY these: a rate you can see and set
+   *  is one you can reason about. */
+  currencyRates: Record<string, number> = {},
+): Valuation {
   const raw = computeCost(asset.category, asset.valuation_type, asset.details)
   const cost = raw.cost * fx
   const lines = raw.lines.map(l => ({ ...l, amount: l.amount * fx }))
@@ -193,6 +214,21 @@ export function valueAsset(asset: Asset, rates: MarketRate[], defaults: AssetRat
     const land = n(d.land_cost) * Math.pow(1 + n(d.land_appreciation_pct) / 100, yrs)
     const structure = n(d.structure_cost) * Math.pow(1 - n(d.structure_depreciation_pct) / 100, yrs)
     current = (land + structure) * fx
+  } else if (asset.valuation_type === 'fx') {
+    // Amount × today's rate from the Currencies page. With no rate we do NOT
+    // invent one: hold it at cost and say so, rather than showing a rupee value
+    // that is really just the purchase price wearing a disguise.
+    const v = forexValue(asset.details, currencyRates)
+    if (v === null) {
+      current = cost
+      const code = ((asset.details.fx_currency as string) ?? '').toUpperCase()
+      note = `No ${code || 'currency'} rate set — held at cost. Add it in Settings → Currencies.`
+    } else {
+      current = v
+      const code = ((asset.details.fx_currency as string) ?? '').toUpperCase()
+      const rate = currencyRates[code]
+      note = `${Number(asset.details.fx_amount) || 0} ${code} × ₹${rate}`
+    }
   } else if (asset.valuation_type === 'stock') {
     // Quantity × the last fetched price. If there IS no price, we do NOT invent
     // one: the value falls back to cost and the note says so, rather than

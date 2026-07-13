@@ -9,6 +9,7 @@ import { valueAsset, assetFx, inr, pctStr, type Valuation } from '@/lib/assets/v
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
 import AssetDetail from './AssetDetail'
+import { createClient } from '@/lib/supabase/client'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { netProceeds } from '@/lib/assets/sale'
 import RatesTab from './RatesTab'
@@ -40,6 +41,23 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
   const [catSel, setCatSel] = useState('')
   const [fxRates, setFxRates] = useState<Record<string, number>>({})
 
+  // Rates as YOU set them on the Currencies page (currency_rates). Held foreign
+  // currency is valued from these — not from a live API — so the number can
+  // always be traced back to a rate you can see and change.
+  const [currencyRates, setCurrencyRates] = useState<Record<string, number>>({})
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('currency_rates').select('currency, market_rate')
+      .then(({ data }: { data: { currency: string; market_rate: number }[] | null }) => {
+        const m: Record<string, number> = {}
+        for (const r of (data ?? [])) {
+          const rate = Number(r.market_rate)
+          if (r.currency && rate > 0) m[r.currency.toUpperCase()] = rate
+        }
+        setCurrencyRates(m)
+      })
+  }, [])
+
   // Live forex — only fetched if any asset was bought in a non-INR currency.
   const needsFx = useMemo(() => assets.some(a => { const c = (a.details?.currency as string | undefined)?.toUpperCase(); return c && c !== 'INR' }), [assets])
   useEffect(() => {
@@ -51,9 +69,9 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
 
   const valued = useMemo(() => {
     const m = new Map<string, Valuation>()
-    for (const a of assets) m.set(a.id, valueAsset(a, marketRates, defaults, assetFx(a, fxRates)))
+    for (const a of assets) m.set(a.id, valueAsset(a, marketRates, defaults, assetFx(a, fxRates), currencyRates))
     return m
-  }, [assets, marketRates, defaults, fxRates])
+  }, [assets, marketRates, defaults, fxRates, currencyRates])
 
   const isSold = (a: Asset) => a.status === 'sold'
   const isAwaiting = (a: Asset) => isSold(a) && a.sale_payment_status !== 'received'
