@@ -47,6 +47,19 @@ export async function POST(req: NextRequest) {
     .select('*').eq('id', groupId).eq('user_id', user.id).maybeSingle()
   if (!group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
 
+  // A member wins the pot ONCE — that's the whole structure of a chit. Reject a
+  // winner who has already won another month of this group. Checked here, not just
+  // hidden in the UI, so it can't be worked around.
+  const winnerId = (body.winner_member_id as string) || null
+  if (winnerId) {
+    const { data: priorWin } = await supabase.from('chit_auctions')
+      .select('month_number').eq('group_id', groupId).eq('user_id', user.id)
+      .eq('winner_member_id', winnerId).neq('month_number', monthNumber).maybeSingle()
+    if (priorWin) {
+      return NextResponse.json({ error: `That member already won month ${priorWin.month_number}. Each member wins only once.` }, { status: 409 })
+    }
+  }
+
   const result = runAuction({
     group: toParams(group as ChitGroup),
     monthNumber,
@@ -58,7 +71,7 @@ export async function POST(req: NextRequest) {
     group_id: groupId,
     month_number: monthNumber,
     auction_date: (body.auction_date as string) || new Date().toISOString().split('T')[0],
-    winner_member_id: (body.winner_member_id as string) || null,
+    winner_member_id: winnerId,
     bid_amount: result.discount,
     commission: result.commission,
     net_payout: result.netPayout,
@@ -143,6 +156,29 @@ export async function PATCH(req: NextRequest) {
 }
 
 /** Find-or-create a category by name + type, returning its id. */
+// DELETE ?id= — remove an auction. Refused once the payout has been paid, because
+// that's real money out; you'd delete the payout transaction first.
+export async function DELETE(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const { data: auction } = await supabase.from('chit_auctions')
+    .select('payout_transaction_id').eq('id', id).eq('user_id', user.id).maybeSingle()
+  if (!auction) return NextResponse.json({ error: 'Auction not found' }, { status: 404 })
+
+  if (alreadyPosted(auction.payout_transaction_id)) {
+    return NextResponse.json({ error: 'This payout is already recorded — reverse the payment before deleting the auction.' }, { status: 409 })
+  }
+
+  const { error } = await supabase.from('chit_auctions').delete().eq('id', id).eq('user_id', user.id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 async function ensureCategory(
   supabase: Awaited<ReturnType<typeof createClient>>, userId: string,
   name: string, type: 'income' | 'expense',

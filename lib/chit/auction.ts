@@ -191,6 +191,23 @@ export function groupTotals(p: GroupParams): GroupTotals {
   }
 }
 
+/**
+ * What a member actually pays for a month, after the auction.
+ *
+ * The auction that month produces a dividend per member — everyone's share of the
+ * winner's discount — and that dividend REDUCES what each member owes for the same
+ * month. So the due is the installment minus the dividend, floored at zero (a
+ * dividend can't turn into a payment TO the member here). Before the month's
+ * auction has run there's no dividend yet, so the due is the full installment.
+ *
+ * This is exactly runAuction()'s `netInstallment`, but keyed off the stored
+ * dividend so the collection screens don't have to re-run the auction.
+ */
+export function monthlyDue(installment: number, dividendPerMember: number): number {
+  const due = num(installment) - Math.max(0, num(dividendPerMember))
+  return Math.max(0, round2(due))
+}
+
 export interface GroupValidation { ok: boolean; errors: string[] }
 
 export function validateGroup(p: Partial<GroupParams>): GroupValidation {

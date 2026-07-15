@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   monthlyInstallment, numberOfMonths, monthlyCommission, bidCeiling,
-  runAuction, groupTotals, validateGroup,
+  runAuction, groupTotals, validateGroup, monthlyDue,
   type GroupParams,
 } from '@/lib/chit/auction'
 
@@ -146,5 +146,28 @@ describe('validation', () => {
   it('rejects nonsense percentages and a missing model', () => {
     expect(validateGroup({ ...MONTHLY, commissionPct: 150 }).ok).toBe(false)
     expect(validateGroup({ chitValue: 100000, members: 20 }).ok).toBe(false)   // no model
+  })
+})
+
+describe('what a member owes for a month, after the dividend', () => {
+  // MONTHLY, ₹1L / 20, someone bid ₹15,000: dividend was ₹500/member (tested
+  // above). So the due that month is 5000 − 500 = 4500 — NOT the flat 5000.
+  it('subtracts the same month’s dividend from the installment', () => {
+    const inst = monthlyInstallment(MONTHLY)   // 5000
+    const div = runAuction({ group: MONTHLY, monthNumber: 3, bidAmount: 15000 }).dividendPerMember  // 500
+    expect(monthlyDue(inst, div)).toBe(4500)
+  })
+
+  it('is the full installment before the month’s auction has run (no dividend)', () => {
+    expect(monthlyDue(5000, 0)).toBe(5000)
+  })
+
+  it('never goes below zero, even if a dividend somehow exceeds the installment', () => {
+    expect(monthlyDue(5000, 9000)).toBe(0)
+  })
+
+  it('matches the auction’s own netInstallment', () => {
+    const r = runAuction({ group: MONTHLY, monthNumber: 3, bidAmount: 15000 })
+    expect(monthlyDue(monthlyInstallment(MONTHLY), r.dividendPerMember)).toBe(r.netInstallment)
   })
 })
