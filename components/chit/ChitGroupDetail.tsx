@@ -40,6 +40,14 @@ export default function ChitGroupDetail({
   const installment = monthlyInstallment(params)
   const months = numberOfMonths(params)
 
+  // The company's own bank account is the sensible default for collections. Prefer
+  // a real bank account (checking/savings) tagged to the group's company; fall
+  // back to any of its accounts, then to the first available.
+  const defaultAccountId =
+    accounts.find(a => a.company_id === group.company_id && (a.type === 'checking' || a.type === 'savings'))?.id
+    ?? accounts.find(a => a.company_id === group.company_id)?.id
+    ?? accounts[0]?.id ?? ''
+
   const TABS: [Tab, string][] = [
     ['members', `Members · ${members.length}`],
     ['auctions', `Auctions · ${auctions.length}`],
@@ -82,7 +90,8 @@ export default function ChitGroupDetail({
       )}
       {tab === 'collections' && (
         <CollectionsTab group={group} installment={installment} months={months}
-          members={members} accounts={accounts} collections={collections} onChange={setCollections} />
+          members={members} accounts={accounts} defaultAccountId={defaultAccountId}
+          collections={collections} onChange={setCollections} />
       )}
       {tab === 'receivables' && (
         <ReceivablesTab installment={installment} months={months} members={members} collections={collections} />
@@ -375,64 +384,245 @@ function PayModal({ auction, accounts, onClose, onDone }: {
 }
 
 // ── Collections ──────────────────────────────────────────────────────────────
-function CollectionsTab({ group, installment, months, members, accounts, collections, onChange }: {
+// Two ways to look at the same money: a MONTH view (one month, all members — the
+// natural place to collect a batch) and a MEMBER view (one member, all their
+// months — the natural place to answer "is so-and-so paid up?").
+function CollectionsTab({ group, installment, months, members, accounts, defaultAccountId, collections, onChange }: {
   group: ChitGroup
   installment: number
   months: number
   members: ChitGroupMember[]
   accounts: Account[]
+  defaultAccountId: string
   collections: Coll[]
   onChange: (c: Coll[]) => void
 }) {
-  const [rec, setRec] = useState<{ memberId: string; name: string } | null>(null)
+  const [view, setView] = useState<'month' | 'member'>('month')
 
   return (
     <div className="space-y-3">
+      <div className="inline-flex rounded-xl p-0.5" style={{ background: 'var(--surface-2)' }}>
+        {(['month', 'member'] as const).map(v => (
+          <button key={v} onClick={() => setView(v)}
+            className="px-4 py-1.5 rounded-lg text-[12.5px] font-bold capitalize"
+            style={{ background: view === v ? 'var(--surface)' : 'transparent', color: view === v ? 'var(--brand)' : 'var(--text-muted)', boxShadow: view === v ? 'var(--shadow-sm)' : undefined }}>
+            {v} view
+          </button>
+        ))}
+      </div>
+
+      {view === 'month'
+        ? <MonthView group={group} installment={installment} months={months} members={members}
+            accounts={accounts} defaultAccountId={defaultAccountId} collections={collections} onChange={onChange} />
+        : <MemberView group={group} installment={installment} months={months} members={members}
+            accounts={accounts} defaultAccountId={defaultAccountId} collections={collections} onChange={onChange} />}
+    </div>
+  )
+}
+
+// ── Month view: one month, collect many at once ──────────────────────────────
+function MonthView({ group, installment, months, members, accounts, defaultAccountId, collections, onChange }: {
+  group: ChitGroup
+  installment: number
+  months: number
+  members: ChitGroupMember[]
+  accounts: Account[]
+  defaultAccountId: string
+  collections: Coll[]
+  onChange: (c: Coll[]) => void
+}) {
+  // Land on the first month that still has someone unpaid.
+  const firstOpen = useMemo(() => {
+    for (let m = 1; m <= months; m++) {
+      const paid = new Set(collections.filter(c => c.month_number === m).map(c => c.member_id))
+      if (members.some(gm => !paid.has(gm.member_id))) return m
+    }
+    return 1
+  }, [months, members, collections])
+
+  const [month, setMonth] = useState(firstOpen)
+  const [account, setAccount] = useState(defaultAccountId || accounts[0]?.id || '')
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [amount, setAmount] = useState(String(installment))
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState(false)
+
+  const paidThisMonth = new Set(collections.filter(c => c.month_number === month).map(c => c.member_id))
+  const unpaid = members.filter(gm => !paidThisMonth.has(gm.member_id))
+
+  // Selecting nobody means "all unpaid" — the common case is "everyone paid this
+  // month", so default to that rather than making you tick 20 boxes.
+  const effective = selected.size > 0 ? unpaid.filter(gm => selected.has(gm.member_id)) : unpaid
+
+  async function collectSelected() {
+    if (effective.length === 0) { notify('Nobody to collect from', 'error'); return }
+    if (!account) { notify('Choose the account', 'error'); return }
+    setBusy(true)
+    try {
+      const amt = parseFloat(amount) || 0
+      const res = await fetch('/api/chit/collections/bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          group_id: group.id, paid_date: date, account_id: account,
+          entries: effective.map(gm => ({ member_id: gm.member_id, month_number: month, amount: amt })),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { notify(json.error ?? 'Failed', 'error'); return }
+      // Optimistically add the posted rows.
+      const added: Coll[] = effective.map(gm => ({
+        id: `tmp-${gm.member_id}-${month}`, group_id: group.id, member_id: gm.member_id,
+        month_number: month, amount: amt, paid_date: date, account_id: account,
+        income_transaction_id: 'posted', notes: null, created_at: new Date().toISOString(),
+        member: { name: gm.member?.name ?? '' },
+      } as Coll))
+      onChange([...added, ...collections])
+      setSelected(new Set())
+      notify(`Collected ${json.done}${json.skipped ? `, ${json.skipped} already paid` : ''}${json.failed?.length ? `, ${json.failed.length} failed` : ''} — posted to your books`, json.failed?.length ? 'error' : 'success')
+    } finally { setBusy(false) }
+  }
+
+  const fld = 'px-3 py-2 rounded-xl border text-sm outline-none'
+  const fs = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
+
+  return (
+    <div className="space-y-3">
+      {/* The batch controls: month, account, date, amount — all prefilled. */}
+      <div className="rounded-2xl p-3.5 space-y-2.5" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setMonth(m => Math.max(1, m - 1))} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>‹</button>
+          <div className="flex-1 text-center">
+            <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Month</p>
+            <p className="text-lg font-extrabold" style={{ color: 'var(--text)' }}>{month} <span className="text-xs font-semibold" style={{ color: 'var(--text-faint)' }}>of {months}</span></p>
+          </div>
+          <button onClick={() => setMonth(m => Math.min(months, m + 1))} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>›</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] font-bold block mb-0.5" style={{ color: 'var(--text-faint)' }}>Amount each</label>
+            <input className={`${fld} w-full`} style={fs} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold block mb-0.5" style={{ color: 'var(--text-faint)' }}>Date</label>
+            <input className={`${fld} w-full`} style={fs} type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="text-[10px] font-bold block mb-0.5" style={{ color: 'var(--text-faint)' }}>Received into</label>
+          <select className={`${fld} w-full`} style={fs} value={account} onChange={e => setAccount(e.target.value)}>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* The roster for this month. Unpaid rows are tickable; paid ones show it. */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
         {members.length === 0 && <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>Add members first.</p>}
         {members.map((gm, i) => {
-          const paid = collections.filter(c => c.member_id === gm.member_id).length
+          const isPaid = paidThisMonth.has(gm.member_id)
+          const on = !isPaid && (selected.size === 0 || selected.has(gm.member_id))
           return (
-            <div key={gm.id} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{gm.member?.name}</p>
-                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{paid} of {months} months paid</p>
-              </div>
-              <button onClick={() => setRec({ memberId: gm.member_id, name: gm.member?.name ?? '' })}
-                className="flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--brand)' }}>
-                <Wallet className="w-3.5 h-3.5" /> Collect
-              </button>
-            </div>
+            <button key={gm.id} disabled={isPaid}
+              onClick={() => setSelected(s => {
+                // First tick switches from "all" to an explicit set.
+                const base = s.size === 0 ? new Set(unpaid.map(u => u.member_id)) : new Set(s)
+                base.has(gm.member_id) ? base.delete(gm.member_id) : base.add(gm.member_id)
+                return base
+              })}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left disabled:opacity-100"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
+              <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+                style={{ background: isPaid ? 'var(--income)' : on ? 'var(--brand)' : 'transparent', border: isPaid || on ? 'none' : '1.5px solid var(--border)' }}>
+                {(isPaid || on) && <Check className="w-3.5 h-3.5 text-white" />}
+              </span>
+              <span className="flex-1 text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gm.member?.name}</span>
+              {isPaid && <span className="text-[11px] font-bold" style={{ color: 'var(--income)' }}>Paid</span>}
+            </button>
           )
         })}
       </div>
 
-      {rec && (
-        <CollectModal group={group} installment={installment} months={months}
-          memberId={rec.memberId} memberName={rec.name} accounts={accounts} existing={collections}
-          onClose={() => setRec(null)}
-          onDone={c => { onChange([c, ...collections]); setRec(null) }} />
+      {unpaid.length > 0 && (
+        <button onClick={collectSelected} disabled={busy || effective.length === 0}
+          className="w-full text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50" style={{ background: 'var(--brand)' }}>
+          {busy ? 'Posting…' : `Collect ${effective.length} · ${inr((parseFloat(amount) || 0) * effective.length)}`}
+        </button>
       )}
     </div>
   )
 }
 
-function CollectModal({ group, installment, months, memberId, memberName, accounts, existing, onClose, onDone }: {
+// ── Member view: one member, all their months ────────────────────────────────
+function MemberView({ group, installment, months, members, accounts, defaultAccountId, collections, onChange }: {
+  group: ChitGroup
+  installment: number
+  months: number
+  members: ChitGroupMember[]
+  accounts: Account[]
+  defaultAccountId: string
+  collections: Coll[]
+  onChange: (c: Coll[]) => void
+}) {
+  const [memberId, setMemberId] = useState(members[0]?.member_id ?? '')
+  const [collectMonth, setCollectMonth] = useState<number | null>(null)
+  const gm = members.find(m => m.member_id === memberId)
+  const paid = new Map(collections.filter(c => c.member_id === memberId).map(c => [c.month_number, c]))
+
+  return (
+    <div className="space-y-3">
+      <select className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none"
+        style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+        value={memberId} onChange={e => setMemberId(e.target.value)}>
+        {members.map(m => <option key={m.member_id} value={m.member_id}>{m.member?.name}</option>)}
+      </select>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {Array.from({ length: months }, (_, i) => i + 1).map(m => {
+          const c = paid.get(m)
+          return (
+            <button key={m} disabled={!!c} onClick={() => setCollectMonth(m)}
+              className="rounded-xl px-3 py-2.5 text-left disabled:opacity-100"
+              style={{ border: '1px solid var(--border)', background: c ? 'var(--brand-light)' : 'var(--surface)' }}>
+              <p className="text-[11px] font-bold" style={{ color: 'var(--text-faint)' }}>Month {m}</p>
+              <p className="text-[13px] font-extrabold" style={{ color: c ? 'var(--income)' : 'var(--text-muted)' }}>
+                {c ? inr(c.amount) : 'Due'}
+              </p>
+            </button>
+          )
+        })}
+      </div>
+
+      {collectMonth != null && gm && (
+        <CollectModal group={group} installment={installment} months={months}
+          memberId={memberId} memberName={gm.member?.name ?? ''} accounts={accounts}
+          defaultAccountId={defaultAccountId} fixedMonth={collectMonth} existing={collections}
+          onClose={() => setCollectMonth(null)}
+          onDone={c => { onChange([c, ...collections]); setCollectMonth(null) }} />
+      )}
+    </div>
+  )
+}
+
+// ── Single collection (used by the member view) ──────────────────────────────
+function CollectModal({ group, installment, months, memberId, memberName, accounts, defaultAccountId, fixedMonth, existing, onClose, onDone }: {
   group: ChitGroup
   installment: number
   months: number
   memberId: string
   memberName: string
   accounts: Account[]
+  defaultAccountId: string
+  fixedMonth?: number
   existing: Coll[]
   onClose: () => void
   onDone: (c: Coll) => void
 }) {
   const paidMonths = new Set(existing.filter(c => c.member_id === memberId).map(c => c.month_number))
   const firstUnpaid = useMemo(() => { for (let m = 1; m <= months; m++) if (!paidMonths.has(m)) return m; return 1 }, [paidMonths, months])
-  const [month, setMonth] = useState(String(firstUnpaid))
+  const [month, setMonth] = useState(String(fixedMonth ?? firstUnpaid))
   const [amount, setAmount] = useState(String(installment))
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  const [accountId, setAccountId] = useState(defaultAccountId || accounts[0]?.id || '')
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [busy, setBusy] = useState(false)
 
   const fld = 'w-full px-3 py-2.5 rounded-xl border text-sm outline-none'
@@ -444,7 +634,7 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
     try {
       const res = await fetch('/api/chit/collections', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ group_id: group.id, member_id: memberId, month_number: parseInt(month) || 1, amount: parseFloat(amount) || 0, account_id: accountId }),
+        body: JSON.stringify({ group_id: group.id, member_id: memberId, month_number: parseInt(month) || 1, amount: parseFloat(amount) || 0, account_id: accountId, paid_date: date }),
       })
       const json = await res.json()
       if (!res.ok) { notify(json.error ?? 'Failed', 'error'); return }
@@ -463,7 +653,7 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>Month</label>
-              <select className={fld} style={fs} value={month} onChange={e => setMonth(e.target.value)}>
+              <select className={fld} style={fs} value={month} onChange={e => setMonth(e.target.value)} disabled={fixedMonth != null}>
                 {Array.from({ length: months }, (_, i) => i + 1).map(m => (
                   <option key={m} value={m} disabled={paidMonths.has(m)}>{m}{paidMonths.has(m) ? ' — paid' : ''}</option>
                 ))}
@@ -473,6 +663,10 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
               <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>Amount</label>
               <input className={fld} style={fs} inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} />
             </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>Date</label>
+            <input className={fld} style={fs} type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
           <div>
             <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>Received into</label>
