@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Plus, X, Check, Gavel, Wallet, Trash2, Pencil } from 'lucide-react'
@@ -648,10 +648,18 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
 
   const paidThisMonth = new Set(collections.filter(c => c.month_number === month).map(c => c.member_id))
   const unpaid = members.filter(gm => !paidThisMonth.has(gm.member_id))
+  const unpaidIds = unpaid.map(gm => gm.member_id).join(',')
 
-  // Selecting nobody means "all unpaid" — the common case is "everyone paid this
-  // month", so default to that rather than making you tick 20 boxes.
-  const effective = selected.size > 0 ? unpaid.filter(gm => selected.has(gm.member_id)) : unpaid
+  // Selection is explicit and defaults to EVERYONE unpaid — the common case is
+  // "all paid this month". Reset it whenever the month (or who's unpaid) changes,
+  // so you always start from "all ticked" rather than a stale set from last month.
+  useEffect(() => {
+    setSelected(new Set(unpaid.map(gm => gm.member_id)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, unpaidIds])
+
+  const effective = unpaid.filter(gm => selected.has(gm.member_id))
+  const allSelected = unpaid.length > 0 && effective.length === unpaid.length
 
   async function collectSelected() {
     if (effective.length === 0) { notify('Nobody to collect from', 'error'); return }
@@ -676,7 +684,6 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
         member: { name: gm.member?.name ?? '' },
       } as Coll))
       onChange([...added, ...collections])
-      setSelected(new Set())
       notify(`Collected ${json.done}${json.skipped ? `, ${json.skipped} already paid` : ''}${json.failed?.length ? `, ${json.failed.length} failed` : ''} — posted to your books`, json.failed?.length ? 'error' : 'success')
     } finally { setBusy(false) }
   }
@@ -714,17 +721,31 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
         </div>
       </div>
 
+      {/* Select all / none — toggles every UNPAID member; paid ones are untouched. */}
+      {unpaid.length > 0 && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-[12px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+            {effective.length} of {unpaid.length} selected
+          </p>
+          <button
+            onClick={() => setSelected(allSelected ? new Set() : new Set(unpaid.map(gm => gm.member_id)))}
+            className="text-[12px] font-bold px-3 py-1.5 rounded-lg"
+            style={{ border: '1px solid var(--border)', color: 'var(--brand)' }}>
+            {allSelected ? 'Deselect all' : 'Select all'}
+          </button>
+        </div>
+      )}
+
       {/* The roster for this month. Unpaid rows are tickable; paid ones show it. */}
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
         {members.length === 0 && <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>Add members first.</p>}
         {members.map((gm, i) => {
           const isPaid = paidThisMonth.has(gm.member_id)
-          const on = !isPaid && (selected.size === 0 || selected.has(gm.member_id))
+          const on = !isPaid && selected.has(gm.member_id)
           return (
             <button key={gm.id} disabled={isPaid}
               onClick={() => setSelected(s => {
-                // First tick switches from "all" to an explicit set.
-                const base = s.size === 0 ? new Set(unpaid.map(u => u.member_id)) : new Set(s)
+                const base = new Set(s)
                 base.has(gm.member_id) ? base.delete(gm.member_id) : base.add(gm.member_id)
                 return base
               })}
