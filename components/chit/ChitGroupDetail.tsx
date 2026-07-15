@@ -120,7 +120,7 @@ export default function ChitGroupDetail({
       )}
       {tab === 'auctions' && (
         <AuctionsTab group={group} params={params} months={months} members={members}
-          accounts={accounts} auctions={auctions} onChange={setAuctions}
+          accounts={accounts} defaultAccountId={defaultAccountId} auctions={auctions} onChange={setAuctions}
           collections={collections} dueForMonth={dueForMonth} onCollected={setCollections} />
       )}
       {tab === 'collections' && (
@@ -394,12 +394,13 @@ function SlotEditor({ gm, onSaved }: {
 }
 
 // ── Auctions ─────────────────────────────────────────────────────────────────
-function AuctionsTab({ group, params, months, members, accounts, auctions, onChange, collections, dueForMonth, onCollected }: {
+function AuctionsTab({ group, params, months, members, accounts, defaultAccountId, auctions, onChange, collections, dueForMonth, onCollected }: {
   group: ChitGroup
   params: GroupParams
   months: number
   members: ChitGroupMember[]
   accounts: Account[]
+  defaultAccountId: string
   auctions: ChitAuction[]
   onChange: (a: ChitAuction[]) => void
   collections: Coll[]
@@ -503,7 +504,7 @@ function AuctionsTab({ group, params, months, members, accounts, auctions, onCha
               .map(m => ({ month: m, amount: dueForMonth(m) }))
           : []
         return (
-          <PayModal auction={payFor} accounts={accounts} group={group}
+          <PayModal auction={payFor} accounts={accounts} defaultAccountId={defaultAccountId} group={group}
             winnerName={members.find(m => m.member_id === winnerId)?.member?.name ?? ''}
             pendingDue={pendingDue}
             onClose={() => setPayFor(null)}
@@ -608,9 +609,10 @@ function ConductModal({ group, params, monthNumber, members, existing, excludeWi
   )
 }
 
-function PayModal({ auction, accounts, group, winnerName, pendingDue, onClose, onDone }: {
+function PayModal({ auction, accounts, defaultAccountId, group, winnerName, pendingDue, onClose, onDone }: {
   auction: ChitAuction
   accounts: Account[]
+  defaultAccountId: string
   group: ChitGroup
   winnerName: string
   /** The winner's own unpaid dues (months whose auction has run, ≤ this month). */
@@ -618,7 +620,9 @@ function PayModal({ auction, accounts, group, winnerName, pendingDue, onClose, o
   onClose: () => void
   onDone: (collectedMonths: number[], collectionTxnId?: string) => void
 }) {
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  // Default to the group's own bank account, not just the first in the list.
+  const [accountId, setAccountId] = useState(defaultAccountId || accounts[0]?.id || '')
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [netOff, setNetOff] = useState(pendingDue.length > 0)
   const [busy, setBusy] = useState(false)
 
@@ -642,7 +646,7 @@ function PayModal({ auction, accounts, group, winnerName, pendingDue, onClose, o
         const res = await fetch('/api/chit/collections/consolidated', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            group_id: group.id, member_id: auction.winner_member_id, account_id: accountId,
+            group_id: group.id, member_id: auction.winner_member_id, account_id: accountId, paid_date: date,
             entries: pendingDue.map(d => ({ month_number: d.month, amount: d.amount })),
           }),
         })
@@ -656,7 +660,7 @@ function PayModal({ auction, accounts, group, winnerName, pendingDue, onClose, o
       // the two = payout − dues, exactly the cash you hand over.
       const res = await fetch('/api/chit/auctions', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: auction.id, account_id: accountId }),
+        body: JSON.stringify({ id: auction.id, account_id: accountId, date }),
       })
       const json = await res.json()
       if (!res.ok) { notify(json.error ?? 'Failed', 'error'); return }
@@ -676,6 +680,10 @@ function PayModal({ auction, accounts, group, winnerName, pendingDue, onClose, o
       <div className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up" style={{ background: 'var(--surface)' }}>
         <p className="text-base font-extrabold mb-1" style={{ color: 'var(--text)' }}>Pay {winnerName || 'the winner'}</p>
         <p className="text-[12px] mb-4" style={{ color: 'var(--text-faint)' }}>Posts an expense from the chosen account — real money out.</p>
+
+        <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>Date</label>
+        <input type="date" className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none mb-3" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+          value={date} onChange={e => setDate(e.target.value)} />
 
         <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>From account</label>
         <select className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
