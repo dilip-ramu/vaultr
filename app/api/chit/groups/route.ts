@@ -63,9 +63,28 @@ export async function PATCH(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  // Freely editable — presentation and scheduling, no effect on past figures.
   for (const k of ['name', 'company_id', 'commission_pct', 'bid_ceiling_pct',
     'auction_day', 'start_date', 'status'] as const) {
     if (k in body) patch[k] = body[k]
+  }
+
+  // Structural fields — the pot, the head-count, the model — decide the
+  // installment and month count, and every auction and collection already
+  // recorded assumed the old values. Changing them after the fact would silently
+  // restate history. So they're only editable while the group is still empty.
+  const wantsStructural = ['chit_value', 'members', 'commission_model'].some(k => k in body)
+  if (wantsStructural) {
+    const [{ count: aCount }, { count: cCount }] = await Promise.all([
+      supabase.from('chit_auctions').select('id', { count: 'exact', head: true }).eq('group_id', id).eq('user_id', user.id),
+      supabase.from('chit_collections').select('id', { count: 'exact', head: true }).eq('group_id', id).eq('user_id', user.id),
+    ])
+    if ((aCount ?? 0) > 0 || (cCount ?? 0) > 0) {
+      return NextResponse.json({ error: 'Chit value, member count and model are locked once auctions or collections exist — they would restate past figures.' }, { status: 409 })
+    }
+    if ('chit_value' in body) patch.chit_value = Number(body.chit_value)
+    if ('members' in body) patch.members = Math.floor(Number(body.members))
+    if ('commission_model' in body) patch.commission_model = body.commission_model
   }
 
   const { data, error } = await supabase.from('chit_groups')

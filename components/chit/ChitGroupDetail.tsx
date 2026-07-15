@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Plus, X, Check, Gavel, Wallet, Trash2 } from 'lucide-react'
+import { ChevronLeft, Plus, X, Check, Gavel, Wallet, Trash2, Pencil } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { inr } from '@/lib/assets/valuation'
@@ -17,7 +17,7 @@ type Account = { id: string; name: string; type: string; company_id: string | nu
 type Coll = ChitCollection & { member?: { name: string } }
 
 export default function ChitGroupDetail({
-  group, groupMembers, allMembers, auctions: initialAuctions, collections: initialCollections, accounts,
+  group: initialGroup, groupMembers, allMembers, auctions: initialAuctions, collections: initialCollections, accounts, companies,
 }: {
   group: ChitGroup
   groupMembers: ChitGroupMember[]
@@ -25,9 +25,12 @@ export default function ChitGroupDetail({
   auctions: ChitAuction[]
   collections: Coll[]
   accounts: Account[]
+  companies: { id: string; name: string }[]
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('members')
+  const [group, setGroup] = useState(initialGroup)
+  const [editingGroup, setEditingGroup] = useState(false)
   const [members, setMembers] = useState(groupMembers)
   const [auctions, setAuctions] = useState(initialAuctions)
   const [collections, setCollections] = useState(initialCollections)
@@ -62,13 +65,29 @@ export default function ChitGroupDetail({
       </Link>
 
       <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(135deg, var(--brand-deep, var(--brand)) 0%, var(--brand-dark, var(--brand)) 100%)' }}>
-        <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.7)' }}>Chit group</p>
-        <h1 className="text-2xl font-extrabold text-white tracking-tight">{group.name}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'rgba(255,255,255,.7)' }}>Chit group</p>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">{group.name}</h1>
+          </div>
+          <button onClick={() => setEditingGroup(true)}
+            className="flex items-center gap-1.5 text-[12.5px] font-bold px-3 py-1.5 rounded-lg shrink-0"
+            style={{ background: 'rgba(255,255,255,.18)', color: '#fff' }}>
+            <Pencil className="w-3.5 h-3.5" /> Edit
+          </button>
+        </div>
         <p className="text-[12.5px] mt-1" style={{ color: 'rgba(255,255,255,.85)' }}>
           {inr(group.chit_value)} pot · {group.members} members · installment {inr(installment)} · {months} months ·
           {group.commission_model === 'UPFRONT' ? ' upfront commission' : ` ${group.commission_pct}% monthly`}
         </p>
       </div>
+
+      {editingGroup && (
+        <GroupEditForm group={group} companies={companies}
+          locked={auctions.length > 0 || collections.length > 0}
+          onClose={() => setEditingGroup(false)}
+          onSaved={g => { setGroup(g); setEditingGroup(false) }} />
+      )}
 
       <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid var(--border)' }}>
         {TABS.map(([k, label]) => (
@@ -96,6 +115,124 @@ export default function ChitGroupDetail({
       {tab === 'receivables' && (
         <ReceivablesTab installment={installment} months={months} members={members} collections={collections} />
       )}
+    </div>
+  )
+}
+
+// ── Group edit ───────────────────────────────────────────────────────────────
+function GroupEditForm({ group, companies, locked, onClose, onSaved }: {
+  group: ChitGroup
+  companies: { id: string; name: string }[]
+  // True once auctions/collections exist — the structural fields are frozen then,
+  // because changing them would restate figures already recorded.
+  locked: boolean
+  onClose: () => void
+  onSaved: (g: ChitGroup) => void
+}) {
+  const [name, setName] = useState(group.name)
+  const [chitValue, setChitValue] = useState(String(group.chit_value))
+  const [membersCount, setMembersCount] = useState(String(group.members))
+  const [commissionPct, setCommissionPct] = useState(String(group.commission_pct))
+  const [ceiling, setCeiling] = useState(String(group.bid_ceiling_pct))
+  const [companyId, setCompanyId] = useState(group.company_id ?? '')
+  const [auctionDay, setAuctionDay] = useState(group.auction_day ? String(group.auction_day) : '')
+  const [startDate, setStartDate] = useState(group.start_date ?? '')
+  const [status, setStatus] = useState(group.status)
+  const [busy, setBusy] = useState(false)
+
+  const fld = 'w-full px-3 py-2.5 rounded-xl border text-sm outline-none'
+  const fs = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
+  const lbl = 'text-[11px] font-bold block mb-1'
+
+  async function save() {
+    setBusy(true)
+    try {
+      const payload: Record<string, unknown> = {
+        id: group.id, name, company_id: companyId || null,
+        commission_pct: parseFloat(commissionPct) || 0, bid_ceiling_pct: parseFloat(ceiling) || 0,
+        auction_day: auctionDay || null, start_date: startDate || null, status,
+      }
+      // Only send the structural fields when they're actually editable — otherwise
+      // the server rejects the whole PATCH and nothing saves.
+      if (!locked) {
+        payload.chit_value = parseFloat(chitValue) || 0
+        payload.members = parseInt(membersCount) || 0
+      }
+      const res = await fetch('/api/chit/groups', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok) { notify(json.error ?? 'Save failed', 'error'); return }
+      notify('Group updated', 'success')
+      onSaved(json.group)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center">
+      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full md:max-w-lg rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up max-h-[92vh] overflow-y-auto" style={{ background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Edit group</p>
+          <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
+        </div>
+        <div className="space-y-2.5">
+          <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Name</label>
+            <input className={fld} style={fs} value={name} onChange={e => setName(e.target.value)} /></div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={lbl} style={{ color: 'var(--text-muted)' }}>Chit value {locked && '(locked)'}</label>
+              <input className={fld} style={fs} inputMode="decimal" value={chitValue} disabled={locked}
+                onChange={e => setChitValue(e.target.value.replace(/[^0-9.]/g, ''))} />
+            </div>
+            <div>
+              <label className={lbl} style={{ color: 'var(--text-muted)' }}>Members {locked && '(locked)'}</label>
+              <input className={fld} style={fs} inputMode="numeric" value={membersCount} disabled={locked}
+                onChange={e => setMembersCount(e.target.value.replace(/[^0-9]/g, ''))} />
+            </div>
+          </div>
+          {locked && (
+            <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+              Chit value and member count are fixed once auctions or collections exist — changing them would restate figures already recorded.
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            {group.commission_model === 'MONTHLY' && (
+              <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Commission %</label>
+                <input className={fld} style={fs} inputMode="decimal" value={commissionPct} onChange={e => setCommissionPct(e.target.value.replace(/[^0-9.]/g, ''))} /></div>
+            )}
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Bid ceiling %</label>
+              <input className={fld} style={fs} inputMode="decimal" value={ceiling} onChange={e => setCeiling(e.target.value.replace(/[^0-9.]/g, ''))} /></div>
+          </div>
+
+          <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Run by company</label>
+            <select className={fld} style={fs} value={companyId} onChange={e => setCompanyId(e.target.value)}>
+              <option value="">— none —</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select></div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Auction day</label>
+              <input className={fld} style={fs} inputMode="numeric" value={auctionDay} onChange={e => setAuctionDay(e.target.value.replace(/[^0-9]/g, ''))} /></div>
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Start date</label>
+              <input className={fld} style={fs} type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+          </div>
+
+          <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Status</label>
+            <select className={fld} style={fs} value={status} onChange={e => setStatus(e.target.value as ChitGroup['status'])}>
+              <option value="active">Active</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select></div>
+
+          <button onClick={save} disabled={busy}
+            className="w-full text-white text-sm font-bold py-2.5 rounded-xl mt-1 disabled:opacity-60" style={{ background: 'var(--brand)' }}>
+            {busy ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -150,7 +287,7 @@ function MembersTab({ group, members, allMembers, onChange, onRefresh }: {
         {members.length === 0 && <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>No members assigned yet.</p>}
         {members.map((gm, i) => (
           <div key={gm.id} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
-            <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>{gm.slot_number ?? '·'}</span>
+            <SlotEditor gm={gm} onSaved={updated => onChange(members.map(m => m.id === updated.id ? { ...m, slot_number: updated.slot_number } : m))} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{gm.member?.name ?? 'Member'}</p>
               {gm.member?.phone && <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{gm.member.phone}</p>}
@@ -196,6 +333,48 @@ function MembersTab({ group, members, allMembers, onChange, onRefresh }: {
   )
 }
 
+// ── Editable seat number ─────────────────────────────────────────────────────
+function SlotEditor({ gm, onSaved }: {
+  gm: ChitGroupMember
+  onSaved: (updated: ChitGroupMember) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(gm.slot_number != null ? String(gm.slot_number) : '')
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/chit/group-members', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: gm.id, slot_number: value === '' ? null : value }),
+      })
+      const json = await res.json()
+      if (!res.ok) { notify(json.error ?? 'Failed', 'error'); setValue(gm.slot_number != null ? String(gm.slot_number) : ''); return }
+      onSaved(json.member)
+      setEditing(false)
+    } finally { setBusy(false) }
+  }
+
+  if (editing) {
+    return (
+      <input autoFocus disabled={busy} value={value} inputMode="numeric"
+        onChange={e => setValue(e.target.value.replace(/[^0-9]/g, ''))}
+        onBlur={save}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+        className="w-9 h-9 rounded-full text-center text-[12px] font-extrabold outline-none"
+        style={{ background: 'var(--surface-2)', border: '1.5px solid var(--brand)', color: 'var(--text)' }} />
+    )
+  }
+  return (
+    <button onClick={() => setEditing(true)} title="Edit seat number"
+      className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold"
+      style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+      {gm.slot_number ?? '·'}
+    </button>
+  )
+}
+
 // ── Auctions ─────────────────────────────────────────────────────────────────
 function AuctionsTab({ group, params, months, members, accounts, auctions, onChange }: {
   group: ChitGroup
@@ -209,6 +388,7 @@ function AuctionsTab({ group, params, months, members, accounts, auctions, onCha
   const done = new Set(auctions.map(a => a.month_number))
   const nextMonth = useMemo(() => { for (let m = 1; m <= months; m++) if (!done.has(m)) return m; return null }, [done, months])
   const [conducting, setConducting] = useState(false)
+  const [editing, setEditing] = useState<ChitAuction | null>(null)
   const [payFor, setPayFor] = useState<ChitAuction | null>(null)
 
   return (
@@ -233,13 +413,22 @@ function AuctionsTab({ group, params, months, members, accounts, auctions, onCha
                     bid {inr(a.bid_amount)} · commission {inr(a.commission)} · dividend {inr(a.dividend_per_member)}/member
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>{inr(a.net_payout)}</p>
-                  {a.payout_transaction_id
-                    ? <span className="text-[11px] font-bold" style={{ color: 'var(--income)' }}>Paid</span>
-                    : a.net_payout > 0
-                      ? <button onClick={() => setPayFor(a)} className="text-[11px] font-bold" style={{ color: 'var(--brand)' }}>Mark paid</button>
-                      : <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>—</span>}
+                <div className="text-right flex items-center gap-3">
+                  <div>
+                    <p className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>{inr(a.net_payout)}</p>
+                    {a.payout_transaction_id
+                      ? <span className="text-[11px] font-bold" style={{ color: 'var(--income)' }}>Paid</span>
+                      : a.net_payout > 0
+                        ? <button onClick={() => setPayFor(a)} className="text-[11px] font-bold" style={{ color: 'var(--brand)' }}>Mark paid</button>
+                        : <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>—</span>}
+                  </div>
+                  {/* Once paid, the money has moved — editing is refused server-side
+                      too, so we simply don't offer it here. */}
+                  {!a.payout_transaction_id && (
+                    <button onClick={() => setEditing(a)} className="p-1" style={{ color: 'var(--text-faint)' }} title="Edit auction">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -253,6 +442,13 @@ function AuctionsTab({ group, params, months, members, accounts, auctions, onCha
           onDone={a => { onChange([...auctions.filter(x => x.month_number !== a.month_number), a].sort((x, y) => x.month_number - y.month_number)); setConducting(false) }} />
       )}
 
+      {editing && (
+        <ConductModal group={group} params={params} monthNumber={editing.month_number} members={members}
+          existing={editing}
+          onClose={() => setEditing(null)}
+          onDone={a => { onChange([...auctions.filter(x => x.month_number !== a.month_number), a].sort((x, y) => x.month_number - y.month_number)); setEditing(null) }} />
+      )}
+
       {payFor && (
         <PayModal auction={payFor} accounts={accounts}
           onClose={() => setPayFor(null)}
@@ -262,17 +458,18 @@ function AuctionsTab({ group, params, months, members, accounts, auctions, onCha
   )
 }
 
-function ConductModal({ group, params, monthNumber, members, onClose, onDone }: {
+function ConductModal({ group, params, monthNumber, members, existing, onClose, onDone }: {
   group: ChitGroup
   params: GroupParams
   monthNumber: number
   members: ChitGroupMember[]
+  existing?: ChitAuction
   onClose: () => void
   onDone: (a: ChitAuction) => void
 }) {
   const isForemanMonth = group.commission_model === 'UPFRONT' && monthNumber === 1
-  const [bid, setBid] = useState('')
-  const [winner, setWinner] = useState('')
+  const [bid, setBid] = useState(existing ? String(existing.bid_amount) : '')
+  const [winner, setWinner] = useState(existing?.winner_member_id ?? '')
   const [busy, setBusy] = useState(false)
 
   const preview = runAuction({ group: params, monthNumber, bidAmount: parseFloat(bid) || 0 })
@@ -298,7 +495,7 @@ function ConductModal({ group, params, monthNumber, members, onClose, onDone }: 
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up" style={{ background: 'var(--surface)' }}>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Auction — month {monthNumber}</p>
+          <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>{existing ? 'Edit' : ''} Auction — month {monthNumber}</p>
           <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
         </div>
 
@@ -332,7 +529,7 @@ function ConductModal({ group, params, monthNumber, members, onClose, onDone }: 
 
         <button onClick={save} disabled={busy}
           className="w-full text-white text-sm font-bold py-2.5 rounded-xl disabled:opacity-60" style={{ background: 'var(--brand)' }}>
-          {busy ? 'Recording…' : 'Record auction'}
+          {busy ? 'Saving…' : existing ? 'Save changes' : 'Record auction'}
         </button>
       </div>
     </div>

@@ -62,6 +62,41 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ added: rows.length, skipped: memberIds.length - rows.length })
 }
 
+// PATCH { id, slot_number } — set a member's seat number in the group.
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+  const id = String(body.id ?? '')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const slot = body.slot_number == null || body.slot_number === '' ? null : Math.floor(Number(body.slot_number))
+  if (slot != null && (!Number.isFinite(slot) || slot < 1)) {
+    return NextResponse.json({ error: 'Slot must be a positive number' }, { status: 400 })
+  }
+
+  // Look up this row's group so we can check the slot isn't already taken by
+  // SOMEONE ELSE — two members in the same seat is a data smell, not an edit.
+  const { data: row } = await supabase.from('chit_group_members')
+    .select('group_id').eq('id', id).eq('user_id', user.id).maybeSingle()
+  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (slot != null) {
+    const { data: clash } = await supabase.from('chit_group_members')
+      .select('id').eq('group_id', row.group_id).eq('slot_number', slot).neq('id', id).maybeSingle()
+    if (clash) return NextResponse.json({ error: `Slot ${slot} is already taken in this group.` }, { status: 409 })
+  }
+
+  const { data, error } = await supabase.from('chit_group_members')
+    .update({ slot_number: slot }).eq('id', id).eq('user_id', user.id)
+    .select('*, member:chit_members(*)').single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ member: data })
+}
+
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -31,6 +31,7 @@ export default async function ChitGroupPage({ params }: Props) {
     { data: auctions },
     { data: collections },
     { data: companyAccounts },
+    { data: companies },
   ] = await Promise.all([
     supabase.from('chit_group_members').select('*, member:chit_members(*)')
       .eq('user_id', uid).eq('group_id', id).order('slot_number', { nullsFirst: false }),
@@ -41,6 +42,7 @@ export default async function ChitGroupPage({ params }: Props) {
     // ones a collection/payout can be posted to.
     supabase.from('accounts').select('id, name, type, company_id')
       .eq('user_id', uid).eq('is_active', true),
+    supabase.from('companies').select('id, name').eq('user_id', uid).order('name'),
   ])
 
   const accounts = ((companyAccounts ?? []) as { id: string; name: string; type: string; company_id: string | null }[])
@@ -54,6 +56,7 @@ export default async function ChitGroupPage({ params }: Props) {
       auctions={(auctions ?? []) as ChitAuction[]}
       collections={(collections ?? []) as (ChitCollection & { member?: { name: string } })[]}
       accounts={accounts}
+      companies={(companies ?? []) as { id: string; name: string }[]}
     />
   )
 }
