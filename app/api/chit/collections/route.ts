@@ -124,12 +124,35 @@ export async function DELETE(req: NextRequest) {
   const { data: coll } = await q.maybeSingle()
   if (!coll) return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
 
-  // The transaction first. If this fails we stop — deleting the collection while
-  // its transaction lingers is the exact drift we're trying to avoid.
+  // A transaction may be SHARED — a consolidated payment covers several months
+  // through one transaction. If other months still point at it, we must not delete
+  // it; we SHRINK it by this month's amount and rename it to the months that
+  // remain. Only when this was the last month on the transaction do we delete it.
   if (coll.income_transaction_id) {
-    const { error: txErr } = await supabase.from('transactions')
-      .delete().eq('id', coll.income_transaction_id).eq('user_id', user.id)
-    if (txErr) return NextResponse.json({ error: `Could not remove the transaction: ${txErr.message}` }, { status: 500 })
+    const { data: siblings } = await supabase.from('chit_collections')
+      .select('id, month_number, amount, member_id, group_id')
+      .eq('income_transaction_id', coll.income_transaction_id).eq('user_id', user.id)
+      .neq('id', coll.id)
+
+    if ((siblings ?? []).length > 0) {
+      // Shared: reduce the transaction and rebuild its name from the survivors.
+      const [{ data: grp }, { data: mem }] = await Promise.all([
+        supabase.from('chit_groups').select('name').eq('id', coll.group_id).maybeSingle(),
+        supabase.from('chit_members').select('name').eq('id', coll.member_id).maybeSingle(),
+      ])
+      const remMonths = (siblings ?? []).map(s => s.month_number).sort((a, b) => a - b)
+      const remTotal = Math.round((siblings ?? []).reduce((t, s) => t + Number(s.amount), 0) * 100) / 100
+      const list = remMonths.length === 1 ? `month ${remMonths[0]}` : `months ${remMonths.join(', ')}`
+      await supabase.from('transactions')
+        .update({ amount: remTotal, name: `${grp?.name ?? 'Chit'} — ${mem?.name ?? ''} — ${list}` })
+        .eq('id', coll.income_transaction_id).eq('user_id', user.id)
+    } else {
+      // Last one on it — delete the transaction. If this fails we stop, rather than
+      // leave the collection gone but its money lingering in the books.
+      const { error: txErr } = await supabase.from('transactions')
+        .delete().eq('id', coll.income_transaction_id).eq('user_id', user.id)
+      if (txErr) return NextResponse.json({ error: `Could not remove the transaction: ${txErr.message}` }, { status: 500 })
+    }
   }
 
   const { error: delErr } = await supabase.from('chit_collections')

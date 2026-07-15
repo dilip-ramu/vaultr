@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Plus, X, Check, Gavel, Wallet, Trash2, Pencil } from 'lucide-react'
+import { ChevronLeft, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { inr } from '@/lib/assets/valuation'
@@ -51,6 +51,12 @@ export default function ChitGroupDetail({
     [auctions],
   )
   const dueForMonth = (m: number) => monthlyDue(installment, dividendByMonth.get(m) ?? 0)
+
+  // Which member won each month — used to flag the winner in the collection views.
+  const winnerByMonth = useMemo(
+    () => new Map(auctions.filter(a => a.winner_member_id).map(a => [a.month_number, a.winner_member_id as string])),
+    [auctions],
+  )
 
   // The company's own bank account is the sensible default for collections. Prefer
   // a real bank account (checking/savings) tagged to the group's company; fall
@@ -114,12 +120,13 @@ export default function ChitGroupDetail({
       )}
       {tab === 'auctions' && (
         <AuctionsTab group={group} params={params} months={months} members={members}
-          accounts={accounts} auctions={auctions} onChange={setAuctions} />
+          accounts={accounts} auctions={auctions} onChange={setAuctions}
+          collections={collections} dueForMonth={dueForMonth} onCollected={setCollections} />
       )}
       {tab === 'collections' && (
         <CollectionsTab group={group} installment={installment} months={months}
           members={members} accounts={accounts} defaultAccountId={defaultAccountId}
-          dueForMonth={dueForMonth} collections={collections} onChange={setCollections} />
+          dueForMonth={dueForMonth} winnerByMonth={winnerByMonth} collections={collections} onChange={setCollections} />
       )}
       {tab === 'receivables' && (
         <ReceivablesTab group={group} installment={installment} months={months} members={members}
@@ -387,7 +394,7 @@ function SlotEditor({ gm, onSaved }: {
 }
 
 // ── Auctions ─────────────────────────────────────────────────────────────────
-function AuctionsTab({ group, params, months, members, accounts, auctions, onChange }: {
+function AuctionsTab({ group, params, months, members, accounts, auctions, onChange, collections, dueForMonth, onCollected }: {
   group: ChitGroup
   params: GroupParams
   months: number
@@ -395,6 +402,9 @@ function AuctionsTab({ group, params, months, members, accounts, auctions, onCha
   accounts: Account[]
   auctions: ChitAuction[]
   onChange: (a: ChitAuction[]) => void
+  collections: Coll[]
+  dueForMonth: (m: number) => number
+  onCollected: (c: Coll[]) => void
 }) {
   const done = new Set(auctions.map(a => a.month_number))
   const nextMonth = useMemo(() => { for (let m = 1; m <= months; m++) if (!done.has(m)) return m; return null }, [done, months])
@@ -480,11 +490,38 @@ function AuctionsTab({ group, params, months, members, accounts, auctions, onCha
           onDone={a => { onChange([...auctions.filter(x => x.month_number !== a.month_number), a].sort((x, y) => x.month_number - y.month_number)); setEditing(null) }} />
       )}
 
-      {payFor && (
-        <PayModal auction={payFor} accounts={accounts}
-          onClose={() => setPayFor(null)}
-          onDone={() => { onChange(auctions.map(x => x.id === payFor.id ? { ...x, payout_transaction_id: 'posted', paid_at: new Date().toISOString() } : x)); setPayFor(null) }} />
-      )}
+      {payFor && (() => {
+        // The winner's OWN unpaid dues, for months whose auction has run, up to and
+        // including this winning month. These can be netted off the payout — you
+        // pay them the pot less what they still owe.
+        const winnerId = payFor.winner_member_id
+        const paidMonths = new Set(collections.filter(c => c.member_id === winnerId).map(c => c.month_number))
+        const auctionMonths = new Set(auctions.map(a => a.month_number))
+        const pendingDue = winnerId
+          ? Array.from({ length: payFor.month_number }, (_, i) => i + 1)
+              .filter(m => auctionMonths.has(m) && !paidMonths.has(m))
+              .map(m => ({ month: m, amount: dueForMonth(m) }))
+          : []
+        return (
+          <PayModal auction={payFor} accounts={accounts} group={group}
+            winnerName={members.find(m => m.member_id === winnerId)?.member?.name ?? ''}
+            pendingDue={pendingDue}
+            onClose={() => setPayFor(null)}
+            onDone={(collectedMonths, txnId) => {
+              onChange(auctions.map(x => x.id === payFor.id ? { ...x, payout_transaction_id: 'posted', paid_at: new Date().toISOString() } : x))
+              if (collectedMonths.length && winnerId) {
+                const added: Coll[] = collectedMonths.map(m => ({
+                  id: `tmp-${winnerId}-${m}`, group_id: group.id, member_id: winnerId,
+                  month_number: m, amount: dueForMonth(m), paid_date: new Date().toISOString().split('T')[0],
+                  account_id: null, income_transaction_id: txnId ?? 'posted', notes: null,
+                  created_at: new Date().toISOString(), member: { name: members.find(mm => mm.member_id === winnerId)?.member?.name ?? '' },
+                } as Coll))
+                onCollected([...added, ...collections])
+              }
+              setPayFor(null)
+            }} />
+        )
+      })()}
     </div>
   )
 }
@@ -571,41 +608,106 @@ function ConductModal({ group, params, monthNumber, members, existing, excludeWi
   )
 }
 
-function PayModal({ auction, accounts, onClose, onDone }: {
+function PayModal({ auction, accounts, group, winnerName, pendingDue, onClose, onDone }: {
   auction: ChitAuction
   accounts: Account[]
+  group: ChitGroup
+  winnerName: string
+  /** The winner's own unpaid dues (months whose auction has run, ≤ this month). */
+  pendingDue: { month: number; amount: number }[]
   onClose: () => void
-  onDone: () => void
+  onDone: (collectedMonths: number[], collectionTxnId?: string) => void
 }) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
+  const [netOff, setNetOff] = useState(pendingDue.length > 0)
   const [busy, setBusy] = useState(false)
+
+  const dueTotal = pendingDue.reduce((t, d) => t + d.amount, 0)
+  const payout = Number(auction.net_payout)
+  // What the winner actually receives in hand: the pot less what they still owe.
+  const netCash = netOff ? Math.round((payout - dueTotal) * 100) / 100 : payout
 
   async function pay() {
     if (!accountId) { notify('Choose the account', 'error'); return }
     setBusy(true)
     try {
+      let collectedMonths: number[] = []
+      let collectionTxnId: string | undefined
+
+      // Net the winner's dues FIRST: record them as one consolidated income, so the
+      // account nets to (payout − dues) and their receivables are cleared. Both
+      // sides are real transactions — that's what keeps the books honest, rather
+      // than a single mystery net figure.
+      if (netOff && pendingDue.length > 0) {
+        const res = await fetch('/api/chit/collections/consolidated', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            group_id: group.id, member_id: auction.winner_member_id, account_id: accountId,
+            entries: pendingDue.map(d => ({ month_number: d.month, amount: d.amount })),
+          }),
+        })
+        const cj = await res.json()
+        if (!res.ok) { notify(cj.error ?? 'Could not collect the dues', 'error'); return }
+        collectedMonths = cj.months ?? pendingDue.map(d => d.month)
+        collectionTxnId = cj.transaction_id
+      }
+
+      // Then the payout — full net_payout as an expense. Account movement across
+      // the two = payout − dues, exactly the cash you hand over.
       const res = await fetch('/api/chit/auctions', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: auction.id, account_id: accountId }),
       })
       const json = await res.json()
       if (!res.ok) { notify(json.error ?? 'Failed', 'error'); return }
-      notify(`Paid ${inr(auction.net_payout)} — posted to your books`, 'success')
-      onDone()
+
+      notify(netOff && dueTotal > 0
+        ? `Paid ${inr(netCash)} (${inr(payout)} less ${inr(dueTotal)} dues) — posted to your books`
+        : `Paid ${inr(payout)} — posted to your books`, 'success')
+      onDone(collectedMonths, collectionTxnId)
     } finally { setBusy(false) }
   }
+
+  const monthList = pendingDue.map(d => d.month).join(', ')
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center">
       <div className="fixed inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full md:max-w-sm rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up" style={{ background: 'var(--surface)' }}>
-        <p className="text-base font-extrabold mb-1" style={{ color: 'var(--text)' }}>Pay the winner {inr(auction.net_payout)}</p>
+        <p className="text-base font-extrabold mb-1" style={{ color: 'var(--text)' }}>Pay {winnerName || 'the winner'}</p>
         <p className="text-[12px] mb-4" style={{ color: 'var(--text-faint)' }}>Posts an expense from the chosen account — real money out.</p>
+
         <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>From account</label>
         <select className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none" style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
           value={accountId} onChange={e => setAccountId(e.target.value)}>
           {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
+
+        {/* The winner's own outstanding dues, netted off by default. */}
+        {pendingDue.length > 0 && (
+          <button type="button" onClick={() => setNetOff(v => !v)}
+            className="w-full flex items-start gap-2.5 mt-3 rounded-xl px-3.5 py-3 text-left"
+            style={{ background: 'var(--surface-2)' }}>
+            <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+              style={{ background: netOff ? 'var(--brand)' : 'transparent', border: netOff ? 'none' : '1.5px solid var(--border)' }}>
+              {netOff && <Check className="w-3.5 h-3.5 text-white" />}
+            </span>
+            <span className="min-w-0">
+              <span className="text-[12.5px] font-bold block" style={{ color: 'var(--text)' }}>Deduct their pending dues — {inr(dueTotal)}</span>
+              <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>months {monthList}, collected from the payout</span>
+            </span>
+          </button>
+        )}
+
+        {/* What they actually receive. */}
+        <div className="flex items-center justify-between mt-4 px-1">
+          <span className="text-[12.5px] font-semibold" style={{ color: 'var(--text-muted)' }}>Winner receives</span>
+          <span className="text-lg font-extrabold" style={{ color: 'var(--text)' }}>{inr(netCash)}</span>
+        </div>
+        {netOff && dueTotal > 0 && (
+          <p className="text-[11px] text-right" style={{ color: 'var(--text-faint)' }}>{inr(payout)} payout − {inr(dueTotal)} dues</p>
+        )}
+
         <button onClick={pay} disabled={busy}
           className="w-full text-white text-sm font-bold py-2.5 rounded-xl mt-4 disabled:opacity-60" style={{ background: 'var(--brand)' }}>
           {busy ? 'Posting…' : 'Pay & record'}
@@ -619,7 +721,7 @@ function PayModal({ auction, accounts, onClose, onDone }: {
 // Two ways to look at the same money: a MONTH view (one month, all members — the
 // natural place to collect a batch) and a MEMBER view (one member, all their
 // months — the natural place to answer "is so-and-so paid up?").
-function CollectionsTab({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, collections, onChange }: {
+function CollectionsTab({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, winnerByMonth, collections, onChange }: {
   group: ChitGroup
   installment: number
   months: number
@@ -627,6 +729,7 @@ function CollectionsTab({ group, installment, months, members, accounts, default
   accounts: Account[]
   defaultAccountId: string
   dueForMonth: (m: number) => number
+  winnerByMonth: Map<number, string>
   collections: Coll[]
   onChange: (c: Coll[]) => void
 }) {
@@ -646,15 +749,15 @@ function CollectionsTab({ group, installment, months, members, accounts, default
 
       {view === 'month'
         ? <MonthView group={group} installment={installment} months={months} members={members}
-            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} collections={collections} onChange={onChange} />
+            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} winnerByMonth={winnerByMonth} collections={collections} onChange={onChange} />
         : <MemberView group={group} installment={installment} months={months} members={members}
-            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} collections={collections} onChange={onChange} />}
+            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} winnerByMonth={winnerByMonth} collections={collections} onChange={onChange} />}
     </div>
   )
 }
 
 // ── Month view: one month, collect many at once ──────────────────────────────
-function MonthView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, collections, onChange }: {
+function MonthView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, winnerByMonth, collections, onChange }: {
   group: ChitGroup
   installment: number
   months: number
@@ -662,6 +765,7 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
   accounts: Account[]
   defaultAccountId: string
   dueForMonth: (m: number) => number
+  winnerByMonth: Map<number, string>
   collections: Coll[]
   onChange: (c: Coll[]) => void
 }) {
@@ -806,7 +910,14 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
                   style={{ background: isPaid ? 'var(--income)' : on ? 'var(--brand)' : 'transparent', border: isPaid || on ? 'none' : '1.5px solid var(--border)' }}>
                   {(isPaid || on) && <Check className="w-3.5 h-3.5 text-white" />}
                 </span>
-                <span className="flex-1 text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{gm.member?.name}</span>
+                <span className="flex-1 text-sm font-semibold truncate flex items-center gap-1.5" style={{ color: 'var(--text)' }}>
+                  {gm.member?.name}
+                  {winnerByMonth.get(month) === gm.member_id && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(240,195,109,.18)', color: '#b7791f' }}>
+                      <Trophy className="w-3 h-3" /> Winner
+                    </span>
+                  )}
+                </span>
               </button>
               {isPaid && (
                 <button onClick={() => reverse(gm.member_id, gm.member?.name ?? 'member')}
@@ -830,7 +941,7 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
 }
 
 // ── Member view: one member, all their months ────────────────────────────────
-function MemberView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, collections, onChange }: {
+function MemberView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, winnerByMonth, collections, onChange }: {
   group: ChitGroup
   installment: number
   months: number
@@ -838,6 +949,7 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
   accounts: Account[]
   defaultAccountId: string
   dueForMonth: (m: number) => number
+  winnerByMonth: Map<number, string>
   collections: Coll[]
   onChange: (c: Coll[]) => void
 }) {
@@ -878,26 +990,27 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
     setBusy(true)
     try {
       const monthsToPost = [...selected]
-      const res = await fetch('/api/chit/collections/bulk', {
+      // One member, several months → ONE consolidated transaction named for the
+      // months paid. The per-month collection rows still exist underneath.
+      const res = await fetch('/api/chit/collections/consolidated', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          group_id: group.id, paid_date: date, account_id: account,
-          // Each month at its OWN due — a month's dividend differs from the next's,
-          // so a single flat amount would be wrong for a multi-month catch-up.
-          entries: monthsToPost.map(m => ({ member_id: memberId, month_number: m, amount: dueForMonth(m) })),
+          group_id: group.id, member_id: memberId, paid_date: date, account_id: account,
+          entries: monthsToPost.map(m => ({ month_number: m, amount: dueForMonth(m) })),
         }),
       })
       const json = await res.json()
       if (!res.ok) { notify(json.error ?? 'Failed', 'error'); return }
+      const txnId = json.transaction_id ?? 'posted'
       const added: Coll[] = monthsToPost.map(m => ({
         id: `tmp-${memberId}-${m}`, group_id: group.id, member_id: memberId,
         month_number: m, amount: dueForMonth(m), paid_date: date, account_id: account,
-        income_transaction_id: 'posted', notes: null, created_at: new Date().toISOString(),
+        income_transaction_id: txnId, notes: null, created_at: new Date().toISOString(),
         member: { name: gm?.member?.name ?? '' },
       } as Coll))
       onChange([...added, ...collections])
       setSelected(new Set())
-      notify(`Collected ${json.done}${json.skipped ? `, ${json.skipped} already paid` : ''}${json.failed?.length ? `, ${json.failed.length} failed` : ''} — posted to your books`, json.failed?.length ? 'error' : 'success')
+      notify(`Collected ${json.done} month${json.done === 1 ? '' : 's'} · ${inr(json.total ?? 0)} — one transaction posted`, 'success')
     } finally { setBusy(false) }
   }
 
@@ -957,7 +1070,10 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold" style={{ color: 'var(--text-faint)' }}>Month {m}</p>
+                <p className="text-[11px] font-bold flex items-center gap-1" style={{ color: 'var(--text-faint)' }}>
+                  Month {m}
+                  {winnerByMonth.get(m) === memberId && <Trophy className="w-3 h-3" style={{ color: '#b7791f' }} />}
+                </p>
                 <p className="text-[13px] font-extrabold" style={{ color: c ? 'var(--income)' : 'var(--text-muted)' }}>
                   {c ? inr(c.amount) : inr(dueForMonth(m))}
                 </p>
