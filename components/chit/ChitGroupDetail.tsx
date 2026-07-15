@@ -11,6 +11,9 @@ import {
   monthlyInstallment, numberOfMonths, runAuction, monthlyDue, type GroupParams,
 } from '@/lib/chit/auction'
 import type { ChitGroup, ChitGroupMember, ChitAuction, ChitCollection, ChitMember } from '@/lib/chit/types'
+import { auctionNotice, auctionResult, niceDate, ordinal as ordinalWord } from '@/lib/chit/messages'
+import NotifyModal, { toTarget, type NotifyTarget } from './NotifyModal'
+import { Send } from 'lucide-react'
 
 type Tab = 'members' | 'auctions' | 'collections' | 'receivables'
 type Account = { id: string; name: string; type: string; company_id: string | null }
@@ -51,6 +54,7 @@ export default function ChitGroupDetail({
     [auctions],
   )
   const dueForMonth = (m: number) => monthlyDue(installment, dividendByMonth.get(m) ?? 0)
+  const companyName = companies.find(c => c.id === group.company_id)?.name ?? 'the company'
 
   // Which member won each month — used to flag the winner in the collection views.
   const winnerByMonth = useMemo(
@@ -122,7 +126,8 @@ export default function ChitGroupDetail({
       {tab === 'auctions' && (
         <AuctionsTab group={group} params={params} months={months} members={members}
           accounts={accounts} defaultAccountId={defaultAccountId} auctions={auctions} onChange={setAuctions}
-          collections={collections} dueForMonth={dueForMonth} onCollected={setCollections} />
+          collections={collections} dueForMonth={dueForMonth} onCollected={setCollections}
+          installment={installment} companyName={companyName} />
       )}
       {tab === 'collections' && (
         <CollectionsTab group={group} installment={installment} months={months}
@@ -428,7 +433,7 @@ function SlotEditor({ gm, onSaved }: {
 }
 
 // ── Auctions ─────────────────────────────────────────────────────────────────
-function AuctionsTab({ group, params, months, members, accounts, defaultAccountId, auctions, onChange, collections, dueForMonth, onCollected }: {
+function AuctionsTab({ group, params, months, members, accounts, defaultAccountId, auctions, onChange, collections, dueForMonth, onCollected, installment, companyName }: {
   group: ChitGroup
   params: GroupParams
   months: number
@@ -440,7 +445,31 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
   collections: Coll[]
   dueForMonth: (m: number) => number
   onCollected: (c: Coll[]) => void
+  installment: number
+  companyName: string
 }) {
+  const [notify_, setNotify] = useState<{ title: string; message: string; targets: NotifyTarget[] } | null>(null)
+  const allTargets = members.map(m => toTarget(m.member!)).filter(t => t)
+
+  function sendNotice(monthNumber: number) {
+    const message = auctionNotice({
+      companyName, chitValue: Number(group.chit_value), members: group.members,
+      tenureMonths: months, startDate: group.start_date, installment,
+      dueDay: group.auction_day, auctionTime: '6:30 PM', monthNumber,
+      auctionDate: group.start_date, bidCeilingPct: Number(group.bid_ceiling_pct),
+    })
+    setNotify({ title: `${ordinalWord(monthNumber)} month auction notice`, message, targets: allTargets })
+  }
+
+  function sendResult(a: ChitAuction) {
+    const winner = members.find(m => m.member_id === a.winner_member_id)?.member?.name ?? 'Winner'
+    const message = auctionResult({
+      dateText: niceDate(a.auction_date), monthNumber: a.month_number, tenureMonths: months,
+      winnerName: winner, auctionAmount: Number(a.net_payout),
+      discount: Number(a.bid_amount), dueAmount: dueForMonth(a.month_number),
+    })
+    setNotify({ title: `Month ${a.month_number} result`, message, targets: allTargets })
+  }
   const done = new Set(auctions.map(a => a.month_number))
   const nextMonth = useMemo(() => { for (let m = 1; m <= months; m++) if (!done.has(m)) return m; return null }, [done, months])
   const [conducting, setConducting] = useState(false)
@@ -463,12 +492,21 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
 
   return (
     <div className="space-y-3">
-      {nextMonth && (
-        <button onClick={() => setConducting(true)}
-          className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2.5 rounded-xl" style={{ background: 'var(--brand)' }}>
-          <Gavel className="w-4 h-4" /> Conduct auction — month {nextMonth}
-        </button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {nextMonth && (
+          <button onClick={() => setConducting(true)}
+            className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2.5 rounded-xl" style={{ background: 'var(--brand)' }}>
+            <Gavel className="w-4 h-4" /> Conduct auction — month {nextMonth}
+          </button>
+        )}
+        {nextMonth && (
+          <button onClick={() => sendNotice(nextMonth)}
+            className="flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+            <Send className="w-4 h-4" /> Send month {nextMonth} notice
+          </button>
+        )}
+      </div>
 
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
         {auctions.length === 0 && <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>No auctions held yet.</p>}
@@ -494,6 +532,9 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
                   </div>
                   {/* Once paid, the money has moved — editing is refused server-side
                       too, so we simply don't offer it here. */}
+                  <button onClick={() => sendResult(a)} className="p-1" style={{ color: '#25D366' }} title="Send result on WhatsApp">
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
                   {!a.payout_transaction_id && (
                     <>
                       <button onClick={() => setEditing(a)} className="p-1" style={{ color: 'var(--text-faint)' }} title="Edit auction">
@@ -557,6 +598,11 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
             }} />
         )
       })()}
+
+      {notify_ && (
+        <NotifyModal title={notify_.title} message={notify_.message} targets={notify_.targets}
+          onClose={() => setNotify(null)} />
+      )}
     </div>
   )
 }

@@ -98,6 +98,7 @@ function MemberForm({ member, onClose, onSaved }: {
   onSaved: (m: ChitMember) => void
 }) {
   const [name, setName] = useState(member?.name ?? '')
+  const [dial, setDial] = useState(member?.dial_code ?? '91')
   const [phone, setPhone] = useState(member?.phone ?? '')
   const [address, setAddress] = useState(member?.address ?? '')
   const [aadhaar, setAadhaar] = useState(member?.aadhaar ?? '')
@@ -113,7 +114,7 @@ function MemberForm({ member, onClose, onSaved }: {
     if (!name.trim()) { notify('Name is required', 'error'); return }
     setBusy(true)
     try {
-      const payload = { id: member?.id, name, phone, address, aadhaar, pan, notes, force }
+      const payload = { id: member?.id, name, dial_code: dial, phone, address, aadhaar, pan, notes, force }
       const res = await fetch('/api/chit/members', {
         method: member ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,7 +143,14 @@ function MemberForm({ member, onClose, onSaved }: {
             <input className={fld} style={fs} value={name} onChange={e => setName(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-2">
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Phone</label>
-              <input className={fld} style={fs} value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" /></div>
+              <div className="flex gap-1.5">
+                <div className="relative w-20 shrink-0">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-faint)' }}>+</span>
+                  <input className={`${fld} pl-5`} style={fs} value={dial} onChange={e => setDial(e.target.value.replace(/\D/g, ''))} inputMode="numeric" title="Country code" />
+                </div>
+                <input className={fld} style={fs} value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="10-digit number" />
+              </div>
+            </div>
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>PAN</label>
               <input className={fld} style={fs} value={pan} onChange={e => setPan(e.target.value.toUpperCase())} /></div>
           </div>

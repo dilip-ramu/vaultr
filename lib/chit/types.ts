@@ -14,6 +14,7 @@ export interface ChitMember {
   user_id: string
   name: string
   phone: string | null
+  dial_code: string
   address: string | null
   aadhaar: string | null
   pan: string | null

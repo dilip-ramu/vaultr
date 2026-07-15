@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     user_id: user.id,
     name,
     phone,
+    dial_code: (body.dial_code as string)?.replace(/\D/g, '') || '91',
     address: (body.address as string)?.trim() || null,
     aadhaar: (body.aadhaar as string)?.trim() || null,
     pan: (body.pan as string)?.trim() || null,
@@ -73,6 +74,7 @@ export async function PATCH(req: NextRequest) {
     if (k in body) patch[k] = body[k]
   }
   if ('phone' in body) patch.phone = normalizePhone(body.phone as string) || null
+  if ('dial_code' in body) patch.dial_code = (body.dial_code as string)?.replace(/\D/g, '') || '91'
 
   const { data, error } = await supabase.from('chit_members')
     .update(patch).eq('id', id).eq('user_id', user.id).select('*').single()

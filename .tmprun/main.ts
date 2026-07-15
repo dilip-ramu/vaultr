@@ -11,5 +11,6 @@ import './forex-asset'
 import './networth'
 import './improvements'
 import './chit-auction'
+import './chit-messages'
 import { run } from './shim'
 run()
