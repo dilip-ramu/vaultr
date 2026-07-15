@@ -113,7 +113,9 @@ export default function ChitGroupDetail({
           collections={collections} onChange={setCollections} />
       )}
       {tab === 'receivables' && (
-        <ReceivablesTab installment={installment} months={months} members={members} collections={collections} />
+        <ReceivablesTab group={group} installment={installment} months={months} members={members}
+          auctions={auctions} accounts={accounts} defaultAccountId={defaultAccountId}
+          collections={collections} onChange={setCollections} />
       )}
     </div>
   )
@@ -882,18 +884,32 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
 }
 
 // ── Receivables ──────────────────────────────────────────────────────────────
-function ReceivablesTab({ installment, months, members, collections }: {
+function ReceivablesTab({ group, installment, months, members, auctions, accounts, defaultAccountId, collections, onChange }: {
+  group: ChitGroup
   installment: number
   months: number
   members: ChitGroupMember[]
+  auctions: ChitAuction[]
+  accounts: Account[]
+  defaultAccountId: string
   collections: Coll[]
+  onChange: (c: Coll[]) => void
 }) {
-  // Derived, not stored: for each member, which months are unpaid. Simple and
-  // always in step with the collections above.
+  const [collectFor, setCollectFor] = useState<{ memberId: string; name: string; month: number } | null>(null)
+
+  // A member owes a month only once that month has actually RUN — and the signal
+  // that a month has run is that its auction was conducted. Before this fix the
+  // tab counted all 21 months from day one, so a brand-new group showed everyone
+  // owing the entire chit. Due months = the months with an auction on record.
+  const dueMonths = useMemo(
+    () => [...new Set(auctions.map(a => a.month_number))].sort((a, b) => a - b),
+    [auctions],
+  )
+
   const rows = members.map(gm => {
     const paid = new Set(collections.filter(c => c.member_id === gm.member_id).map(c => c.month_number))
-    const unpaid = Array.from({ length: months }, (_, i) => i + 1).filter(m => !paid.has(m))
-    return { name: gm.member?.name ?? 'Member', unpaid, due: unpaid.length * installment }
+    const unpaid = dueMonths.filter(m => !paid.has(m))
+    return { gm, name: gm.member?.name ?? 'Member', unpaid, due: unpaid.length * installment }
   }).filter(r => r.unpaid.length > 0)
 
   const total = rows.reduce((s, r) => s + r.due, 0)
@@ -903,19 +919,43 @@ function ReceivablesTab({ installment, months, members, collections }: {
       <div className="rounded-2xl px-4 py-3" style={{ background: 'var(--surface-2)' }}>
         <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Total outstanding</p>
         <p className="text-2xl font-extrabold" style={{ color: 'var(--expense)' }}>{inr(total)}</p>
+        <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>
+          {dueMonths.length === 0
+            ? 'Nothing due yet — dues appear as you conduct each month\'s auction.'
+            : `Across ${dueMonths.length} month${dueMonths.length === 1 ? '' : 's'} run so far.`}
+        </p>
       </div>
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-        {rows.length === 0 && <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--income)' }}>Everyone is paid up.</p>}
+        {rows.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--income)' }}>
+            {dueMonths.length === 0 ? 'No months have run yet.' : 'Everyone is paid up.'}
+          </p>
+        )}
         {rows.map((r, i) => (
-          <div key={i} className="flex items-center justify-between px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
-            <div>
-              <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>{r.name}</p>
+          <div key={r.gm.id} className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
+            <div className="min-w-0">
+              <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{r.name}</p>
               <p className="text-xs" style={{ color: 'var(--text-faint)' }}>months {r.unpaid.join(', ')}</p>
             </div>
-            <p className="text-sm font-extrabold" style={{ color: 'var(--expense)' }}>{inr(r.due)}</p>
+            <div className="flex items-center gap-3 shrink-0">
+              <p className="text-sm font-extrabold" style={{ color: 'var(--expense)' }}>{inr(r.due)}</p>
+              {/* Collect the earliest month they owe, right here. */}
+              <button onClick={() => setCollectFor({ memberId: r.gm.member_id, name: r.name, month: r.unpaid[0] })}
+                className="flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--brand)' }}>
+                <Wallet className="w-3.5 h-3.5" /> Collect
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      {collectFor && (
+        <CollectModal group={group} installment={installment} months={months}
+          memberId={collectFor.memberId} memberName={collectFor.name} accounts={accounts}
+          defaultAccountId={defaultAccountId} fixedMonth={collectFor.month} existing={collections}
+          onClose={() => setCollectFor(null)}
+          onDone={c => { onChange([c, ...collections]); setCollectFor(null) }} />
+      )}
     </div>
   )
 }
