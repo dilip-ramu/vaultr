@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronRight, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { inr } from '@/lib/assets/valuation'
@@ -116,6 +116,7 @@ export default function ChitGroupDetail({
 
       {tab === 'members' && (
         <MembersTab group={group} members={members} allMembers={allMembers}
+          auctions={auctions} collections={collections} dueForMonth={dueForMonth}
           onChange={setMembers} onRefresh={() => router.refresh()} />
       )}
       {tab === 'auctions' && (
@@ -256,13 +257,25 @@ function GroupEditForm({ group, companies, locked, onClose, onSaved }: {
 }
 
 // ── Members ──────────────────────────────────────────────────────────────────
-function MembersTab({ group, members, allMembers, onChange, onRefresh }: {
+function MembersTab({ group, members, allMembers, auctions, collections, dueForMonth, onChange, onRefresh }: {
   group: ChitGroup
   members: ChitGroupMember[]
   allMembers: ChitMember[]
+  auctions: ChitAuction[]
+  collections: Coll[]
+  dueForMonth: (m: number) => number
   onChange: (m: ChitGroupMember[]) => void
   onRefresh: () => void
 }) {
+  // Per member: their outstanding dues (run months they haven't paid), and the
+  // auction they won — the month, the discount they bid, and what they took home.
+  const dueMonths = [...new Set(auctions.map(a => a.month_number))]
+  const winByMember = new Map(auctions.filter(a => a.winner_member_id).map(a => [a.winner_member_id as string, a]))
+  const info = (memberId: string) => {
+    const paid = new Set(collections.filter(c => c.member_id === memberId).map(c => c.month_number))
+    const pending = dueMonths.filter(m => !paid.has(m)).reduce((t, m) => t + dueForMonth(m), 0)
+    return { pending, win: winByMember.get(memberId) }
+  }
   const [picking, setPicking] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const inGroup = new Set(members.map(m => m.member_id))
@@ -303,16 +316,37 @@ function MembersTab({ group, members, allMembers, onChange, onRefresh }: {
 
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
         {members.length === 0 && <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--text-faint)' }}>No members assigned yet.</p>}
-        {members.map((gm, i) => (
+        {members.map((gm, i) => {
+          const { pending, win } = info(gm.member_id)
+          return (
           <div key={gm.id} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
             <SlotEditor gm={gm} onSaved={updated => onChange(members.map(m => m.id === updated.id ? { ...m, slot_number: updated.slot_number } : m))} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{gm.member?.name ?? 'Member'}</p>
-              {gm.member?.phone && <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{gm.member.phone}</p>}
+              <p className="text-sm font-bold truncate flex items-center gap-1.5" style={{ color: 'var(--text)' }}>
+                {gm.member?.name ?? 'Member'}
+                {win && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(240,195,109,.18)', color: '#b7791f' }}>
+                    <Trophy className="w-3 h-3" /> Won
+                  </span>
+                )}
+              </p>
+              {/* If they won: which month, the discount they bid, and what they got. */}
+              {win
+                ? <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                    Month {win.month_number} · bid {inr(win.bid_amount)} discount · received {inr(win.net_payout)}
+                  </p>
+                : gm.member?.phone && <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{gm.member.phone}</p>}
+            </div>
+            <div className="text-right shrink-0">
+              {pending > 0
+                ? <p className="text-[12.5px] font-extrabold" style={{ color: 'var(--expense)' }}>{inr(pending)}</p>
+                : <p className="text-[11px] font-bold" style={{ color: 'var(--income)' }}>Paid up</p>}
+              <p className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{pending > 0 ? 'pending' : ''}</p>
             </div>
             <button onClick={() => remove(gm.id)} className="p-1" style={{ color: 'var(--expense)' }}><Trash2 className="w-4 h-4" /></button>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {picking && (
@@ -1201,24 +1235,40 @@ function ReceivablesTab({ group, installment, months, members, auctions, account
   onChange: (c: Coll[]) => void
 }) {
   const [collectFor, setCollectFor] = useState<{ memberId: string; name: string; month: number } | null>(null)
+  const [view, setView] = useState<'member' | 'month'>('member')
+  const [openMonth, setOpenMonth] = useState<number | null>(null)
 
-  // A member owes a month only once that month has actually RUN — and the signal
-  // that a month has run is that its auction was conducted. Before this fix the
-  // tab counted all 21 months from day one, so a brand-new group showed everyone
-  // owing the entire chit. Due months = the months with an auction on record.
+  // A member owes a month only once that month has actually RUN — the signal is
+  // that its auction was conducted. Due months = the months with an auction.
   const dueMonths = useMemo(
     () => [...new Set(auctions.map(a => a.month_number))].sort((a, b) => a - b),
     [auctions],
   )
 
-  const rows = members.map(gm => {
-    const paid = new Set(collections.filter(c => c.member_id === gm.member_id).map(c => c.month_number))
+  const paidByMember = useMemo(() => {
+    const m = new Map<string, Set<number>>()
+    for (const c of collections) {
+      if (!m.has(c.member_id)) m.set(c.member_id, new Set())
+      m.get(c.member_id)!.add(c.month_number)
+    }
+    return m
+  }, [collections])
+
+  // By member: who owes what, across all run months.
+  const memberRows = members.map(gm => {
+    const paid = paidByMember.get(gm.member_id) ?? new Set<number>()
     const unpaid = dueMonths.filter(m => !paid.has(m))
     const due = unpaid.reduce((t, m) => t + dueForMonth(m), 0)
     return { gm, name: gm.member?.name ?? 'Member', unpaid, due }
   }).filter(r => r.unpaid.length > 0)
 
-  const total = rows.reduce((s, r) => s + r.due, 0)
+  // By month: for each run month, who hasn't paid and how much is outstanding.
+  const monthRows = dueMonths.map(m => {
+    const nonPayers = members.filter(gm => !(paidByMember.get(gm.member_id)?.has(m)))
+    return { month: m, nonPayers, due: nonPayers.length * dueForMonth(m), each: dueForMonth(m) }
+  }).filter(r => r.nonPayers.length > 0)
+
+  const total = memberRows.reduce((s, r) => s + r.due, 0)
 
   return (
     <div className="space-y-3">
@@ -1231,29 +1281,78 @@ function ReceivablesTab({ group, installment, months, members, auctions, account
             : `Across ${dueMonths.length} month${dueMonths.length === 1 ? '' : 's'} run so far.`}
         </p>
       </div>
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-        {rows.length === 0 && (
-          <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--income)' }}>
-            {dueMonths.length === 0 ? 'No months have run yet.' : 'Everyone is paid up.'}
-          </p>
-        )}
-        {rows.map((r, i) => (
-          <div key={r.gm.id} className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
-            <div className="min-w-0">
-              <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{r.name}</p>
-              <p className="text-xs" style={{ color: 'var(--text-faint)' }}>months {r.unpaid.join(', ')}</p>
+
+      {/* By member (who owes) or by month (which month is short, and who). */}
+      {dueMonths.length > 0 && (
+        <div className="inline-flex rounded-xl p-0.5" style={{ background: 'var(--surface-2)' }}>
+          {(['member', 'month'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)}
+              className="px-4 py-1.5 rounded-lg text-[12.5px] font-bold capitalize"
+              style={{ background: view === v ? 'var(--surface)' : 'transparent', color: view === v ? 'var(--brand)' : 'var(--text-muted)', boxShadow: view === v ? 'var(--shadow-sm)' : undefined }}>
+              By {v}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === 'member' && (
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+          {memberRows.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm" style={{ color: 'var(--income)' }}>
+              {dueMonths.length === 0 ? 'No months have run yet.' : 'Everyone is paid up.'}
+            </p>
+          )}
+          {memberRows.map((r, i) => (
+            <div key={r.gm.id} className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
+              <div className="min-w-0">
+                <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{r.name}</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>months {r.unpaid.join(', ')}</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <p className="text-sm font-extrabold" style={{ color: 'var(--expense)' }}>{inr(r.due)}</p>
+                <button onClick={() => setCollectFor({ memberId: r.gm.member_id, name: r.name, month: r.unpaid[0] })}
+                  className="flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--brand)' }}>
+                  <Wallet className="w-3.5 h-3.5" /> Collect
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <p className="text-sm font-extrabold" style={{ color: 'var(--expense)' }}>{inr(r.due)}</p>
-              {/* Collect the earliest month they owe, right here. */}
-              <button onClick={() => setCollectFor({ memberId: r.gm.member_id, name: r.name, month: r.unpaid[0] })}
-                className="flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: 'var(--brand)' }}>
-                <Wallet className="w-3.5 h-3.5" /> Collect
+          ))}
+        </div>
+      )}
+
+      {view === 'month' && (
+        <div className="space-y-2">
+          {monthRows.length === 0 && (
+            <p className="rounded-2xl px-4 py-8 text-center text-sm" style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--income)' }}>Every run month is fully collected.</p>
+          )}
+          {monthRows.map(r => (
+            <div key={r.month} className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+              {/* Tap a month to see who didn't pay it. */}
+              <button onClick={() => setOpenMonth(openMonth === r.month ? null : r.month)}
+                className="w-full flex items-center justify-between px-4 py-3">
+                <div className="text-left">
+                  <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Month {r.month}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{r.nonPayers.length} unpaid · {inr(r.each)} each</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-extrabold" style={{ color: 'var(--expense)' }}>{inr(r.due)}</p>
+                  {openMonth === r.month ? <ChevronDown className="w-4 h-4" style={{ color: 'var(--text-faint)' }} /> : <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />}
+                </div>
               </button>
+              {openMonth === r.month && r.nonPayers.map(gm => (
+                <div key={gm.id} className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                  <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{gm.member?.name}</p>
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <p className="text-[12.5px] font-bold" style={{ color: 'var(--expense)' }}>{inr(r.each)}</p>
+                    <button onClick={() => setCollectFor({ memberId: gm.member_id, name: gm.member?.name ?? '', month: r.month })}
+                      className="text-[11.5px] font-bold px-2.5 py-1 rounded-lg text-white" style={{ background: 'var(--brand)' }}>Collect</button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {collectFor && (
         <CollectModal group={group} installment={installment} months={months}

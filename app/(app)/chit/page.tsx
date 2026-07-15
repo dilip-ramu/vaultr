@@ -26,6 +26,7 @@ export default async function ChitDashboard() {
     { data: monthCollections },
     { data: allCollections },
     { data: todayCollections },
+    { data: allAuctions },
   ] = await Promise.all([
     supabase.from('chit_groups').select('*').eq('user_id', uid),
     supabase.from('chit_members').select('id', { count: 'exact', head: true }).eq('user_id', uid),
@@ -33,6 +34,9 @@ export default async function ChitDashboard() {
     supabase.from('chit_collections').select('amount').eq('user_id', uid).gte('paid_date', monthStart),
     supabase.from('chit_collections').select('group_id, member_id, month_number').eq('user_id', uid),
     supabase.from('chit_collections').select('amount').eq('user_id', uid).eq('paid_date', today),
+    // Which months have actually RUN. A month only becomes owed once its auction
+    // is conducted — so outstanding is measured against these, not the full plan.
+    supabase.from('chit_auctions').select('group_id, month_number, dividend_per_member').eq('user_id', uid),
   ])
 
   const groupList = (groups ?? []) as ChitGroup[]
@@ -43,23 +47,40 @@ export default async function ChitDashboard() {
   const monthTotal = sum(monthCollections)
   const todayTotal = sum(todayCollections)
 
-  // Outstanding, derived: for each group, (members × months) slots minus what's
-  // been collected, times the installment. A planning figure, not to the rupee.
-  let expected = 0, collected = 0
-  const membersByGroup: Record<string, number> = {}
-  for (const row of (gm ?? []) as { group_id: string }[]) membersByGroup[row.group_id] = (membersByGroup[row.group_id] ?? 0) + 1
-  const paidByGroup: Record<string, number> = {}
-  for (const row of (allCollections ?? []) as { group_id: string }[]) paidByGroup[row.group_id] = (paidByGroup[row.group_id] ?? 0) + 1
+  // Outstanding, done properly: for each group, ONLY the months whose auction has
+  // run are due. For each such month, each member who hasn't paid owes that
+  // month's due (installment minus that month's dividend). Nothing before an
+  // auction counts — a chit that hasn't started owes nothing.
+  const membersByGroup: Record<string, string[]> = {}
+  for (const row of (gm ?? []) as { group_id: string; member_id: string }[]) {
+    (membersByGroup[row.group_id] ??= []).push(row.member_id)
+  }
+  const paidSlots = new Set(
+    ((allCollections ?? []) as { group_id: string; member_id: string; month_number: number }[])
+      .map(c => `${c.group_id}:${c.member_id}:${c.month_number}`),
+  )
+  const auctionsByGroup: Record<string, { month: number; dividend: number }[]> = {}
+  for (const a of (allAuctions ?? []) as { group_id: string; month_number: number; dividend_per_member: number }[]) {
+    (auctionsByGroup[a.group_id] ??= []).push({ month: a.month_number, dividend: Number(a.dividend_per_member) || 0 })
+  }
 
+  let outstanding = 0
   for (const g of groupList) {
     if (g.status !== 'active') continue
     const inst = monthlyInstallment({ chitValue: g.chit_value, members: g.members })
-    const months = numberOfMonths({ members: g.members, model: g.commission_model })
-    const slots = (membersByGroup[g.id] ?? 0) * months
-    expected += slots * inst
-    collected += (paidByGroup[g.id] ?? 0) * inst
+    const memberIds = membersByGroup[g.id] ?? []
+    for (const { month, dividend } of auctionsByGroup[g.id] ?? []) {
+      const due = Math.max(0, inst - dividend)
+      for (const mid of memberIds) {
+        if (!paidSlots.has(`${g.id}:${mid}:${month}`)) outstanding += due
+      }
+    }
   }
-  const outstanding = Math.max(0, expected - collected)
+  outstanding = Math.round(outstanding * 100) / 100
+
+  // Kept for the group list rows below (members tagged per group).
+  const memberCountByGroup: Record<string, number> = {}
+  for (const [gid, ids] of Object.entries(membersByGroup)) memberCountByGroup[gid] = ids.length
 
   const card = { border: '1px solid var(--border)', background: 'var(--surface)' }
 
@@ -109,7 +130,7 @@ export default async function ChitDashboard() {
                 style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
                 <div>
                   <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>{g.name}</p>
-                  <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{inr(g.chit_value)} · {membersByGroup[g.id] ?? 0}/{g.members} members</p>
+                  <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{inr(g.chit_value)} · {memberCountByGroup[g.id] ?? 0}/{g.members} members</p>
                 </div>
                 <ChevronRight className="w-4 h-4" style={{ color: 'var(--text-faint)' }} />
               </Link>
