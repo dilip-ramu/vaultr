@@ -1394,7 +1394,7 @@ function ReceivablesTab({ group, installment, months, members, auctions, account
             <div key={r.gm.id} className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
               <div className="min-w-0">
                 <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{r.name}</p>
-                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>months {r.unpaid.join(', ')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>Months pending- {r.unpaid.join(', ')}</p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <p className="text-sm font-extrabold" style={{ color: 'var(--expense)' }}>{inr(r.due)}</p>
