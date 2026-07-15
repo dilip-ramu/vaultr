@@ -92,6 +92,59 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ collection, transaction_id: posted.id })
 }
 
+// DELETE ?id= OR ?group_id=&member_id=&month_number= — reverse a collection.
+//
+// A mistake has to be undoable, and undoing it must also delete the INCOME
+// transaction it created — otherwise the money stays in your books while the
+// chit says it was never collected, and the two quietly disagree forever. So the
+// transaction goes first, then the collection row, then the receivable flips back
+// to unpaid.
+export async function DELETE(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const sp = req.nextUrl.searchParams
+  const id = sp.get('id')
+  const groupId = sp.get('group_id')
+  const memberId = sp.get('member_id')
+  const monthNumber = sp.get('month_number')
+
+  // Locate the collection either by its id, or by the slot it occupies.
+  let q = supabase.from('chit_collections')
+    .select('id, group_id, member_id, month_number, income_transaction_id')
+    .eq('user_id', user.id)
+  if (id) q = q.eq('id', id)
+  else if (groupId && memberId && monthNumber) {
+    q = q.eq('group_id', groupId).eq('member_id', memberId).eq('month_number', Number(monthNumber))
+  } else {
+    return NextResponse.json({ error: 'Pass id, or group_id + member_id + month_number' }, { status: 400 })
+  }
+
+  const { data: coll } = await q.maybeSingle()
+  if (!coll) return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
+
+  // The transaction first. If this fails we stop — deleting the collection while
+  // its transaction lingers is the exact drift we're trying to avoid.
+  if (coll.income_transaction_id) {
+    const { error: txErr } = await supabase.from('transactions')
+      .delete().eq('id', coll.income_transaction_id).eq('user_id', user.id)
+    if (txErr) return NextResponse.json({ error: `Could not remove the transaction: ${txErr.message}` }, { status: 500 })
+  }
+
+  const { error: delErr } = await supabase.from('chit_collections')
+    .delete().eq('id', coll.id).eq('user_id', user.id)
+  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
+
+  // The slot is owed again.
+  await supabase.from('chit_receivables')
+    .update({ status: 'PENDING', collection_id: null })
+    .eq('user_id', user.id).eq('group_id', coll.group_id)
+    .eq('member_id', coll.member_id).eq('month_number', coll.month_number)
+
+  return NextResponse.json({ ok: true })
+}
+
 async function ensureCategory(
   supabase: Awaited<ReturnType<typeof createClient>>, userId: string,
   name: string, type: 'income' | 'expense',
