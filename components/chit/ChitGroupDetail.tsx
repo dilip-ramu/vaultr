@@ -11,7 +11,7 @@ import {
   monthlyInstallment, numberOfMonths, runAuction, monthlyDue, type GroupParams,
 } from '@/lib/chit/auction'
 import type { ChitGroup, ChitGroupMember, ChitAuction, ChitCollection, ChitMember } from '@/lib/chit/types'
-import { auctionNotice, auctionResult, niceDate, ordinal as ordinalWord } from '@/lib/chit/messages'
+import { auctionNotice, auctionResult, winnerPayout, scheduledAuctionDate, niceDate, ordinal as ordinalWord } from '@/lib/chit/messages'
 import NotifyModal, { toTarget, type NotifyTarget } from './NotifyModal'
 import { Send } from 'lucide-react'
 
@@ -448,7 +448,7 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
   installment: number
   companyName: string
 }) {
-  const [notify_, setNotify] = useState<{ title: string; message: string; targets: NotifyTarget[] } | null>(null)
+  const [notify_, setNotify] = useState<{ title: string; message: string; targets: NotifyTarget[]; toggle?: { label: string; on: string; off: string; defaultOn?: boolean } } | null>(null)
   const allTargets = members.map(m => toTarget(m.member!)).filter(t => t)
 
   function sendNotice(monthNumber: number) {
@@ -456,19 +456,44 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
       companyName, chitValue: Number(group.chit_value), members: group.members,
       tenureMonths: months, startDate: group.start_date, installment,
       dueDay: group.auction_day, auctionTime: '6:30 PM', monthNumber,
-      auctionDate: group.start_date, bidCeilingPct: Number(group.bid_ceiling_pct),
+      auctionDate: scheduledAuctionDate(group.start_date, group.auction_day, monthNumber),
+      bidCeilingPct: Number(group.bid_ceiling_pct),
     })
     setNotify({ title: `${ordinalWord(monthNumber)} month auction notice`, message, targets: allTargets })
   }
 
+  function sendWinnerPayout(a: ChitAuction) {
+    const gmWinner = members.find(m => m.member_id === a.winner_member_id)
+    if (!gmWinner) { notify('No winner on this auction', 'error'); return }
+    // Their own unpaid dues for run months up to and including this one.
+    const auctionMonths = new Set(auctions.map(x => x.month_number))
+    const paidMonths = new Set(collections.filter(c => c.member_id === a.winner_member_id).map(c => c.month_number))
+    const pending = Array.from({ length: a.month_number }, (_, i) => i + 1)
+      .filter(m => auctionMonths.has(m) && !paidMonths.has(m))
+      .reduce((t, m) => t + dueForMonth(m), 0)
+    const message = winnerPayout({
+      dateText: niceDate(a.auction_date), monthNumber: a.month_number, tenureMonths: months,
+      winnerName: gmWinner.member?.name ?? 'Winner', winningAmount: Number(a.net_payout),
+      pendingAmount: pending,
+    })
+    setNotify({ title: `Message ${gmWinner.member?.name ?? 'winner'}`, message, targets: [toTarget(gmWinner.member!)] })
+  }
+
   function sendResult(a: ChitAuction) {
     const winner = members.find(m => m.member_id === a.winner_member_id)?.member?.name ?? 'Winner'
-    const message = auctionResult({
+    const base = {
       dateText: niceDate(a.auction_date), monthNumber: a.month_number, tenureMonths: months,
       winnerName: winner, auctionAmount: Number(a.net_payout),
       discount: Number(a.bid_amount), dueAmount: dueForMonth(a.month_number),
+    }
+    const withName = auctionResult({ ...base, showWinner: true })
+    const withoutName = auctionResult({ ...base, showWinner: false })
+    setNotify({
+      title: `Month ${a.month_number} result`,
+      message: withoutName,   // default: don't name the winner in a group broadcast
+      targets: allTargets,
+      toggle: { label: 'Show winner name', on: withName, off: withoutName, defaultOn: false },
     })
-    setNotify({ title: `Month ${a.month_number} result`, message, targets: allTargets })
   }
   const done = new Set(auctions.map(a => a.month_number))
   const nextMonth = useMemo(() => { for (let m = 1; m <= months; m++) if (!done.has(m)) return m; return null }, [done, months])
@@ -532,9 +557,14 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
                   </div>
                   {/* Once paid, the money has moved — editing is refused server-side
                       too, so we simply don't offer it here. */}
-                  <button onClick={() => sendResult(a)} className="p-1" style={{ color: '#25D366' }} title="Send result on WhatsApp">
+                  <button onClick={() => sendResult(a)} className="p-1" style={{ color: '#25D366' }} title="Broadcast result to all members">
                     <Send className="w-3.5 h-3.5" />
                   </button>
+                  {a.winner_member_id && (
+                    <button onClick={() => sendWinnerPayout(a)} className="p-1" style={{ color: '#b7791f' }} title="Message the winner about their payout">
+                      <Trophy className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   {!a.payout_transaction_id && (
                     <>
                       <button onClick={() => setEditing(a)} className="p-1" style={{ color: 'var(--text-faint)' }} title="Edit auction">
@@ -601,7 +631,7 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
 
       {notify_ && (
         <NotifyModal title={notify_.title} message={notify_.message} targets={notify_.targets}
-          onClose={() => setNotify(null)} />
+          toggle={notify_.toggle} onClose={() => setNotify(null)} />
       )}
     </div>
   )
@@ -623,6 +653,13 @@ function ConductModal({ group, params, monthNumber, members, existing, excludeWi
   const isForemanMonth = group.commission_model === 'UPFRONT' && monthNumber === 1
   const [bid, setBid] = useState(existing ? String(existing.bid_amount) : '')
   const [winner, setWinner] = useState(existing?.winner_member_id ?? '')
+  // The date the auction was actually held — defaults to the schedule, editable.
+  // Stored so the result message shows the auction date, not the day you keyed it.
+  const [auctionDate, setAuctionDate] = useState(
+    existing?.auction_date
+    ?? scheduledAuctionDate(group.start_date, group.auction_day, monthNumber)
+    ?? new Date().toISOString().split('T')[0],
+  )
   const [busy, setBusy] = useState(false)
 
   const preview = runAuction({ group: params, monthNumber, bidAmount: parseFloat(bid) || 0 })
@@ -635,7 +672,7 @@ function ConductModal({ group, params, monthNumber, members, existing, excludeWi
     try {
       const res = await fetch('/api/chit/auctions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ group_id: group.id, month_number: monthNumber, bid_amount: parseFloat(bid) || 0, winner_member_id: winner || null }),
+        body: JSON.stringify({ group_id: group.id, month_number: monthNumber, bid_amount: parseFloat(bid) || 0, winner_member_id: winner || null, auction_date: auctionDate }),
       })
       const json = await res.json()
       if (!res.ok) { notify(json.error ?? 'Failed', 'error'); return }
@@ -650,6 +687,11 @@ function ConductModal({ group, params, monthNumber, members, existing, excludeWi
         <div className="flex items-center justify-between mb-3">
           <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>{existing ? 'Edit' : ''} Auction — month {monthNumber}</p>
           <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="mb-3">
+          <label className="text-[11px] font-bold block mb-1" style={{ color: 'var(--text-muted)' }}>Auction date</label>
+          <input type="date" className={fld} style={fs} value={auctionDate} onChange={e => setAuctionDate(e.target.value)} />
         </div>
 
         {isForemanMonth ? (

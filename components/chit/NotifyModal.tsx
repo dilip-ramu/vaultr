@@ -22,15 +22,26 @@ export interface NotifyTarget {
   phone: string | null
 }
 
-export default function NotifyModal({ title, message: initial, targets, onClose }: {
+export default function NotifyModal({ title, message: initial, targets, toggle, onClose }: {
   title: string
   message: string
   targets: NotifyTarget[]
+  // An optional checkbox that swaps between two versions of the message — e.g.
+  // showing or hiding the winner's name for a group broadcast.
+  toggle?: { label: string; on: string; off: string; defaultOn?: boolean }
   onClose: () => void
 }) {
-  const [message, setMessage] = useState(initial)
+  const [toggled, setToggled] = useState(toggle?.defaultOn ?? true)
+  const [message, setMessage] = useState(toggle ? (toggle.defaultOn ?? true ? toggle.on : toggle.off) : initial)
   const [sent, setSent] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState(false)
+
+  // Flipping the checkbox rebuilds the message from the chosen version.
+  function flip() {
+    const next = !toggled
+    setToggled(next)
+    if (toggle) setMessage(next ? toggle.on : toggle.off)
+  }
 
   const withPhone = targets.filter(t => t.phone)
   const noPhone = targets.filter(t => !t.phone)
@@ -53,6 +64,18 @@ export default function NotifyModal({ title, message: initial, targets, onClose 
           <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>{title}</p>
           <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
         </div>
+
+        {toggle && (
+          <button type="button" onClick={flip}
+            className="w-full flex items-center gap-2.5 mb-3 rounded-xl px-3.5 py-2.5 text-left"
+            style={{ background: 'var(--surface-2)' }}>
+            <span className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+              style={{ background: toggled ? 'var(--brand)' : 'transparent', border: toggled ? 'none' : '1.5px solid var(--border)' }}>
+              {toggled && <Check className="w-3.5 h-3.5 text-white" />}
+            </span>
+            <span className="text-[12.5px] font-semibold" style={{ color: 'var(--text)' }}>{toggle.label}</span>
+          </button>
+        )}
 
         {/* The message, editable — tweak before you send. */}
         <textarea value={message} onChange={e => setMessage(e.target.value)} rows={10}

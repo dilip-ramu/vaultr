@@ -50,6 +50,35 @@ export function niceDate(d?: string | null): string {
   return `${m[3]}.${m[2]}.${m[1]}`
 }
 
+/**
+ * The scheduled date of month N's auction.
+ *
+ * Month 1 is the start month; each later month is one calendar month on, landing
+ * on the group's auction day. So a chit starting 14.04 with auction day 14 has
+ * its 4th auction on 14.07 and its 5th on 14.08 — NOT the start date, which was
+ * the bug (every notice showed 14.04). The day is clamped to the month's length
+ * so a "31" auction day still resolves in February.
+ */
+export function scheduledAuctionDate(
+  startDate: string | null | undefined,
+  auctionDay: number | null | undefined,
+  monthNumber: number,
+): string | null {
+  if (!startDate) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(startDate)
+  if (!m) return null
+
+  let year = Number(m[1])
+  let month = Number(m[2]) - 1 + (monthNumber - 1)      // 0-based, plus the offset
+  year += Math.floor(month / 12)
+  month = ((month % 12) + 12) % 12
+
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  const day = Math.min(auctionDay || Number(m[3]), daysInMonth)
+
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 /** Message 1 — the pre-auction notice. */
 export function auctionNotice(p: NoticeParams): string {
   const lines: string[] = []
@@ -80,15 +109,57 @@ export function auctionNotice(p: NoticeParams): string {
   return lines.join('\n')
 }
 
-/** Message 2 — the auction result. */
-export function auctionResult(p: ResultParams): string {
+/**
+ * Message 2 — the auction result.
+ *
+ * `showWinner` controls the "Winner- X" line. Off by choice: this often goes to a
+ * whole-group WhatsApp, and the operator may not want to name the winner to
+ * everyone — the amounts and dividend still tell each member what they owe this
+ * month without revealing who took the pot.
+ */
+export function auctionResult(p: ResultParams & { showWinner?: boolean }): string {
+  const lines = [
+    p.dateText,
+    `Chit no. ${p.monthNumber}/${p.tenureMonths}`,
+  ]
+  if (p.showWinner !== false) lines.push(`Winner- ${p.winnerName}`)
+  lines.push(
+    `Auction amount- ${Math.round(p.auctionAmount).toLocaleString('en-IN')}`,
+    `Discount- ${Math.round(p.discount).toLocaleString('en-IN')}`,
+    `Due amount- ${Math.round(p.dueAmount).toLocaleString('en-IN')}`,
+  )
+  return lines.join('\n')
+}
+
+export interface WinnerPayoutParams {
+  dateText: string
+  monthNumber: number
+  tenureMonths: number
+  winnerName: string
+  winningAmount: number          // the payout (net of their bid)
+  pendingAmount: number          // their own dues being deducted
+  transferDays?: number          // default 7
+}
+
+/**
+ * Message 3 — sent to the WINNER about their payout.
+ *
+ * Shows what they won, what's being deducted for their own dues, and the net that
+ * will actually reach them, with a settlement window. This is the individual
+ * counterpart to the broadcast result — the winner needs to know why they're
+ * receiving less than the headline auction amount.
+ */
+export function winnerPayout(p: WinnerPayoutParams): string {
+  const after = Math.max(0, Math.round((p.winningAmount - p.pendingAmount)))
+  const days = p.transferDays ?? 7
   return [
     p.dateText,
     `Chit no. ${p.monthNumber}/${p.tenureMonths}`,
     `Winner- ${p.winnerName}`,
-    `Auction amount- ${Math.round(p.auctionAmount).toLocaleString('en-IN')}`,
-    `Discount- ${Math.round(p.discount).toLocaleString('en-IN')}`,
-    `Due amount- ${Math.round(p.dueAmount).toLocaleString('en-IN')}`,
+    `Winning amount- ${Math.round(p.winningAmount).toLocaleString('en-IN')}`,
+    `Pending amount- ${Math.round(p.pendingAmount).toLocaleString('en-IN')}`,
+    `After deduction- ${after.toLocaleString('en-IN')}`,
+    `This will be transferred within the next ${days} days.`,
   ].join('\n')
 }
 

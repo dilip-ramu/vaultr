@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ordinal, niceDate, auctionNotice, auctionResult, whatsappLink } from '@/lib/chit/messages'
+import { ordinal, niceDate, auctionNotice, auctionResult, whatsappLink, scheduledAuctionDate, winnerPayout } from '@/lib/chit/messages'
 
 describe('helpers', () => {
   it('ordinals', () => {
@@ -74,5 +74,51 @@ describe('the wa.me link', () => {
 
   it('strips stray non-digits from the number', () => {
     expect(whatsappLink('+91', '98765 43210', 'x')).toContain('wa.me/919876543210?')
+  })
+})
+
+describe('the scheduled auction date', () => {
+  it('month 1 is the start; each month steps forward on the auction day', () => {
+    expect(scheduledAuctionDate('2026-04-14', 14, 1)).toBe('2026-04-14')
+    expect(scheduledAuctionDate('2026-04-14', 14, 4)).toBe('2026-07-14')
+    expect(scheduledAuctionDate('2026-04-14', 14, 5)).toBe('2026-08-14')  // the bug: was showing 14.04
+  })
+
+  it('rolls across the year boundary', () => {
+    expect(scheduledAuctionDate('2026-11-05', 5, 3)).toBe('2027-01-05')
+  })
+
+  it('clamps the day to the month length', () => {
+    expect(scheduledAuctionDate('2026-01-31', 31, 2)).toBe('2026-02-28')  // Feb has no 31st
+  })
+
+  it('is null with no start date', () => {
+    expect(scheduledAuctionDate(null, 14, 4)).toBeNull()
+  })
+})
+
+describe('the result can hide the winner’s name for a group broadcast', () => {
+  const base = { dateText: '15/06/26', monthNumber: 3, tenureMonths: 21, winnerName: 'Vishnu', auctionAmount: 79000, discount: 3950, dueAmount: 21050 }
+  it('shows the winner by default', () => {
+    expect(auctionResult(base)).toContain('Winner- Vishnu')
+  })
+  it('omits the winner line when asked', () => {
+    const msg = auctionResult({ ...base, showWinner: false })
+    expect(msg).not.toContain('Winner-')
+    expect(msg).toContain('Auction amount- 79,000')   // the numbers stay
+    expect(msg).toContain('Due amount- 21,050')
+  })
+})
+
+describe('the winner payout message', () => {
+  it('shows winning, pending, after-deduction and the settlement window', () => {
+    const msg = winnerPayout({
+      dateText: '14.07.2026', monthNumber: 4, tenureMonths: 21,
+      winnerName: 'Vishnu', winningAmount: 85000, pendingAmount: 5000,
+    })
+    expect(msg).toContain('Winning amount- 85,000')
+    expect(msg).toContain('Pending amount- 5,000')
+    expect(msg).toContain('After deduction- 80,000')
+    expect(msg).toContain('within the next 7 days')
   })
 })
