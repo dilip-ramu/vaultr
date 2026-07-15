@@ -13,7 +13,7 @@ import {
   Banknote, UserSquare, CalendarClock, History,
   Building2, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
-  CalendarRange, CreditCard, Gem, BarChart3 } from 'lucide-react'
+  CalendarRange, CreditCard, Gem, BarChart3, Coins } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
@@ -105,6 +105,13 @@ const navSections: NavSection[] = [
         subItems: [
           { href: '/organization/companies', label: 'Company view', icon: BarChart3 },
           { href: '/organization/employees', label: 'Employees', icon: Users },
+        ],
+      },
+      {
+        href: '/chit', label: 'Chit funds', icon: Coins,
+        subItems: [
+          { href: '/chit/groups',  label: 'Groups',  icon: Layers },
+          { href: '/chit/members', label: 'Members', icon: Users },
         ],
       },
     ],

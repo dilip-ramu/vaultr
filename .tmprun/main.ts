@@ -10,5 +10,6 @@ import './stocks'
 import './forex-asset'
 import './networth'
 import './improvements'
+import './chit-auction'
 import { run } from './shim'
 run()
