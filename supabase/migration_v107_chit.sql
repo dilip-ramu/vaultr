@@ -190,3 +190,14 @@ BEGIN
       t || '_own', t);
   END LOOP;
 END $$;
+
+-- ── Table privileges ────────────────────────────────────────────────────────
+-- RLS gates ROWS, but Postgres needs a table-level GRANT before the
+-- `authenticated` role can touch the table at all. Supabase auto-grants for
+-- dashboard-created tables; a raw migration must do it itself, or you get
+-- "permission denied for table chit_groups". RLS above still restricts every row
+-- to its owner.
+GRANT ALL ON TABLE
+  chit_members, chit_groups, chit_group_members,
+  chit_auctions, chit_collections, chit_receivables
+TO authenticated, service_role;

@@ -61,6 +61,11 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/organization/companies', label: 'Company view' },
     { href: '/organization/employees', label: 'Employees' },
   ] },
+  { name: 'Chit funds', tabs: [
+    { href: '/chit', label: 'Overview' },
+    { href: '/chit/groups', label: 'Groups' },
+    { href: '/chit/members', label: 'Members' },
+  ] },
   { name: 'System', tabs: [
     { href: '/setup/settings',      label: 'Settings' },
     { href: '/setup/users',         label: 'Users' },
