@@ -15,11 +15,20 @@ export default function DocPrintView({ model, filename, layout = null }: { model
   async function downloadPdf() {
     setBusy(true)
     try {
-      // Text-based PDF drawn from the model — selectable text, one tap, no
-      // rasterised whitespace. Falls back to the old screenshot method only if
-      // this throws, so a download always happens.
-      const { downloadDocModelPdf } = await import('@/lib/pdf/renderDocModelPdf')
-      await downloadDocModelPdf(model, filename)
+      // Text-based PDF — selectable text, one tap, no rasterised whitespace.
+      // A custom coordinate template is drawn as text too (so the PDF still
+      // follows it); otherwise the built-in design. Falls back to the old
+      // screenshot method only if this throws, so a download always happens.
+      if (layout) {
+        const [{ downloadLayoutPdf }, { modelToContext }] = await Promise.all([
+          import('@/lib/pdf/renderLayoutPdf'),
+          import('@/lib/documents/layoutContext'),
+        ])
+        await downloadLayoutPdf(layout, modelToContext(model), filename)
+      } else {
+        const { downloadDocModelPdf } = await import('@/lib/pdf/renderDocModelPdf')
+        await downloadDocModelPdf(model, filename)
+      }
     } catch {
       try {
         const el = findDocSheet()
@@ -52,6 +61,24 @@ export default function DocPrintView({ model, filename, layout = null }: { model
         <button className="doc-btn primary" onClick={downloadPdf} disabled={busy}>{busy ? 'Preparing…' : 'Download PDF'}</button>
         <button className="doc-btn ghost" onClick={() => window.print()}>Print</button>
       </div>
+      {/* Model (always) and layout (when a custom template exists), embedded as
+          JSON so an off-screen iframe download can read them and build a TEXT
+          pdf instead of screenshotting the page. With a layout it draws the
+          company's coordinate template as text (renderLayoutPdf); without one it
+          draws the built-in design (renderDocModelPdf). Either way the result is
+          selectable text, never a rasterised image. */}
+      <script
+        type="application/json"
+        id="doc-model-json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(model).replace(/</g, '\\u003c') }}
+      />
+      {layout && (
+        <script
+          type="application/json"
+          id="doc-layout-json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(layout).replace(/</g, '\\u003c') }}
+        />
+      )}
       {layout
         ? <LayoutRenderer layout={layout} ctx={modelToContext(model)} print />
         : <DocDesign model={model} />}

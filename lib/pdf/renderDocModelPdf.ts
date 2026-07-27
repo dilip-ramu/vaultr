@@ -37,6 +37,17 @@ async function loadImage(url: string | null | undefined): Promise<{ data: string
 }
 
 export async function downloadDocModelPdf(model: DocModel, filename: string): Promise<void> {
+  const doc = await buildDocModelPdf(model)
+  doc.save(filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`)
+}
+
+/** Same text PDF as a Blob (for the GST bulk-zip export). */
+export async function docModelPdfBlob(model: DocModel): Promise<Blob> {
+  const doc = await buildDocModelPdf(model)
+  return doc.output('blob') as Blob
+}
+
+async function buildDocModelPdf(model: DocModel) {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
   const accent = hexToRgb(model.accent)
@@ -182,5 +193,5 @@ export async function downloadDocModelPdf(model: DocModel, filename: string): Pr
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
   doc.text(model.signatureLabel ?? 'Authorised signatory', rightX, sy, { align: 'right' })
 
-  doc.save(filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`)
+  return doc
 }

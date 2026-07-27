@@ -7,7 +7,7 @@ import type { RecoverableInvoice, RecoverableInvoiceLine, InvoiceStatus } from '
 import type { Customer } from '@/lib/types'
 import StatusBadge from '@/components/recoverables/shared/StatusBadge'
 import MarkPaidModal from './MarkPaidModal'
-import { downloadPrintRouteAsPdf } from '@/lib/pdf/downloadElementPdf'
+import { downloadRouteAsTextPdf } from '@/lib/pdf/downloadElementPdf'
 
 interface SellerInfo {
   company_name: string | null
@@ -316,7 +316,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
             onClick={async () => {
               setDownloading(true)
               try {
-                await downloadPrintRouteAsPdf(
+                await downloadRouteAsTextPdf(
                   `/recoverables/invoices/${invoice.id}/print`,
                   `${invoice.invoice_number || 'Invoice'}.pdf`,
                 )

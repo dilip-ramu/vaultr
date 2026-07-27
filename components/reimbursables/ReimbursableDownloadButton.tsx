@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { downloadPrintRouteAsPdf } from '@/lib/pdf/downloadElementPdf'
+import { downloadRouteAsTextPdf } from '@/lib/pdf/downloadElementPdf'
 
 /** Downloads a reimbursable invoice as a PDF using the new document design —
  *  renders the print route in a hidden iframe, captures it, and saves the file
@@ -18,7 +18,7 @@ export default function ReimbursableDownloadButton({
   async function download() {
     setBusy(true)
     try {
-      await downloadPrintRouteAsPdf(`/reimbursables/invoices/${invoiceId}/print`, `${invoiceNumber || 'Invoice'}.pdf`)
+      await downloadRouteAsTextPdf(`/reimbursables/invoices/${invoiceId}/print`, `${invoiceNumber || 'Invoice'}.pdf`)
     } catch (e) {
       alert('Could not build the PDF (' + (e as Error).message + '). Try the print page instead.')
     } finally {

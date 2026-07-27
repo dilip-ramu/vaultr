@@ -9,7 +9,7 @@
 // Rendering is sequential on purpose. Parallel iframes fight over fonts and
 // images and produce half-drawn pages — a wrong PDF is worse than a slow one.
 
-import { printRouteToPdfBlob } from '@/lib/pdf/downloadElementPdf'
+import { routeToTextPdfBlob } from '@/lib/pdf/downloadElementPdf'
 import type { Gstr1, Gstr1Row, Section } from './returns'
 import { printPath } from './returns'
 
@@ -61,7 +61,7 @@ export async function zipReturnInvoices(
   for (const row of rows) {
     opts.onProgress?.({ done, total: rows.length, current: row.number })
     try {
-      const blob = await printRouteToPdfBlob(printPath(row))
+      const blob = await routeToTextPdfBlob(printPath(row))
       zip.file(zipFileName(row), blob)
     } catch (e) {
       failed.push({ number: row.number, reason: (e as Error).message })

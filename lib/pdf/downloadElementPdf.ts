@@ -57,7 +57,7 @@ export async function downloadElementPdf(el: HTMLElement, filename: string): Pro
  * The caller decides what to do with it — download it, or fold it into a zip.
  * The iframe is always torn down, even if the render throws.
  */
-async function withPrintRoute<T>(printUrl: string, fn: (el: HTMLElement) => Promise<T>): Promise<T> {
+async function withPrintDoc<T>(printUrl: string, fn: (doc: Document) => Promise<T>): Promise<T> {
   const iframe = document.createElement('iframe')
   iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:1400px;border:0;opacity:0;pointer-events:none;'
   document.body.appendChild(iframe)
@@ -71,17 +71,92 @@ async function withPrintRoute<T>(printUrl: string, fn: (el: HTMLElement) => Prom
     await new Promise(r => setTimeout(r, 1000))
     const doc = iframe.contentDocument
     if (!doc) throw new Error('render document unavailable')
-    const el = pickSheet(doc)
-    if (!el) throw new Error('document element not found')
-    return await fn(el)
+    return await fn(doc)
   } finally {
     iframe.remove()
   }
 }
 
+async function withPrintRoute<T>(printUrl: string, fn: (el: HTMLElement) => Promise<T>): Promise<T> {
+  return withPrintDoc(printUrl, async doc => {
+    const el = pickSheet(doc)
+    if (!el) throw new Error('document element not found')
+    return fn(el)
+  })
+}
+
+/** Read a JSON <script> the print page embeds (see DocPrintView). */
+function readEmbeddedJson(doc: Document, id: string): unknown | null {
+  const tag = doc.getElementById(id)
+  if (!tag?.textContent) return null
+  try { return JSON.parse(tag.textContent) } catch { return null }
+}
+
+/**
+ * Download a print route as a TEXT-based PDF: render it off-screen, read the
+ * embedded model (+ layout), and draw it with jsPDF text primitives — selectable
+ * text, no rasterised whitespace. When the company has a custom coordinate
+ * template it is drawn as text too (renderLayoutPdf), so the PDF still follows
+ * the template. Falls back to a screenshot only if no model is on the page.
+ */
+export async function downloadRouteAsTextPdf(printUrl: string, filename: string): Promise<void> {
+  await withPrintDoc(printUrl, async doc => {
+    const model = readEmbeddedJson(doc, 'doc-model-json') as import('@/lib/documents/model').DocModel | null
+    const layout = readEmbeddedJson(doc, 'doc-layout-json') as import('@/lib/documents/layout').DocLayout | null
+
+    if (model && layout) {
+      // Company's custom template, drawn as text.
+      const [{ downloadLayoutPdf }, { modelToContext }] = await Promise.all([
+        import('@/lib/pdf/renderLayoutPdf'),
+        import('@/lib/documents/layoutContext'),
+      ])
+      await downloadLayoutPdf(layout, modelToContext(model), filename)
+      return
+    }
+    if (model) {
+      // Built-in design, drawn as text.
+      const { downloadDocModelPdf } = await import('@/lib/pdf/renderDocModelPdf')
+      await downloadDocModelPdf(model, filename)
+      return
+    }
+    // No model on the page → fall back to rasterising the sheet.
+    const el = pickSheet(doc)
+    if (!el) throw new Error('document element not found')
+    const pdf = await elementToPdf(el)
+    pdf.save(withExt(filename))
+  })
+}
+
 /** Render a print route straight to a PDF blob — no download, no new tab. */
 export async function printRouteToPdfBlob(printUrl: string): Promise<Blob> {
   return withPrintRoute(printUrl, async el => {
+    const pdf = await elementToPdf(el)
+    return pdf.output('blob') as Blob
+  })
+}
+
+/**
+ * Render a print route to a TEXT-based PDF blob (selectable text, follows the
+ * company's template). Used by the GST bulk-zip export so every document in the
+ * zip is text, not a screenshot. Falls back to rasterising if no model is found.
+ */
+export async function routeToTextPdfBlob(printUrl: string): Promise<Blob> {
+  return withPrintDoc(printUrl, async doc => {
+    const model = readEmbeddedJson(doc, 'doc-model-json') as import('@/lib/documents/model').DocModel | null
+    const layout = readEmbeddedJson(doc, 'doc-layout-json') as import('@/lib/documents/layout').DocLayout | null
+    if (model) {
+      if (layout) {
+        const [{ layoutPdfBlob }, { modelToContext }] = await Promise.all([
+          import('@/lib/pdf/renderLayoutPdf'),
+          import('@/lib/documents/layoutContext'),
+        ])
+        return layoutPdfBlob(layout, modelToContext(model))
+      }
+      const { docModelPdfBlob } = await import('@/lib/pdf/renderDocModelPdf')
+      return docModelPdfBlob(model)
+    }
+    const el = pickSheet(doc)
+    if (!el) throw new Error('document element not found')
     const pdf = await elementToPdf(el)
     return pdf.output('blob') as Blob
   })
