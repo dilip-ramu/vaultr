@@ -13,12 +13,23 @@ import { downloadElementPdf, findDocSheet } from '@/lib/pdf/downloadElementPdf'
 export default function DocPrintView({ model, filename, layout = null }: { model: DocModel; filename: string; layout?: DocLayout | null }) {
   const [busy, setBusy] = useState(false)
   async function downloadPdf() {
-    const el = findDocSheet()
-    if (!el) { window.print(); return }
     setBusy(true)
-    try { await downloadElementPdf(el, filename) }
-    catch (e) { alert('Could not build the PDF (' + (e as Error).message + '). Opening the print dialog — choose "Save as PDF".'); window.print() }
-    finally { setBusy(false) }
+    try {
+      // Text-based PDF drawn from the model — selectable text, one tap, no
+      // rasterised whitespace. Falls back to the old screenshot method only if
+      // this throws, so a download always happens.
+      const { downloadDocModelPdf } = await import('@/lib/pdf/renderDocModelPdf')
+      await downloadDocModelPdf(model, filename)
+    } catch {
+      try {
+        const el = findDocSheet()
+        if (el) await downloadElementPdf(el, filename)
+        else window.print()
+      } catch (e) {
+        alert('Could not build the PDF (' + (e as Error).message + '). Opening the print dialog — choose "Save as PDF".')
+        window.print()
+      }
+    } finally { setBusy(false) }
   }
   return (
     <>

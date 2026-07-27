@@ -9,6 +9,17 @@ const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFract
 const plain = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
 const compact = (v: string | null | undefined) => (v && String(v).trim()) || null
 
+/** A human date for documents. Formats ISO to "27 Jul 2026"; if the value won't
+ *  parse, returns it as-is rather than "Invalid Date"; empty → ''. */
+function docDate(v: string | null | undefined): string {
+  const raw = compact(v)
+  if (!raw) return ''
+  const d = new Date(raw)
+  return isNaN(d.getTime())
+    ? raw
+    : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 interface BrandRefs {
   logoUrl?: string | null
   signatureUrl?: string | null
@@ -56,7 +67,7 @@ interface TaxLine {
   cgst_amount?: number | null; sgst_amount?: number | null
 }
 interface TaxInvoice {
-  invoice_number?: string | null; invoice_date?: string | null; due_date?: string | null
+  invoice_number?: string | null; invoice_date?: string | null; due_date?: string | null; created_at?: string | null
   customer_name?: string | null; customer_address?: string | null; customer_gstin?: string | null; customer_state?: string | null
   subtotal?: number | null; cgst_rate?: number | null; sgst_rate?: number | null
   cgst_amount?: number | null; sgst_amount?: number | null; total?: number | null
@@ -131,8 +142,10 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
     subNote: 'ORIGINAL FOR RECIPIENT',
     parties: [{ label: 'BILL TO', name: String(inv.customer_name ?? '—'), lines: custLines }],
     meta: [
-      ...(compact(inv.invoice_date) ? [{ label: 'Invoice date', value: String(inv.invoice_date) }] : []),
-      ...(compact(inv.due_date) ? [{ label: 'Due', value: String(inv.due_date) }] : []),
+      // Always show a date — fall back to when the invoice was created if no
+      // explicit invoice date was set, so the field is never blank.
+      { label: 'Invoice date', value: docDate(inv.invoice_date) || docDate(inv.created_at) },
+      ...(compact(inv.due_date) ? [{ label: 'Due', value: docDate(inv.due_date) }] : []),
     ],
     columns: cols,
     rows,
@@ -148,7 +161,7 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
     fields: {
       'doc.title': 'TAX INVOICE',
       'doc.number': String(inv.invoice_number ?? ''),
-      'doc.date': String(inv.invoice_date ?? ''),
+      'doc.date': docDate(inv.invoice_date) || docDate(inv.created_at),
       'doc.reference': String(inv.payment_terms ?? ''),
       'company.name': settings?.company_name ?? '',
       'company.address': compact(settings?.company_address) ?? '',
