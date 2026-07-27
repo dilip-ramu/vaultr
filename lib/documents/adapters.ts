@@ -10,7 +10,8 @@ const plain = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDig
 const compact = (v: string | null | undefined) => (v && String(v).trim()) || null
 
 /** A human date for documents. Formats ISO to "27 Jul 2026"; if the value won't
- *  parse, returns it as-is rather than "Invalid Date"; empty → ''. */
+ *  parse, returns it as-is rather than "Invalid Date"; empty → ''. Used for the
+ *  system-generated fallback (created_at) and due date. */
 function docDate(v: string | null | undefined): string {
   const raw = compact(v)
   if (!raw) return ''
@@ -18,6 +19,13 @@ function docDate(v: string | null | undefined): string {
   return isNaN(d.getTime())
     ? raw
     : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+/** The invoice date the user entered, printed EXACTLY as given — no parsing, no
+ *  format checking (it may be a plain reference string like "12425212"). Empty
+ *  → ''. */
+function rawDate(v: string | null | undefined): string {
+  return compact(v) ?? ''
 }
 
 interface BrandRefs {
@@ -144,7 +152,7 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
     meta: [
       // Always show a date — fall back to when the invoice was created if no
       // explicit invoice date was set, so the field is never blank.
-      { label: 'Invoice date', value: docDate(inv.invoice_date) || docDate(inv.created_at) },
+      { label: 'Invoice date', value: rawDate(inv.invoice_date) || docDate(inv.created_at) },
       ...(compact(inv.due_date) ? [{ label: 'Due', value: docDate(inv.due_date) }] : []),
     ],
     columns: cols,
@@ -161,7 +169,7 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
     fields: {
       'doc.title': 'TAX INVOICE',
       'doc.number': String(inv.invoice_number ?? ''),
-      'doc.date': docDate(inv.invoice_date) || docDate(inv.created_at),
+      'doc.date': rawDate(inv.invoice_date) || docDate(inv.created_at),
       'doc.reference': String(inv.payment_terms ?? ''),
       'company.name': settings?.company_name ?? '',
       'company.address': compact(settings?.company_address) ?? '',

@@ -10,6 +10,7 @@
 // large gaps.
 
 import type { DocModel, DocColumn } from '@/lib/documents/model'
+import { PDF_FONT, registerPdfFont } from './pdfFont'
 
 const A4 = { w: 210, h: 297 }
 const M = 14                     // page margin (mm)
@@ -50,6 +51,7 @@ export async function docModelPdfBlob(model: DocModel): Promise<Blob> {
 async function buildDocModelPdf(model: DocModel) {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  registerPdfFont(doc)
   const accent = hexToRgb(model.accent)
   const GREY: [number,number,number] = [120,120,120]
   const DARK: [number,number,number] = [30,30,30]
@@ -79,18 +81,18 @@ async function buildDocModelPdf(model: DocModel) {
     doc.addImage(logo.data, 'PNG', M, y, lw, lh)
     y += lh + 3
   }
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(...DARK)
+  doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(14); doc.setTextColor(...DARK)
   doc.text(model.companyName || '', M, y + 4)
   y += 6
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
+  doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
   for (const line of model.companyLines ?? []) { doc.text(line, M, y); y += 4 }
 
   // Right column: title, number, date
   let ry = headTop + 2
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(...accent)
+  doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(18); doc.setTextColor(...accent)
   doc.text(model.title || '', A4.w - M, ry + 4, { align: 'right' })
   ry += 9
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...GREY)
+  doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(9); doc.setTextColor(...GREY)
   if (model.number) { doc.text(model.number, A4.w - M, ry, { align: 'right' }); ry += 4.5 }
   for (const m of model.meta ?? []) {
     if (!m.value) continue
@@ -101,11 +103,11 @@ async function buildDocModelPdf(model: DocModel) {
 
   // ── Bill-to parties ─────────────────────────────────────────────────────────
   for (const p of model.parties ?? []) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
+    doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
     doc.text(p.label.toUpperCase(), M, y); y += 4
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...DARK)
+    doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(11); doc.setTextColor(...DARK)
     doc.text(p.name || '', M, y); y += 5
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
+    doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
     for (const l of p.lines ?? []) { doc.text(doc.splitTextToSize(l, CONTENT_W), M, y); y += 4 }
     y += 2
   }
@@ -116,26 +118,26 @@ async function buildDocModelPdf(model: DocModel) {
   function drawTableHeader() {
     doc.setFillColor(...accent.map(c => Math.round(c + (255 - c) * 0.9)) as [number, number, number])
     doc.rect(M, y, CONTENT_W, 7, 'F')
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...accent)
+    doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(7.5); doc.setTextColor(...accent)
     cols.forEach((c, i) => doc.text(c.label, cellX(i, c.align), y + 4.6, { align: c.align === 'right' ? 'right' : c.align === 'center' ? 'center' : 'left' }))
     y += 7
   }
   drawTableHeader()
 
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(50,50,50)
+  doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(9); doc.setTextColor(50,50,50)
   for (const r of model.rows) {
     // Measure the tallest wrapped cell so the row never clips.
     const wrapped = cols.map((c, i) => doc.splitTextToSize(String(r.cells[c.key] ?? ''), colW[i] - PAD * 2))
     const rowH = Math.max(6, ...wrapped.map(w => w.length * LINE + 2))
 
-    if (y + rowH > BOTTOM) { doc.addPage(); y = M; drawTableHeader(); doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(50,50,50) }
+    if (y + rowH > BOTTOM) { doc.addPage(); y = M; drawTableHeader(); doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(9); doc.setTextColor(50,50,50) }
 
-    if (r.strong) { doc.setFillColor(250,250,250); doc.rect(M, y, CONTENT_W, rowH, 'F'); doc.setFont('helvetica', 'bold') }
+    if (r.strong) { doc.setFillColor(250,250,250); doc.rect(M, y, CONTENT_W, rowH, 'F'); doc.setFont(PDF_FONT, 'bold') }
     doc.setTextColor(r.danger ? 192 : (r.strong ? 17 : 51), r.danger ? 57 : (r.strong ? 17 : 51), r.danger ? 43 : (r.strong ? 17 : 51))
     cols.forEach((c, i) => {
       doc.text(wrapped[i], cellX(i, c.align), y + 4, { align: c.align === 'right' ? 'right' : c.align === 'center' ? 'center' : 'left' })
     })
-    if (r.strong) doc.setFont('helvetica', 'normal')
+    if (r.strong) doc.setFont(PDF_FONT, 'normal')
     doc.setDrawColor(238,238,238); doc.line(M, y + rowH, A4.w - M, y + rowH)
     y += rowH
   }
@@ -148,21 +150,21 @@ async function buildDocModelPdf(model: DocModel) {
   const rightX = A4.w - M
   const labelX = A4.w - M - 60
   if (model.inWords) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...GREY)
+    doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(8); doc.setTextColor(...GREY)
     doc.text('In words:', M, y)
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(PDF_FONT, 'normal')
     doc.text(doc.splitTextToSize(model.inWords, 95), M + 16, y)
   }
   doc.setFontSize(9); doc.setTextColor(90,90,90)
   for (const t of model.totals ?? []) {
-    doc.setFont('helvetica', 'normal')
+    doc.setFont(PDF_FONT, 'normal')
     doc.text(t.label, labelX, y); doc.text(t.value, rightX, y, { align: 'right' })
     y += 5
   }
   if (model.grandValue) {
     y += 1
     doc.setDrawColor(...accent); doc.line(labelX, y, rightX, y); y += 5
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...DARK)
+    doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(11); doc.setTextColor(...DARK)
     doc.text(model.grandLabel ?? 'TOTAL', labelX, y)
     doc.setTextColor(...accent); doc.setFontSize(14)
     doc.text(model.grandValue, rightX, y, { align: 'right' })
@@ -173,13 +175,13 @@ async function buildDocModelPdf(model: DocModel) {
   y += 4
   if (y + 30 > BOTTOM) { doc.addPage(); y = M }
   const footTop = y
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
+  doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
   for (const l of model.bankLines ?? []) { doc.text(l, M, y); y += 4 }
   if (model.terms) {
     y += 2
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
+    doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
     doc.text('TERMS & CONDITIONS', M, y); y += 4
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GREY)
+    doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GREY)
     const tl = doc.splitTextToSize(model.terms, CONTENT_W * 0.55)
     doc.text(tl, M, y); y += tl.length * 3.4
   }
@@ -190,7 +192,7 @@ async function buildDocModelPdf(model: DocModel) {
     doc.addImage(signature.data, 'PNG', rightX - sw, sy, sw, sh)
     sy += sh + 3
   } else { sy += 16 }
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
+  doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
   doc.text(model.signatureLabel ?? 'Authorised signatory', rightX, sy, { align: 'right' })
 
   return doc

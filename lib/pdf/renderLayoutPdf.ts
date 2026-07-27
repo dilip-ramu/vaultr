@@ -11,6 +11,7 @@ import type { LayoutContext } from '@/lib/documents/layoutContext'
 import {
   ROW_H, HEAD_H, elText, measuredHeight, computeShifts, tableBox, paginate, onPage, withGstGuard,
 } from '@/lib/documents/flow'
+import { PDF_FONT, registerPdfFont } from './pdfFont'
 
 const PT_TO_MM = 25.4 / 72
 
@@ -60,7 +61,7 @@ async function preloadImages(layout: DocLayout, ctx: LayoutContext) {
 }
 
 const jset = (doc: JsPDFType, sizePt: number, bold: boolean, rgb: [number, number, number]) => {
-  doc.setFont('helvetica', bold ? 'bold' : 'normal')
+  doc.setFont(PDF_FONT, bold ? 'bold' : 'normal')
   doc.setFontSize(sizePt)
   doc.setTextColor(rgb[0], rgb[1], rgb[2])
 }
@@ -79,6 +80,7 @@ export async function layoutPdfBlob(layout: DocLayout, rawCtx: LayoutContext): P
 async function buildLayoutPdf(layout: DocLayout, rawCtx: LayoutContext) {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  registerPdfFont(doc)
   const ctx = withGstGuard(layout, rawCtx)
   const accent = ctx.accent || '#1F5C3A'
   const images = await preloadImages(layout, ctx)
