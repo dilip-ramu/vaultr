@@ -75,7 +75,7 @@ export interface LayoutEl {
  *  can't render correctly. A saved layout below this version is regenerated
  *  from the current default (see `upgradeLayout`).
  *  v2 — correct row metrics, non-overlapping bands, GSTIN + amount-in-words. */
-export const LAYOUT_VERSION = 2
+export const LAYOUT_VERSION = 3
 
 export interface DocLayout {
   version: number
@@ -187,15 +187,16 @@ export function defaultLayout(format: string, title: string): DocLayout {
     { id: eid(), type: 'accentBar', x: 0, y: 0, w: PAGE_W, h: 8, on: 'all' },
 
     // Header band: logo + seller identity (left), title + number (right)
-    { id: eid(), type: 'logo', x: 44, y: 34, w: 208, h: 84, on: 'all' },
-    { id: eid(), type: 'text', text: title, x: 470, y: 40, w: 280, h: 28, fontSize: 20, bold: true, align: 'right', color: 'accent', on: 'all' },
+    { id: eid(), type: 'logo', x: 44, y: 34, w: 208, h: 84, on: 'first' },
+    { id: eid(), type: 'text', text: title, x: 470, y: 40, w: 280, h: 28, fontSize: 20, bold: true, align: 'right', color: 'accent', on: 'first' },
+    // Only the invoice number repeats — a light page identifier, not the whole
+    // letterhead. The seller block below is first-page only.
     { id: eid(), type: 'field', field: 'doc.number', x: 470, y: 72, w: 280, h: 18, fontSize: 11, align: 'right', color: '#666', on: 'all' },
 
-    // Seller band: 130 → 224
-    { id: eid(), type: 'field', field: 'company.name', x: 44, y: 130, w: 380, h: 22, fontSize: 14, bold: true, on: 'all' },
-    { id: eid(), type: 'field', field: 'company.address', x: 44, y: 154, w: 380, h: 48, fontSize: 10, color: '#888', on: 'all' },
-    // GSTIN of the seller — legally required on every document.
-    { id: eid(), type: 'field', label: 'GSTIN', field: 'company.gstin', x: 44, y: 204, w: 380, h: 16, fontSize: 10, color: '#666', on: 'all' },
+    // Seller band: 130 → 224 (first page only — no repeating letterhead)
+    { id: eid(), type: 'field', field: 'company.name', x: 44, y: 130, w: 380, h: 22, fontSize: 14, bold: true, on: 'first' },
+    { id: eid(), type: 'field', field: 'company.address', x: 44, y: 154, w: 380, h: 48, fontSize: 10, color: '#888', on: 'first' },
+    { id: eid(), type: 'field', label: 'GSTIN', field: 'company.gstin', x: 44, y: 204, w: 380, h: 16, fontSize: 10, color: '#666', on: 'first' },
 
     // Party band: 244 → 348
     { id: eid(), type: 'field', label: '', field: 'party.label', x: 44, y: 244, w: 200, h: 14, fontSize: 8, bold: true, color: '#aaa', on: 'first' },
