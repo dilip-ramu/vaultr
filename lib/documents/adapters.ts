@@ -71,6 +71,7 @@ function bankLines(s: InvoiceSettings | null): string[] {
 
 interface TaxLine {
   description?: string | null; awb?: string | null; client_name?: string | null
+  shipment_date?: string | null
   hsn_sac?: string | null; qty?: number | null; rate?: number | null; amount?: number | null
   cgst_amount?: number | null; sgst_amount?: number | null
 }
@@ -83,10 +84,13 @@ interface TaxInvoice {
 }
 
 export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: InvoiceSettings | null, refs: BrandRefs): DocModel {
-  // A single Description column. Courier details (AWB / client) are folded into
-  // the description text — never their own columns.
+  // Courier details (AWB / client) are folded into the description text. A DATE
+  // column is added only when the lines actually carry shipment dates (courier
+  // invoices) — a plain services invoice keeps the tighter layout.
+  const hasDates = lines.some(l => compact(l.shipment_date))
   const cols: DocColumn[] = [
-    { key: 'desc', label: 'DESCRIPTION', flex: 2.6 },
+    ...(hasDates ? [{ key: 'date', label: 'DATE', align: 'left' as const, flex: 0.8 }] : []),
+    { key: 'desc', label: 'DESCRIPTION', flex: hasDates ? 2.2 : 2.6 },
     { key: 'hsn', label: 'HSN', align: 'center', flex: 0.6 },
     { key: 'qty', label: 'QTY', align: 'center', flex: 0.5 },
     { key: 'rate', label: 'RATE', align: 'right', flex: 0.8 },
@@ -101,6 +105,8 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
   }
   const rows: DocRow[] = lines.map(l => ({
     cells: {
+      // Shipment date printed as stored — no reformatting.
+      ...(hasDates ? { date: rawDate(l.shipment_date) } : {}),
       desc: buildDesc(l),
       hsn: String(l.hsn_sac ?? ''),
       qty: plain(Number(l.qty) || 0),
