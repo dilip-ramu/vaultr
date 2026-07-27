@@ -157,6 +157,13 @@ export default function InvoicesPageClient({
               <List className="w-3.5 h-3.5" /> Flat
             </button>
           </div>
+          <Link
+            href="/recoverables/invoices/new"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+          >
+            <FileText className="w-4 h-4" /> Create invoice
+          </Link>
           <button
             onClick={() => setShowImport(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-white"
@@ -344,13 +351,13 @@ function BatchCard({
                   <p className="font-semibold">Unbilled allocations ({pendingAllocations.length})</p>
                   <p>Total <span className="font-semibold" style={{ color: 'var(--brand)' }}>{fmtInr(pendingTotal)}</span> ready to bill.</p>
                 </div>
-                {/* Straight to the batch, where you pick allocations and raise the
-                    invoice — the old text pointed at a "Recoverables" menu that no
-                    longer exists, so this is now a real button. */}
-                <Link href={`/recoverables/batches/${batch.id}`}
+                {/* Straight to the invoice generator — pick the customer, set a
+                    markup, review the lines and generate. This is the page the old
+                    build had; the earlier hint pointed at a menu that's since gone. */}
+                <Link href="/recoverables/invoices/new"
                   className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold text-white"
                   style={{ background: 'var(--brand)' }}>
-                  <FileText className="w-4 h-4" /> Bill these
+                  <FileText className="w-4 h-4" /> Create invoice
                 </Link>
               </div>
             </div>

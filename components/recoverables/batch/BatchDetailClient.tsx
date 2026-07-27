@@ -37,6 +37,7 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
     totalRecoverable: allocs.reduce((s, a) => s + a.recoverable_amount, 0),
     statuses:         [...new Set(allocs.map(a => a.status))],
     pendingAllocs:    allocs.filter(a => a.status === 'pending'),
+    billedAllocs:     allocs.filter(a => a.status === 'billed'),
   }))
 
   // Group allocations by shipment
@@ -62,24 +63,30 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
     }
   }
 
-  const handleMarkBilled = async (allocationId: string) => {
+  // Flip an allocation's status. 'billed' when you've invoiced it elsewhere;
+  // 'pending' to UNDO that — the "Mark Billed" here only sets a flag, it does not
+  // create an invoice, so it must be reversible or a mis-tap strands the money
+  // out of the billable pool forever.
+  const setStatus = async (allocationId: string, status: AllocationStatus) => {
     setBillingId(allocationId)
     try {
       const res = await fetch(`/api/recoverables/allocations/${allocationId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'billed' as AllocationStatus }),
+        body: JSON.stringify({ status }),
       })
       if (!res.ok) throw new Error('Update failed')
       const updated = await res.json() as RecoverableAllocation
       setLocalAllocations(prev => prev.map(a => a.id === allocationId ? updated : a))
-      showToast('Marked as billed', 'success')
+      showToast(status === 'billed' ? 'Marked as billed' : 'Moved back to pending', 'success')
     } catch {
       showToast('Failed to update status. Please try again.', 'error')
     } finally {
       setBillingId(null)
     }
   }
+  const handleMarkBilled = (allocationId: string) => setStatus(allocationId, 'billed' as AllocationStatus)
+  const handleUnbill     = (allocationId: string) => setStatus(allocationId, 'pending' as AllocationStatus)
 
   const toggleShipment = (id: string) => {
     setExpandedShipments(prev => {
@@ -190,6 +197,16 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
                             {billingId ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Mark Billed'}
                           </button>
                         )}
+                        {s.pendingAllocs.length === 0 && s.billedAllocs.length > 0 && (
+                          <button
+                            onClick={() => void Promise.all(s.billedAllocs.map(a => handleUnbill(a.id)))}
+                            disabled={billingId !== null}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity flex items-center gap-1"
+                            style={{ border: '1px solid var(--border)', color: 'var(--text-muted)', opacity: billingId ? 0.6 : 1 }}
+                          >
+                            {billingId ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Unbill'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -219,6 +236,16 @@ export default function BatchDetailClient({ batch, shipments, allocations }: Bat
                       style={{ backgroundColor: 'var(--brand)', opacity: billingId ? 0.6 : 1 }}
                     >
                       Mark Billed
+                    </button>
+                  )}
+                  {s.pendingAllocs.length === 0 && s.billedAllocs.length > 0 && (
+                    <button
+                      onClick={() => void Promise.all(s.billedAllocs.map(a => handleUnbill(a.id)))}
+                      disabled={billingId !== null}
+                      className="w-full py-2.5 rounded-lg text-xs font-semibold border"
+                      style={{ color: 'var(--text-muted)', borderColor: 'var(--border)', opacity: billingId ? 0.6 : 1 }}
+                    >
+                      Unbill
                     </button>
                   )}
                 </div>
