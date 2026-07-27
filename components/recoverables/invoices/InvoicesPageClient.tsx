@@ -25,7 +25,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, ChevronDown, ChevronRight, UploadCloud, X, Layers, List, Pencil, Trash2, Loader2, Paperclip } from 'lucide-react'
+import { Plus, ChevronDown, ChevronRight, UploadCloud, X, Layers, List, Pencil, Trash2, Loader2, Paperclip, FileText } from 'lucide-react'
 import type { RecoverableInvoice, ImportBatch, RecoverableAllocation } from '@/lib/recoverables/types'
 import InvoiceListClient from './InvoiceListClient'
 import ImportPageClient from '../import/ImportPageClient'
@@ -125,14 +125,13 @@ export default function InvoicesPageClient({
   return (
     <div className="w-full px-4 md:px-8 py-6 space-y-5">
 
-      {/* Header — title + Import button + mode toggle */}
+      {/* Toolbar — mode toggle + Import. The page title and the Couriers /
+          Reimbursables / Invoices tab bar come from the invoices layout above;
+          a second "Invoices" header here just buried those tabs. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Invoices</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Every courier tax invoice you&apos;ve raised, grouped by the CSV batch it came from.
-          </p>
-        </div>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Courier tax invoices, grouped by the CSV batch they came from.
+        </p>
         <div className="flex items-center gap-2">
           <div
             className="flex gap-0.5 p-0.5 rounded-lg"
@@ -339,9 +338,21 @@ function BatchCard({
             />
           ))}
           {pendingAllocations.length > 0 && (
-            <div className="pt-2 mt-2 text-xs" style={{ color: 'var(--text-muted)', borderTop: '1px dashed var(--border)' }}>
-              <p className="font-semibold mb-1">Unbilled allocations ({pendingAllocations.length})</p>
-              <p>Total: <span className="font-semibold" style={{ color: 'var(--brand)' }}>{fmtInr(pendingTotal)}</span>. Create an invoice from Recoverables → Batches to bill.</p>
+            <div className="pt-2 mt-2" style={{ borderTop: '1px dashed var(--border)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <p className="font-semibold">Unbilled allocations ({pendingAllocations.length})</p>
+                  <p>Total <span className="font-semibold" style={{ color: 'var(--brand)' }}>{fmtInr(pendingTotal)}</span> ready to bill.</p>
+                </div>
+                {/* Straight to the batch, where you pick allocations and raise the
+                    invoice — the old text pointed at a "Recoverables" menu that no
+                    longer exists, so this is now a real button. */}
+                <Link href={`/recoverables/batches/${batch.id}`}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold text-white"
+                  style={{ background: 'var(--brand)' }}>
+                  <FileText className="w-4 h-4" /> Bill these
+                </Link>
+              </div>
             </div>
           )}
         </div>
