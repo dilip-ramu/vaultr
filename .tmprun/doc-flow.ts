@@ -134,9 +134,17 @@ describe('pagination', () => {
 
   it('gives page 1 fewer rows when a long address pushed the table down', () => {
     const l = layout()
+    const many = Array.from({ length: 8 }, (_, i) => `Address line ${i + 1}`).join('\n')
     const short = paginate(l, ctxWith(100, { 'company.address': 'One line', 'party.address': 'One line' }))
-    const long = paginate(l, ctxWith(100))
+    const long = paginate(l, ctxWith(100, { 'company.address': many, 'party.address': many }))
     expect(long[0].length).toBeLessThan(short[0].length)
+  })
+
+  it('fills continuation pages — page 2 holds more rows than a footer-reserving last page would', () => {
+    const chunks = paginate(layout(), ctxWith(100))
+    expect(chunks.length).toBeGreaterThan(1)
+    const middle = chunks[1]
+    expect(middle.length).toBeGreaterThanOrEqual(chunks[0].length)
   })
 
   it('never emits an empty page', () => {

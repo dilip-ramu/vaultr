@@ -3,7 +3,7 @@ import { PAGE_W, PAGE_H, mmToPx, type DocLayout, type LayoutEl } from '@/lib/doc
 import type { LayoutContext } from '@/lib/documents/layoutContext'
 // All the positioning maths lives in lib/documents/flow.ts — pure, and tested.
 import {
-  ROW_H, HEAD_H, fillTokens, withGstGuard, measuredHeight, computeShifts, tableBox, paginate,
+  ROW_H, HEAD_H, fillTokens, withGstGuard, measuredHeight, computeShifts, tableBoxOn, paginate,
 } from '@/lib/documents/flow'
 
 const num: React.CSSProperties = { fontVariantNumeric: 'tabular-nums' }
@@ -177,7 +177,7 @@ export default function LayoutRenderer({ layout, ctx: rawCtx, scale = 1, print =
     <div className="sheet" style={{ position: 'relative', width: PAGE_W, height: PAGE_H * pages, background: '#fff', overflow: 'hidden', fontFamily: "'Manrope', system-ui, -apple-system, sans-serif", boxShadow: print ? 'none' : '0 12px 40px rgba(0,0,0,.16)' }}>
       {Array.from({ length: pages }).map((_, p) => {
         const shift = computeShifts(layout, ctx, p, pages)
-        const box = tableBox(layout, p, shift)
+        const box = tableBoxOn(layout, p, pages, shift)
         const pageRows = li ? (chunks[p] ?? []) : []
         const pageCtx: LayoutContext = li ? { ...ctx, rows: pageRows } : ctx
 

@@ -9,7 +9,7 @@ import type { DocLayout, LayoutEl } from '@/lib/documents/layout'
 import { pxToMm, pxToPt } from '@/lib/documents/layout'
 import type { LayoutContext } from '@/lib/documents/layoutContext'
 import {
-  ROW_H, HEAD_H, elText, measuredHeight, computeShifts, tableBox, paginate, onPage, withGstGuard,
+  ROW_H, HEAD_H, elText, measuredHeight, computeShifts, tableBoxOn, paginate, onPage, withGstGuard,
 } from '@/lib/documents/flow'
 import { PDF_FONT, registerPdfFont } from './pdfFont'
 
@@ -94,7 +94,7 @@ async function buildLayoutPdf(layout: DocLayout, rawCtx: LayoutContext) {
   for (let p = 0; p < pages; p++) {
     if (p > 0) doc.addPage()
     const shift = computeShifts(layout, ctx, p, pages)
-    const box = tableBox(layout, p, shift)
+    const box = tableBoxOn(layout, p, pages, shift)
     const pageRows = li ? (chunks[p] ?? []) : []
     const pageCtx: LayoutContext = li ? { ...ctx, rows: pageRows } : ctx
 

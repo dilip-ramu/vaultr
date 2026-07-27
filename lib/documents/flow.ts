@@ -7,7 +7,7 @@
 //   2. Auto-flow        — text grows to fit its content and pushes what's below.
 //   3. Pagination       — rows are chunked to the space each page actually has.
 
-import type { DocLayout, LayoutEl } from './layout'
+import { PAGE_H, type DocLayout, type LayoutEl } from './layout'
 import type { LayoutContext } from './layoutContext'
 
 /** Row metrics. The renderer draws rows at EXACTLY these heights; if the two
@@ -126,14 +126,64 @@ function reservesFor(layout: DocLayout, p: number): LayoutEl[] {
   })
 }
 
-/** The table's box on page p: pushed down by text that grew above it, and
- *  flowed around reserved elements. Its bottom stays put. */
-export function tableBox(layout: DocLayout, p: number, shift?: Map<string, number>): { y: number; h: number } {
+// Margins (canvas px) for the table on CONTINUATION pages, where the first-page
+// header and last-page footer aren't drawn. Without this the table would keep
+// the first page's top offset (leaving an empty header band) and stop at the
+// first page's bottom (leaving an empty footer band) on pages 2+.
+const CONT_GAP = 12          // breathing room below whatever repeats at the top
+const CONT_TOP_MIN = 40      // never start higher than this
+const CONT_BOTTOM_MARGIN = 40
+
+/** The lowest bottom edge of the elements that REPEAT on every page (on:'all',
+ *  e.g. a running invoice number) and overlap the table horizontally — the
+ *  table on a continuation page must clear them. Backgrounds/watermarks and the
+ *  accent bar don't count. */
+function pinnedTop(layout: DocLayout, li: LayoutEl): number {
+  let top = CONT_TOP_MIN
+  for (const el of layout.elements) {
+    if (el.id === li.id) continue
+    if ((el.on ?? 'first') !== 'all') continue
+    if (el.type === 'accentBar' || el.layer === 'back' || el.layer === 'front') continue
+    const overlapsX = !(el.x + el.w <= li.x || li.x + li.w <= el.x)
+    if (overlapsX && el.y < PAGE_H / 2) top = Math.max(top, el.y + el.h + CONT_GAP)
+  }
+  return top
+}
+
+/** The highest top edge of repeating elements that sit in the lower half and
+ *  overlap the table — the table on a non-last page must stop above them. */
+function pinnedBottom(layout: DocLayout, li: LayoutEl): number {
+  let bottom = PAGE_H - CONT_BOTTOM_MARGIN
+  for (const el of layout.elements) {
+    if (el.id === li.id) continue
+    if ((el.on ?? 'first') !== 'all') continue
+    if (el.type === 'accentBar' || el.layer === 'back' || el.layer === 'front') continue
+    const overlapsX = !(el.x + el.w <= li.x || li.x + li.w <= el.x)
+    if (overlapsX && el.y > PAGE_H / 2) bottom = Math.min(bottom, el.y - CONT_GAP)
+  }
+  return bottom
+}
+
+/**
+ * The table's box on page p of a `pages`-page document.
+ *  - First page: starts where the layout puts it (pushed down by any grown text
+ *    above), so the header/party block still sits above it.
+ *  - Continuation pages: start just below whatever repeats at the top (no header
+ *    band) so there's no empty gap.
+ *  - Non-last pages: extend to the bottom margin (no footer band).
+ *  - Last page: stop at the designed bottom, leaving room for totals/footer.
+ * Reserved elements (watermarks marked 'reserve') are flowed around as before.
+ */
+export function tableBoxOn(
+  layout: DocLayout, p: number, pages: number, shift?: Map<string, number>,
+): { y: number; h: number } {
   const li = layout.elements.find(e => e.type === 'lineItems')
   if (!li) return { y: 0, h: 0 }
+  const isFirst = p === 0
+  const isLast = p === pages - 1
   const s = shift?.get(li.id) ?? 0
-  let top = li.y + s
-  let bottom = li.y + li.h
+  let top = isFirst ? li.y + s : pinnedTop(layout, li)
+  let bottom = isLast ? li.y + li.h : pinnedBottom(layout, li)
   for (const b of reservesFor(layout, p)) {
     const bTop = b.y, bBottom = b.y + b.h
     if (bBottom <= top || bTop >= bottom) continue
@@ -143,26 +193,38 @@ export function tableBox(layout: DocLayout, p: number, shift?: Map<string, numbe
   return { y: top, h: Math.max(HEAD_H + ROW_H, bottom - top) }
 }
 
+/** The table's box on page p — single-page / first-page behaviour. Kept for
+ *  callers (and tests) that reason about page 0 of a one-page document. */
+export function tableBox(layout: DocLayout, p: number, shift?: Map<string, number>): { y: number; h: number } {
+  return tableBoxOn(layout, p, 1, shift)
+}
+
 /** How many rows fit in a table box of height h. */
 export const rowCapacity = (h: number) => Math.max(1, Math.floor((h - HEAD_H) / ROW_H))
 
 /**
- * Split the rows across pages, giving each page only as many rows as its own
- * table box can hold (page 1 holds fewer when a long address pushed the table
- * down). Returns one chunk per page; always at least one page.
+ * Split the rows across pages, giving each page as many rows as its own table
+ * box can hold. A page is the LAST page when the rows left fit its (shorter,
+ * footer-reserving) box; otherwise it's a continuation page and uses the taller
+ * box that runs to the page bottom. Page 1 still holds fewer rows when a long
+ * address pushed the table down. Always at least one page.
  */
 export function paginate(layout: DocLayout, ctx: LayoutContext): LayoutContext['rows'][] {
   const li = layout.elements.find(e => e.type === 'lineItems')
   if (!li) return []
   const chunks: LayoutContext['rows'][] = []
   let i = 0, p = 0
+  const total = ctx.rows.length
   do {
-    // 'last'-page elements all sit below the table and so can't move it — a
-    // provisional page count is safe while we're still counting pages.
-    const box = tableBox(layout, p, computeShifts(layout, ctx, p, 9999))
-    const cap = rowCapacity(box.h)
-    chunks.push(ctx.rows.slice(i, i + cap))
-    i += cap; p++
-  } while (i < ctx.rows.length && p < 50)
+    const shift = computeShifts(layout, ctx, p, 9999)
+    const remaining = total - i
+    // Would everything left fit if this were the final page?
+    const lastCap = rowCapacity(tableBoxOn(layout, p, p + 1, shift).h)
+    if (remaining <= lastCap) { chunks.push(ctx.rows.slice(i)); break }
+    // No — this is a continuation page; use the taller box.
+    const contCap = rowCapacity(tableBoxOn(layout, p, p + 2, shift).h)
+    chunks.push(ctx.rows.slice(i, i + contCap))
+    i += contCap; p++
+  } while (i < total && p < 50)
   return chunks
 }
