@@ -362,6 +362,14 @@ function BatchCard({
               </div>
             </div>
           )}
+
+          {/* Open the full batch — its By-Customer table is where allocations
+              already marked billed can be undone (Unbill). */}
+          <Link href={`/recoverables/batches/${batch.id}`}
+            className="inline-flex items-center gap-1 text-xs font-semibold mt-2"
+            style={{ color: 'var(--brand)' }}>
+            Open full batch <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       )}
     </div>
