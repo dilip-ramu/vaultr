@@ -64,7 +64,8 @@ function fmt(n: number) {
 }
 function fmtDate(d: string | null) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+  const parsed = new Date(d)
+  return isNaN(parsed.getTime()) ? String(d) : parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
 }
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -787,9 +788,7 @@ export default function CreateInvoiceClient({
             </div>
             <div className="flex justify-between">
               <span>Invoice date</span>
-              <span style={{ color: 'var(--text)' }}>
-                {new Date(invoiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </span>
+              <span style={{ color: 'var(--text)' }}>{fmtDate(invoiceDate)}</span>
             </div>
             <div className="flex justify-between">
               <span>Payment terms</span>

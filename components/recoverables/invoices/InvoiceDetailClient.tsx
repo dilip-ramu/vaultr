@@ -60,7 +60,10 @@ function fmt(amount: number) {
 
 function fmtDate(d: string | null) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  // If it parses, format it nicely; if not, show whatever was stored rather than
+  // the useless "Invalid Date" — the value is more informative than the error.
+  const parsed = new Date(d)
+  return isNaN(parsed.getTime()) ? String(d) : parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function resolveStatus(inv: RecoverableInvoice): InvoiceStatus {

@@ -38,7 +38,9 @@ function fmt(amount: number) {
 }
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  if (!d) return '—'
+  const parsed = new Date(d)
+  return isNaN(parsed.getTime()) ? String(d) : parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 export default function InvoiceListClient({ invoices: initialInvoices, hideHeader = false }: Props) {
