@@ -32,6 +32,17 @@ function fmtForeign(n: number, currency: string) {
   } catch { return `${currency} ${n}` }
 }
 
+/** The commission RATE for a style, shown type-aware: "10%", "₹5/pc" or "Fixed". */
+function commissionRateLabel(r: StyleRow): string {
+  if (r.commission_type === 'percentage')
+    return r.commission_percentage != null ? `${r.commission_percentage}%` : '—'
+  if (r.commission_type === 'per_piece')
+    return r.commission_per_piece != null
+      ? `${r.order.currency !== 'INR' ? fmtForeign(r.commission_per_piece, r.order.currency) : formatCurrency(r.commission_per_piece)}/pc`
+      : '—'
+  return 'Fixed'
+}
+
 const STATUS_PILL: Record<OrderStatus, string> = {
   backlog:   'bg-[var(--surface-2)] text-[var(--text-muted)]',
   current:   'bg-[var(--surface-2)] text-[var(--transfer)]',
@@ -175,6 +186,100 @@ function BulkReceiveModal({ rows, accounts, onDone, onClose }: {
   )
 }
 
+// ── Bulk commission % modal ───────────────────────────────────────────────────
+function BulkCommissionModal({ rows, onDone, onClose }: {
+  rows: StyleRow[]
+  onDone: (updated: CommissionStyle[]) => void
+  onClose: () => void
+}) {
+  const [pct, setPct] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const pctNum = parseFloat(pct) || 0
+  // Preview the new INR commission total at the entered percentage.
+  const newTotal = rows.reduce((s, r) => {
+    const comm = (r.total_value || 0) * (pctNum / 100)
+    const inr = r.order.currency === 'INR' ? comm : (r.order.exchange_rate ? comm * r.order.exchange_rate : 0)
+    return s + inr
+  }, 0)
+
+  const confirm = async () => {
+    if (pctNum <= 0) { setErr('Enter a commission %'); return }
+    setSaving(true); setErr('')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setErr('Not signed in'); setSaving(false); return }
+
+    // Recompute each style from its own value/rate — a % applies per order's
+    // currency & exchange rate, so we can't do it in one SQL update.
+    const updates = rows.map(r => {
+      const comm = (r.total_value || 0) * (pctNum / 100)
+      const inr = r.order.currency === 'INR' ? comm : (r.order.exchange_rate ? comm * r.order.exchange_rate : 0)
+      return {
+        id: r.id,
+        commission_type: 'percentage' as const,
+        commission_percentage: pctNum,
+        commission_per_piece: null,
+        commission_fixed: null,
+        commission_amount: comm,
+        commission_inr: inr,
+      }
+    })
+    for (const u of updates) {
+      const { id, ...patch } = u
+      const { error } = await supabase.from('commission_styles').update(patch).eq('id', id).eq('user_id', user.id)
+      if (error) { setErr(error.message); setSaving(false); return }
+    }
+    onDone(updates.map(u => u as unknown as CommissionStyle))
+  }
+
+  const iS = { backgroundColor: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
+  return (
+    <div className="fixed inset-0 z-[1100] flex items-end md:items-center justify-center"
+         style={{ paddingTop: 'calc(env(safe-area-inset-top,0px) + 56px)' }}>
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl shadow-2xl flex flex-col"
+           style={{ backgroundColor: 'var(--surface)', maxHeight: '100%' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <div>
+            <p className="text-base font-semibold" style={{ color: 'var(--text)' }}>Set commission %</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{rows.length} style{rows.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4" style={{ overscrollBehavior: 'contain' }}>
+          {err && <div className="flex items-center gap-2 bg-[var(--surface-2)] text-[var(--expense)] text-sm rounded-xl px-4 py-3"><AlertCircle className="w-4 h-4 shrink-0" />{err}</div>}
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Commission percentage (%)</label>
+            <input type="number" min="0" step="0.01" value={pct} onChange={e => setPct(e.target.value)} autoFocus
+              placeholder="e.g. 10" className="w-full px-3 py-2.5 rounded-xl border text-sm outline-none" style={iS} />
+            <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
+              Applies to every selected style, recomputing its commission from the order value. Per-piece / fixed styles switch to percentage.
+            </p>
+          </div>
+          <div className="rounded-xl px-4 py-3" style={{ background: 'var(--surface-2)' }}>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>New commission total</p>
+            <p className="text-xl font-bold" style={{ color: 'var(--text)' }}>{formatCurrency(newTotal)}</p>
+          </div>
+          <div className="flex gap-3 pb-2">
+            <button onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium border"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>Cancel</button>
+            <button onClick={confirm} disabled={saving}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+              style={{ background: 'var(--brand)' }}>
+              {saving ? 'Saving…' : 'Apply to all'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Sort header ───────────────────────────────────────────────────────────────
 function IncTile({ label, value, color }: { label: string; value: string; color: string }) {
   return (
@@ -214,6 +319,7 @@ export default function CommissionClient() {
   const [statFilter,setStatFilter]= useState<'all'|'active'|OrderStatus>('active')
   const [selected,  setSelected]  = useState<Set<string>>(new Set())
   const [showRecv,  setShowRecv]  = useState(false)
+  const [showComm,  setShowComm]  = useState(false)
   const [sortKey,   setSortKey]   = useState<SortKey>('order_date')
   const [sortDir,   setSortDir]   = useState<'asc'|'desc'>('desc')
 
@@ -370,6 +476,11 @@ export default function CommissionClient() {
     setSelected(new Set()); setShowRecv(false)
   }
 
+  const handleBulkCommissionDone = (updated: CommissionStyle[]) => {
+    updated.forEach(s => patchStyle(s))
+    setSelected(new Set()); setShowComm(false)
+  }
+
   const handlePDF = () => {
     // Export what's currently visible (respects status + customer filters and sort);
     // if rows are selected, export only those
@@ -462,6 +573,9 @@ export default function CommissionClient() {
               <option key={s} value={s}>{ORDER_STATUS_LABELS[s] ?? s}</option>
             ))}
           </select>
+          <button onClick={()=>setShowComm(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border" style={{borderColor:'var(--brand)',color:'var(--brand)',background:'var(--surface)'}}>
+            <TrendingUp className="w-3 h-3"/> Set commission %
+          </button>
           {selectedRows.some(r=>r.order_status==='shipped') && (
             <button onClick={()=>setShowRecv(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--income)] text-white">
               <CheckCircle2 className="w-3 h-3"/> Mark received
@@ -514,7 +628,7 @@ export default function CommissionClient() {
                       <button onClick={()=>{setEditOrder(row.order);setShowForm(true)}} className="font-mono underline" style={{color:'var(--brand)'}}>
                         {row.poNumber??'—'}
                       </button>
-                      {' '}· {(row.quantity??0).toLocaleString()} pcs
+                      {' '}· {(row.quantity??0).toLocaleString()} pcs · {commissionRateLabel(row)}
                       {row.etd?` · ETD ${formatDate(row.etd)}`:''}
                     </p>
                     {isForeign && (
@@ -553,6 +667,7 @@ export default function CommissionClient() {
                   <th className="text-left px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{color:'var(--text-muted)'}}>Client</th>
                   <th className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{color:'var(--text-muted)'}}>Qty</th>
                   <th className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{color:'var(--text-muted)'}}>Rate</th>
+                  <th className="text-right px-3 py-2 text-[11px] font-semibold uppercase tracking-wide" style={{color:'var(--text-muted)'}}>Comm</th>
                   <SortTh label="Commission" col="commission_inr" current={sortKey} dir={sortDir} onSort={toggleSort}/>
                   <SortTh label="ETD"        col="etd"            current={sortKey} dir={sortDir} onSort={toggleSort}/>
                   <SortTh label="Status"     col="order_status"   current={sortKey} dir={sortDir} onSort={toggleSort}/>
@@ -587,6 +702,9 @@ export default function CommissionClient() {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
+                        <span className="text-xs" style={{color:'var(--text-muted)'}}>{commissionRateLabel(row)}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
                         <span className="text-sm font-semibold" style={{color:isCancelled?'var(--text-muted)':'var(--text)'}}>{formatCurrency(row.commission_inr)}</span>
                         {isForeign&&<div className="text-[10px]" style={{color:'var(--text-muted)'}}>{fmtForeign(row.commission_amount,row.order.currency)}</div>}
                       </td>
@@ -616,6 +734,7 @@ export default function CommissionClient() {
       {showForm && <CommissionForm order={editOrder} customers={customers} accounts={accounts} onSaved={handleOrderSaved} onClose={()=>{setShowForm(false);setEditOrder(null)}}/>}
       {showImport && <CommissionImport customers={customers} accounts={accounts} onImported={handleImported} onClose={()=>setShowImport(false)}/>}
       {showRecv && selectedRows.length > 0 && <BulkReceiveModal rows={selectedRows} accounts={accounts} onDone={handleBulkReceiveDone} onClose={()=>setShowRecv(false)}/>}
+      {showComm && selectedRows.length > 0 && <BulkCommissionModal rows={selectedRows} onDone={handleBulkCommissionDone} onClose={()=>setShowComm(false)}/>}
     </div>
   )
 }
