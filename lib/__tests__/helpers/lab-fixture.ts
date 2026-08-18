@@ -126,11 +126,18 @@ export function okAnalysis(args: {
     note: null,
     fundamentalsCached: false,
     searchBudgetUsed: 12,
+    timings: { price_ms: 5, fundamentals_ms: 100, analysis_ms: 200 },
   }
 }
 
 export function failedAnalysis(kind: 'RATE_LIMITED' | 'TIMEOUT' | 'PROVIDER_ERROR' | 'AUTHENTICATION_ERROR' = 'RATE_LIMITED'): AnalyzeOutcome {
-  return { ok: false, failure: { kind, stage: 'fundamentals', message: `Anthropic API 429: rate limited`, retryable: true } }
+  return {
+    ok: false,
+    failure: {
+      kind, stage: 'fundamentals', message: 'Anthropic API 429: rate limited',
+      retryable: true, progressSaved: false, timings: { fundamentals_ms: 120 },
+    },
+  }
 }
 
 /** Route analyses by symbol, and count how many were requested. */
@@ -140,5 +147,19 @@ export function analyzeRouter(map: Record<string, AnalyzeOutcome>, log: string[]
     const hit = map[params.symbol.toUpperCase()]
     if (!hit) throw new Error(`no stub analysis for ${params.symbol}`)
     return hit
+  }
+}
+
+/** The Lab ran out of request budget before the qualitative half could start.
+ *  Fundamentals were cached, so a re-run is cheaper — and this is NOT a view
+ *  about the company. */
+export function budgetExhausted(progressSaved = true): AnalyzeOutcome {
+  return {
+    ok: false,
+    failure: {
+      kind: 'BUDGET_EXHAUSTED', stage: 'analysis',
+      message: 'Not enough time left in this request to complete the qualitative analysis.',
+      retryable: true, progressSaved, timings: { fundamentals_ms: 30_000 },
+    },
   }
 }

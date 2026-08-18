@@ -18,6 +18,10 @@
 import { fetchPrice as fetchPriceLive } from './providers/price'
 import { getFundamentals, type FundamentalsInput, type ResearchOptions } from './providers/fundamentals'
 import { researchJson, isTransport, type ResearchErrorKind } from './claude'
+import {
+  unlimitedBudget, stopwatch, MIN_RESEARCH_CALL_MS,
+  type RequestBudget, type Timings,
+} from './deadline'
 import { scoreSecurity } from './scoring'
 import { decide, type Decision, type DecideConfig } from './recommend'
 import type { PortfolioSummary } from './portfolio'
@@ -53,12 +57,22 @@ export interface RecommendationCore {
   portfolio_context: string | null; sources: Source[]; is_holding: boolean
 }
 
-/** A research call failed. This is NOT a view about the company. */
+/** Why an analysis produced no verdict. NONE of these is a view about the
+ *  company — that distinction is the whole point (item 4). */
+export type AnalyzeFailureKind = ResearchErrorKind | 'BUDGET_EXHAUSTED'
+
 export interface AnalyzeFailure {
-  kind: ResearchErrorKind
-  stage: 'fundamentals' | 'analysis'
+  kind: AnalyzeFailureKind
+  stage: 'fundamentals' | 'analysis' | 'budget'
   message: string
   retryable: boolean
+  /**
+   * True when this attempt still moved things forward — fundamentals were
+   * researched and cached, so running again is roughly half the work and is
+   * much more likely to finish. Lets the caller say "run it again" honestly.
+   */
+  progressSaved: boolean
+  timings: Timings
 }
 
 export interface AnalyzeResult {
@@ -73,6 +87,8 @@ export interface AnalyzeResult {
   fundamentalsCached: boolean
   /** Upper bound on web searches this analysis could have consumed. */
   searchBudgetUsed: number
+  /** Per-stage milliseconds. Names only — no prompts, no keys. */
+  timings: Timings
 }
 
 export type AnalyzeOutcome =
@@ -95,8 +111,26 @@ export interface AnalyzeParams {
   /** Injection points — used by the Lab's cache and by tests. */
   loadFundamentals?: (input: FundamentalsInput) => Promise<FundamentalsResult>
   fetchPriceFn?: (symbol: string, exchange: Exchange) => Promise<Quote | null>
+  /** The request wall. Without one, calls run unbounded and the platform kills
+   *  the request — which is exactly the 504 this parameter exists to prevent. */
+  budget?: RequestBudget
+  /** True when `loadFundamentals` writes through to the research cache, so a
+   *  half-finished analysis leaves reusable work behind. */
+  persistsFundamentals?: boolean
 }
 
+/**
+ * WHY THE TWO RESEARCH CALLS STAY SEQUENTIAL (item 5)
+ *
+ * They are not independent. The qualitative prompt embeds `factSummary` — the
+ * verified fundamentals — so the model judges business quality, moat and
+ * management against real numbers instead of its own recollection. Running them
+ * in parallel would hand the second call an empty fact base and quietly change
+ * what the analysis is, to save time we can recover a better way: the
+ * fundamentals half is CACHED, so a re-run costs one call instead of two.
+ *
+ * So: sequential, each strictly deadline-aware, with the first half persisted.
+ */
 export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutcome> {
   const {
     symbol, exchange, companyName, isHolding, portfolio, regimeState,
@@ -105,12 +139,27 @@ export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutco
   const loadFundamentals = params.loadFundamentals ?? getFundamentals
   const fetchPriceFn = params.fetchPriceFn ?? fetchPriceLive
   const maxUses = research?.maxUses ?? 6
+  const budget = params.budget ?? unlimitedBudget()
+  const watch = stopwatch()
+
+  // Every upstream call inherits the wall, whatever the caller passed.
+  const bounded = (share = 1) => {
+    const timeoutMs = Math.max(1_000, Math.floor(budget.callTimeout() * share))
+    return {
+      ...research,
+      maxUses,
+      timeoutMs: Math.min(timeoutMs, research?.timeoutMs ?? timeoutMs),
+      deadline: Math.min(budget.deadline, research?.deadline ?? budget.deadline),
+      retries: Math.min(research?.retries ?? 2, budget.retriesFor(timeoutMs)),
+    }
+  }
 
   const [quote, fundamentals] = await Promise.all([
-    fetchPriceFn(symbol, exchange),
-    loadFundamentals({ symbol, exchange, companyName, research }),
+    watch.time('price_ms', () => fetchPriceFn(symbol, exchange)),
+    watch.time('fundamentals_ms', () => loadFundamentals({ symbol, exchange, companyName, research: bounded(1) })),
   ])
   const currentPrice = quote?.price ?? null
+  const fundamentalsCached = fundamentals.cached === true
 
   // A transport failure is not evidence. Stop here and let the caller retry.
   if (fundamentals.failure && isTransport(fundamentals.failure.kind)) {
@@ -119,6 +168,24 @@ export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutco
       failure: {
         kind: fundamentals.failure.kind, stage: 'fundamentals',
         message: fundamentals.failure.message, retryable: fundamentals.failure.retryable,
+        progressSaved: false, timings: watch.timings,
+      },
+    }
+  }
+
+  // Not enough wall left for a web-search call. Stop cleanly rather than start
+  // something the platform will kill. The fundamentals just gathered are cached,
+  // so running again completes in roughly half the time.
+  if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
+    const saved = params.persistsFundamentals === true && !fundamentalsCached
+    return {
+      ok: false,
+      failure: {
+        kind: 'BUDGET_EXHAUSTED', stage: 'analysis',
+        message: saved
+          ? `Fundamentals for ${symbol} were researched and cached, but there was not enough time left in this request to complete the qualitative analysis. Running it again will finish the job.`
+          : `Not enough time left in this request to research ${symbol} safely.`,
+        retryable: true, progressSaved: saved, timings: watch.timings,
       },
     }
   }
@@ -140,21 +207,24 @@ Use web search for anything material and recent (order book, promoter actions, c
 }
 Notes: macro_sensitivity/geopolitical_risk are scored so that HIGHER = more resilient (less vulnerable). "invalidation" = specific, monitorable conditions that would break the thesis. "why_now" = the concrete reason to act now, or state that there is none and to wait.`
 
-  const analysis = await researchJson<Analysis>({
-    system: ANALYSIS_SYSTEM, prompt, webSearch: true, maxUses, maxTokens: 4096,
-    retries: research?.retries, timeoutMs: research?.timeoutMs, deadline: research?.deadline,
-  })
+  const analysis = await watch.time('analysis_ms', () => researchJson<Analysis>({
+    system: ANALYSIS_SYSTEM, prompt, webSearch: true, maxTokens: 4096, ...bounded(1),
+  }))
   if (analysis.failure) {
     return {
       ok: false,
       failure: {
         kind: analysis.failure.kind, stage: 'analysis',
         message: analysis.failure.message, retryable: analysis.failure.retryable,
+        // The fundamentals half is banked either way.
+        progressSaved: params.persistsFundamentals === true,
+        timings: watch.timings,
       },
     }
   }
   const a = analysis.data ?? {}
 
+  const t0 = Date.now()
   const breakdown = scoreSecurity({
     fundamentals: fundamentals.fundamentals,
     valuation: fundamentals.valuation,
@@ -162,6 +232,8 @@ Notes: macro_sensitivity/geopolitical_risk are scored so that HIGHER = more resi
     qualitative: a.qualitative,
   })
 
+  watch.mark('scoring_ms', Date.now() - t0)
+  const t1 = Date.now()
   const decision = decide({
     symbol, isHolding,
     score: breakdown.total,
@@ -175,6 +247,8 @@ Notes: macro_sensitivity/geopolitical_risk are scored so that HIGHER = more resi
     thesisInvalidated: Boolean(a.thesis_invalidated),
     config,
   })
+
+  watch.mark('decision_ms', Date.now() - t1)
 
   const why_now = decision.why_now ?? (a.why_now ?? null)
   const sources: Source[] = [...fundamentals.sources, ...analysis.sources]
@@ -196,12 +270,12 @@ Notes: macro_sensitivity/geopolitical_risk are scored so that HIGHER = more resi
     portfolio_context: decision.portfolio_context, sources, is_holding: isHolding,
   }
 
-  const fundamentalsCached = fundamentals.cached === true
   return {
     ok: true,
     recommendation, breakdown, fundamentals, decision, currentPrice, regimeState,
     note: fundamentals.notes ?? null,
     fundamentalsCached,
     searchBudgetUsed: fundamentalsCached ? maxUses : maxUses * 2,
+    timings: watch.timings,
   }
 }

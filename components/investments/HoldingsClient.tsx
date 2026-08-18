@@ -26,6 +26,7 @@ export default function HoldingsClient({ holdings, recs }: Props) {
   const [selected, setSelected] = useState<HoldingRow | null>(holdings[0] ?? null)
   const [shownRec, setShownRec] = useState<RecRow | null>(selected ? recMap.get(`${selected.symbol.toUpperCase()}:${selected.exchange}`) ?? null : null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [notice, setNotice] = useState<(AnalyzeIncomplete & { symbol: string }) | null>(null)
   const [showAdd, setShowAdd] = useState(false)
 
   const select = (h: HoldingRow) => {
@@ -35,10 +36,17 @@ export default function HoldingsClient({ holdings, recs }: Props) {
 
   const analyze = async (h: HoldingRow) => {
     setAnalyzing(true)
+    setNotice(null)
     try {
-      const r = await postJSON<{ recommendation: RecRow }>('/api/investments/analyze', {
+      const r = await postJSON<AnalyzeResponse>('/api/investments/analyze', {
         symbol: h.symbol, exchange: h.exchange, company_name: h.company_name, is_holding: true,
       })
+      if (!r.ok) {
+        // Nothing was recorded, so nothing about the holding changes.
+        setNotice({ ...r, symbol: h.symbol })
+        showToast(`Could not finish analysing ${h.symbol} — nothing was recorded`, 'info')
+        return
+      }
       setShownRec(r.recommendation)
       showToast(`Analysed ${h.symbol}: ${r.recommendation.action.replace(/_/g, ' ')}`, 'success')
       router.refresh()
@@ -61,6 +69,8 @@ export default function HoldingsClient({ holdings, recs }: Props) {
           <Plus className="w-3.5 h-3.5" /> Add holding
         </button>
       </div>
+
+      {notice && <AnalysisNotice notice={notice} onDismiss={() => setNotice(null)} />}
 
       {holdings.length === 0 ? (
         <Card className="p-8 text-center">
@@ -200,5 +210,52 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: { label: 
       <input type={type} inputMode={type === 'number' ? 'decimal' : undefined} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className="w-full mt-1 px-3 py-2 rounded-lg text-[14px]" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }} />
     </div>
+  )
+}
+
+/** A 200 response that says the analysis could not finish. Not an error page,
+ *  not a verdict — a truthful "this did not complete, and nothing was recorded". */
+interface AnalyzeIncomplete {
+  ok: false
+  status: 'incomplete' | 'failed'
+  reason: string
+  message: string
+  progressSaved: boolean
+  note: string
+}
+type AnalyzeResponse = ({ ok: true; recommendation: RecRow }) | AnalyzeIncomplete
+
+const REASON_LABEL: Record<string, string> = {
+  BUDGET_EXHAUSTED: 'the request ran out of time before the analysis finished',
+  TIMEOUT: 'the research request timed out',
+  RATE_LIMITED: 'the research provider is rate limiting us',
+  PROVIDER_ERROR: 'the research provider returned an error',
+  AUTHENTICATION_ERROR: 'the research provider rejected our credentials',
+  PARSE_ERROR: 'the research came back in an unusable form',
+  NO_DATA_FOUND: 'the research returned nothing',
+  BAD_REQUEST: 'the research request was rejected',
+}
+
+function AnalysisNotice({ notice, onDismiss }: { notice: AnalyzeIncomplete & { symbol: string }; onDismiss: () => void }) {
+  return (
+    <Card className="p-4 mb-3" style={{ borderColor: 'var(--amber)' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-extrabold" style={{ color: 'var(--amber)' }}>
+            Analysis of {notice.symbol} could not be completed
+          </p>
+          <p className="text-[12.5px] mt-1" style={{ color: 'var(--text)' }}>
+            Reason: {REASON_LABEL[notice.reason] ?? notice.reason.toLowerCase().replace(/_/g, ' ')}.
+          </p>
+          <p className="text-[12px] mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{notice.note}</p>
+          {notice.progressSaved && (
+            <p className="text-[12px] mt-1.5 font-bold" style={{ color: 'var(--income)' }}>
+              The fundamentals were researched and cached — running Analyse again will finish in about half the time.
+            </p>
+          )}
+        </div>
+        <button onClick={onDismiss} className="text-[11px] font-bold shrink-0" style={{ color: 'var(--text-faint)' }}>dismiss</button>
+      </div>
+    </Card>
   )
 }

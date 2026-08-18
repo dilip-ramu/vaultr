@@ -186,9 +186,15 @@ async function callAnthropic(opts: CallOpts): Promise<{ response: AnthropicRespo
     } catch (e) {
       last = e instanceof ResearchError ? e : new ResearchError('PROVIDER_ERROR', e instanceof Error ? e.message : String(e))
       const more = attempt < maxAttempts - 1
-      const timeLeft = opts.deadline == null || Date.now() < opts.deadline
-      if (!last.retryable || !more || !timeLeft) break
-      await sleep(backoffMs(attempt, (last as ResearchError & { retryAfter?: number }).retryAfter))
+      const wait = backoffMs(attempt, (last as ResearchError & { retryAfter?: number }).retryAfter)
+      // A retry is only affordable if the BACKOFF PLUS A WHOLE FURTHER ATTEMPT
+      // finishes before the deadline. Checking `now < deadline` was not enough:
+      // it happily started a 45s attempt with 2s left, which is exactly how a
+      // request ends up being killed by the platform instead of returning.
+      const nextAttemptCost = wait + (opts.timeoutMs ?? 0)
+      const affordable = opts.deadline == null || Date.now() + nextAttemptCost < opts.deadline
+      if (!last.retryable || !more || !affordable) break
+      await sleep(wait)
     }
   }
   throw Object.assign(last ?? new ResearchError('PROVIDER_ERROR', 'Unknown failure'), { attempts: maxAttempts })

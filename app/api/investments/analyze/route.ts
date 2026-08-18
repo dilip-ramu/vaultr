@@ -2,14 +2,34 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { analyzeSymbol } from '@/lib/investments/analyzeCore'
 import { analyzePortfolio } from '@/lib/investments/portfolio'
+import { makeCachedFundamentalsLoader } from '@/lib/investments/lab/research-cache'
+import { resolveConstraints } from '@/lib/investments/lab/config'
+import { createBudget, ROUTE_MAX_MS } from '@/lib/investments/deadline'
 import type { Exchange, RegimeState, ThesisStatus } from '@/lib/investments/types'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-// Thin wrapper over analyzeSymbol (lib/investments/analyzeCore): load the real
-// portfolio + regime, analyse, then persist to the real-portfolio tables.
+/**
+ * Analyse one security and record the recommendation.
+ *
+ * RELIABILITY (Deploy #4). This route used to pass NO deadline at all: two
+ * sequential Anthropic web-search calls ran until the platform killed the
+ * request at 60s, and the browser got a bare 504 — no result, no reason, and no
+ * way to tell a slow provider from a broken key. Now:
+ *
+ *   • A budget is computed from the route's own wall and handed to every
+ *     upstream call, so nothing can outlive the request.
+ *   • Fundamentals come from the shared research cache, so analysing the same
+ *     name twice costs ONE call instead of two.
+ *   • If the work cannot finish in time, the response is a normal 200 carrying
+ *     a structured, honest result. No recommendation is written, the holding's
+ *     thesis status is untouched, and nothing is recorded as INSUFFICIENT_DATA.
+ *
+ * Running out of time is not a view about the company.
+ */
 export async function POST(req: NextRequest) {
+  const budget = createBudget({ totalMs: ROUTE_MAX_MS })
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -34,19 +54,39 @@ export async function POST(req: NextRequest) {
     last_price: h.last_price != null ? Number(h.last_price) : null, sector: h.sector, market_cap_band: h.market_cap_band,
   })))
 
+  // The same cache the Lab uses. A name researched inside the TTL skips the
+  // fundamentals call entirely, which is usually the difference between
+  // finishing inside the request and not.
+  const ttlHours = resolveConstraints({}).fundamentals_ttl_hours
+  const loadFundamentals = makeCachedFundamentalsLoader({ supabase, userId: user.id, ttlHours })
+
   const outcome = await analyzeSymbol({
     symbol, exchange, companyName, isHolding, portfolio: summary, regimeState,
+    loadFundamentals, persistsFundamentals: true, budget,
   })
 
-  // A research TRANSPORT failure is not a view about the company. Report it as
-  // an upstream problem instead of writing "insufficient data" into the
-  // permanent journal (correctness pass, item 9).
   if (!outcome.ok) {
+    const f = outcome.failure
+    // Names and durations only — no prompts, no keys.
+    console.info('[investments/analyze] incomplete', {
+      symbol, exchange, kind: f.kind, stage: f.stage,
+      progressSaved: f.progressSaved, timings: f.timings, elapsedMs: budget.elapsed(),
+    })
     return NextResponse.json({
-      error: `Could not complete the analysis: ${outcome.failure.message}`,
-      failure: { kind: outcome.failure.kind, stage: outcome.failure.stage, retryable: outcome.failure.retryable },
-    }, { status: outcome.failure.kind === 'RATE_LIMITED' ? 429 : 503 })
+      ok: false,
+      status: f.retryable ? 'incomplete' : 'failed',
+      reason: f.kind,
+      stage: f.stage,
+      message: f.message,
+      progressSaved: f.progressSaved,
+      // Say plainly what did NOT happen, so nothing is inferred from silence.
+      recorded: false,
+      note: 'No investment conclusion was recorded. This is a research or timing failure, not a judgement about the company.',
+      timings: f.timings,
+      elapsedMs: budget.elapsed(),
+    })
   }
+
   const { recommendation, decision, fundamentals } = outcome
 
   const { data: recRow, error: recErr } = await supabase
@@ -73,5 +113,17 @@ export async function POST(req: NextRequest) {
       .eq('id', held.id).eq('user_id', user.id)
   }
 
-  return NextResponse.json({ recommendation: recRow, breakdown: recommendation.score_breakdown })
+  console.info('[investments/analyze] complete', {
+    symbol, exchange, action: recommendation.action,
+    cached: outcome.fundamentalsCached, timings: outcome.timings, elapsedMs: budget.elapsed(),
+  })
+
+  return NextResponse.json({
+    ok: true,
+    recommendation: recRow,
+    breakdown: recommendation.score_breakdown,
+    fundamentalsCached: outcome.fundamentalsCached,
+    timings: outcome.timings,
+    elapsedMs: budget.elapsed(),
+  })
 }

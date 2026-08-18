@@ -21,6 +21,7 @@ export default function OpportunitiesClient({ opportunities }: { opportunities: 
   const [discovering, setDiscovering] = useState(false)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
   const [rec, setRec] = useState<RecRow | null>(null)
+  const [notice, setNotice] = useState<(AnalyzeIncomplete & { symbol: string }) | null>(null)
 
   const discover = async () => {
     setDiscovering(true)
@@ -32,9 +33,14 @@ export default function OpportunitiesClient({ opportunities }: { opportunities: 
   }
 
   const analyze = async (o: OppRow) => {
-    setAnalyzingId(o.id); setRec(null)
+    setAnalyzingId(o.id); setRec(null); setNotice(null)
     try {
-      const r = await postJSON<{ recommendation: RecRow }>('/api/investments/analyze', { symbol: o.symbol, exchange: o.exchange, company_name: o.company_name, is_holding: false })
+      const r = await postJSON<AnalyzeResponse>('/api/investments/analyze', { symbol: o.symbol, exchange: o.exchange, company_name: o.company_name, is_holding: false })
+      if (!r.ok) {
+        setNotice({ ...r, symbol: o.symbol })
+        showToast(`Could not finish analysing ${o.symbol} — nothing was recorded`, 'info')
+        return
+      }
       setRec(r.recommendation)
       showToast(`Analysed ${o.symbol}: ${r.recommendation.action.replace(/_/g, ' ')}`, 'success')
     } catch (e) { showToast(e instanceof Error ? e.message : 'Analysis failed', 'error') } finally { setAnalyzingId(null) }
@@ -58,6 +64,8 @@ export default function OpportunitiesClient({ opportunities }: { opportunities: 
         </button>
       </div>
       <p className="text-[12.5px] mb-4" style={{ color: 'var(--text-muted)' }}>Less-obvious ideas across the market, aware of what you already hold. Ideas, not instructions — analyse before acting.</p>
+
+      {notice && <AnalysisNotice notice={notice} onDismiss={() => setNotice(null)} />}
 
       {rec && (
         <div className="mb-4">
@@ -111,5 +119,52 @@ export default function OpportunitiesClient({ opportunities }: { opportunities: 
         </div>
       )}
     </div>
+  )
+}
+
+/** A 200 response that says the analysis could not finish. Not an error page,
+ *  not a verdict — a truthful "this did not complete, and nothing was recorded". */
+interface AnalyzeIncomplete {
+  ok: false
+  status: 'incomplete' | 'failed'
+  reason: string
+  message: string
+  progressSaved: boolean
+  note: string
+}
+type AnalyzeResponse = ({ ok: true; recommendation: RecRow }) | AnalyzeIncomplete
+
+const REASON_LABEL: Record<string, string> = {
+  BUDGET_EXHAUSTED: 'the request ran out of time before the analysis finished',
+  TIMEOUT: 'the research request timed out',
+  RATE_LIMITED: 'the research provider is rate limiting us',
+  PROVIDER_ERROR: 'the research provider returned an error',
+  AUTHENTICATION_ERROR: 'the research provider rejected our credentials',
+  PARSE_ERROR: 'the research came back in an unusable form',
+  NO_DATA_FOUND: 'the research returned nothing',
+  BAD_REQUEST: 'the research request was rejected',
+}
+
+function AnalysisNotice({ notice, onDismiss }: { notice: AnalyzeIncomplete & { symbol: string }; onDismiss: () => void }) {
+  return (
+    <Card className="p-4 mb-3" style={{ borderColor: 'var(--amber)' }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-extrabold" style={{ color: 'var(--amber)' }}>
+            Analysis of {notice.symbol} could not be completed
+          </p>
+          <p className="text-[12.5px] mt-1" style={{ color: 'var(--text)' }}>
+            Reason: {REASON_LABEL[notice.reason] ?? notice.reason.toLowerCase().replace(/_/g, ' ')}.
+          </p>
+          <p className="text-[12px] mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{notice.note}</p>
+          {notice.progressSaved && (
+            <p className="text-[12px] mt-1.5 font-bold" style={{ color: 'var(--income)' }}>
+              The fundamentals were researched and cached — running Analyse again will finish in about half the time.
+            </p>
+          )}
+        </div>
+        <button onClick={onDismiss} className="text-[11px] font-bold shrink-0" style={{ color: 'var(--text-faint)' }}>dismiss</button>
+      </div>
+    </Card>
   )
 }

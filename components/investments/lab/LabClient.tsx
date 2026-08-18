@@ -58,9 +58,14 @@ export default function LabClient({ initial }: { initial: LabOverview }) {
     router.refresh()
   }, [router])
 
-  const run = async (key: string, fn: () => Promise<string>) => {
+  const run = async (key: string, fn: () => Promise<string | { message: string; tone: 'success' | 'info' }>) => {
     setBusy(key)
-    try { showToast(await fn(), 'success'); await reload() }
+    try {
+      const out = await fn()
+      const { message, tone } = typeof out === 'string' ? { message: out, tone: 'success' as const } : out
+      showToast(message, tone)
+      await reload()
+    }
     catch (e) { showToast(e instanceof Error ? e.message : 'Something went wrong', 'error') }
     finally { setBusy(null) }
   }
@@ -129,8 +134,8 @@ export default function LabClient({ initial }: { initial: LabOverview }) {
             setLastRun(r.summary)
             const acted = r.summary.bought.length + r.summary.sold.length + r.summary.reduced.length + r.summary.added.length
             return r.summary.resumable
-              ? `Paused after ${r.summary.analyses} ${r.summary.analyses === 1 ? 'analysis' : 'analyses'} — ${r.summary.remaining} left. Run again to continue.`
-              : `Cycle ${r.summary.status}: ${acted} ${acted === 1 ? 'action' : 'actions'} taken`
+              ? { message: `Cycle in progress — ${r.summary.remaining} step${r.summary.remaining === 1 ? '' : 's'} left. Press Resume to continue.`, tone: 'info' as const }
+              : { message: `Cycle ${r.summary.status}: ${acted} ${acted === 1 ? 'action' : 'actions'} taken`, tone: 'success' as const }
           })}
           disabled={Boolean(busy) || needsBaseline}
           title={needsBaseline ? 'Establish the benchmark baseline first' : undefined}
@@ -215,11 +220,14 @@ export default function LabClient({ initial }: { initial: LabOverview }) {
       {lastRun && !busy && <RunSummary summary={lastRun} onDismiss={() => setLastRun(null)} />}
 
       {s.openCycle && !busy && (
-        <Card className="p-3.5 mt-3">
+        <Card className="p-3.5 mt-3" style={{ borderColor: 'var(--amber)' }}>
           <div className="flex items-center gap-2.5 flex-wrap">
             <CycleStatusChip status={s.openCycle.status} />
-            <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
-              A cycle from {fmtDateTime(s.openCycle.started_at)} is part-way through. The next run picks up where it stopped.
+            <p className="text-[12.5px] font-bold" style={{ color: 'var(--text)' }}>
+              Cycle in progress — resume to continue.
+            </p>
+            <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+              Started {fmtDateTime(s.openCycle.started_at)}. It stopped at its time budget rather than being cut off, and picks up at the exact step it reached — no work is repeated.
             </p>
           </div>
         </Card>
@@ -291,6 +299,11 @@ function RunSummary({ summary, onDismiss }: { summary: CycleSummary; onDismiss: 
               {summary.analyses} {summary.analyses === 1 ? 'analysis' : 'analyses'} · {summary.actions} {summary.actions === 1 ? 'action' : 'actions'}
               {summary.remaining > 0 ? ` · ${summary.remaining} still queued` : ''}
             </span>
+            {summary.resumable && (
+              <span className="text-[12px] font-bold" style={{ color: 'var(--amber)' }}>
+                Cycle in progress — resume to continue
+              </span>
+            )}
           </div>
           {lines.length > 0 ? (
             <ul className="mt-2 space-y-1">

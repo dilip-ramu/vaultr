@@ -252,6 +252,7 @@ export interface LabCycleStep {
 /** Why a step did not trade. Recorded so a later cycle can retry it. */
 export type DeferReason =
   | 'UNPRICED'
+  | 'BAD_REQUEST'
   | 'PROVIDER_ERROR'
   | 'RATE_LIMITED'
   | 'TIMEOUT'

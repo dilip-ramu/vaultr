@@ -216,11 +216,23 @@ describe('cycle — the analysis runs inside the Lab constraints (item 6)', () =
     expect(seen.config.maxSectorPct).toBe(DEFAULT_LAB_CONSTRAINTS.max_sector_pct)
     expect(seen.config.minConfidence).toBe(DEFAULT_LAB_CONSTRAINTS.min_data_confidence)
     expect(seen.constraintsNote).toMatch(/10%/)
-    expect(seen.research.retries).toBeGreaterThan(0)       // autonomous runs retry
     // Deploy #4: no upstream call may outlive the request that started it.
     expect(typeof seen.research.deadline).toBe('number')
-    expect(seen.research.timeoutMs).toBeLessThanOrEqual(60_000)
     expect(seen.research.deadline).toBeGreaterThan(Date.now() - 1000)
+    expect(seen.budget).toBeDefined()
+    expect(seen.persistsFundamentals).toBe(true)
+
+    // The call's own timeout must fit inside the remaining budget — that is
+    // what stops the platform killing the request.
+    expect(seen.research.timeoutMs).toBeLessThanOrEqual(seen.budget.remaining())
+    expect(seen.research.timeoutMs).toBeLessThanOrEqual(45_000)
+
+    // Retries are deliberately NOT forced here. When one full attempt uses most
+    // of the budget, a second cannot fit, and retrying anyway is exactly how a
+    // request overruns. Retrying is the RESUMABLE CYCLE's job: the step stays
+    // claimed and the next invocation runs it again with warm cache.
+    expect(seen.research.retries).toBeGreaterThanOrEqual(0)
+    expect(seen.research.retries).toBe(seen.budget.retriesFor(seen.research.timeoutMs))
   })
 })
 

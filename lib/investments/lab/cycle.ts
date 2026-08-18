@@ -30,6 +30,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { analyzeSymbol, type AnalyzeResult, type AnalyzeParams, type AnalyzeOutcome } from '../analyzeCore'
+import {
+  createBudget, MIN_RESEARCH_CALL_MS, ROUTE_MAX_MS, SAFETY_MS,
+  type RequestBudget,
+} from '../deadline'
 import { analyzePortfolio, type PortfolioSummary } from '../portfolio'
 import { researchJson } from '../claude'
 import { getMarketRegime } from '../providers/macro'
@@ -58,12 +62,21 @@ export interface CycleDeps {
   analyze?: (params: AnalyzeParams) => Promise<AnalyzeOutcome>
   mark?: (supabase: SupabaseClient, userId: string, lab: LabAccount, opts?: MarkOptions) => Promise<MarkResult>
   syncCorporate?: (supabase: SupabaseClient, userId: string, lab: LabAccount, opts?: CASyncOptions) => Promise<CASyncResult>
-  discover?: (args: { summary: PortfolioSummary; held: string[]; limit: number }) => Promise<Idea[]>
+  discover?: (args: DiscoverArgs) => Promise<Idea[]>
   assessRegime?: typeof getMarketRegime
   markOptions?: MarkOptions
 }
 
 export interface Idea { symbol: string; exchange?: string; company_name?: string; category?: string; thesis?: string }
+
+export interface DiscoverArgs {
+  summary: PortfolioSummary
+  held: string[]
+  limit: number
+  /** Timeout/retry/deadline for the underlying research call. Never omit in
+   *  production — an unbounded call here is what produced the 504. */
+  research?: { retries?: number; timeoutMs?: number; deadline?: number; maxUses?: number }
+}
 
 async function loadAccount(supabase: SupabaseClient, userId: string, labId: string): Promise<LabAccount | null> {
   const { data } = await supabase.from('lab_accounts').select('*').eq('id', labId).eq('user_id', userId).limit(1)
@@ -79,14 +92,18 @@ function summaryPortfolio(state: LabState): PortfolioSummary {
   })))
 }
 
-async function defaultDiscover(args: { summary: PortfolioSummary; held: string[]; limit: number }): Promise<Idea[]> {
+async function defaultDiscover(args: DiscoverArgs): Promise<Idea[]> {
   const heavy = Object.entries(args.summary.sectorAlloc).filter(([, p]) => p >= 20).map(([s]) => s)
   const prompt = `Surface up to ${args.limit} genuinely interesting, less-obvious Indian listed (NSE/BSE) investment ideas right now. Use web search.
 Already held (skip): ${args.held.join(', ') || 'none'}. Sectors already heavy: ${heavy.join(', ') || 'none'}.
 Return ONLY JSON: { "ideas": [ { "symbol": string, "exchange": "NSE"|"BSE", "company_name": string, "category": string, "thesis": string } ] }. Only include ideas you can source.`
+  // DEADLINE-AWARE. This call had no timeout and no deadline, and it is the
+  // first thing a cycle does when the portfolio is empty — so a Resume with
+  // nothing held went straight into an unbounded web-search request and the
+  // platform killed it at 60s. That was the 504.
   const { data } = await researchJson<{ ideas?: Idea[] }>({
     system: 'You are a buy-side analyst scanning the Indian market for less-obvious, well-sourced ideas. Never surface an idea on one ratio alone.',
-    prompt, webSearch: true, maxUses: 6, retries: 1,
+    prompt, webSearch: true, maxUses: 6, ...(args.research ?? { retries: 0, timeoutMs: 30_000 }),
   })
   return (data?.ideas ?? []).slice(0, args.limit)
 }
@@ -295,7 +312,13 @@ export async function runInvestmentCycle(
   const decideConfig = toDecideConfig(k)
   const constraintsNote = constraintsBrief(k)
   const invocationStart = Date.now()
-  const invocationDeadline = invocationStart + k.invocation_budget_ms
+  // The wall is the PLATFORM's, not a number we picked. invocation_budget_ms is
+  // how much of it we allow ourselves to spend on work.
+  const budget: RequestBudget = createBudget({
+    totalMs: Math.min(k.invocation_budget_ms + SAFETY_MS, ROUTE_MAX_MS),
+    now: invocationStart,
+  })
+  const invocationDeadline = budget.deadline
   const notes: string[] = []
   const deferred: { symbol: string; reason: string }[] = []
 
@@ -309,11 +332,11 @@ export async function runInvestmentCycle(
    * an analysis makes two calls, so it asks for less than half each.
    */
   const researchBudget = (share: number) => {
-    const remaining = Math.max(0, invocationDeadline - Date.now())
+    const timeoutMs = Math.max(1_000, Math.floor(budget.callTimeout() * share))
     return {
-      retries: remaining > 40_000 ? 2 : remaining > 20_000 ? 1 : 0,
-      timeoutMs: Math.max(8_000, Math.min(60_000, Math.floor(remaining * share))),
-      deadline: invocationDeadline,
+      retries: budget.retriesFor(timeoutMs),
+      timeoutMs,
+      deadline: budget.deadline,
       maxUses: k.max_web_searches_per_analysis,
     }
   }
@@ -397,7 +420,10 @@ export async function runInvestmentCycle(
 
   const invocationExhausted = (): string | null => {
     if (analysesThisInvocation >= k.max_analyses_per_invocation) return 'per-invocation analysis budget'
-    if (Date.now() - invocationStart >= k.invocation_budget_ms) return 'per-invocation time budget'
+    // The decisive check: never START a web-search call that cannot finish
+    // before the platform's wall. Yielding here is what turns a 504 into an
+    // honest 'in_progress'.
+    if (!budget.enough(MIN_RESEARCH_CALL_MS)) return 'not enough time left for another analysis'
     if (consecutiveTransportFailures >= 2) return 'repeated research failures'
     return null
   }
@@ -414,8 +440,10 @@ export async function runInvestmentCycle(
       symbol, exchange, companyName, isHolding,
       portfolio: summaryPortfolio(state), regimeState,
       config: decideConfig, constraintsNote,
-      research: researchBudget(0.45),
+      research: researchBudget(1),
       loadFundamentals: cacheLoader,
+      budget,
+      persistsFundamentals: true,
     })
     analysesThisInvocation++
     cycle!.counters.analyses += 1
@@ -470,6 +498,19 @@ export async function runInvestmentCycle(
     const doneIso = nowFn().toISOString()
 
     if (!outcome.ok) {
+      const f = outcome.failure
+      // OUT OF TIME, not out of evidence. Leave the step CLAIMED and the cursor
+      // exactly where it is: no trade was written, so the next invocation
+      // reconciles it as safe-to-redo and re-runs it — with the fundamentals now
+      // cached, costing one research call instead of two. This is the mechanism
+      // that turns "killed at the platform wall" into "resume to continue".
+      const outOfTime = f.kind === 'BUDGET_EXHAUSTED'
+        || (f.retryable && !budget.enough(MIN_RESEARCH_CALL_MS))
+      if (outOfTime) {
+        notes.push(`${symbol}: ran out of request time${f.progressSaved ? ' after caching its fundamentals' : ''} — the next run resumes at this step.`)
+        yielded = 'not enough time left to finish this analysis'
+        break
+      }
       const reason = outcome.failure.kind as DeferReason
       const decisionId = await recordDeferral({
         supabase, lab, userId, cycleId: cycle.id, stepId, symbol, exchange,
@@ -565,7 +606,7 @@ export async function runInvestmentCycle(
       ))
       if (room > 0) {
         const held = state.positions.map(p => p.symbol.toUpperCase())
-        const ideas = await discover({ summary: summaryPortfolio(state), held, limit: room })
+        const ideas = await discover({ summary: summaryPortfolio(state), held, limit: room, research: researchBudget(1) })
         cycle.cursor.discoveryQueue = ideas
           .map(i => ({ i, sym: String(i.symbol ?? '').trim().toUpperCase() }))
           .filter(x => x.sym && !held.includes(x.sym))
@@ -605,6 +646,19 @@ export async function runInvestmentCycle(
       const doneIso = nowFn().toISOString()
 
       if (!outcome.ok) {
+        const f = outcome.failure
+        // OUT OF TIME, not out of evidence. Leave the step CLAIMED and the cursor
+        // exactly where it is: no trade was written, so the next invocation
+        // reconciles it as safe-to-redo and re-runs it — with the fundamentals now
+        // cached, costing one research call instead of two. This is the mechanism
+        // that turns "killed at the platform wall" into "resume to continue".
+        const outOfTime = f.kind === 'BUDGET_EXHAUSTED'
+          || (f.retryable && !budget.enough(MIN_RESEARCH_CALL_MS))
+        if (outOfTime) {
+          notes.push(`${symbol}: ran out of request time${f.progressSaved ? ' after caching its fundamentals' : ''} — the next run resumes at this step.`)
+          yielded = 'not enough time left to finish this analysis'
+          break
+        }
         const reason = outcome.failure.kind as DeferReason
         const decisionId = await recordDeferral({
           supabase, lab, userId, cycleId: cycle.id, stepId, symbol, exchange,
