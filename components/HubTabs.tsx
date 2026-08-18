@@ -21,6 +21,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/investments/holdings', label: 'Holdings' },
     { href: '/investments/opportunities', label: 'Opportunities' },
     { href: '/investments/journal', label: 'Journal' },
+    { href: '/investments/lab', label: 'Lab' },
   ] },
   { name: 'Transactions', tabs: [
     { href: '/transactions', label: 'All transactions' },
