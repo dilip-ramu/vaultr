@@ -23,11 +23,15 @@
 // NOTHING here executes trades or touches broker APIs. It reads and reasons.
 
 import type { Source } from './types'
+import { routeFor, MODELS, emptyUsage, type ResearchTask, type CallUsage } from './models'
 
-const ANALYSIS_MODEL = process.env.INVEST_ANALYSIS_MODEL || 'claude-sonnet-4-5'
-const FAST_MODEL = process.env.INVEST_FAST_MODEL || 'claude-haiku-4-5-20251001'
+// Model choice now lives in ./models.ts, which routes by TASK. This module is
+// the transport: it makes the call, classifies the failure, and reports what
+// the call actually consumed. It no longer decides which model runs.
+export { MODELS }
+export type { ResearchTask, CallUsage }
 
-export const MODELS = { analysis: ANALYSIS_MODEL, fast: FAST_MODEL }
+const ANALYSIS_MODEL = MODELS.analysis
 
 /**
  * Why a research call produced nothing. Deliberately NOT overlapping with
@@ -81,17 +85,57 @@ interface AnthropicBlock {
   citations?: { type?: string; url?: string; title?: string }[]
   content?: { type?: string; url?: string; title?: string }[]
 }
-interface AnthropicResponse { content?: AnthropicBlock[]; stop_reason?: string }
+interface AnthropicUsage {
+  input_tokens?: number
+  output_tokens?: number
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
+  server_tool_use?: { web_search_requests?: number }
+}
+interface AnthropicResponse {
+  content?: AnthropicBlock[]
+  stop_reason?: string
+  model?: string
+  usage?: AnthropicUsage
+}
+
+/** Read the token counts the API reported. Anything absent stays null — a
+ *  missing count must never be recorded as a zero, because zero reads as
+ *  "this call was free" and that is a lie we would then bill decisions on. */
+function readUsage(resp: AnthropicResponse, requestedModel: string): CallUsage {
+  const u = resp.usage
+  const n = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
+  return {
+    model: resp.model ?? requestedModel,
+    inputTokens: n(u?.input_tokens),
+    outputTokens: n(u?.output_tokens),
+    cacheReadTokens: n(u?.cache_read_input_tokens),
+    cacheWriteTokens: n(u?.cache_creation_input_tokens),
+    webSearches: n(u?.server_tool_use?.web_search_requests),
+  }
+}
 
 export interface CallOpts {
   system?: string
   prompt: string
+  /**
+   * What this call is FOR. Selects the model, the search budget and the output
+   * ceiling from ./models.ts. Explicit `model` / `maxUses` / `maxTokens` still
+   * win, so callers can override a route without editing the table.
+   */
+  task?: ResearchTask
   model?: string
   maxTokens?: number
   /** Enable Anthropic server-side web search (grounded, citable). */
   webSearch?: boolean
   /** Cap web searches so a single analysis can't run away. */
   maxUses?: number
+  /**
+   * A HARD CEILING applied on top of whatever the task route asks for. The
+   * Lab's `max_web_searches_per_analysis` comes through here: it is a limit,
+   * not an instruction, so it can lower a task's budget but never raise it.
+   */
+  maxUsesCap?: number
   /** Extra attempts after a retryable failure. 0 (default) = Phase-1 behaviour. */
   retries?: number
   /** Abort a single attempt after this long. Unset = no client-side deadline. */
@@ -120,15 +164,28 @@ export function backoffMs(attempt: number, retryAfterSeconds?: number | null): n
   return Math.min(20_000, 750 * Math.pow(2, attempt))
 }
 
+/** Model, search budget and output ceiling for one call, after routing. */
+export function resolveCall(opts: CallOpts): { model: string; maxTokens: number; maxUses: number } {
+  const route = opts.task ? routeFor(opts.task) : null
+  const wanted = opts.maxUses ?? route?.maxUses ?? 6
+  const cap = opts.maxUsesCap
+  return {
+    model: opts.model || route?.model || ANALYSIS_MODEL,
+    maxTokens: opts.maxTokens ?? route?.maxTokens ?? 4096,
+    maxUses: cap != null && Number.isFinite(cap) ? Math.max(1, Math.min(wanted, cap)) : wanted,
+  }
+}
+
 async function attemptCall(opts: CallOpts): Promise<AnthropicResponse> {
+  const resolved = resolveCall(opts)
   const body: Record<string, unknown> = {
-    model: opts.model || ANALYSIS_MODEL,
-    max_tokens: opts.maxTokens ?? 4096,
+    model: resolved.model,
+    max_tokens: resolved.maxTokens,
     messages: [{ role: 'user', content: opts.prompt }],
   }
   if (opts.system) body.system = opts.system
   if (opts.webSearch) {
-    body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: opts.maxUses ?? 6 }]
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: resolved.maxUses }]
   }
 
   const key = apiKey()
@@ -167,7 +224,9 @@ async function attemptCall(opts: CallOpts): Promise<AnthropicResponse> {
   }
 
   try {
-    return await res.json() as AnthropicResponse
+    const parsed = await res.json() as AnthropicResponse
+    if (!parsed.model) parsed.model = resolved.model
+    return parsed
   } catch (e) {
     throw new ResearchError('PROVIDER_ERROR', `Anthropic API returned an unreadable body: ${e instanceof Error ? e.message : String(e)}`)
   }
@@ -246,6 +305,12 @@ export interface ResearchResult<T> {
   data: T | null
   sources: Source[]
   raw: string
+  /**
+   * What the call actually consumed, straight from the API response. Null when
+   * the call never returned (transport failure) — in which case we genuinely do
+   * not know what, if anything, Anthropic billed for it. Say "unknown", not 0.
+   */
+  usage?: CallUsage
   /** Human-readable summary of what went wrong (kept for Phase-1 callers). */
   error?: string
   /** Machine-readable classification. Absent on success. */
@@ -272,33 +337,39 @@ function toFailure(e: unknown): ResearchFailure {
  * not know", which is not the same as "the evidence is thin" (brief §15).
  */
 export async function researchJson<T>(opts: CallOpts): Promise<ResearchResult<T>> {
+  const resolved = resolveCall(opts)
   try {
-    const { response, attempts } = await callAnthropic({ webSearch: true, maxTokens: 4096, ...opts })
+    const { response, attempts } = await callAnthropic({ webSearch: true, ...opts })
+    const usage = readUsage(response, resolved.model)
     const raw = collectText(response)
     const sources = collectSources(response)
     if (!raw.trim()) {
       const failure: ResearchFailure = { kind: 'NO_DATA_FOUND', message: 'The model returned no text.', retryable: true, attempts }
-      return { data: null, sources, raw, error: failure.message, failure }
+      return { data: null, sources, raw, usage, error: failure.message, failure }
     }
     const data = extractJson<T>(raw)
     if (data == null) {
       const failure: ResearchFailure = { kind: 'PARSE_ERROR', message: 'Could not parse structured output', retryable: true, attempts }
-      return { data: null, sources, raw, error: failure.message, failure }
+      return { data: null, sources, raw, usage, error: failure.message, failure }
     }
-    return { data, sources, raw }
+    return { data, sources, raw, usage }
   } catch (e) {
     const failure = toFailure(e)
-    return { data: null, sources: [], raw: '', error: failure.message, failure }
+    // No usage: the call did not come back, so its consumption is UNKNOWN.
+    // A transport failure can still have been billed by Anthropic; we simply
+    // cannot see it from here, and we will not pretend otherwise.
+    return { data: null, sources: [], raw: '', usage: emptyUsage(resolved.model), error: failure.message, failure }
   }
 }
 
 /** Plain text answer (no JSON contract). Used sparingly. */
-export async function ask(opts: CallOpts): Promise<{ text: string; sources: Source[]; error?: string; failure?: ResearchFailure }> {
+export async function ask(opts: CallOpts): Promise<{ text: string; sources: Source[]; usage?: CallUsage; error?: string; failure?: ResearchFailure }> {
+  const resolved = resolveCall(opts)
   try {
     const { response } = await callAnthropic(opts)
-    return { text: collectText(response), sources: collectSources(response) }
+    return { text: collectText(response), sources: collectSources(response), usage: readUsage(response, resolved.model) }
   } catch (e) {
     const failure = toFailure(e)
-    return { text: '', sources: [], error: failure.message, failure }
+    return { text: '', sources: [], usage: emptyUsage(resolved.model), error: failure.message, failure }
   }
 }

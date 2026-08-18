@@ -3,7 +3,10 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchIndexQuote, fetchPrice } from '@/lib/investments/providers/price'
 import { researchJson } from '@/lib/investments/claude'
 import { resolveTradingDate, istDateString } from '@/lib/investments/marketdate'
-import { MODELS } from '@/lib/investments/claude'
+import { MODELS, estimateCallCost, emptyUsage } from '@/lib/investments/models'
+
+/** Estimated dollars, shown to three decimals with an explicit unknown. */
+const fmtUsd = (usd: number | null): string => (usd == null ? 'unknown' : `$${usd.toFixed(4)}`)
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -164,21 +167,28 @@ export async function POST(req: NextRequest) {
     const r = await researchJson<{ index?: string; level?: number | null }>({
       system: 'You verify connectivity. Answer only with the requested JSON.',
       prompt: 'Using web search, report the most recent closing level of the Nifty 50. Return ONLY {"index":"NIFTY 50","level":number|null}.',
-      webSearch: true, maxUses: 1, maxTokens: 512, retries: 1, timeoutMs: 30_000,
+      webSearch: true, task: 'connectivity', retries: 1, timeoutMs: 30_000,
     })
     checks.push({
       name: 'Live research (Anthropic)',
       status: r.failure ? 'fail' : 'ok',
       detail: r.failure
         ? `${r.failure.kind}: ${r.failure.message}. A failure here defers the Lab's decisions — it never becomes an investment conclusion.`
-        : `Authenticated, ${MODELS.analysis} responded with parseable JSON and ${r.sources.length} citation${r.sources.length === 1 ? '' : 's'} in ${Date.now() - t1}ms.`,
-      data: r.failure ? undefined : { model: MODELS.analysis, parsed: r.data, citations: r.sources.slice(0, 3) },
+        : `Authenticated, ${r.usage?.model ?? MODELS.fast} responded with parseable JSON and ${r.sources.length} citation${r.sources.length === 1 ? '' : 's'} in ${Date.now() - t1}ms.`
+          + ` Estimated cost of this check: ${fmtUsd(estimateCallCost(r.usage ?? emptyUsage(MODELS.fast)).usd)} (estimated from token counts, not a billed figure).`,
+      data: r.failure ? undefined : {
+        model: r.usage?.model ?? MODELS.fast,
+        parsed: r.data,
+        citations: r.sources.slice(0, 3),
+        usage: r.usage,
+        estimatedUsd: estimateCallCost(r.usage ?? emptyUsage(MODELS.fast)).usd,
+      },
     })
   } else {
     checks.push({
       name: 'Live research (Anthropic)',
       status: 'skipped',
-      detail: 'Not tested — this check makes a real billed API call. Re-run with { "anthropic": true } to verify authentication, model, web search and citations.',
+      detail: `Not tested — this check makes a real billed API call (one ${MODELS.fast} request with a single web search). Re-run with { "anthropic": true } to verify authentication, model, web search and citations.`,
     })
   }
 

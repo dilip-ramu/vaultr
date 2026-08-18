@@ -11,6 +11,18 @@ import {
   fmtDate, fmtDateTime, ago, type LabOverview,
 } from './labShared'
 
+/** Estimated dollars. Small amounts need more decimals to say anything. */
+const usd = (v: number): string => (v >= 1 ? `~$${v.toFixed(2)}` : `~$${v.toFixed(3)}`)
+const tok = (n: number): string => (n >= 1000 ? `${Math.round(n / 1000)}k` : String(n))
+/** "claude-sonnet-4-5" reads better as "Sonnet 4.5" in a status card. */
+const shortModel = (m: string): string => {
+  const hit = m.match(/(haiku|sonnet|opus)-?([\d-]*)/i)
+  if (!hit) return m
+  const name = hit[1][0].toUpperCase() + hit[1].slice(1).toLowerCase()
+  const ver = (hit[2] ?? '').split('-').filter(Boolean).slice(0, 2).join('.')
+  return ver ? `${name} ${ver}` : name
+}
+
 export default function LabOverviewTab({ data }: { data: LabOverview }) {
   const t = data.totals
   const b = data.benchmarks
@@ -178,6 +190,46 @@ export default function LabOverviewTab({ data }: { data: LabOverview }) {
           </div>
         </div>
       </Card>
+
+      {/* ── What the research cost ───────────────────────────────────────
+          Deliberately its own card, and deliberately hedged. These numbers are
+          computed from the token counts Anthropic returned on each call times a
+          price list in the code. The app cannot see the actual bill, so it never
+          claims to. */}
+      {s.research.recent.calls > 0 && (
+        <Card className="p-4">
+          <SectionTitle right={<span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>estimated, not billed</span>}>
+            Research cost
+          </SectionTitle>
+          <div className="grid sm:grid-cols-2 gap-x-8">
+            <div>
+              <Row label="Last cycle" value={s.research.lastCycle
+                ? `${usd(s.research.lastCycle.estimatedUsd)} · ${s.research.lastCycle.calls} ${s.research.lastCycle.calls === 1 ? 'call' : 'calls'} · ${s.research.lastCycle.webSearches} ${s.research.lastCycle.webSearches === 1 ? 'search' : 'searches'}`
+                : 'no research calls recorded'} />
+              <Row label={`Last ${s.research.cyclesCounted} ${s.research.cyclesCounted === 1 ? 'cycle' : 'cycles'}`}
+                value={`${usd(s.research.recent.estimatedUsd)} · ${s.research.recent.calls} calls`} />
+              <Row label="Tokens in / out"
+                value={`${tok(s.research.recent.inputTokens)} / ${tok(s.research.recent.outputTokens)}`} />
+            </div>
+            <div>
+              {Object.entries(s.research.recent.byModel).map(([model, v]) => (
+                <Row key={model} label={shortModel(model)} value={`${usd(v.estimatedUsd)} · ${v.calls} ${v.calls === 1 ? 'call' : 'calls'}`} />
+              ))}
+              {s.research.recent.unpricedCalls > 0 && (
+                <Row label="Not priced"
+                  value={`${s.research.recent.unpricedCalls} ${s.research.recent.unpricedCalls === 1 ? 'call' : 'calls'} — total is a floor`}
+                  tone="var(--amber)" />
+              )}
+            </div>
+          </div>
+          <p className="text-[11.5px] mt-3 pt-3 leading-relaxed" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-faint)' }}>
+            Worked out from the token counts each API response carried, priced against the
+            published list rates recorded on {fmtDate(s.research.pricesAsOf)}. Your actual
+            Anthropic bill is authoritative; this is only an estimate, and a call that failed
+            before replying is not counted at all.
+          </p>
+        </Card>
+      )}
 
       {data.counts.decisions === 0 && (
         <Empty

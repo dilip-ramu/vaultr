@@ -41,6 +41,7 @@ export const EXECUTION_OWNED_KEYS = [
   'qualitative_ttl_hours',
   'regime_ttl_hours',
   'price_staleness_hours',
+  'candidate_ttl_hours',
 ] as const
 
 export const POLICY_OWNED_KEYS = [
@@ -88,6 +89,7 @@ export const DEFAULT_LAB_CONSTRAINTS: ResolvedConstraints = {
   qualitative_ttl_hours: 12,          // survives a resume; does not age into staleness
   regime_ttl_hours: 24,
   price_staleness_hours: 30,          // one session + slack
+  candidate_ttl_hours: 48,            // unevaluated ideas survive two days
 }
 
 export const DEFAULT_COST_MODEL_FIELDS: (keyof CostModel)[] = [
@@ -129,6 +131,7 @@ export function resolveConstraints(raw: unknown): ResolvedConstraints {
     qualitative_ttl_hours: d.qualitative_ttl_hours,
     regime_ttl_hours: d.regime_ttl_hours,
     price_staleness_hours: d.price_staleness_hours,
+    candidate_ttl_hours: d.candidate_ttl_hours,
   }
 }
 

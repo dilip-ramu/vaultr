@@ -14,6 +14,7 @@
 import { fetchPrice as fetchPriceLive, type Quote } from './providers/price'
 import type { FundamentalsInput, ResearchOptions } from './providers/fundamentals'
 import type { ResearchErrorKind } from './claude'
+import { addUsage, emptyTotals, type CallUsage, type UsageTotals } from './models'
 import {
   runFundamentalsStage, runQualitativeStage, runDecisionStage,
   type RecommendationCore, type QualitativeResearch, type StageName,
@@ -56,6 +57,9 @@ export interface AnalyzeResult {
   /** The qualitative research used, so callers can persist it. */
   qualitative: QualitativeResearch
   searchBudgetUsed: number
+  /** What this analysis actually consumed, from the API's own counts. Empty on
+   *  a full cache hit, which is exactly what a free analysis should report. */
+  usage: UsageTotals
   timings: Timings
 }
 
@@ -87,15 +91,15 @@ export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutco
     config, constraintsNote, research,
   } = params
   const fetchPriceFn = params.fetchPriceFn ?? fetchPriceLive
-  const maxUses = research?.maxUses ?? 6
   const budget = params.budget ?? unlimitedBudget()
   const watch = stopwatch()
+  let usage: UsageTotals = emptyTotals()
+  const spend = (u: CallUsage | undefined | null) => { if (u) usage = addUsage(usage, u) }
 
   const bounded = () => {
     const timeoutMs = Math.max(1_000, budget.callTimeout())
     return {
       ...research,
-      maxUses,
       timeoutMs: Math.min(timeoutMs, research?.timeoutMs ?? timeoutMs),
       deadline: Math.min(budget.deadline, research?.deadline ?? budget.deadline),
       retries: Math.min(research?.retries ?? 2, budget.retriesFor(timeoutMs)),
@@ -112,10 +116,12 @@ export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutco
   const currentPrice = quote?.price ?? null
 
   if (!fundResult.ok) {
+    spend(fundResult.usage)
     return { ok: false, failure: { ...fundResult.failure, timings: watch.timings } }
   }
   const fundamentals = fundResult.value
   const fundamentalsCached = fundamentals.cached === true
+  if (!fundamentalsCached) spend(fundResult.usage)
 
   // ── stage 2, only if it can actually finish ───────────────────────────────
   let qualitative = params.qualitative ?? null
@@ -140,6 +146,7 @@ export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutco
       symbol, exchange, companyName, currentPrice, regimeState,
       fundamentals, constraintsNote, research: bounded(),
     }))
+    spend(qualResult.usage)
     if (!qualResult.ok) {
       return {
         ok: false,
@@ -168,7 +175,10 @@ export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutco
     fundamentalsCached,
     qualitativeCached,
     qualitative,
-    searchBudgetUsed: (fundamentalsCached ? 0 : maxUses) + (qualitativeCached ? 0 : maxUses),
+    // Searches the API says it ran. Falls back to the previous upper-bound
+    // estimate only when a call did not report its usage.
+    searchBudgetUsed: usage.webSearches,
+    usage,
     timings: watch.timings,
   }
 }

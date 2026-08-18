@@ -19,7 +19,10 @@ export interface ResearchOptions {
   retries?: number
   timeoutMs?: number
   deadline?: number
+  /** Force an exact search budget. Normally left unset so the task route decides. */
   maxUses?: number
+  /** Ceiling from lab constraints — lowers a route's budget, never raises it. */
+  maxUsesCap?: number
 }
 
 export interface FundamentalsInput {
@@ -107,9 +110,16 @@ Use web search against Tier-1/2 sources. Return ONLY a JSON object of this exact
 }
 
 Absolute figures in INR crore. If reliable data is scarce, return mostly nulls and a low data_confidence — that is the correct answer, not a fabricated one.`
-    const { data, sources, error, failure } = await researchJson<unknown>({
+    // TASK ROUTING: this is extraction, not judgement. Reading a filing and
+    // copying ROCE across faithfully — or returning null and a low confidence
+    // when it is not there — does not need the expensive model, and the
+    // "never invent a figure" rule is enforced by the schema and by the
+    // recommender, not by model size.
+    const { data, sources, error, failure, usage } = await researchJson<unknown>({
       system: SYSTEM, prompt, webSearch: true,
-      maxUses: research?.maxUses ?? 6,
+      task: 'fundamentals',
+      maxUses: research?.maxUses,
+      maxUsesCap: research?.maxUsesCap,
       retries: research?.retries,
       timeoutMs: research?.timeoutMs,
       deadline: research?.deadline,
@@ -123,9 +133,10 @@ Absolute figures in INR crore. If reliable data is scarce, return mostly nulls a
         notes: error ? `Research failed: ${error}` : 'No parseable fundamentals returned.',
         failure: failure ?? { kind: 'NO_DATA_FOUND', message: error ?? 'No parseable fundamentals returned.', retryable: true, attempts: 1 },
         fetched_at: new Date().toISOString(),
+        usage,
       }
     }
-    return { ...toResult(symbol, exchange, data, sources), fetched_at: new Date().toISOString() }
+    return { ...toResult(symbol, exchange, data, sources), fetched_at: new Date().toISOString(), usage }
   },
 }
 

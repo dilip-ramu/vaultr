@@ -28,6 +28,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { researchJson } from '../claude'
 import type { ResearchOptions } from '../providers/fundamentals'
+import type { CallUsage } from '../models'
 import { eligibleShares, computeDividend, adjustCarriedPrice, quantityFactor, type TradeLike } from './eligibility'
 import { isSupportedAction } from './corporate'
 import type { LabAccount, Exchange } from './types'
@@ -46,6 +47,8 @@ interface CAEvent {
 
 export interface CASyncResult {
   ran: boolean
+  /** What the lookup call consumed, when one was made. */
+  usage?: CallUsage
   dividends: number
   splits: number
   bonuses: number
@@ -102,14 +105,22 @@ Only include actions you can verify from a source. Every action MUST carry an ex
     sources = r.sources ?? []
     res.failure = r.failure
   } else {
+    // A dated fact to be reported, not weighed: the answer is on an exchange
+    // notice. There is no deterministic corporate-actions feed wired into this
+    // app today (the price provider is quotes only), so this stays a research
+    // call — but it does not need the expensive model, and three searches is
+    // enough to check a holdings list against NSE/BSE announcements.
     const r = await researchJson<{ events?: CAEvent[] }>({
       system: 'You report verified Indian corporate actions precisely, with dates. Never invent an action.',
       prompt, webSearch: true,
-      maxUses: opts.research?.maxUses ?? 6,
+      task: 'corporate',
+      maxUses: opts.research?.maxUses,
+      maxUsesCap: opts.research?.maxUsesCap,
       retries: opts.research?.retries,
       timeoutMs: opts.research?.timeoutMs,
       deadline: opts.research?.deadline,
     })
+    res.usage = r.usage
     if (r.failure) {
       // A lookup outage is not "no corporate actions happened". Say so and let
       // the next cycle try again; nothing is applied.

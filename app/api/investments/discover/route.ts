@@ -42,7 +42,15 @@ Sectors already heavy in the portfolio (be selective adding more): ${heavySector
 Return ONLY JSON: { "ideas": [ { "symbol": string, "exchange": "NSE"|"BSE", "company_name": string, "category": "deep_value"|"growth"|"turnaround"|"special_situation"|"accumulate"|"buy"|"watch", "thesis": string (2-3 sentences, the actual edge), "data_confidence": 0-100 } ] }
 Only include ideas you can source. Fewer, higher-quality ideas beat a long list.`
 
-  const { data, sources, error } = await researchJson<{ ideas?: Idea[] }>({ system: SYSTEM, prompt, webSearch: true, maxUses: 8, maxTokens: 4096 })
+  // Routed through the shared task table (lib/investments/models.ts) instead of
+  // its own hand-set numbers. This call used to allow EIGHT web searches — the
+  // most expensive configuration anywhere in the app, and it was reachable from
+  // a button. Search results are billed as input tokens and re-sent on every
+  // internal iteration, so the cost grows with the square of that number.
+  const { data, sources, error } = await researchJson<{ ideas?: Idea[] }>({
+    system: SYSTEM, prompt, webSearch: true, task: 'discovery',
+    retries: 0, timeoutMs: 45_000,
+  })
   const ideas = (data?.ideas ?? []).slice(0, 8)
   if (!ideas.length) return NextResponse.json({ discovered: 0, error: error ?? 'No ideas returned' })
 

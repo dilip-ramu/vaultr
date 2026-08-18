@@ -36,6 +36,7 @@ import {
 } from '../deadline'
 import { analyzePortfolio, type PortfolioSummary } from '../portfolio'
 import { researchJson } from '../claude'
+import { addUsage, emptyTotals, estimateCallCost, type CallUsage, type UsageTotals } from '../models'
 import { getMarketRegime } from '../providers/macro'
 import { simulateBuy, simulateSell } from './engine'
 import { computeNav } from './accounting'
@@ -54,7 +55,8 @@ import { fetchPrice } from '../providers/price'
 import { replayPosition, latestTrade, type ReplayTrade } from './replay'
 import {
   findOpenCycle, createCycle, saveCycle, claimStep, finishStep, stepKey,
-  setStepStage, noteStepAttempt,
+  setStepStage, noteStepAttempt, readCarryOverCandidates,
+  type CarryOverCandidates,
 } from './cycle-state'
 import type {
   LabAccount, LabState, EngineResult, Exchange, RegimeState,
@@ -78,6 +80,8 @@ export interface CycleDeps {
   mark?: (supabase: SupabaseClient, userId: string, lab: LabAccount, opts?: MarkOptions) => Promise<MarkResult>
   syncCorporate?: (supabase: SupabaseClient, userId: string, lab: LabAccount, opts?: CASyncOptions) => Promise<CASyncResult>
   discover?: (args: DiscoverArgs) => Promise<Idea[] | DiscoverResult>
+  /** Test seam: unevaluated candidates carried over from an earlier cycle. */
+  readCandidates?: (q: CandidateQuery) => Promise<CarryOverCandidates | null>
   assessRegime?: typeof getMarketRegime
   markOptions?: MarkOptions
   /** Test seam: supply a pre-spent or generous budget without touching the
@@ -88,11 +92,13 @@ export interface CycleDeps {
   maxStagesPerInvocation?: number
 }
 
+export interface CandidateQuery { ttlHours: number; exclude: string[] }
+
 export interface Idea { symbol: string; exchange?: string; company_name?: string; category?: string; thesis?: string }
 
 /** Discovery reports failure explicitly so a timed-out scan is not mistaken for
  *  "there were no ideas" — that mistake loses candidates permanently. */
-export interface DiscoverResult { ideas: Idea[]; failure: string | null }
+export interface DiscoverResult { ideas: Idea[]; failure: string | null; usage?: CallUsage }
 
 export interface DiscoverArgs {
   summary: PortfolioSummary
@@ -100,7 +106,7 @@ export interface DiscoverArgs {
   limit: number
   /** Timeout/retry/deadline for the underlying research call. Never omit in
    *  production — an unbounded call here is what produced the 504. */
-  research?: { retries?: number; timeoutMs?: number; deadline?: number; maxUses?: number }
+  research?: { retries?: number; timeoutMs?: number; deadline?: number; maxUses?: number; maxUsesCap?: number }
 }
 
 async function loadAccount(supabase: SupabaseClient, userId: string, labId: string): Promise<LabAccount | null> {
@@ -126,12 +132,13 @@ Return ONLY JSON: { "ideas": [ { "symbol": string, "exchange": "NSE"|"BSE", "com
   // first thing a cycle does when the portfolio is empty — so a Resume with
   // nothing held went straight into an unbounded web-search request and the
   // platform killed it at 60s. That was the 504.
-  const { data, failure } = await researchJson<{ ideas?: Idea[] }>({
+  const { data, failure, usage } = await researchJson<{ ideas?: Idea[] }>({
     system: 'You are a buy-side analyst scanning the Indian market for less-obvious, well-sourced ideas. Never surface an idea on one ratio alone.',
-    prompt, webSearch: true, maxUses: 6, ...(args.research ?? { retries: 0, timeoutMs: 30_000 }),
+    prompt, webSearch: true, task: 'discovery',
+    ...(args.research ?? { retries: 0, timeoutMs: 30_000 }),
   })
-  if (failure) return { ideas: [], failure: `${failure.kind}: ${failure.message}` }
-  return { ideas: (data?.ideas ?? []).slice(0, args.limit), failure: null }
+  if (failure) return { ideas: [], failure: `${failure.kind}: ${failure.message}`, usage }
+  return { ideas: (data?.ideas ?? []).slice(0, args.limit), failure: null, usage }
 }
 
 // ── Persistence of one taken action ─────────────────────────────────────────
@@ -371,7 +378,60 @@ export async function runInvestmentCycle(
       retries: budget.retriesFor(timeoutMs),
       timeoutMs,
       deadline: budget.deadline,
-      maxUses: k.max_web_searches_per_analysis,
+      // A CEILING, not an instruction. Each task asks for the breadth it needs
+      // (lib/investments/models.ts); this only ever lowers that number.
+      maxUsesCap: k.max_web_searches_per_analysis,
+    }
+  }
+
+  /**
+   * COST ACCOUNTING. Everything the cycle spends is folded in here, from the
+   * token counts the API itself returned. `estimatedUsd` on the result is
+   * arithmetic on a published price list — it is NOT the Anthropic invoice and
+   * is always labelled estimated wherever it is shown.
+   */
+  const recordUsage = (u: CallUsage | undefined | null): void => {
+    if (!u) return
+    cycle!.counters.usage = addUsage(cycle!.counters.usage ?? emptyTotals(), u)
+    // Prefer what the API says it actually searched; fall back to the ceiling
+    // we allowed, which is an upper bound rather than a measurement.
+    cycle!.counters.webSearchBudgetUsed += u.webSearches ?? k.max_web_searches_per_analysis
+  }
+
+  /** The cost half of a stage log line. Kept separate so the timing fields
+   *  stay readable and a cache hit records an explicit zero-cost line. */
+  const mergeUsageTotals = (a: UsageTotals, b: UsageTotals | undefined | null): UsageTotals => {
+    if (!b) return a
+    const byModel = { ...a.byModel }
+    for (const [model, v] of Object.entries(b.byModel ?? {})) {
+      const prev = byModel[model] ?? { calls: 0, estimatedUsd: 0 }
+      byModel[model] = { calls: prev.calls + v.calls, estimatedUsd: Math.round((prev.estimatedUsd + v.estimatedUsd) * 1e6) / 1e6 }
+    }
+    return {
+      calls: a.calls + b.calls,
+      inputTokens: a.inputTokens + b.inputTokens,
+      outputTokens: a.outputTokens + b.outputTokens,
+      cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
+      cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+      webSearches: a.webSearches + b.webSearches,
+      estimatedUsd: Math.round((a.estimatedUsd + b.estimatedUsd) * 1e6) / 1e6,
+      unpricedCalls: a.unpricedCalls + b.unpricedCalls,
+      byModel,
+    }
+  }
+
+  const usageFields = (u: CallUsage | undefined | null, cacheHit = false) => {
+    if (cacheHit) {
+      return { model: null, webSearches: 0, inputTokens: 0, outputTokens: 0, estimatedUsd: 0, cacheHit: true }
+    }
+    if (!u) return { cacheHit: false }
+    return {
+      model: u.model,
+      webSearches: u.webSearches,
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      estimatedUsd: estimateCallCost(u).usd,
+      cacheHit: false,
     }
   }
   const quoteBudget = () => ({
@@ -405,6 +465,7 @@ export async function runInvestmentCycle(
   // ── 2. Corporate actions, once per cycle, before any trading ─────────────
   if (!cycle.cursor.corporateDone) {
     const ca = await syncCorporate(supabase, userId, lab, { now: nowFn(), research: researchBudget(0.5) })
+    recordUsage(ca.usage)
     cycle.cursor.corporateDone = true
     notes.push(...ca.notes)
     if (ca.failure) notes.push(`Corporate-action sync unavailable this run (${ca.failure}) — will retry next cycle.`)
@@ -523,6 +584,7 @@ export async function runInvestmentCycle(
       })
       spendResearchStage(outcome.ok)
       if (outcome.ok) {
+        cycle!.counters.usage = mergeUsageTotals(cycle!.counters.usage ?? emptyTotals(), outcome.usage)
         cycle!.counters.webSearchBudgetUsed += outcome.searchBudgetUsed
         cycle!.counters.analyses += 1
         return { kind: 'complete', result: outcome }
@@ -562,12 +624,15 @@ export async function runInvestmentCycle(
         loadFundamentals: cacheLoader,      // writes through to inv_securities
       })
       spendResearchStage(r.ok)
+      const fundamentalsCacheHit = r.ok === true && r.value.cached === true
+      if (!fundamentalsCacheHit) recordUsage(r.usage)
       logStage({
         symbol, exchange, stage: 'fundamentals', attempt: attempts + 1,
         invocationStartedAt, stageStartedAt: new Date(t0).toISOString(), stageEndedAt: iso(),
         durationMs: Date.now() - t0, remainingBeforeMs: remainingBefore,
         timeoutGrantedMs: cfg.timeoutMs,
         outcome: r.ok ? 'completed' : 'failed', failureKind: r.ok ? null : r.failure.kind,
+        ...usageFields(r.usage, fundamentalsCacheHit),
       })
       if (!r.ok) {
         await noteStepAttempt(supabase, stepId, attempts + 1, `${r.failure.kind}: ${r.failure.message}`, iso())
@@ -577,7 +642,6 @@ export async function runInvestmentCycle(
       }
       stage = 'qualitative'
       await setStepStage(supabase, stepId, stage, iso())
-      cycle!.counters.webSearchBudgetUsed += k.max_web_searches_per_analysis
     }
 
     // ── STAGE 2: qualitative ─────────────────────────────────────────────
@@ -588,6 +652,14 @@ export async function runInvestmentCycle(
       if (stored?.fresh) {
         qualitative = stored.qualitative
         cycle!.counters.cacheHits += 1
+        logStage({
+          symbol, exchange, stage: 'qualitative', attempt: attempts + 1,
+          invocationStartedAt, stageStartedAt: null, stageEndedAt: iso(), durationMs: 0,
+          remainingBeforeMs: budget.remaining(), timeoutGrantedMs: null,
+          outcome: 'completed', failureKind: null,
+          note: `served from cache (${stored.ageHours ?? 0}h old) — no research call made`,
+          ...usageFields(null, true),
+        })
         if (stage === 'qualitative') { stage = 'decision'; await setStepStage(supabase, stepId, stage, iso()) }
       }
     }
@@ -622,12 +694,14 @@ export async function runInvestmentCycle(
         constraintsNote, research: cfgQ, now: nowFn,
       })
       spendResearchStage(r.ok)
+      recordUsage(r.usage)
       logStage({
         symbol, exchange, stage: 'qualitative', attempt: attempts + 1,
         invocationStartedAt, stageStartedAt: new Date(tq).toISOString(), stageEndedAt: iso(),
         durationMs: Date.now() - tq, remainingBeforeMs: remainingBefore,
         timeoutGrantedMs: cfgQ.timeoutMs,
         outcome: r.ok ? 'completed' : 'failed', failureKind: r.ok ? null : r.failure.kind,
+        ...usageFields(r.usage),
       })
       if (!r.ok) {
         await noteStepAttempt(supabase, stepId, attempts + 1, `${r.failure.kind}: ${r.failure.message}`, iso())
@@ -640,7 +714,6 @@ export async function runInvestmentCycle(
       qualitative = r.value
       stage = 'decision'
       await setStepStage(supabase, stepId, stage, iso())
-      cycle!.counters.webSearchBudgetUsed += k.max_web_searches_per_analysis
     }
 
     // ── STAGE 3: decision — pure, no network, always affordable ──────────
@@ -676,6 +749,9 @@ export async function runInvestmentCycle(
         qualitativeCached: true,          // it was read from lab_research
         qualitative,
         searchBudgetUsed: 0,
+        // The stage machine accounts for its own calls in cycle.counters.usage
+        // as they happen; nothing further was spent to reach this decision.
+        usage: emptyTotals(),
         timings: {},
       },
     }
@@ -857,22 +933,44 @@ export async function runInvestmentCycle(
           yielded = 'discovery deferred to the next invocation'
         } else {
           const held = state.positions.map(p => p.symbol.toUpperCase())
-          const raw = await discover({ summary: summaryPortfolio(state), held, limit: room, research: researchBudget(1) })
-          const result: DiscoverResult = Array.isArray(raw) ? { ideas: raw, failure: null } : raw
-          if (result.failure) {
-            // A failed scan is NOT "no ideas". Leave discoveryRan false so the
-            // next invocation scans again rather than silently skipping it.
-            notes.push(`Idea scan did not complete (${result.failure}) — it will run again on the next invocation.`)
-            yielded = 'discovery will retry in the next invocation'
-          } else {
-            cycle.cursor.discoveryQueue = result.ideas
-              .map(i => ({ i, sym: String(i.symbol ?? '').trim().toUpperCase() }))
-              .filter(x => x.sym && !held.includes(x.sym))
-              .map(x => `${stepKey('idea', x.sym, x.i.exchange === 'BSE' ? 'BSE' : 'NSE')}|${(x.i.company_name ?? '').replace(/\|/g, ' ')}`)
+
+          // FREE FIRST. A previous cycle's scan usually surfaced more names than
+          // that cycle had allowance to evaluate. Those leftovers are already
+          // paid for; re-scanning to be told about them again is pure waste.
+          // They are only CANDIDATES — each is still researched and judged from
+          // scratch, so nothing about the Lab's conclusions changes.
+          const readCandidates = deps.readCandidates ?? (async (a: CandidateQuery) => readCarryOverCandidates({
+            supabase, userId, labId, ttlHours: a.ttlHours, now: nowFn(), exclude: a.exclude,
+          }))
+          const carried = await readCandidates({ ttlHours: k.candidate_ttl_hours, exclude: held })
+
+          if (carried && carried.entries.length) {
+            cycle.cursor.discoveryQueue = carried.entries.slice(0, room)
             cycle.cursor.discoveryRan = true
-            // Persist the candidates IMMEDIATELY: they cost a research call and
-            // must survive the invocation that found them.
-            notes.push(`Found ${cycle.cursor.discoveryQueue.length} candidate${cycle.cursor.discoveryQueue.length === 1 ? '' : 's'} to evaluate.`)
+            notes.push(
+              `Reused ${cycle.cursor.discoveryQueue.length} candidate${cycle.cursor.discoveryQueue.length === 1 ? '' : 's'} `
+              + `a previous cycle found but never evaluated (${carried.ageHours ?? 0}h old) — no new idea scan was needed. `
+              + `Each is still researched from scratch.`,
+            )
+          } else {
+            const raw = await discover({ summary: summaryPortfolio(state), held, limit: room, research: researchBudget(1) })
+            const result: DiscoverResult = Array.isArray(raw) ? { ideas: raw, failure: null } : raw
+            recordUsage(result.usage)
+            if (result.failure) {
+              // A failed scan is NOT "no ideas". Leave discoveryRan false so the
+              // next invocation scans again rather than silently skipping it.
+              notes.push(`Idea scan did not complete (${result.failure}) — it will run again on the next invocation.`)
+              yielded = 'discovery will retry in the next invocation'
+            } else {
+              cycle.cursor.discoveryQueue = result.ideas
+                .map(i => ({ i, sym: String(i.symbol ?? '').trim().toUpperCase() }))
+                .filter(x => x.sym && !held.includes(x.sym))
+                .map(x => `${stepKey('idea', x.sym, x.i.exchange === 'BSE' ? 'BSE' : 'NSE')}|${(x.i.company_name ?? '').replace(/\|/g, ' ')}`)
+              cycle.cursor.discoveryRan = true
+              // Persist the candidates IMMEDIATELY: they cost a research call and
+              // must survive the invocation that found them.
+              notes.push(`Found ${cycle.cursor.discoveryQueue.length} candidate${cycle.cursor.discoveryQueue.length === 1 ? '' : 's'} to evaluate.`)
+            }
           }
         }
       } else {
@@ -1065,6 +1163,9 @@ export interface ResearchSummary {
   stale: string[]
   corporate: CASyncResult | null
   notes: string[]
+  /** What this update consumed. `estimatedUsd` is arithmetic on a price list,
+   *  never a billed figure. */
+  usage: UsageTotals
 }
 
 export async function runResearchUpdate(
@@ -1092,9 +1193,12 @@ export async function runResearchUpdate(
       retries: remaining > 40_000 ? 2 : remaining > 20_000 ? 1 : 0,
       timeoutMs: Math.max(8_000, Math.min(60_000, Math.floor(remaining * share))),
       deadline,
-      maxUses: k.max_web_searches_per_analysis,
+      // A ceiling, not an instruction — see researchBudget in runInvestmentCycle.
+      maxUsesCap: k.max_web_searches_per_analysis,
     }
   }
+  let usage: UsageTotals = emptyTotals()
+  const spend = (u: CallUsage | undefined | null) => { if (u) usage = addUsage(usage, u) }
   const markOptions: MarkOptions = {
     ...(deps.markOptions ?? {}),
     fetchOptions: { timeoutMs: 8_000, retries: 1, concurrency: 4, deadline, ...(deps.markOptions?.fetchOptions ?? {}) },
@@ -1102,6 +1206,7 @@ export async function runResearchUpdate(
 
   // Corporate actions first — they change cash and share counts.
   const corporate = await syncCorporate(supabase, userId, lab, { now: nowFn(), research: budget(0.4) })
+  spend(corporate.usage)
   notes.push(...corporate.notes)
   if (corporate.failure) notes.push(`Corporate-action sync unavailable (${corporate.failure}).`)
   const reloaded = corporate.dividends || corporate.splits || corporate.bonuses
@@ -1117,7 +1222,8 @@ export async function runResearchUpdate(
   let regimeRefreshed = false
 
   if (!stored.fresh) {
-    const { regime: fresh, failure } = await assessRegime(budget(0.6))
+    const { regime: fresh, failure, usage: regimeUsage } = await assessRegime(budget(0.6))
+    spend(regimeUsage)
     if (fresh) {
       regime = fresh.state
       regimeRefreshed = true
@@ -1142,11 +1248,13 @@ export async function runResearchUpdate(
       nav: markResult.nav, benchmarks: markResult.benchmarks,
       trading_date: markResult.tradingDate, nav_written: markResult.navWritten,
       corporate: { dividends: corporate.dividends, splits: corporate.splits, bonuses: corporate.bonuses, flagged: corporate.flagged },
+      usage,
       as_of: nowFn().toISOString(),
     },
   })
 
   return {
+    usage,
     regime, regimeRefreshed,
     marked: markResult.markedPositions.length,
     navWritten: markResult.navWritten,

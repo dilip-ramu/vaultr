@@ -4,6 +4,7 @@
 // API routes can pass rows straight through to the client with minimal mapping.
 
 import type { ResearchFailure } from './claude'
+import type { CallUsage } from './models'
 
 export type Exchange = 'NSE' | 'BSE'
 
@@ -103,6 +104,9 @@ export interface FundamentalsResult {
   cached?: boolean
   /** When the underlying research was performed (ISO). */
   fetched_at?: string | null
+  /** What the research call consumed, when one was made. Absent on a cache hit
+   *  — which is the point: a cache hit costs nothing and must show nothing. */
+  usage?: CallUsage
 }
 
 export interface Recommendation {

@@ -10,6 +10,7 @@
 
 import { researchJson } from '../claude'
 import type { ResearchFailure } from '../claude'
+import type { CallUsage } from '../models'
 import type { MarketRegime, RegimeState, Source } from '../types'
 import type { ResearchOptions } from './fundamentals'
 import { istDateString } from '../marketdate'
@@ -23,7 +24,7 @@ const STATES: RegimeState[] = ['risk_on', 'neutral', 'cautious', 'risk_off', 'cr
 
 export async function getMarketRegime(
   research?: ResearchOptions,
-): Promise<{ regime: MarketRegime | null; error?: string; failure?: ResearchFailure }> {
+): Promise<{ regime: MarketRegime | null; error?: string; failure?: ResearchFailure; usage?: CallUsage }> {
   const prompt = `Assess the current market regime for Indian equities as of today. Use web search for the latest data.
 
 Return ONLY a JSON object of this exact shape:
@@ -38,17 +39,22 @@ Return ONLY a JSON object of this exact shape:
   }
 }
 Each driver value is one concise sentence stating the current reading AND its equity consequence. Be specific with numbers where known.`
-  const { data, sources, error, failure } = await researchJson<{
+  // Judgement, so it stays on the strong model — but it is cached for 24h
+  // (regime_ttl_hours), so the Lab pays for it once a day at most no matter how
+  // many cycles or resumes run.
+  const { data, sources, error, failure, usage } = await researchJson<{
     state?: string; summary?: string; reasons?: string[]; drivers?: Record<string, string>
   }>({
     system: SYSTEM, prompt, webSearch: true,
-    maxUses: research?.maxUses ?? 6,
+    task: 'regime',
+    maxUses: research?.maxUses,
+    maxUsesCap: research?.maxUsesCap,
     retries: research?.retries,
     timeoutMs: research?.timeoutMs,
     deadline: research?.deadline,
   })
 
-  if (!data) return { regime: null, error: error || 'No regime returned', failure }
+  if (!data) return { regime: null, error: error || 'No regime returned', failure, usage }
   const state = (STATES.includes(data.state as RegimeState) ? data.state : 'neutral') as RegimeState
   return {
     regime: {
@@ -59,5 +65,6 @@ Each driver value is one concise sentence stating the current reading AND its eq
       drivers: (data.drivers && typeof data.drivers === 'object') ? data.drivers : {},
       sources: sources as Source[],
     },
+    usage,
   }
 }

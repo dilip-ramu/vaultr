@@ -1,5 +1,6 @@
 // Inex Investment Lab — shared types. Mirrors the v110/v111/v112 lab_* tables.
 
+import type { UsageTotals } from '../models'
 import type { Exchange, RecAction, Source, ScoreBreakdown, RegimeState } from '../types'
 
 /**
@@ -43,6 +44,14 @@ export interface LabConstraints {
   regime_ttl_hours?: number
   /** A position priced no later than this many hours ago is still "fresh". */
   price_staleness_hours?: number
+  /**
+   * Candidates found by a previous cycle's idea scan but never evaluated are
+   * reused for this long instead of paying for a fresh scan. A scan is one of
+   * the most expensive calls the Lab makes and a cycle routinely finds more
+   * ideas than its analysis allowance can look at — throwing the remainder away
+   * meant paying for the same names again on the next cycle.
+   */
+  candidate_ttl_hours?: number
 }
 
 export type ResolvedConstraints = Required<LabConstraints>
@@ -227,6 +236,16 @@ export interface StageLogEntry {
   outcome: 'completed' | 'yielded_before_start' | 'failed'
   failureKind: string | null
   note?: string
+  /** Model the stage actually used, when it made a call. */
+  model?: string | null
+  /** Searches the API says it ran — not the ceiling we allowed. */
+  webSearches?: number | null
+  inputTokens?: number | null
+  outputTokens?: number | null
+  /** ESTIMATED from the price list. Never a billed figure. */
+  estimatedUsd?: number | null
+  /** True when this stage was served from cache and cost nothing. */
+  cacheHit?: boolean
 }
 
 export interface CycleCounters {
@@ -240,6 +259,13 @@ export interface CycleCounters {
   webSearchBudgetUsed: number  // upper-bound estimate of searches consumed
   /** Expensive research stages attempted, successful or not. Operational. */
   stageAttempts?: number
+  /**
+   * What this cycle actually consumed, folded from the token counts the API
+   * returned on each call. `estimatedUsd` is ARITHMETIC ON A PRICE LIST, not a
+   * billed amount — see lib/investments/models.ts. `unpricedCalls` counts calls
+   * we could not estimate at all, so the total always reads as "at least".
+   */
+  usage?: UsageTotals
 }
 
 export interface LabCycle {

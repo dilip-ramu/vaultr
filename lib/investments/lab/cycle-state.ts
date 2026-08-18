@@ -16,6 +16,7 @@
 // whether the trade landed and reconcile from it (see reconcileStep in cycle.ts).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { emptyTotals } from '../models'
 import type { LabCycle, LabCycleStep, CycleCursor, CycleCounters, CycleStatus, CyclePhase, CycleStepStatus } from './types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -34,6 +35,7 @@ export function emptyCounters(): CycleCounters {
   return {
     analyses: 0, cacheHits: 0, actions: 0, invocations: 0,
     deferred: 0, failures: 0, webSearchBudgetUsed: 0, stageAttempts: 0,
+    usage: emptyTotals(),
   }
 }
 
@@ -186,4 +188,70 @@ export async function finishStep(params: {
 export async function listSteps(supabase: SupabaseClient, cycleId: string): Promise<LabCycleStep[]> {
   const { data } = await supabase.from('lab_cycle_steps').select('*').eq('cycle_id', cycleId)
   return (data ?? []) as LabCycleStep[]
+}
+
+// ── Carrying unevaluated candidates across cycles (efficiency pass) ─────────
+//
+// An idea scan is one of the Lab's most expensive calls, and it routinely
+// returns more names than the cycle's analysis allowance can evaluate. Those
+// leftovers used to be discarded with the cycle, so the next cycle paid for a
+// scan that largely re-surfaced the same companies.
+//
+// A candidate is just a name to look at — it is NOT research, NOT a decision,
+// and NOT part of the immutable record. Reusing one changes nothing about what
+// the Lab concludes: every carried name is still researched from scratch and
+// still judged on its own evidence. It only stops us paying to be told about it
+// twice.
+//
+// Reuse is bounded three ways: a TTL, a same-Lab-only restriction, and an
+// exclusion of anything now held.
+
+export interface CarryOverCandidates {
+  entries: string[]
+  fromCycleId: string
+  ageHours: number | null
+}
+
+export async function readCarryOverCandidates(params: {
+  supabase: SupabaseClient
+  userId: string
+  labId: string
+  ttlHours: number
+  now?: Date
+  /** Symbols already held — never re-queued as a new idea. */
+  exclude?: string[]
+}): Promise<CarryOverCandidates | null> {
+  const { supabase, userId, labId, ttlHours } = params
+  const now = params.now ?? new Date()
+  const exclude = new Set((params.exclude ?? []).map(s => s.toUpperCase()))
+
+  const { data } = await supabase.from('lab_cycles')
+    .select('*')
+    .eq('lab_id', labId).eq('user_id', userId)
+    .order('started_at', { ascending: false })
+    .limit(5)
+
+  for (const row of (data ?? []) as any[]) {
+    const cycle = hydrate(row)
+    // An OPEN cycle's queue is still being worked by whoever owns it. Only a
+    // finished cycle's leftovers are genuinely abandoned and safe to reuse.
+    if (OPEN_STATUSES.includes(cycle.status)) continue
+    const stamp = cycle.completed_at ?? cycle.updated_at ?? cycle.started_at
+    const age = stamp ? (now.getTime() - new Date(stamp).getTime()) / 3_600_000 : null
+    if (age == null || !Number.isFinite(age) || age > ttlHours) continue
+
+    const remaining = (cycle.cursor.discoveryQueue ?? [])
+      .slice(cycle.cursor.discoveryIndex ?? 0)
+      .filter(entry => {
+        const [key] = String(entry).split('|')
+        const parts = key.split(':')
+        const sym = (parts[1] ?? '').toUpperCase()
+        return sym.length > 0 && !exclude.has(sym)
+      })
+
+    if (remaining.length) {
+      return { entries: remaining, fromCycleId: cycle.id, ageHours: Math.round(age * 10) / 10 }
+    }
+  }
+  return null
 }

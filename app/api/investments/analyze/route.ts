@@ -132,7 +132,10 @@ export async function POST(req: NextRequest) {
 
   console.info('[investments/analyze] complete', {
     symbol, exchange, action: recommendation.action,
-    cached: outcome.fundamentalsCached, timings: outcome.timings, elapsedMs: budget.elapsed(),
+    cached: outcome.fundamentalsCached,
+    calls: outcome.usage.calls, searches: outcome.usage.webSearches,
+    estimatedUsd: outcome.usage.estimatedUsd, byModel: outcome.usage.byModel,
+    timings: outcome.timings, elapsedMs: budget.elapsed(),
   })
 
   return NextResponse.json({
@@ -141,6 +144,9 @@ export async function POST(req: NextRequest) {
     breakdown: recommendation.score_breakdown,
     fundamentalsCached: outcome.fundamentalsCached,
     qualitativeCached: outcome.qualitativeCached,
+    // What this analysis consumed. estimatedUsd is arithmetic on a published
+    // price list, NOT a billed amount — the UI labels it as an estimate.
+    usage: outcome.usage,
     timings: outcome.timings,
     elapsedMs: budget.elapsed(),
   })

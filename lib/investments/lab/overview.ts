@@ -13,6 +13,7 @@
 //      computeMetrics), so a number on screen can never disagree with a number
 //      in the ledger.
 
+import { emptyTotals, PRICES_AS_OF, type UsageTotals } from '../models'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeNav } from './accounting'
 import { computeMetrics, type Metrics } from './metrics'
@@ -80,7 +81,46 @@ export interface LabStatus {
     attempts: number
     lastError: string | null
   }[]
+  /**
+   * What the Lab's research has consumed. EVERY dollar figure here is
+   * ESTIMATED: it is arithmetic on the token counts the API returned times a
+   * published price list held in the code. It is not the Anthropic invoice, it
+   * cannot see the invoice, and the UI must always say so.
+   */
+  research: {
+    lastCycle: UsageTotals | null
+    recent: UsageTotals
+    cyclesCounted: number
+    /** Date the price list in lib/investments/models.ts was last checked. */
+    pricesAsOf: string
+  }
   warnings: string[]
+}
+
+/** Fold one cycle's totals into a running sum. Kept local because it is only
+ *  ever used to present history — the authoritative per-cycle numbers stay on
+ *  the cycle rows themselves. */
+function mergeTotals(a: UsageTotals, b: UsageTotals | undefined | null): UsageTotals {
+  if (!b) return a
+  const byModel = { ...a.byModel }
+  for (const [model, v] of Object.entries(b.byModel ?? {})) {
+    const prev = byModel[model] ?? { calls: 0, estimatedUsd: 0 }
+    byModel[model] = {
+      calls: prev.calls + v.calls,
+      estimatedUsd: Math.round((prev.estimatedUsd + v.estimatedUsd) * 1e6) / 1e6,
+    }
+  }
+  return {
+    calls: a.calls + b.calls,
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheReadTokens: a.cacheReadTokens + b.cacheReadTokens,
+    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
+    webSearches: a.webSearches + b.webSearches,
+    estimatedUsd: Math.round((a.estimatedUsd + b.estimatedUsd) * 1e6) / 1e6,
+    unpricedCalls: a.unpricedCalls + b.unpricedCalls,
+    byModel,
+  }
 }
 
 export interface LabOverview {
@@ -150,7 +190,9 @@ const EMPTY: LabOverview = {
   status: {
     labStatus: 'none', baselinePinned: false, baselineAsOf: null, holdingsCount: 0, cash: 0,
     lastMark: null, lastCycle: null, openCycle: null, lastResearchAt: null, lastCycleAt: null,
-    openCycleSteps: [], warnings: [],
+    openCycleSteps: [],
+    research: { lastCycle: null, recent: emptyTotals(), cyclesCounted: 0, pricesAsOf: PRICES_AS_OF },
+    warnings: [],
   },
 }
 
@@ -350,6 +392,12 @@ export async function getLabOverview(
     lastResearchAt: (researchRows as any[])?.[0]?.ts ?? null,
     lastCycleAt: lastCycle?.started_at ?? null,
     openCycleSteps,
+    research: {
+      lastCycle: lastCycle?.counters?.usage ?? null,
+      recent: cycles.reduce<UsageTotals>((acc, c) => mergeTotals(acc, c.counters?.usage), emptyTotals()),
+      cyclesCounted: cycles.length,
+      pricesAsOf: PRICES_AS_OF,
+    },
     warnings,
   }
 

@@ -2,6 +2,7 @@
 // deterministic stand-ins for the two things the Lab cannot call in a test: the
 // price feed and the AI analysis.
 
+import { emptyTotals } from '@/lib/investments/models'
 import { FakeSupabase } from './fake-supabase'
 import { DEFAULT_LAB_CONSTRAINTS } from '@/lib/investments/lab/config'
 import { DEFAULT_COST_MODEL } from '@/lib/investments/lab/costs'
@@ -98,6 +99,7 @@ export function okAnalysis(args: {
   const dc = args.dataConfidence ?? 80
   return {
     ok: true,
+    usage: emptyTotals(),
     recommendation: {
       symbol: args.symbol, exchange, company_name: args.companyName ?? `${args.symbol} Ltd`,
       action: args.action, current_price: args.price,

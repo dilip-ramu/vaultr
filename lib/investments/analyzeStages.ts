@@ -26,6 +26,7 @@
 
 import { getFundamentals, type FundamentalsInput, type ResearchOptions } from './providers/fundamentals'
 import { researchJson, isTransport, type ResearchErrorKind } from './claude'
+import type { CallUsage } from './models'
 import { scoreSecurity } from './scoring'
 import { decide, type Decision, type DecideConfig } from './recommend'
 import type { PortfolioSummary } from './portfolio'
@@ -49,8 +50,8 @@ export interface StageFailure {
 }
 
 export type StageResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; failure: StageFailure }
+  | { ok: true; value: T; usage?: CallUsage }
+  | { ok: false; failure: StageFailure; usage?: CallUsage }
 
 /** The qualitative half, in the shape it is persisted and re-read in. */
 export interface QualitativeResearch {
@@ -108,6 +109,7 @@ export async function runFundamentalsStage(
   if (fundamentals.failure && isTransport(fundamentals.failure.kind)) {
     return {
       ok: false,
+      usage: fundamentals.usage,
       failure: {
         kind: fundamentals.failure.kind, stage: 'fundamentals',
         message: fundamentals.failure.message,
@@ -115,7 +117,7 @@ export async function runFundamentalsStage(
       },
     }
   }
-  return { ok: true, value: fundamentals }
+  return { ok: true, value: fundamentals, usage: fundamentals.usage }
 }
 
 // ── Stage 2: qualitative ────────────────────────────────────────────────────
@@ -160,17 +162,24 @@ export async function runQualitativeStage(
   p: QualitativeStageParams,
 ): Promise<StageResult<QualitativeResearch>> {
   const nowFn = p.now ?? (() => new Date())
+  // THE JUDGEMENT CALL. Routed to the strong model deliberately and
+  // permanently: this is the reasoning the ₹10L experiment is actually testing,
+  // and making it cheaper by making it weaker would invalidate the experiment.
+  // Its search budget is trimmed (5, not 6) because the verified fundamentals
+  // are already in the prompt — these searches are for recent developments, not
+  // for the numbers.
   const res = await researchJson<Omit<QualitativeResearch, 'sources' | 'researched_at'>>({
     system: ANALYSIS_SYSTEM,
     prompt: buildQualitativePrompt(p),
     webSearch: true,
-    maxTokens: 4096,
+    task: 'qualitative',
     ...p.research,
   })
 
   if (res.failure) {
     return {
       ok: false,
+      usage: res.usage,
       failure: {
         kind: res.failure.kind, stage: 'qualitative',
         message: res.failure.message, retryable: res.failure.retryable,
@@ -183,6 +192,7 @@ export async function runQualitativeStage(
   const a = res.data ?? {}
   return {
     ok: true,
+    usage: res.usage,
     value: {
       qualitative: a.qualitative,
       fair_value_low: num(a.fair_value_low), fair_value_high: num(a.fair_value_high),
