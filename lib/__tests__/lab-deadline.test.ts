@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   createBudget, unlimitedBudget, stopwatch,
-  MIN_RESEARCH_CALL_MS, CALL_RESERVE_MS, ROUTE_MAX_MS, SAFETY_MS,
+  MIN_RESEARCH_STAGE_MS, CALL_RESERVE_MS, ROUTE_MAX_MS, SAFETY_MS,
 } from '@/lib/investments/deadline'
 import { researchJson, backoffMs } from '@/lib/investments/claude'
 import { analyzeSymbol } from '@/lib/investments/analyzeCore'
@@ -32,9 +32,9 @@ describe('request budget', () => {
 
   it('refuses to start research it cannot finish', () => {
     const spent = createBudget({ totalMs: 10_000, now: Date.now() - 9_000 })
-    expect(spent.enough(MIN_RESEARCH_CALL_MS)).toBe(false)
+    expect(spent.enough(MIN_RESEARCH_STAGE_MS)).toBe(false)
     const fresh = createBudget({ totalMs: 60_000, now: Date.now() })
-    expect(fresh.enough(MIN_RESEARCH_CALL_MS)).toBe(true)
+    expect(fresh.enough(MIN_RESEARCH_STAGE_MS)).toBe(true)
   })
 
   it('only allows a retry when a WHOLE further attempt fits', () => {
@@ -248,12 +248,12 @@ describe('a cycle that runs out of time yields and resumes (item 3)', () => {
 
   it('a buy interrupted by the budget is never executed twice', async () => {
     const db = seedDb({
-      lab: { constraints: { ...DEFAULT_LAB_CONSTRAINTS, max_analyses_per_invocation: 1 } } as never,
       positions: [position({ symbol: 'AAA', quantity: 10, cost_basis: 10_000, last_price: 1000 })],
     })
     const buy = async (p: any) => okAnalysis({ symbol: p.symbol, action: 'STRONG_BUY', price: 1000, maxAllocPct: 10 })
+    const d = (a: any) => ({ ...deps(a), maxStagesPerInvocation: 1 })
 
-    await runInvestmentCycle(asClient(db), USER, LAB, deps(buy))
+    await runInvestmentCycle(asClient(db), USER, LAB, d(buy))
     const tradesAfterFirst = db.count('lab_trades')
     expect(tradesAfterFirst).toBe(1)
 
@@ -262,7 +262,7 @@ describe('a cycle that runs out of time yields and resumes (item 3)', () => {
     step.status = 'claimed'
     db.rows('lab_cycles')[0].cursor = { ...db.rows('lab_cycles')[0].cursor, holdingIndex: 0 }
 
-    await runInvestmentCycle(asClient(db), USER, LAB, deps(buy))
+    await runInvestmentCycle(asClient(db), USER, LAB, d(buy))
     expect(db.count('lab_trades')).toBe(1)                    // still one
     expect(db.rows('lab_decisions').filter((d: Row) => d.symbol === 'AAA' && d.kind === 'add')).toHaveLength(1)
   })

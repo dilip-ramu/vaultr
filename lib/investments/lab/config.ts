@@ -14,6 +14,41 @@
 import type { DecideConfig } from '../recommend'
 import type { LabConstraints, ResolvedConstraints, CostModel } from './types'
 
+/**
+ * WHO OWNS WHAT (Deploy #6, item 9).
+ *
+ * Two kinds of number live in `lab_accounts.constraints`, and conflating them
+ * was a real bug: the live Lab was created with `invocation_budget_ms: 45000`
+ * baked into its row, so changing the code default could never reach it.
+ *
+ *   INVESTMENT POLICY  — belongs to the experiment. Ceilings, floors, the
+ *     confidence gate, how many securities a cycle may research. These are the
+ *     rules the ₹10L experiment runs under; they must stay account-owned and
+ *     stable, or historical results stop meaning anything.
+ *
+ *   EXECUTION PLATFORM — belongs to the deployment. How long a serverless
+ *     request may run, how long a research call may take, cache TTLs. These
+ *     describe Vercel and Anthropic, not the investment thesis. They are
+ *     CODE-OWNED: a stored value is ignored, so a redeploy fixes them
+ *     everywhere without touching a single account row — and without weakening
+ *     the immutability of the experiment's actual rules.
+ */
+export const EXECUTION_OWNED_KEYS = [
+  'max_research_stages_per_invocation',
+  'max_web_searches_per_analysis',
+  'invocation_budget_ms',
+  'fundamentals_ttl_hours',
+  'qualitative_ttl_hours',
+  'regime_ttl_hours',
+  'price_staleness_hours',
+] as const
+
+export const POLICY_OWNED_KEYS = [
+  'max_single_pct', 'max_sector_pct', 'min_data_confidence', 'min_price',
+  'no_leverage', 'no_shorting', 'no_derivatives',
+  'max_actions_per_cycle', 'min_cash_pct', 'max_analyses_per_cycle',
+] as const
+
 /** Defaults for a new Lab. Deliberately conservative. */
 export const DEFAULT_LAB_CONSTRAINTS: ResolvedConstraints = {
   max_single_pct: 10,
@@ -26,10 +61,29 @@ export const DEFAULT_LAB_CONSTRAINTS: ResolvedConstraints = {
   max_actions_per_cycle: 6,
 
   min_cash_pct: 2,                    // never spend the account to zero
-  max_analyses_per_cycle: 8,          // total AI analyses one cycle may spend
-  max_analyses_per_invocation: 2,     // per request, so it finishes in time
-  max_web_searches_per_analysis: 6,
-  invocation_budget_ms: 45_000,       // yield before any plausible platform cap
+  // SECURITIES fully analysed per cycle — not stages. A security counts once,
+  // when it reaches a completed decision (Deploy #6, item 3).
+  max_analyses_per_cycle: 8,
+
+  // ── Execution platform (code-owned) ──────────────────────────────────────
+  //
+  // THE ARITHMETIC, since this is the number that has bitten us twice:
+  //
+  //   Vercel route wall                                    60,000 ms
+  //   − finalize after the work loop (re-mark, cycle
+  //     summary, saves: 2 index quotes + ~4 DB writes)      ~4,000 ms
+  //   − loadAccount before the budget clock starts            ~300 ms
+  //   − response serialisation                               ~200 ms
+  //   ────────────────────────────────────────────────────────────────
+  //   genuinely available to the work loop                 ~55,500 ms
+  //
+  // We take 48,000 and keep ~7,500 ms of real slack on top of the 7,000 ms
+  // SAFETY_MS already held back inside createBudget. Raising this to 53,000 (as
+  // first sketched) would have left barely 2 s of true margin; predictable
+  // execution is worth more than the last few hundred milliseconds.
+  max_research_stages_per_invocation: 2,
+  max_web_searches_per_analysis: 6,   // research breadth — NOT a latency dial
+  invocation_budget_ms: 48_000,
   fundamentals_ttl_hours: 168,        // 7 days — results move quarterly
   qualitative_ttl_hours: 12,          // survives a resume; does not age into staleness
   regime_ttl_hours: 24,
@@ -65,13 +119,16 @@ export function resolveConstraints(raw: unknown): ResolvedConstraints {
     max_actions_per_cycle: num(k.max_actions_per_cycle, d.max_actions_per_cycle),
     min_cash_pct: num(k.min_cash_pct, d.min_cash_pct),
     max_analyses_per_cycle: num(k.max_analyses_per_cycle, d.max_analyses_per_cycle),
-    max_analyses_per_invocation: num(k.max_analyses_per_invocation, d.max_analyses_per_invocation),
-    max_web_searches_per_analysis: num(k.max_web_searches_per_analysis, d.max_web_searches_per_analysis),
-    invocation_budget_ms: num(k.invocation_budget_ms, d.invocation_budget_ms),
-    fundamentals_ttl_hours: num(k.fundamentals_ttl_hours, d.fundamentals_ttl_hours),
-    qualitative_ttl_hours: num(k.qualitative_ttl_hours, d.qualitative_ttl_hours),
-    regime_ttl_hours: num(k.regime_ttl_hours, d.regime_ttl_hours),
-    price_staleness_hours: num(k.price_staleness_hours, d.price_staleness_hours),
+
+    // Execution values come from CODE, never from the row. A Lab created months
+    // ago must not pin this deployment to yesterday's timings.
+    max_research_stages_per_invocation: d.max_research_stages_per_invocation,
+    max_web_searches_per_analysis: d.max_web_searches_per_analysis,
+    invocation_budget_ms: d.invocation_budget_ms,
+    fundamentals_ttl_hours: d.fundamentals_ttl_hours,
+    qualitative_ttl_hours: d.qualitative_ttl_hours,
+    regime_ttl_hours: d.regime_ttl_hours,
+    price_staleness_hours: d.price_staleness_hours,
   }
 }
 
@@ -113,8 +170,7 @@ export function validateConstraints(k: LabConstraints): string[] {
   if (r.min_cash_pct < 0 || r.min_cash_pct >= 100) errs.push('min_cash_pct must be between 0 and 100.')
   if (r.min_data_confidence < 0 || r.min_data_confidence > 100) errs.push('min_data_confidence must be between 0 and 100.')
   if (r.min_price < 0) errs.push('min_price cannot be negative.')
-  if (r.max_analyses_per_invocation > r.max_analyses_per_cycle) errs.push('max_analyses_per_invocation cannot exceed max_analyses_per_cycle.')
-  if (r.max_analyses_per_invocation < 1) errs.push('max_analyses_per_invocation must be at least 1 or a cycle can never progress.')
+  if (r.max_research_stages_per_invocation < 1) errs.push('max_research_stages_per_invocation must be at least 1 or a cycle can never progress.')
   if (r.max_actions_per_cycle < 0) errs.push('max_actions_per_cycle cannot be negative.')
   if (r.invocation_budget_ms < 5_000) errs.push('invocation_budget_ms is too small to complete a single analysis.')
   if (!r.no_shorting || !r.no_leverage || !r.no_derivatives) errs.push('The Lab is delivery-equity only: no_shorting, no_leverage and no_derivatives must all stay true.')

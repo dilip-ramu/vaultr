@@ -31,7 +31,10 @@ export function emptyCursor(): CycleCursor {
 }
 
 export function emptyCounters(): CycleCounters {
-  return { analyses: 0, cacheHits: 0, actions: 0, invocations: 0, deferred: 0, failures: 0, webSearchBudgetUsed: 0 }
+  return {
+    analyses: 0, cacheHits: 0, actions: 0, invocations: 0,
+    deferred: 0, failures: 0, webSearchBudgetUsed: 0, stageAttempts: 0,
+  }
 }
 
 export function stepKey(kind: string, symbol: string, exchange: string): string {

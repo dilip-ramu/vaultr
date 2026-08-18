@@ -21,7 +21,7 @@ import {
 import type { Decision, DecideConfig } from './recommend'
 import type { PortfolioSummary } from './portfolio'
 import {
-  unlimitedBudget, stopwatch, MIN_RESEARCH_CALL_MS,
+  unlimitedBudget, stopwatch, MIN_RESEARCH_STAGE_MS,
   type RequestBudget, type Timings,
 } from './deadline'
 import type { Exchange, RegimeState, ScoreBreakdown, FundamentalsResult } from './types'
@@ -122,7 +122,7 @@ export async function analyzeSymbol(params: AnalyzeParams): Promise<AnalyzeOutco
   const qualitativeCached = qualitative != null
 
   if (!qualitative) {
-    if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
+    if (!budget.enough(MIN_RESEARCH_STAGE_MS)) {
       const saved = params.persistsFundamentals === true && !fundamentalsCached
       return {
         ok: false,

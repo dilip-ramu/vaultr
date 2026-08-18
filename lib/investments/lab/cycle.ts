@@ -31,7 +31,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { analyzeSymbol, type AnalyzeResult, type AnalyzeParams, type AnalyzeOutcome } from '../analyzeCore'
 import {
-  createBudget, MIN_RESEARCH_CALL_MS, ROUTE_MAX_MS, SAFETY_MS,
+  createBudget, MIN_RESEARCH_STAGE_MS, ROUTE_MAX_MS, SAFETY_MS,
   type RequestBudget,
 } from '../deadline'
 import { analyzePortfolio, type PortfolioSummary } from '../portfolio'
@@ -58,7 +58,7 @@ import {
 } from './cycle-state'
 import type {
   LabAccount, LabState, EngineResult, Exchange, RegimeState,
-  LabCycle, ResolvedConstraints, DeferReason,
+  LabCycle, ResolvedConstraints, DeferReason, StageLogEntry,
 } from './types'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -80,6 +80,12 @@ export interface CycleDeps {
   discover?: (args: DiscoverArgs) => Promise<Idea[] | DiscoverResult>
   assessRegime?: typeof getMarketRegime
   markOptions?: MarkOptions
+  /** Test seam: supply a pre-spent or generous budget without touching the
+   *  account's investment policy. */
+  budget?: RequestBudget
+  /** Test seam: cap research stages per invocation. In production this comes
+   *  from code-owned config, never from the account row. */
+  maxStagesPerInvocation?: number
 }
 
 export interface Idea { symbol: string; exchange?: string; company_name?: string; category?: string; thesis?: string }
@@ -334,10 +340,18 @@ export async function runInvestmentCycle(
   const invocationStart = Date.now()
   // The wall is the PLATFORM's, not a number we picked. invocation_budget_ms is
   // how much of it we allow ourselves to spend on work.
-  const budget: RequestBudget = createBudget({
+  const budget: RequestBudget = deps.budget ?? createBudget({
     totalMs: Math.min(k.invocation_budget_ms + SAFETY_MS, ROUTE_MAX_MS),
     now: invocationStart,
   })
+  const invocationStartedAt = new Date(invocationStart).toISOString()
+  const stageLog: StageLogEntry[] = []
+  /** Evidence, not guesswork: every stage decision is recorded with the budget
+   *  that produced it, so the next production run is measurable. */
+  const logStage = (e: StageLogEntry) => {
+    stageLog.push(e)
+    console.info('[lab/cycle] stage', e)
+  }
   const invocationDeadline = budget.deadline
   const notes: string[] = []
   const deferred: { symbol: string; reason: string }[] = []
@@ -435,15 +449,16 @@ export async function runInvestmentCycle(
     navWritten: markResult.navWritten, notes,
   }
 
-  let analysesThisInvocation = 0
+  let researchStagesThisInvocation = 0
   let consecutiveTransportFailures = 0
 
   const invocationExhausted = (): string | null => {
-    if (analysesThisInvocation >= k.max_analyses_per_invocation) return 'per-invocation analysis budget'
+    const stageCap = deps.maxStagesPerInvocation ?? k.max_research_stages_per_invocation
+    if (researchStagesThisInvocation >= stageCap) return 'per-invocation research budget'
     // The decisive check: never START a web-search call that cannot finish
     // before the platform's wall. Yielding here is what turns a 504 into an
     // honest 'in_progress'.
-    if (!budget.enough(MIN_RESEARCH_CALL_MS)) return 'not enough time left for another analysis'
+    if (!budget.enough(MIN_RESEARCH_STAGE_MS)) return 'not enough time left for another analysis'
     if (consecutiveTransportFailures >= 2) return 'repeated research failures'
     return null
   }
@@ -473,9 +488,18 @@ export async function runInvestmentCycle(
     | { kind: 'yield'; note: string }
     | { kind: 'failed'; failure: StageFailure }
 
-  const spendAnalysis = (ok: boolean) => {
-    analysesThisInvocation++
-    cycle!.counters.analyses += 1
+  /**
+   * A research STAGE was attempted. This is operational accounting: it bounds
+   * how much work one invocation does, and it is deliberately NOT the same as
+   * `counters.analyses`, which counts SECURITIES that reached a decision.
+   *
+   * Production showed why this matters: four fundamentals plus four aborted
+   * qualitative attempts read as "8 analyses", exhausted the cycle allowance,
+   * and the cycle ended with 0 actions and 4 securities never looked at.
+   */
+  const spendResearchStage = (ok: boolean) => {
+    researchStagesThisInvocation++
+    cycle!.counters.stageAttempts = (cycle!.counters.stageAttempts ?? 0) + 1
     if (ok) consecutiveTransportFailures = 0
     else { consecutiveTransportFailures++; cycle!.counters.failures += 1 }
   }
@@ -497,9 +521,10 @@ export async function runInvestmentCycle(
         research: researchBudget(1), loadFundamentals: cacheLoader,
         budget, persistsFundamentals: true,
       })
-      spendAnalysis(outcome.ok)
+      spendResearchStage(outcome.ok)
       if (outcome.ok) {
         cycle!.counters.webSearchBudgetUsed += outcome.searchBudgetUsed
+        cycle!.counters.analyses += 1
         return { kind: 'complete', result: outcome }
       }
       const f = outcome.failure
@@ -518,15 +543,32 @@ export async function runInvestmentCycle(
 
     // ── STAGE 1: fundamentals ────────────────────────────────────────────
     if (stage === 'fundamentals') {
-      if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
+      const remainingBefore = budget.remaining()
+      if (!budget.enough(MIN_RESEARCH_STAGE_MS)) {
+        logStage({
+          symbol, exchange, stage: 'fundamentals', attempt: attempts + 1,
+          invocationStartedAt, stageStartedAt: null, stageEndedAt: null, durationMs: null,
+          remainingBeforeMs: remainingBefore, timeoutGrantedMs: null,
+          outcome: 'yielded_before_start', failureKind: null,
+          note: `needs ${MIN_RESEARCH_STAGE_MS}ms`,
+        })
         return { kind: 'yield', note: `${symbol}: not enough time to research fundamentals — next run starts here.` }
       }
+      const cfg = researchBudget(1)
+      const t0 = Date.now()
       const r = await doFundamentals({
         symbol, exchange, companyName,
-        research: researchBudget(1),
+        research: cfg,
         loadFundamentals: cacheLoader,      // writes through to inv_securities
       })
-      spendAnalysis(r.ok)
+      spendResearchStage(r.ok)
+      logStage({
+        symbol, exchange, stage: 'fundamentals', attempt: attempts + 1,
+        invocationStartedAt, stageStartedAt: new Date(t0).toISOString(), stageEndedAt: iso(),
+        durationMs: Date.now() - t0, remainingBeforeMs: remainingBefore,
+        timeoutGrantedMs: cfg.timeoutMs,
+        outcome: r.ok ? 'completed' : 'failed', failureKind: r.ok ? null : r.failure.kind,
+      })
       if (!r.ok) {
         await noteStepAttempt(supabase, stepId, attempts + 1, `${r.failure.kind}: ${r.failure.message}`, iso())
         return r.failure.retryable
@@ -551,8 +593,18 @@ export async function runInvestmentCycle(
     }
 
     if (!qualitative) {
-      if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
-        // The exact case that used to burn a doomed 8-second call.
+      const remainingBefore = budget.remaining()
+      if (!budget.enough(MIN_RESEARCH_STAGE_MS)) {
+        // THE case this milestone exists for. With ~19s left the old gate let
+        // this through, granted a 16s timeout to a 30s call, and threw away
+        // research Anthropic had already performed and billed.
+        logStage({
+          symbol, exchange, stage: 'qualitative', attempt: attempts + 1,
+          invocationStartedAt, stageStartedAt: null, stageEndedAt: null, durationMs: null,
+          remainingBeforeMs: remainingBefore, timeoutGrantedMs: null,
+          outcome: 'yielded_before_start', failureKind: null,
+          note: `needs ${MIN_RESEARCH_STAGE_MS}ms`,
+        })
         return { kind: 'yield', note: `${symbol}: fundamentals are banked; not enough time left for the qualitative research — next run starts there.` }
       }
       const fundamentalsForPrompt = await readFundamentalsCache(supabase, userId, symbol, exchange, k.fundamentals_ttl_hours, nowFn())
@@ -561,13 +613,22 @@ export async function runInvestmentCycle(
         return { kind: 'yield', note: `${symbol}: cached fundamentals expired — restarting at fundamentals next run.` }
       }
       const price = await getPrice(symbol, exchange, quoteBudget())
+      const cfgQ = researchBudget(1)
+      const tq = Date.now()
       const r = await doQualitative({
         symbol, exchange, companyName,
         currentPrice: price?.price ?? null,
         regimeState, fundamentals: fundamentalsForPrompt,
-        constraintsNote, research: researchBudget(1), now: nowFn,
+        constraintsNote, research: cfgQ, now: nowFn,
       })
-      spendAnalysis(r.ok)
+      spendResearchStage(r.ok)
+      logStage({
+        symbol, exchange, stage: 'qualitative', attempt: attempts + 1,
+        invocationStartedAt, stageStartedAt: new Date(tq).toISOString(), stageEndedAt: iso(),
+        durationMs: Date.now() - tq, remainingBeforeMs: remainingBefore,
+        timeoutGrantedMs: cfgQ.timeoutMs,
+        outcome: r.ok ? 'completed' : 'failed', failureKind: r.ok ? null : r.failure.kind,
+      })
       if (!r.ok) {
         await noteStepAttempt(supabase, stepId, attempts + 1, `${r.failure.kind}: ${r.failure.message}`, iso())
         return r.failure.retryable
@@ -588,12 +649,22 @@ export async function runInvestmentCycle(
       await setStepStage(supabase, stepId, 'fundamentals', iso())
       return { kind: 'yield', note: `${symbol}: cached fundamentals expired before the decision — restarting next run.` }
     }
+    const tDecision = Date.now()
     const quote = await getPrice(symbol, exchange, quoteBudget())
     const currentPrice = quote?.price ?? null
 
     const { recommendation, breakdown, decision } = runDecisionStage({
       symbol, exchange, companyName, isHolding, currentPrice, regimeState,
       portfolio: summaryPortfolio(state), fundamentals, qualitative, config: decideConfig,
+    })
+
+    // THE allowance: one completed security, counted once, only here.
+    cycle!.counters.analyses += 1
+    logStage({
+      symbol, exchange, stage: 'decision', attempt: attempts + 1,
+      invocationStartedAt, stageStartedAt: new Date(tDecision).toISOString(), stageEndedAt: iso(),
+      durationMs: Date.now() - tDecision, remainingBeforeMs: budget.remaining(),
+      timeoutGrantedMs: null, outcome: 'completed', failureKind: null,
     })
 
     return {
@@ -617,7 +688,20 @@ export async function runInvestmentCycle(
     const budgetStop = cycleExhausted()
     if (budgetStop) { notes.push(`Stopped evaluating holdings: ${budgetStop} reached.`); break }
     const invStop = invocationExhausted()
-    if (invStop) { yielded = invStop; break }
+    if (invStop) {
+      // Record the refusal against the security we were about to start, so the
+      // evidence shows WHY nothing happened rather than leaving a silent gap.
+      const nextKey = cycle.cursor.holdingQueue[cycle.cursor.holdingIndex]
+      const [, nextSymbol, nextExchange] = nextKey.split(':')
+      logStage({
+        symbol: nextSymbol, exchange: nextExchange, stage: 'fundamentals', attempt: 0,
+        invocationStartedAt, stageStartedAt: null, stageEndedAt: null, durationMs: null,
+        remainingBeforeMs: budget.remaining(), timeoutGrantedMs: null,
+        outcome: 'yielded_before_start', failureKind: null, note: invStop,
+      })
+      yielded = invStop
+      break
+    }
 
     const key = cycle.cursor.holdingQueue[cycle.cursor.holdingIndex]
     const [, symbol, exchangeRaw] = key.split(':')
@@ -768,7 +852,7 @@ export async function runInvestmentCycle(
         // Discovery is a web-search call like any other: do not start it
         // without room to finish. This is what used to kill the whole request
         // when the Lab had no holdings and went straight here.
-        if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
+        if (!budget.enough(MIN_RESEARCH_STAGE_MS)) {
           notes.push('Not enough time left to scan for new ideas — the next run starts there.')
           yielded = 'discovery deferred to the next invocation'
         } else {
@@ -801,7 +885,19 @@ export async function runInvestmentCycle(
       const budgetStop = cycleExhausted()
       if (budgetStop) { notes.push(`Stopped evaluating new ideas: ${budgetStop} reached.`); break }
       const invStop = invocationExhausted()
-      if (invStop) { yielded = invStop; break }
+      if (invStop) {
+        const nextEntry = cycle.cursor.discoveryQueue[cycle.cursor.discoveryIndex]
+        const [nk] = nextEntry.split('|')
+        const [, nextSymbol, nextExchange] = nk.split(':')
+        logStage({
+          symbol: nextSymbol, exchange: nextExchange, stage: 'fundamentals', attempt: 0,
+          invocationStartedAt, stageStartedAt: null, stageEndedAt: null, durationMs: null,
+          remainingBeforeMs: budget.remaining(), timeoutGrantedMs: null,
+          outcome: 'yielded_before_start', failureKind: null, note: invStop,
+        })
+        yielded = invStop
+        break
+      }
 
       const entry = cycle.cursor.discoveryQueue[cycle.cursor.discoveryIndex]
       const [key, companyName] = entry.split('|')
@@ -911,11 +1007,11 @@ export async function runInvestmentCycle(
   const nowIso = nowFn().toISOString()
 
   if (!finishedWork && yielded) {
-    notes.push(`Paused after ${analysesThisInvocation} ${analysesThisInvocation === 1 ? 'analysis' : 'analyses'} (${yielded}). Run the cycle again to continue at item ${cycle.cursor.holdingIndex + cycle.cursor.discoveryIndex + 1} — it will not start over.`)
+    notes.push(`Paused after ${researchStagesThisInvocation} ${researchStagesThisInvocation === 1 ? 'research stage' : 'research stages'} (${yielded}). Run the cycle again to continue at item ${cycle.cursor.holdingIndex + cycle.cursor.discoveryIndex + 1} — it will not start over.`)
     await saveCycle(supabase, cycle, {
       status: 'in_progress', phase: cycle.cursor.discoveryRan ? 'discovery' : 'holdings',
       cursor: cycle.cursor, counters: cycle.counters,
-      summary: { ...cycle.summary, notes, deferred },
+      summary: { ...cycle.summary, notes, deferred, stageLog: stageLog.slice(-50) },
     }, nowIso)
   } else {
     const finalMark = await mark(supabase, userId, lab, markOpts())
@@ -939,7 +1035,7 @@ export async function runInvestmentCycle(
     await saveCycle(supabase, cycle, {
       status: anyProblem ? 'partial' : 'completed', phase: 'done',
       cursor: cycle.cursor, counters: cycle.counters, completed_at: nowIso,
-      summary: { ...cycle.summary, notes, deferred },
+      summary: { ...cycle.summary, notes, deferred, stageLog: stageLog.slice(-50) },
     }, nowIso)
   }
 

@@ -15,7 +15,7 @@ describe('one authoritative configuration (item 6)', () => {
       no_leverage: true, no_shorting: true, no_derivatives: true, max_actions_per_cycle: 6,
     }
     const r = resolveConstraints(legacy)
-    expect(r.max_analyses_per_invocation).toBe(DEFAULT_LAB_CONSTRAINTS.max_analyses_per_invocation)
+    expect(r.max_research_stages_per_invocation).toBe(DEFAULT_LAB_CONSTRAINTS.max_research_stages_per_invocation)
     expect(r.min_cash_pct).toBe(DEFAULT_LAB_CONSTRAINTS.min_cash_pct)
     expect(r.max_single_pct).toBe(10)
   })
@@ -63,6 +63,28 @@ describe('one authoritative configuration (item 6)', () => {
     expect(r.ok).toBe(true)
     // 10% of a 100,000 NAV must stay in cash.
     expect(r.state.cash).toBeGreaterThanOrEqual(10_000)
+  })
+
+  it('ignores execution timings stored on the account row (item 9)', () => {
+    // The live Lab was created with invocation_budget_ms: 45000 baked in. A
+    // stale row must not pin the deployment to yesterday's timings...
+    const stale = {
+      ...DEFAULT_LAB_CONSTRAINTS,
+      invocation_budget_ms: 45_000,
+      max_web_searches_per_analysis: 2,
+      fundamentals_ttl_hours: 1,
+      // ...while its INVESTMENT POLICY is still honoured exactly.
+      max_single_pct: 7,
+      max_sector_pct: 19,
+      min_data_confidence: 55,
+    }
+    const r = resolveConstraints(stale)
+    expect(r.invocation_budget_ms).toBe(DEFAULT_LAB_CONSTRAINTS.invocation_budget_ms)
+    expect(r.max_web_searches_per_analysis).toBe(6)          // research breadth preserved
+    expect(r.fundamentals_ttl_hours).toBe(DEFAULT_LAB_CONSTRAINTS.fundamentals_ttl_hours)
+    expect(r.max_single_pct).toBe(7)
+    expect(r.max_sector_pct).toBe(19)
+    expect(r.min_data_confidence).toBe(55)
   })
 
   it('rejects an incoherent configuration', () => {

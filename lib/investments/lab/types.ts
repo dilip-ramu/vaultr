@@ -24,10 +24,11 @@ export interface LabConstraints {
 
   /** Cash floor, % of NAV — the engine will not spend below it. */
   min_cash_pct?: number
-  /** AI analyses allowed across a whole cycle (all invocations). */
+  /** SECURITIES fully analysed across a whole cycle. A security counts once,
+   *  when it reaches a completed decision — not once per research stage. */
   max_analyses_per_cycle?: number
-  /** AI analyses allowed in ONE invocation, so a request finishes in time. */
-  max_analyses_per_invocation?: number
+  /** Expensive research stages allowed in ONE invocation. Code-owned. */
+  max_research_stages_per_invocation?: number
   /** Web searches each analysis may make. */
   max_web_searches_per_analysis?: number
   /** Wall-clock budget for one invocation (ms) before it yields and resumes. */
@@ -207,14 +208,38 @@ export interface CycleCursor {
   corporateDone: boolean
 }
 
+/** One line of evidence per research stage. Names, durations and outcomes only
+ *  — never prompts, payloads or credentials. */
+export interface StageLogEntry {
+  symbol: string | null
+  exchange: string | null
+  stage: string
+  attempt: number
+  /** ISO instants. */
+  invocationStartedAt: string
+  stageStartedAt: string | null
+  stageEndedAt: string | null
+  durationMs: number | null
+  /** Budget left at the moment we decided whether to start. */
+  remainingBeforeMs: number
+  /** Timeout we would have granted / did grant the call. */
+  timeoutGrantedMs: number | null
+  outcome: 'completed' | 'yielded_before_start' | 'failed'
+  failureKind: string | null
+  note?: string
+}
+
 export interface CycleCounters {
-  analyses: number             // AI analyses spent across the whole cycle
+  /** SECURITIES that reached a completed decision. Not stage attempts. */
+  analyses: number
   cacheHits: number
   actions: number              // trades executed
   invocations: number
   deferred: number
   failures: number
   webSearchBudgetUsed: number  // upper-bound estimate of searches consumed
+  /** Expensive research stages attempted, successful or not. Operational. */
+  stageAttempts?: number
 }
 
 export interface LabCycle {

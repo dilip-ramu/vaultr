@@ -79,7 +79,6 @@ describe('cycle — sell', () => {
 
 describe('cycle — resumability (item 1)', () => {
   const threeHoldings = () => seedDb({
-    lab: { constraints: { ...DEFAULT_LAB_CONSTRAINTS, max_analyses_per_invocation: 1 } } as never,
     positions: [
       position({ symbol: 'AAA', quantity: 10, cost_basis: 10_000, last_price: 1000 }),
       position({ symbol: 'BBB', quantity: 10, cost_basis: 10_000, last_price: 1000 }),
@@ -95,7 +94,10 @@ describe('cycle — resumability (item 1)', () => {
   it('stops at its invocation budget and resumes at the NEXT position, not the first', async () => {
     const db = threeHoldings()
     const log: string[] = []
-    const d = () => withPrices({ AAA: 1000, BBB: 1000, CCC: 1000 }, { analyze: analyzeRouter(holds, log) })
+    // One research stage per invocation — the production shape once the 40s
+    // gate is in force. Injected here rather than stored on the account, since
+    // execution timing is code-owned (Deploy #6, item 9).
+    const d = () => withPrices({ AAA: 1000, BBB: 1000, CCC: 1000 }, { analyze: analyzeRouter(holds, log), maxStagesPerInvocation: 1 })
 
     const first = await runInvestmentCycle(asClient(db), USER, LAB, d())
     expect(log).toEqual(['AAA'])
@@ -115,7 +117,7 @@ describe('cycle — resumability (item 1)', () => {
 
   it('keeps one open cycle and one step per unit of work', async () => {
     const db = threeHoldings()
-    const d = () => withPrices({ AAA: 1000, BBB: 1000, CCC: 1000 }, { analyze: analyzeRouter(holds) })
+    const d = () => withPrices({ AAA: 1000, BBB: 1000, CCC: 1000 }, { analyze: analyzeRouter(holds), maxStagesPerInvocation: 1 })
     await runInvestmentCycle(asClient(db), USER, LAB, d())
     await runInvestmentCycle(asClient(db), USER, LAB, d())
     expect(db.count('lab_cycle_steps')).toBe(2)
@@ -126,7 +128,6 @@ describe('cycle — resumability (item 1)', () => {
 describe('cycle — retry does not execute the same trade twice (item 1)', () => {
   it('recovers an interrupted step from the trade log instead of re-trading', async () => {
     const db = seedDb({
-      lab: { constraints: { ...DEFAULT_LAB_CONSTRAINTS, max_analyses_per_invocation: 1 } } as never,
       positions: [
         position({ symbol: 'AAA', quantity: 100, cost_basis: 100_000, last_price: 1100 }),
         position({ symbol: 'BBB', quantity: 10, cost_basis: 10_000, last_price: 1000 }),
@@ -134,6 +135,7 @@ describe('cycle — retry does not execute the same trade twice (item 1)', () =>
     })
     const log: string[] = []
     const d = () => withPrices({ AAA: 1200, BBB: 1000 }, {
+      maxStagesPerInvocation: 1,
       analyze: analyzeRouter({
         AAA: okAnalysis({ symbol: 'AAA', action: 'SELL', price: 1200 }),
         BBB: okAnalysis({ symbol: 'BBB', action: 'HOLD', price: 1000 }),

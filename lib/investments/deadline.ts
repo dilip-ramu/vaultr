@@ -17,12 +17,36 @@
 
 /** Vercel's ceiling for these routes (see `export const maxDuration`). */
 export const ROUTE_MAX_MS = 60_000
+
 /** Held back for cold start, request parsing, persistence and the response. */
 export const SAFETY_MS = 7_000
-/** Below this, starting a web-search research call is a coin flip we decline. */
-export const MIN_RESEARCH_CALL_MS = 18_000
+
+/**
+ * THE MINIMUM VIABLE RESEARCH STAGE (Deploy #6).
+ *
+ * A qualitative or fundamentals call runs Anthropic's server-side web_search up
+ * to six times and then writes ~4k output tokens, inside ONE non-streaming HTTP
+ * response. Measured in production that is 25–60 seconds, commonly 30–45.
+ *
+ * The previous value — 18 seconds — was a guess at "enough to be worth trying",
+ * and it was well below what the call actually needs. The result was a system
+ * that gated correctly and then started work it could not finish: with ~19s left
+ * it would grant a 16s timeout to a 30s call and abort it. The research was
+ * performed and billed by Anthropic, then discarded by us.
+ *
+ * So the gate is now the honest question: is there enough time for the call to
+ * FINISH, not merely to start? Below this, the stage is not attempted at all —
+ * the cycle persists where it got to and returns in_progress.
+ *
+ * Consequence, stated plainly: with a ~48s usable budget this means ONE research
+ * stage per invocation. That is the real arithmetic of 60-second requests and
+ * 30–45-second research calls, not a limitation we invented.
+ */
+export const MIN_RESEARCH_STAGE_MS = 40_000
+
 /** No single upstream call may be given more than this. */
 export const MAX_CALL_MS = 45_000
+
 /** Time set aside so a call that uses its whole timeout still leaves room to
  *  persist the result and respond. */
 export const CALL_RESERVE_MS = 3_000

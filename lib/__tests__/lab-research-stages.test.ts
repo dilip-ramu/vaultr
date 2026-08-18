@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { runInvestmentCycle } from '@/lib/investments/lab/cycle'
 import { asClient, type Row } from './helpers/fake-supabase'
 import { seedDb, position, fakePrices, fakeIndex, okAnalysis, USER, LAB, NOW } from './helpers/lab-fixture'
-import { DEFAULT_LAB_CONSTRAINTS } from '@/lib/investments/lab/config'
+import { createBudget } from '@/lib/investments/deadline'
 import type { CASyncResult } from '@/lib/investments/lab/corporate-sync'
 import type { StageResult, QualitativeResearch } from '@/lib/investments/analyzeStages'
 import type { FundamentalsResult } from '@/lib/investments/types'
@@ -207,11 +207,13 @@ describe('a partially researched security resumes at the right stage (item 3)', 
 describe('a stage is never started without the budget to finish it (item 3)', () => {
   it('stops before the research call when the invocation budget is spent', async () => {
     const db = seedDb({
-      lab: { constraints: { ...DEFAULT_LAB_CONSTRAINTS, invocation_budget_ms: 1_000 } } as never,
       positions: [position({ symbol: 'AAA', quantity: 10, cost_basis: 10_000, last_price: 1000 })],
     })
     const calls: string[] = []
     const summary = await runInvestmentCycle(asClient(db), USER, LAB, deps({
+      // Execution timing is code-owned now, so a spent budget is injected here
+      // rather than stored on the account (Deploy #6, item 9).
+      budget: createBudget({ totalMs: 55_000, now: Date.now() - 30_000 }),
       runFundamentals: stubFundamentals(db, calls),
       runQualitative: stubQualitativeOk(calls),
     }))
@@ -247,7 +249,6 @@ describe('discovery is resumable (item 9)', () => {
 
   it('candidates survive the invocation that found them', async () => {
     const db = seedDb({
-      lab: { constraints: { ...DEFAULT_LAB_CONSTRAINTS, max_analyses_per_invocation: 1 } } as never,
       positions: [],
     })
     let scans = 0
@@ -257,8 +258,8 @@ describe('discovery is resumable (item 9)', () => {
     }
     const analyze = async (p: any) => okAnalysis({ symbol: p.symbol, action: 'HOLD', price: 1000 })
 
-    await runInvestmentCycle(asClient(db), USER, LAB, deps({ discover: ideas, analyze }))
-    await runInvestmentCycle(asClient(db), USER, LAB, deps({ discover: ideas, analyze }))
+    await runInvestmentCycle(asClient(db), USER, LAB, deps({ discover: ideas, analyze, maxStagesPerInvocation: 1 }))
+    await runInvestmentCycle(asClient(db), USER, LAB, deps({ discover: ideas, analyze, maxStagesPerInvocation: 1 }))
 
     expect(scans).toBe(1)                                  // scanned once, reused after
     expect(db.rows('lab_cycles')[0].cursor.discoveryQueue).toHaveLength(2)
