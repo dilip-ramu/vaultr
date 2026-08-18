@@ -217,6 +217,10 @@ describe('cycle — the analysis runs inside the Lab constraints (item 6)', () =
     expect(seen.config.minConfidence).toBe(DEFAULT_LAB_CONSTRAINTS.min_data_confidence)
     expect(seen.constraintsNote).toMatch(/10%/)
     expect(seen.research.retries).toBeGreaterThan(0)       // autonomous runs retry
+    // Deploy #4: no upstream call may outlive the request that started it.
+    expect(typeof seen.research.deadline).toBe('number')
+    expect(seen.research.timeoutMs).toBeLessThanOrEqual(60_000)
+    expect(seen.research.deadline).toBeGreaterThan(Date.now() - 1000)
   })
 })
 

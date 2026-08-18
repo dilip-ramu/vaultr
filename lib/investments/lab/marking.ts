@@ -15,7 +15,7 @@
 //     weekend run cannot invent an observation.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchPrices, fetchIndexQuote, type Quote } from '../providers/price'
+import { fetchPrices, fetchIndexQuote, type Quote, type FetchOptions } from '../providers/price'
 import { computeNav, drawdown, resolveMark, type NavSnapshot } from './accounting'
 import { benchmarkValue } from './benchmarks'
 import { resolveTradingDate, type TradingDateSource } from '../marketdate'
@@ -49,6 +49,9 @@ export interface MarkOptions {
   now?: Date
   fetchPricesFn?: typeof fetchPrices
   fetchIndexQuoteFn?: (symbol: string) => Promise<Quote | null>
+  /** Timeout / retry / concurrency budget for the quote calls. Passing a
+   *  deadline here is what keeps a mark inside its caller's request budget. */
+  fetchOptions?: FetchOptions
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -58,8 +61,8 @@ export interface MarkOptions {
 export async function captureBenchmarkBaseline(
   opts: MarkOptions = {},
 ): Promise<{ baseline: BenchmarkBaseline | null; reason: string | null }> {
-  const getIndex = opts.fetchIndexQuoteFn ?? fetchIndexQuote
-  const [q50, q500] = await Promise.all([getIndex(NIFTY50), getIndex(NIFTY500)])
+  const getIndex: (s: string, o?: FetchOptions) => Promise<Quote | null> = opts.fetchIndexQuoteFn ?? fetchIndexQuote
+  const [q50, q500] = await Promise.all([getIndex(NIFTY50, opts.fetchOptions), getIndex(NIFTY500, opts.fetchOptions)])
   const session = resolveTradingDate({ now: opts.now, indexMarketTimeSec: q50?.marketTime ?? q500?.marketTime ?? null })
 
   if (!q50?.price || !q500?.price) {
@@ -87,7 +90,7 @@ export async function markLab(
   const now = opts.now ?? new Date()
   const nowIso = now.toISOString()
   const getPrices = opts.fetchPricesFn ?? fetchPrices
-  const getIndex = opts.fetchIndexQuoteFn ?? fetchIndexQuote
+  const getIndex: (s: string, o?: FetchOptions) => Promise<Quote | null> = opts.fetchIndexQuoteFn ?? fetchIndexQuote
   const notes: string[] = []
 
   const { data: rawPositions } = await supabase
@@ -96,10 +99,10 @@ export async function markLab(
 
   const [quoteRes, q50, q500] = await Promise.all([
     positions.length
-      ? getPrices(positions.map(p => ({ symbol: p.symbol, exchange: (p.exchange === 'BSE' ? 'BSE' : 'NSE') as Exchange })))
+      ? getPrices(positions.map(p => ({ symbol: p.symbol, exchange: (p.exchange === 'BSE' ? 'BSE' : 'NSE') as Exchange })), opts.fetchOptions)
       : Promise.resolve({ quotes: {} as Record<string, Quote>, failed: [] as string[] }),
-    getIndex(NIFTY50),
-    getIndex(NIFTY500),
+    getIndex(NIFTY50, opts.fetchOptions),
+    getIndex(NIFTY500, opts.fetchOptions),
   ])
   const quotes = quoteRes.quotes
 

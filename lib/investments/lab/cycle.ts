@@ -295,11 +295,38 @@ export async function runInvestmentCycle(
   const decideConfig = toDecideConfig(k)
   const constraintsNote = constraintsBrief(k)
   const invocationStart = Date.now()
+  const invocationDeadline = invocationStart + k.invocation_budget_ms
   const notes: string[] = []
   const deferred: { symbol: string; reason: string }[] = []
 
+  /**
+   * Live-readiness (Deploy #4). Retry budgets used to be fixed — 2 retries at a
+   * 90s timeout — while the whole invocation only had 45s. One slow call could
+   * therefore blow past the request budget and the platform would kill it
+   * mid-cycle. Timeouts are now derived from the time actually remaining, and
+   * every call carries the invocation deadline so it stops retrying rather than
+   * overrunning. `share` is the fraction of the remaining time one call may use;
+   * an analysis makes two calls, so it asks for less than half each.
+   */
+  const researchBudget = (share: number) => {
+    const remaining = Math.max(0, invocationDeadline - Date.now())
+    return {
+      retries: remaining > 40_000 ? 2 : remaining > 20_000 ? 1 : 0,
+      timeoutMs: Math.max(8_000, Math.min(60_000, Math.floor(remaining * share))),
+      deadline: invocationDeadline,
+      maxUses: k.max_web_searches_per_analysis,
+    }
+  }
+  const quoteBudget = () => ({
+    timeoutMs: 8_000,
+    retries: 1,
+    deadline: invocationDeadline,
+    concurrency: 4,
+  })
+  const markOpts = (): MarkOptions => ({ ...(deps.markOptions ?? {}), fetchOptions: { ...quoteBudget(), ...(deps.markOptions?.fetchOptions ?? {}) } })
+
   // ── 1. Mark, and open or resume the cycle ────────────────────────────────
-  const markResult = await mark(supabase, userId, lab, deps.markOptions)
+  const markResult = await mark(supabase, userId, lab, markOpts())
   if (!markResult.navWritten && markResult.skippedReason) notes.push(markResult.skippedReason)
   notes.push(...markResult.notes)
 
@@ -320,7 +347,7 @@ export async function runInvestmentCycle(
 
   // ── 2. Corporate actions, once per cycle, before any trading ─────────────
   if (!cycle.cursor.corporateDone) {
-    const ca = await syncCorporate(supabase, userId, lab, { now: nowFn(), research: { retries: 2, timeoutMs: 60_000 } })
+    const ca = await syncCorporate(supabase, userId, lab, { now: nowFn(), research: researchBudget(0.5) })
     cycle.cursor.corporateDone = true
     notes.push(...ca.notes)
     if (ca.failure) notes.push(`Corporate-action sync unavailable this run (${ca.failure}) — will retry next cycle.`)
@@ -328,7 +355,7 @@ export async function runInvestmentCycle(
       // Cash and quantities changed underneath us: reload and re-mark.
       const reloaded = await loadAccount(supabase, userId, labId)
       if (reloaded) lab = reloaded
-      const remark = await mark(supabase, userId, lab, deps.markOptions)
+      const remark = await mark(supabase, userId, lab, markOpts())
       markResult.markedPositions = remark.markedPositions
       markResult.nav = remark.nav
     }
@@ -387,7 +414,7 @@ export async function runInvestmentCycle(
       symbol, exchange, companyName, isHolding,
       portfolio: summaryPortfolio(state), regimeState,
       config: decideConfig, constraintsNote,
-      research: { retries: 2, timeoutMs: 90_000, maxUses: k.max_web_searches_per_analysis },
+      research: researchBudget(0.45),
       loadFundamentals: cacheLoader,
     })
     analysesThisInvocation++
@@ -665,7 +692,7 @@ export async function runInvestmentCycle(
       summary: { ...cycle.summary, notes, deferred },
     }, nowIso)
   } else {
-    const finalMark = await mark(supabase, userId, lab, deps.markOptions)
+    const finalMark = await mark(supabase, userId, lab, markOpts())
     s.navWritten = finalMark.navWritten
     const reloaded = await loadAccount(supabase, userId, labId)
     if (reloaded) lab = reloaded
@@ -734,8 +761,25 @@ export async function runResearchUpdate(
   const k = resolveConstraints(lab.constraints)
   const notes: string[] = []
 
+  // Same deadline discipline as the cycle: nothing upstream may outlive the
+  // request that started it.
+  const deadline = Date.now() + k.invocation_budget_ms
+  const budget = (share: number) => {
+    const remaining = Math.max(0, deadline - Date.now())
+    return {
+      retries: remaining > 40_000 ? 2 : remaining > 20_000 ? 1 : 0,
+      timeoutMs: Math.max(8_000, Math.min(60_000, Math.floor(remaining * share))),
+      deadline,
+      maxUses: k.max_web_searches_per_analysis,
+    }
+  }
+  const markOptions: MarkOptions = {
+    ...(deps.markOptions ?? {}),
+    fetchOptions: { timeoutMs: 8_000, retries: 1, concurrency: 4, deadline, ...(deps.markOptions?.fetchOptions ?? {}) },
+  }
+
   // Corporate actions first — they change cash and share counts.
-  const corporate = await syncCorporate(supabase, userId, lab, { now: nowFn(), research: { retries: 2, timeoutMs: 60_000 } })
+  const corporate = await syncCorporate(supabase, userId, lab, { now: nowFn(), research: budget(0.4) })
   notes.push(...corporate.notes)
   if (corporate.failure) notes.push(`Corporate-action sync unavailable (${corporate.failure}).`)
   const reloaded = corporate.dividends || corporate.splits || corporate.bonuses
@@ -743,7 +787,7 @@ export async function runResearchUpdate(
     : lab
   const account = reloaded ?? lab
 
-  const markResult = await mark(supabase, userId, account, deps.markOptions)
+  const markResult = await mark(supabase, userId, account, markOptions)
   notes.push(...markResult.notes)
 
   const stored = await readStoredRegime(supabase, userId, k.regime_ttl_hours, nowFn())
@@ -751,7 +795,7 @@ export async function runResearchUpdate(
   let regimeRefreshed = false
 
   if (!stored.fresh) {
-    const { regime: fresh, failure } = await assessRegime({ retries: 2, timeoutMs: 90_000, maxUses: k.max_web_searches_per_analysis })
+    const { regime: fresh, failure } = await assessRegime(budget(0.6))
     if (fresh) {
       regime = fresh.state
       regimeRefreshed = true

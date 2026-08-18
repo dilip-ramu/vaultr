@@ -14,7 +14,7 @@
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Play, RefreshCw, Activity, Loader2, ShieldCheck, AlertTriangle, ChevronRight,
+  Play, RefreshCw, Activity, Loader2, ShieldCheck, AlertTriangle, ChevronRight, Stethoscope,
 } from 'lucide-react'
 import { useToast } from '@/components/shared/Toast'
 import { postJSON } from '../shared'
@@ -35,6 +35,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'performance', label: 'Performance' },
 ]
 
+interface PreflightCheck { name: string; status: 'ok' | 'warn' | 'fail' | 'skipped'; detail: string }
+interface Preflight { ok: boolean; summary: string; checks: PreflightCheck[] }
+
 interface CycleSummary {
   status: string; bought: string[]; sold: string[]; reduced: string[]; added: string[]
   held: string[]; deferred: { symbol: string; reason: string }[]
@@ -48,6 +51,7 @@ export default function LabClient({ initial }: { initial: LabOverview }) {
   const [tab, setTab] = useState<Tab>('overview')
   const [busy, setBusy] = useState<string | null>(null)
   const [lastRun, setLastRun] = useState<CycleSummary | null>(null)
+  const [preflight, setPreflight] = useState<Preflight | null>(null)
 
   const reload = useCallback(async () => {
     try { setData(await getJSON<LabOverview>('/api/investments/lab/overview')) } catch { /* keep what we have */ }
@@ -160,6 +164,20 @@ export default function LabClient({ initial }: { initial: LabOverview }) {
           Mark to market
         </button>
 
+        <button
+          onClick={() => run('preflight', async () => {
+            const r = await postJSON<Preflight>('/api/investments/lab/preflight')
+            setPreflight(r)
+            return r.summary
+          })}
+          disabled={Boolean(busy)}
+          title="Checks the database schema, the benchmark baseline and the live price feed. Read-only."
+          className="flex items-center gap-1.5 text-[12px] font-bold px-3 py-2 rounded-lg disabled:opacity-50"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+          {busy === 'preflight' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Stethoscope className="w-3.5 h-3.5" />}
+          Preflight
+        </button>
+
         {needsBaseline && (
           <button
             onClick={() => run('baseline', async () => {
@@ -191,6 +209,8 @@ export default function LabClient({ initial }: { initial: LabOverview }) {
           </div>
         </Card>
       )}
+
+      {preflight && !busy && <PreflightCard report={preflight} onDismiss={() => setPreflight(null)} />}
 
       {lastRun && !busy && <RunSummary summary={lastRun} onDismiss={() => setLastRun(null)} />}
 
@@ -288,6 +308,37 @@ function RunSummary({ summary, onDismiss }: { summary: CycleSummary; onDismiss: 
           {summary.notes.slice(0, 4).map((n, i) => (
             <p key={i} className="text-[11.5px] mt-1" style={{ color: 'var(--text-faint)' }}>{n}</p>
           ))}
+        </div>
+        <button onClick={onDismiss} className="text-[11px] font-bold shrink-0" style={{ color: 'var(--text-faint)' }}>dismiss</button>
+      </div>
+    </Card>
+  )
+}
+
+const PREFLIGHT_COLOR: Record<string, string> = {
+  ok: 'var(--income)', warn: 'var(--amber)', fail: 'var(--expense)', skipped: 'var(--text-faint)',
+}
+
+function PreflightCard({ report, onDismiss }: { report: Preflight; onDismiss: () => void }) {
+  return (
+    <Card className="p-4 mt-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-extrabold" style={{ color: report.ok ? 'var(--income)' : 'var(--expense)' }}>
+            {report.summary}
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {report.checks.map((c, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wide mt-0.5 shrink-0 w-14 text-right"
+                  style={{ color: PREFLIGHT_COLOR[c.status] }}>{c.status}</span>
+                <div className="min-w-0">
+                  <p className="text-[12.5px] font-bold" style={{ color: 'var(--text)' }}>{c.name}</p>
+                  <p className="text-[11.5px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>{c.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
         <button onClick={onDismiss} className="text-[11px] font-bold shrink-0" style={{ color: 'var(--text-faint)' }}>dismiss</button>
       </div>
