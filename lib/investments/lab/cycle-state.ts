@@ -136,6 +136,31 @@ export async function claimStep(params: {
   return step.status === 'claimed' ? { state: 'recover', step } : { state: 'settled', step }
 }
 
+/** Advance a security's durable research stage. Called only AFTER the work for
+ *  the previous stage has been persisted, so the stage is always a truthful
+ *  statement about what has already succeeded. */
+export async function setStepStage(
+  supabase: SupabaseClient, stepId: string, stage: string, nowIso: string,
+): Promise<void> {
+  if (!stepId) return
+  await supabase.from('lab_cycle_steps')
+    .update({ stage, stage_updated_at: nowIso, updated_at: nowIso })
+    .eq('id', stepId)
+}
+
+/** Record an OPERATIONAL failure against the step — a timeout, a rate limit, a
+ *  provider error. Deliberately not a lab_decisions row: a technical failure is
+ *  not an investment decision, and repeating one must not pollute the journal. */
+export async function noteStepAttempt(
+  supabase: SupabaseClient, stepId: string, attempts: number,
+  error: string | null, nowIso: string,
+): Promise<void> {
+  if (!stepId) return
+  await supabase.from('lab_cycle_steps')
+    .update({ attempts, last_error: error, last_error_at: error ? nowIso : null, updated_at: nowIso })
+    .eq('id', stepId)
+}
+
 export async function finishStep(params: {
   supabase: SupabaseClient
   stepId: string

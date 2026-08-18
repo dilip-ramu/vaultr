@@ -227,9 +227,24 @@ export default function LabClient({ initial }: { initial: LabOverview }) {
               Cycle in progress — resume to continue.
             </p>
             <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
-              Started {fmtDateTime(s.openCycle.started_at)}. It stopped at its time budget rather than being cut off, and picks up at the exact step it reached — no work is repeated.
+              Started {fmtDateTime(s.openCycle.started_at)}. It stopped at its time budget rather than being cut off, and picks up at the exact stage it reached — completed research is never repeated.
             </p>
           </div>
+          {s.openCycleSteps.length > 0 && (
+            <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+              {s.openCycleSteps.map((st, i) => (
+                <div key={i} className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] font-bold" style={{ color: 'var(--text)' }}>
+                    {st.symbol ?? st.kind}
+                  </span>
+                  <span className="text-[11.5px] text-right" style={{ color: stageColor(st) }}>
+                    {stageLabel(st)}
+                    {st.attempts > 1 ? ` · attempt ${st.attempts}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 
@@ -357,4 +372,34 @@ function PreflightCard({ report, onDismiss }: { report: Preflight; onDismiss: ()
       </div>
     </Card>
   )
+}
+
+// ── Research stage, in plain language ───────────────────────────────────────
+//
+// A stage is a statement about what has already SUCCEEDED and been persisted,
+// so the label can be trusted. An operational retry is shown as an attempt
+// count, never as an investment decision.
+
+type StepView = LabOverview['status']['openCycleSteps'][number]
+
+function stageLabel(st: StepView): string {
+  if (st.status === 'done') return 'Decision complete'
+  if (st.status === 'skipped') return 'Skipped'
+  if (st.status === 'deferred') return 'Deferred'
+  if (st.status === 'failed') return 'Research failed'
+  switch (st.stage) {
+    case 'fundamentals': return 'Researching fundamentals'
+    case 'qualitative': return 'Fundamentals complete · researching news'
+    case 'decision': return 'Research complete · ready for decision'
+    case 'complete': return 'Decision complete'
+    default: return 'Queued'
+  }
+}
+
+function stageColor(st: StepView): string {
+  if (st.status === 'done' || st.stage === 'complete') return 'var(--income)'
+  if (st.status === 'failed') return 'var(--expense)'
+  if (st.stage === 'decision') return 'var(--income)'
+  if (st.stage === 'qualitative') return 'var(--amber)'
+  return 'var(--text-muted)'
 }

@@ -34,6 +34,10 @@ export interface LabConstraints {
   invocation_budget_ms?: number
   /** Cached fundamentals are reused for this long before re-researching. */
   fundamentals_ttl_hours?: number
+  /** Persisted qualitative research is reused for this long. Deliberately much
+   *  shorter than fundamentals: news and sentiment go stale fast, and the point
+   *  of persisting it is to survive an invocation boundary, not to age. */
+  qualitative_ttl_hours?: number
   /** A stored market regime is reused for this long. */
   regime_ttl_hours?: number
   /** A position priced no later than this many hours ago is still "fresh". */
@@ -232,6 +236,8 @@ export interface LabCycle {
 
 export type CycleStepStatus = 'claimed' | 'done' | 'skipped' | 'deferred' | 'failed'
 
+export type ResearchStage = 'fundamentals' | 'qualitative' | 'decision' | 'complete'
+
 export interface LabCycleStep {
   id: string
   cycle_id: string
@@ -242,6 +248,12 @@ export interface LabCycleStep {
   symbol: string | null
   exchange: string | null
   status: CycleStepStatus
+  /** Durable research stage for this security — the resume point. */
+  stage?: ResearchStage
+  attempts?: number
+  last_error?: string | null
+  last_error_at?: string | null
+  stage_updated_at?: string | null
   reason: string | null
   decision_id: string | null
   trade_id: string | null

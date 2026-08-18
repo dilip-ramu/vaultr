@@ -170,19 +170,18 @@ describe('cycle — a research failure is not an investment view (item 9)', () =
     }))
 
     expect(db.count('lab_trades')).toBe(0)
-    expect(summary.deferred).toEqual([{ symbol: 'AAA', reason: 'RATE_LIMITED' }])
 
-    const symbolDecisions = db.rows('lab_decisions').filter((d: Row) => d.symbol === 'AAA')
-    expect(symbolDecisions.length).toBe(1)
-    expect(symbolDecisions[0].kind).toBe('deferred')
-    expect(symbolDecisions[0].action).toBe(null)          // no verdict was reached
-    expect(symbolDecisions[0].reason).toMatch(/RATE_LIMITED/)
-    expect(symbolDecisions[0].snapshot.defer_reason).toBe('RATE_LIMITED')
-
-    // Nothing anywhere claims the evidence was thin.
+    // Deploy #5: a rate limit is OPERATIONAL state, not a journal entry. It is
+    // recorded on the step and retried, and the investment journal stays clean.
+    expect(db.rows('lab_decisions').filter((d: Row) => d.symbol === 'AAA')).toHaveLength(0)
     expect(db.rows('lab_decisions').some((d: Row) => d.action === 'INSUFFICIENT_DATA')).toBe(false)
-    expect(db.rows('lab_cycle_steps')[0].status).toBe('deferred')
-    expect(summary.status).toBe('partial')
+
+    const step = db.rows('lab_cycle_steps')[0]
+    expect(step.status).toBe('claimed')                   // still ours to finish
+    expect(step.last_error).toMatch(/RATE_LIMITED/)
+    expect(step.attempts).toBe(1)
+    expect(summary.status).toBe('in_progress')
+    expect(summary.resumable).toBe(true)
   })
 })
 

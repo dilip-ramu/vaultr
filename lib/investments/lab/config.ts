@@ -31,6 +31,7 @@ export const DEFAULT_LAB_CONSTRAINTS: ResolvedConstraints = {
   max_web_searches_per_analysis: 6,
   invocation_budget_ms: 45_000,       // yield before any plausible platform cap
   fundamentals_ttl_hours: 168,        // 7 days — results move quarterly
+  qualitative_ttl_hours: 12,          // survives a resume; does not age into staleness
   regime_ttl_hours: 24,
   price_staleness_hours: 30,          // one session + slack
 }
@@ -68,6 +69,7 @@ export function resolveConstraints(raw: unknown): ResolvedConstraints {
     max_web_searches_per_analysis: num(k.max_web_searches_per_analysis, d.max_web_searches_per_analysis),
     invocation_budget_ms: num(k.invocation_budget_ms, d.invocation_budget_ms),
     fundamentals_ttl_hours: num(k.fundamentals_ttl_hours, d.fundamentals_ttl_hours),
+    qualitative_ttl_hours: num(k.qualitative_ttl_hours, d.qualitative_ttl_hours),
     regime_ttl_hours: num(k.regime_ttl_hours, d.regime_ttl_hours),
     price_staleness_hours: num(k.price_staleness_hours, d.price_staleness_hours),
   }

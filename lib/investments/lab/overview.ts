@@ -69,6 +69,17 @@ export interface LabStatus {
   openCycle: LabCycle | null
   lastResearchAt: string | null
   lastCycleAt: string | null
+  /** Per-security research progress for the OPEN cycle, so the UI can say what
+   *  is actually happening instead of just "in progress". */
+  openCycleSteps: {
+    symbol: string | null
+    exchange: string | null
+    kind: string
+    status: string
+    stage: string
+    attempts: number
+    lastError: string | null
+  }[]
   warnings: string[]
 }
 
@@ -138,7 +149,8 @@ const EMPTY: LabOverview = {
   counts: { decisions: 0, trades: 0, dividends: 0, corporateActions: 0 },
   status: {
     labStatus: 'none', baselinePinned: false, baselineAsOf: null, holdingsCount: 0, cash: 0,
-    lastMark: null, lastCycle: null, openCycle: null, lastResearchAt: null, lastCycleAt: null, warnings: [],
+    lastMark: null, lastCycle: null, openCycle: null, lastResearchAt: null, lastCycleAt: null,
+    openCycleSteps: [], warnings: [],
   },
 }
 
@@ -294,6 +306,14 @@ export async function getLabOverview(
   // ── Status + honest warnings ──────────────────────────────────────────────
   const cycles = (cycleRows ?? []) as LabCycle[]
   const openCycle = cycles.find(c => c.status === 'started' || c.status === 'in_progress') ?? null
+  const openCycleSteps = openCycle
+    ? ((await supabase.from('lab_cycle_steps').select('*').eq('cycle_id', openCycle.id).order('created_at', { ascending: true })).data ?? [])
+        .map((r: any) => ({
+          symbol: r.symbol ?? null, exchange: r.exchange ?? null, kind: r.kind,
+          status: r.status, stage: r.stage ?? 'fundamentals',
+          attempts: Number(r.attempts ?? 0), lastError: r.last_error ?? null,
+        }))
+    : []
   const lastCycle = cycles[0] ?? null
   const lastNav = navRows?.length ? (navRows as any[])[navRows.length - 1] : null
 
@@ -329,6 +349,7 @@ export async function getLabOverview(
     openCycle,
     lastResearchAt: (researchRows as any[])?.[0]?.ts ?? null,
     lastCycleAt: lastCycle?.started_at ?? null,
+    openCycleSteps,
     warnings,
   }
 

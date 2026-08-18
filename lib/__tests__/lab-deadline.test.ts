@@ -142,7 +142,7 @@ describe('analysis stops before the wall instead of being killed (item 2)', () =
     expect(outcome.ok).toBe(false)
     if (outcome.ok) throw new Error('unreachable')
     expect(outcome.failure.kind).toBe('BUDGET_EXHAUSTED')
-    expect(outcome.failure.stage).toBe('analysis')
+    expect(outcome.failure.stage).toBe('qualitative')
     expect(outcome.failure.retryable).toBe(true)
     expect(outcome.failure.progressSaved).toBe(true)      // fundamentals were cached
     expect(outcome.failure.message).toMatch(/again/i)

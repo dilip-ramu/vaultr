@@ -42,10 +42,19 @@ import { computeNav } from './accounting'
 import { markLab, type MarkOptions, type MarkResult } from './marking'
 import { syncCorporateActions, type CASyncResult, type CASyncOptions } from './corporate-sync'
 import { resolveConstraints, toDecideConfig, constraintsBrief } from './config'
-import { makeCachedFundamentalsLoader, readStoredRegime } from './research-cache'
+import {
+  makeCachedFundamentalsLoader, readStoredRegime,
+  readQualitative, saveQualitative, readFundamentalsCache,
+} from './research-cache'
+import {
+  runFundamentalsStage, runQualitativeStage, runDecisionStage,
+  type StageFailure, type QualitativeResearch,
+} from '../analyzeStages'
+import { fetchPrice } from '../providers/price'
 import { replayPosition, latestTrade, type ReplayTrade } from './replay'
 import {
   findOpenCycle, createCycle, saveCycle, claimStep, finishStep, stepKey,
+  setStepStage, noteStepAttempt,
 } from './cycle-state'
 import type {
   LabAccount, LabState, EngineResult, Exchange, RegimeState,
@@ -59,15 +68,25 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
 export interface CycleDeps {
   now?: () => Date
+  /** Single-shot override. When set, the stage machine is bypassed — used by
+   *  tests that only care about the trade/persist path. */
   analyze?: (params: AnalyzeParams) => Promise<AnalyzeOutcome>
+  /** Stage-level seams, so the durable pipeline itself can be tested. */
+  runFundamentals?: typeof runFundamentalsStage
+  runQualitative?: typeof runQualitativeStage
+  fetchPriceFn?: typeof fetchPrice
   mark?: (supabase: SupabaseClient, userId: string, lab: LabAccount, opts?: MarkOptions) => Promise<MarkResult>
   syncCorporate?: (supabase: SupabaseClient, userId: string, lab: LabAccount, opts?: CASyncOptions) => Promise<CASyncResult>
-  discover?: (args: DiscoverArgs) => Promise<Idea[]>
+  discover?: (args: DiscoverArgs) => Promise<Idea[] | DiscoverResult>
   assessRegime?: typeof getMarketRegime
   markOptions?: MarkOptions
 }
 
 export interface Idea { symbol: string; exchange?: string; company_name?: string; category?: string; thesis?: string }
+
+/** Discovery reports failure explicitly so a timed-out scan is not mistaken for
+ *  "there were no ideas" — that mistake loses candidates permanently. */
+export interface DiscoverResult { ideas: Idea[]; failure: string | null }
 
 export interface DiscoverArgs {
   summary: PortfolioSummary
@@ -92,7 +111,7 @@ function summaryPortfolio(state: LabState): PortfolioSummary {
   })))
 }
 
-async function defaultDiscover(args: DiscoverArgs): Promise<Idea[]> {
+async function defaultDiscover(args: DiscoverArgs): Promise<DiscoverResult> {
   const heavy = Object.entries(args.summary.sectorAlloc).filter(([, p]) => p >= 20).map(([s]) => s)
   const prompt = `Surface up to ${args.limit} genuinely interesting, less-obvious Indian listed (NSE/BSE) investment ideas right now. Use web search.
 Already held (skip): ${args.held.join(', ') || 'none'}. Sectors already heavy: ${heavy.join(', ') || 'none'}.
@@ -101,11 +120,12 @@ Return ONLY JSON: { "ideas": [ { "symbol": string, "exchange": "NSE"|"BSE", "com
   // first thing a cycle does when the portfolio is empty — so a Resume with
   // nothing held went straight into an unbounded web-search request and the
   // platform killed it at 60s. That was the 504.
-  const { data } = await researchJson<{ ideas?: Idea[] }>({
+  const { data, failure } = await researchJson<{ ideas?: Idea[] }>({
     system: 'You are a buy-side analyst scanning the Indian market for less-obvious, well-sourced ideas. Never surface an idea on one ratio alone.',
     prompt, webSearch: true, maxUses: 6, ...(args.research ?? { retries: 0, timeoutMs: 30_000 }),
   })
-  return (data?.ideas ?? []).slice(0, args.limit)
+  if (failure) return { ideas: [], failure: `${failure.kind}: ${failure.message}` }
+  return { ideas: (data?.ideas ?? []).slice(0, args.limit), failure: null }
 }
 
 // ── Persistence of one taken action ─────────────────────────────────────────
@@ -433,28 +453,161 @@ export async function runInvestmentCycle(
     return null
   }
 
-  const analyzeOne = async (
-    symbol: string, exchange: Exchange, companyName: string | null, isHolding: boolean,
-  ): Promise<AnalyzeOutcome> => {
-    const outcome = await analyze({
-      symbol, exchange, companyName, isHolding,
-      portfolio: summaryPortfolio(state), regimeState,
-      config: decideConfig, constraintsNote,
-      research: researchBudget(1),
-      loadFundamentals: cacheLoader,
-      budget,
-      persistsFundamentals: true,
-    })
+  /**
+   * DURABLE PER-SECURITY RESEARCH (Deploy #5).
+   *
+   * Production showed the remaining hole: fundamentals succeeded and were
+   * cached, ~8s of budget remained, the qualitative call was started anyway and
+   * died at 8000ms — and a successful research call was thrown away while a
+   * technical timeout was filed in the investment journal.
+   *
+   * Each stage is now attempted only when there is time to finish it, and is
+   * PERSISTED the moment it succeeds. Running out of time costs the remainder of
+   * one stage, never the work already done.
+   *
+   *   fundamentals -> (inv_securities)  ->  qualitative -> (lab_research)
+   *                                                     ->  decision (free)
+   */
+  type SecurityOutcome =
+    | { kind: 'complete'; result: AnalyzeResult }
+    | { kind: 'yield'; note: string }
+    | { kind: 'failed'; failure: StageFailure }
+
+  const spendAnalysis = (ok: boolean) => {
     analysesThisInvocation++
     cycle!.counters.analyses += 1
-    if (outcome.ok) {
-      consecutiveTransportFailures = 0
-      cycle!.counters.webSearchBudgetUsed += outcome.searchBudgetUsed
-    } else {
-      consecutiveTransportFailures++
-      cycle!.counters.failures += 1
+    if (ok) consecutiveTransportFailures = 0
+    else { consecutiveTransportFailures++; cycle!.counters.failures += 1 }
+  }
+
+  const advanceSecurity = async (
+    stepId: string, startStage: string,
+    symbol: string, exchange: Exchange, companyName: string | null, isHolding: boolean,
+    attempts: number,
+  ): Promise<SecurityOutcome> => {
+    const iso = () => nowFn().toISOString()
+
+    // Legacy single-shot path, kept so callers that stub the whole analysis
+    // (and the interactive Holdings route) still work unchanged.
+    if (deps.analyze) {
+      const outcome = await deps.analyze({
+        symbol, exchange, companyName, isHolding,
+        portfolio: summaryPortfolio(state), regimeState,
+        config: decideConfig, constraintsNote,
+        research: researchBudget(1), loadFundamentals: cacheLoader,
+        budget, persistsFundamentals: true,
+      })
+      spendAnalysis(outcome.ok)
+      if (outcome.ok) {
+        cycle!.counters.webSearchBudgetUsed += outcome.searchBudgetUsed
+        return { kind: 'complete', result: outcome }
+      }
+      const f = outcome.failure
+      await noteStepAttempt(supabase, stepId, attempts + 1, `${f.kind}: ${f.message}`, iso())
+      // Retryable means "try again later", not "settle this step". Only a
+      // permanent failure closes it out.
+      return f.retryable
+        ? { kind: 'yield', note: `${symbol}: ${f.kind === 'BUDGET_EXHAUSTED' ? 'ran out of request time' : `research did not complete (${f.kind})`} — the next run resumes here.` }
+        : { kind: 'failed', failure: { kind: f.kind, stage: 'qualitative', message: f.message, retryable: f.retryable, progressSaved: f.progressSaved } }
     }
-    return outcome
+
+    const doFundamentals = deps.runFundamentals ?? runFundamentalsStage
+    const doQualitative = deps.runQualitative ?? runQualitativeStage
+    const getPrice = deps.fetchPriceFn ?? fetchPrice
+    let stage = startStage
+
+    // ── STAGE 1: fundamentals ────────────────────────────────────────────
+    if (stage === 'fundamentals') {
+      if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
+        return { kind: 'yield', note: `${symbol}: not enough time to research fundamentals — next run starts here.` }
+      }
+      const r = await doFundamentals({
+        symbol, exchange, companyName,
+        research: researchBudget(1),
+        loadFundamentals: cacheLoader,      // writes through to inv_securities
+      })
+      spendAnalysis(r.ok)
+      if (!r.ok) {
+        await noteStepAttempt(supabase, stepId, attempts + 1, `${r.failure.kind}: ${r.failure.message}`, iso())
+        return r.failure.retryable
+          ? { kind: 'yield', note: `${symbol}: fundamentals research failed (${r.failure.kind}) — will retry.` }
+          : { kind: 'failed', failure: r.failure }
+      }
+      stage = 'qualitative'
+      await setStepStage(supabase, stepId, stage, iso())
+      cycle!.counters.webSearchBudgetUsed += k.max_web_searches_per_analysis
+    }
+
+    // ── STAGE 2: qualitative ─────────────────────────────────────────────
+    let qualitative: QualitativeResearch | null = null
+
+    if (stage === 'qualitative' || stage === 'decision') {
+      const stored = await readQualitative(supabase, userId, symbol, exchange, k.qualitative_ttl_hours, nowFn())
+      if (stored?.fresh) {
+        qualitative = stored.qualitative
+        cycle!.counters.cacheHits += 1
+        if (stage === 'qualitative') { stage = 'decision'; await setStepStage(supabase, stepId, stage, iso()) }
+      }
+    }
+
+    if (!qualitative) {
+      if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
+        // The exact case that used to burn a doomed 8-second call.
+        return { kind: 'yield', note: `${symbol}: fundamentals are banked; not enough time left for the qualitative research — next run starts there.` }
+      }
+      const fundamentalsForPrompt = await readFundamentalsCache(supabase, userId, symbol, exchange, k.fundamentals_ttl_hours, nowFn())
+      if (!fundamentalsForPrompt) {
+        await setStepStage(supabase, stepId, 'fundamentals', iso())
+        return { kind: 'yield', note: `${symbol}: cached fundamentals expired — restarting at fundamentals next run.` }
+      }
+      const price = await getPrice(symbol, exchange, quoteBudget())
+      const r = await doQualitative({
+        symbol, exchange, companyName,
+        currentPrice: price?.price ?? null,
+        regimeState, fundamentals: fundamentalsForPrompt,
+        constraintsNote, research: researchBudget(1), now: nowFn,
+      })
+      spendAnalysis(r.ok)
+      if (!r.ok) {
+        await noteStepAttempt(supabase, stepId, attempts + 1, `${r.failure.kind}: ${r.failure.message}`, iso())
+        return r.failure.retryable
+          ? { kind: 'yield', note: `${symbol}: qualitative research did not finish (${r.failure.kind}); its fundamentals are still banked.` }
+          : { kind: 'failed', failure: r.failure }
+      }
+      // BANK IT before anything else can fail.
+      await saveQualitative(supabase, userId, symbol, exchange, companyName, r.value, lab!.model_version, nowFn())
+      qualitative = r.value
+      stage = 'decision'
+      await setStepStage(supabase, stepId, stage, iso())
+      cycle!.counters.webSearchBudgetUsed += k.max_web_searches_per_analysis
+    }
+
+    // ── STAGE 3: decision — pure, no network, always affordable ──────────
+    const fundamentals = await readFundamentalsCache(supabase, userId, symbol, exchange, k.fundamentals_ttl_hours, nowFn())
+    if (!fundamentals) {
+      await setStepStage(supabase, stepId, 'fundamentals', iso())
+      return { kind: 'yield', note: `${symbol}: cached fundamentals expired before the decision — restarting next run.` }
+    }
+    const quote = await getPrice(symbol, exchange, quoteBudget())
+    const currentPrice = quote?.price ?? null
+
+    const { recommendation, breakdown, decision } = runDecisionStage({
+      symbol, exchange, companyName, isHolding, currentPrice, regimeState,
+      portfolio: summaryPortfolio(state), fundamentals, qualitative, config: decideConfig,
+    })
+
+    return {
+      kind: 'complete',
+      result: {
+        recommendation, breakdown, fundamentals, decision, currentPrice, regimeState,
+        note: fundamentals.notes ?? null,
+        fundamentalsCached: fundamentals.cached === true,
+        qualitativeCached: true,          // it was read from lab_research
+        qualitative,
+        searchBudgetUsed: 0,
+        timings: {},
+      },
+    }
   }
 
   // ── 4. Evaluate holdings, resuming at the cursor ─────────────────────────
@@ -494,37 +647,31 @@ export async function runInvestmentCycle(
       continue
     }
 
-    const outcome = await analyzeOne(symbol, exchange, held.company_name ?? null, true)
+    const outcome = await advanceSecurity(
+      stepId, claim.step.stage ?? 'fundamentals',
+      symbol, exchange, held.company_name ?? null, true, claim.step.attempts ?? 0,
+    )
     const doneIso = nowFn().toISOString()
 
-    if (!outcome.ok) {
-      const f = outcome.failure
-      // OUT OF TIME, not out of evidence. Leave the step CLAIMED and the cursor
-      // exactly where it is: no trade was written, so the next invocation
-      // reconciles it as safe-to-redo and re-runs it — with the fundamentals now
-      // cached, costing one research call instead of two. This is the mechanism
-      // that turns "killed at the platform wall" into "resume to continue".
-      const outOfTime = f.kind === 'BUDGET_EXHAUSTED'
-        || (f.retryable && !budget.enough(MIN_RESEARCH_CALL_MS))
-      if (outOfTime) {
-        notes.push(`${symbol}: ran out of request time${f.progressSaved ? ' after caching its fundamentals' : ''} — the next run resumes at this step.`)
-        yielded = 'not enough time left to finish this analysis'
-        break
-      }
+    if (outcome.kind === 'yield') {
+      // The step keeps its STAGE and stays claimed; the cursor does not move.
+      // Nothing is written to lab_decisions — an unfinished research stage is
+      // an operational fact, not an investment decision (item 2).
+      notes.push(outcome.note)
+      yielded = 'research continues in the next invocation'
+      break
+    }
+    if (outcome.kind === 'failed') {
       const reason = outcome.failure.kind as DeferReason
-      const decisionId = await recordDeferral({
-        supabase, lab, userId, cycleId: cycle.id, stepId, symbol, exchange,
-        companyName: held.company_name, reason, detail: outcome.failure.message, nowIso: doneIso,
-      })
-      await finishStep({ supabase, stepId, status: 'deferred', reason: `${reason}: ${outcome.failure.message}`, decisionId, nowIso: doneIso })
-      cycle.counters.deferred += 1
+      await finishStep({ supabase, stepId, status: 'failed', reason: `${reason}: ${outcome.failure.message}`, nowIso: doneIso })
+      notes.push(`${symbol}: research could not be completed (${reason}). No conclusion was recorded.`)
       deferred.push({ symbol, reason })
       cycle.cursor.holdingIndex++
       await saveCycle(supabase, cycle, { cursor: cycle.cursor, counters: cycle.counters }, doneIso)
       continue
     }
 
-    const res: AnalyzeResult = outcome
+    const res: AnalyzeResult = outcome.result
     const action = res.recommendation.action
     const livePrice = res.currentPrice
 
@@ -588,9 +735,22 @@ export async function runInvestmentCycle(
       await finishStep({ supabase, stepId, status: 'skipped', reason: engine.reason ?? 'constraint', decisionId, nowIso: doneIso })
       notes.push(`${symbol}: ${action.replace(/_/g, ' ')} not executed — ${engine.reason}`)
     } else {
-      const ids = await persistAction({ supabase, lab, userId, cycleId: cycle.id, stepId, kind: 'hold', res, engine: null, stateAfter: state, nowIso: doneIso })
+      // Re-affirming the same HOLD is not news. The journal records CHANGES of
+      // view; repeating an unchanged one every cycle would bury the decisions
+      // that actually mattered.
+      const { data: prior } = await supabase.from('lab_decisions')
+        .select('action, kind').eq('lab_id', lab.id).eq('symbol', symbol).eq('exchange', exchange)
+        .not('action', 'is', null).order('ts', { ascending: false }).limit(1)
+      const unchanged = prior?.[0]?.action === res.recommendation.action
+      const ids = unchanged
+        ? { decisionId: null, tradeId: null }
+        : await persistAction({ supabase, lab, userId, cycleId: cycle.id, stepId, kind: 'hold', res, engine: null, stateAfter: state, nowIso: doneIso })
       s.held.push(symbol)
-      await finishStep({ supabase, stepId, status: 'done', reason: 'hold', decisionId: ids.decisionId, nowIso: doneIso })
+      await finishStep({
+        supabase, stepId, status: 'done',
+        reason: unchanged ? `hold (unchanged from previous ${res.recommendation.action})` : 'hold',
+        decisionId: ids.decisionId, nowIso: doneIso,
+      })
     }
 
     cycle.cursor.holdingIndex++
@@ -605,18 +765,39 @@ export async function runInvestmentCycle(
         k.max_actions_per_cycle - cycle.counters.actions,
       ))
       if (room > 0) {
-        const held = state.positions.map(p => p.symbol.toUpperCase())
-        const ideas = await discover({ summary: summaryPortfolio(state), held, limit: room, research: researchBudget(1) })
-        cycle.cursor.discoveryQueue = ideas
-          .map(i => ({ i, sym: String(i.symbol ?? '').trim().toUpperCase() }))
-          .filter(x => x.sym && !held.includes(x.sym))
-          .map(x => `${stepKey('idea', x.sym, x.i.exchange === 'BSE' ? 'BSE' : 'NSE')}|${(x.i.company_name ?? '').replace(/\|/g, ' ')}`)
+        // Discovery is a web-search call like any other: do not start it
+        // without room to finish. This is what used to kill the whole request
+        // when the Lab had no holdings and went straight here.
+        if (!budget.enough(MIN_RESEARCH_CALL_MS)) {
+          notes.push('Not enough time left to scan for new ideas — the next run starts there.')
+          yielded = 'discovery deferred to the next invocation'
+        } else {
+          const held = state.positions.map(p => p.symbol.toUpperCase())
+          const raw = await discover({ summary: summaryPortfolio(state), held, limit: room, research: researchBudget(1) })
+          const result: DiscoverResult = Array.isArray(raw) ? { ideas: raw, failure: null } : raw
+          if (result.failure) {
+            // A failed scan is NOT "no ideas". Leave discoveryRan false so the
+            // next invocation scans again rather than silently skipping it.
+            notes.push(`Idea scan did not complete (${result.failure}) — it will run again on the next invocation.`)
+            yielded = 'discovery will retry in the next invocation'
+          } else {
+            cycle.cursor.discoveryQueue = result.ideas
+              .map(i => ({ i, sym: String(i.symbol ?? '').trim().toUpperCase() }))
+              .filter(x => x.sym && !held.includes(x.sym))
+              .map(x => `${stepKey('idea', x.sym, x.i.exchange === 'BSE' ? 'BSE' : 'NSE')}|${(x.i.company_name ?? '').replace(/\|/g, ' ')}`)
+            cycle.cursor.discoveryRan = true
+            // Persist the candidates IMMEDIATELY: they cost a research call and
+            // must survive the invocation that found them.
+            notes.push(`Found ${cycle.cursor.discoveryQueue.length} candidate${cycle.cursor.discoveryQueue.length === 1 ? '' : 's'} to evaluate.`)
+          }
+        }
+      } else {
+        cycle.cursor.discoveryRan = true
       }
-      cycle.cursor.discoveryRan = true
       await saveCycle(supabase, cycle, { phase: 'discovery', cursor: cycle.cursor }, nowFn().toISOString())
     }
 
-    while (cycle.cursor.discoveryIndex < cycle.cursor.discoveryQueue.length) {
+    while (!yielded && cycle.cursor.discoveryIndex < cycle.cursor.discoveryQueue.length) {
       const budgetStop = cycleExhausted()
       if (budgetStop) { notes.push(`Stopped evaluating new ideas: ${budgetStop} reached.`); break }
       const invStop = invocationExhausted()
@@ -642,37 +823,28 @@ export async function runInvestmentCycle(
       }
       const stepId = claim.step.id
 
-      const outcome = await analyzeOne(symbol, exchange, companyName || null, false)
+      const outcome = await advanceSecurity(
+        stepId, claim.step.stage ?? 'fundamentals',
+        symbol, exchange, companyName || null, false, claim.step.attempts ?? 0,
+      )
       const doneIso = nowFn().toISOString()
 
-      if (!outcome.ok) {
-        const f = outcome.failure
-        // OUT OF TIME, not out of evidence. Leave the step CLAIMED and the cursor
-        // exactly where it is: no trade was written, so the next invocation
-        // reconciles it as safe-to-redo and re-runs it — with the fundamentals now
-        // cached, costing one research call instead of two. This is the mechanism
-        // that turns "killed at the platform wall" into "resume to continue".
-        const outOfTime = f.kind === 'BUDGET_EXHAUSTED'
-          || (f.retryable && !budget.enough(MIN_RESEARCH_CALL_MS))
-        if (outOfTime) {
-          notes.push(`${symbol}: ran out of request time${f.progressSaved ? ' after caching its fundamentals' : ''} — the next run resumes at this step.`)
-          yielded = 'not enough time left to finish this analysis'
-          break
-        }
+      if (outcome.kind === 'yield') {
+        notes.push(outcome.note)
+        yielded = 'research continues in the next invocation'
+        break
+      }
+      if (outcome.kind === 'failed') {
         const reason = outcome.failure.kind as DeferReason
-        const decisionId = await recordDeferral({
-          supabase, lab, userId, cycleId: cycle.id, stepId, symbol, exchange,
-          companyName: companyName || null, reason, detail: outcome.failure.message, nowIso: doneIso,
-        })
-        await finishStep({ supabase, stepId, status: 'deferred', reason: `${reason}: ${outcome.failure.message}`, decisionId, nowIso: doneIso })
-        cycle.counters.deferred += 1
+        await finishStep({ supabase, stepId, status: 'failed', reason: `${reason}: ${outcome.failure.message}`, nowIso: doneIso })
+        notes.push(`${symbol}: research could not be completed (${reason}). No conclusion was recorded.`)
         deferred.push({ symbol, reason })
         cycle.cursor.discoveryIndex++
         await saveCycle(supabase, cycle, { cursor: cycle.cursor, counters: cycle.counters }, doneIso)
         continue
       }
 
-      const res: AnalyzeResult = outcome
+      const res: AnalyzeResult = outcome.result
       const action = res.recommendation.action
       const buyish = action === 'STRONG_BUY' || action === 'BUY'
 

@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getFundamentals, type FundamentalsInput } from '../providers/fundamentals'
 import { isFresh, hoursSince } from './config'
 import type { FundamentalsResult, MarketCapBand, Source } from '../types'
+import type { QualitativeResearch } from '../analyzeStages'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -109,4 +110,81 @@ export async function readStoredRegime(
     fresh: isFresh(row.created_at, ttlHours, now),
     ageHours: hoursSince(row.created_at, now),
   }
+}
+
+// ── Persisted qualitative research (Deploy #5) ───────────────────────────────
+//
+// The second research call is as expensive as the first and was being thrown
+// away whenever the request ran out of time immediately afterwards. It is now
+// stored the same way fundamentals are, so a stage that succeeds is banked and
+// the next invocation goes straight to the decision.
+//
+// This is a CACHE, not a journal. The permanent record of what the Lab concluded
+// stays in lab_decisions; this table just stops us paying twice for the same
+// research inside its TTL.
+
+export interface QualitativeCacheHit {
+  qualitative: QualitativeResearch
+  fetchedAt: string
+  ageHours: number | null
+  fresh: boolean
+}
+
+/** Read stored qualitative research for one security. Returns the row even when
+ *  stale, with `fresh` telling the caller whether it may be used. */
+export async function readQualitative(
+  supabase: SupabaseClient, userId: string, symbol: string, exchange: string,
+  ttlHours: number, now: Date = new Date(),
+): Promise<QualitativeCacheHit | null> {
+  const { data } = await supabase.from('lab_research').select('*')
+    .eq('user_id', userId).eq('symbol', symbol.toUpperCase()).eq('exchange', exchange).limit(1)
+  const row = data?.[0]
+  if (!row) return null
+  return {
+    qualitative: {
+      ...((row.qualitative ?? {}) as Record<string, unknown>),
+      sources: (row.sources ?? []) as QualitativeResearch['sources'],
+      researched_at: row.fetched_at,
+      regime: row.regime_at_research ?? null,
+    } as QualitativeResearch,
+    fetchedAt: row.fetched_at,
+    ageHours: hoursSince(row.fetched_at, now),
+    fresh: isFresh(row.fetched_at, ttlHours, now),
+  }
+}
+
+/** Bank a completed qualitative stage. Called the moment the research returns,
+ *  before anything else can fail. */
+export async function saveQualitative(
+  supabase: SupabaseClient, userId: string,
+  symbol: string, exchange: string, companyName: string | null,
+  q: QualitativeResearch, modelVersion: string, now: Date = new Date(),
+): Promise<void> {
+  const { sources, researched_at, regime, ...payload } = q
+  await supabase.from('lab_research').upsert({
+    user_id: userId, symbol: symbol.toUpperCase(), exchange,
+    company_name: companyName,
+    qualitative: payload,
+    sources,
+    model_version: modelVersion,
+    regime_at_research: regime ?? null,
+    fetched_at: researched_at || now.toISOString(),
+    updated_at: now.toISOString(),
+  }, { onConflict: 'user_id,symbol,exchange' })
+}
+
+/** Read cached fundamentals WITHOUT ever falling back to a research call.
+ *  Used by the decision stage, which must be free: if the cache has gone cold
+ *  the caller sends the step back to the fundamentals stage rather than
+ *  quietly making an expensive call it may not have time for. */
+export async function readFundamentalsCache(
+  supabase: SupabaseClient, userId: string, symbol: string, exchange: string,
+  ttlHours: number, now: Date = new Date(),
+): Promise<FundamentalsResult | null> {
+  const { data } = await supabase.from('inv_securities').select('*')
+    .eq('user_id', userId).eq('symbol', symbol.toUpperCase()).eq('exchange', exchange).limit(1)
+  const row = data?.[0]
+  if (!row || row.data_confidence == null) return null
+  if (!isFresh(row.fetched_at, ttlHours, now)) return null
+  return fromRow(row)
 }

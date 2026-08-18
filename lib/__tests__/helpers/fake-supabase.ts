@@ -27,6 +27,7 @@ export const UNIQUE_INDEXES: Record<string, string[][]> = {
   lab_dividends: [['lab_id', 'symbol', 'exchange', 'ex_date', 'dividend_per_share']],
   lab_corporate_actions: [['lab_id', 'symbol', 'exchange', 'type', 'ex_date']],
   inv_securities: [['user_id', 'symbol', 'exchange']],
+  lab_research: [['user_id', 'symbol', 'exchange']],
 }
 
 let seq = 0

@@ -25,7 +25,7 @@ const REQUIRED_TABLES = [
   'lab_accounts', 'lab_positions', 'lab_trades', 'lab_decisions',
   'lab_nav_history', 'lab_benchmarks', 'lab_postmortems', 'lab_learnings',
   'lab_reviews', 'lab_dividends', 'lab_corporate_actions',
-  'lab_cycles', 'lab_cycle_steps',
+  'lab_cycles', 'lab_cycle_steps', 'lab_research',
 ]
 const REQUIRED_TRIGGERS = [
   'lab_trades_no_update', 'lab_decisions_no_update',

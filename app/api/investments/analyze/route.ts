@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { analyzeSymbol } from '@/lib/investments/analyzeCore'
 import { analyzePortfolio } from '@/lib/investments/portfolio'
-import { makeCachedFundamentalsLoader } from '@/lib/investments/lab/research-cache'
+import { makeCachedFundamentalsLoader, readQualitative, saveQualitative } from '@/lib/investments/lab/research-cache'
 import { resolveConstraints } from '@/lib/investments/lab/config'
 import { createBudget, ROUTE_MAX_MS } from '@/lib/investments/deadline'
 import type { Exchange, RegimeState, ThesisStatus } from '@/lib/investments/types'
@@ -57,12 +57,20 @@ export async function POST(req: NextRequest) {
   // The same cache the Lab uses. A name researched inside the TTL skips the
   // fundamentals call entirely, which is usually the difference between
   // finishing inside the request and not.
-  const ttlHours = resolveConstraints({}).fundamentals_ttl_hours
-  const loadFundamentals = makeCachedFundamentalsLoader({ supabase, userId: user.id, ttlHours })
+  const limits = resolveConstraints({})
+  const loadFundamentals = makeCachedFundamentalsLoader({
+    supabase, userId: user.id, ttlHours: limits.fundamentals_ttl_hours,
+  })
+  // Both halves are cacheable. Re-pressing Analyse after a timeout reuses
+  // whichever stage already succeeded instead of paying for it again.
+  const storedQualitative = await readQualitative(
+    supabase, user.id, symbol, exchange, limits.qualitative_ttl_hours,
+  )
 
   const outcome = await analyzeSymbol({
     symbol, exchange, companyName, isHolding, portfolio: summary, regimeState,
     loadFundamentals, persistsFundamentals: true, budget,
+    qualitative: storedQualitative?.fresh ? storedQualitative.qualitative : null,
   })
 
   if (!outcome.ok) {
@@ -88,6 +96,15 @@ export async function POST(req: NextRequest) {
   }
 
   const { recommendation, decision, fundamentals } = outcome
+
+  // Bank the qualitative half so a later analysis — here or in the Lab — does
+  // not pay for it again inside its TTL.
+  if (!outcome.qualitativeCached) {
+    await saveQualitative(
+      supabase, user.id, symbol, exchange, recommendation.company_name,
+      outcome.qualitative, 'analyze-route',
+    )
+  }
 
   const { data: recRow, error: recErr } = await supabase
     .from('inv_recommendations').insert({ ...recommendation, user_id: user.id }).select('*').single()
@@ -123,6 +140,7 @@ export async function POST(req: NextRequest) {
     recommendation: recRow,
     breakdown: recommendation.score_breakdown,
     fundamentalsCached: outcome.fundamentalsCached,
+    qualitativeCached: outcome.qualitativeCached,
     timings: outcome.timings,
     elapsedMs: budget.elapsed(),
   })

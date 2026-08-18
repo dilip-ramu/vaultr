@@ -125,6 +125,14 @@ export function okAnalysis(args: {
     regimeState: 'neutral',
     note: null,
     fundamentalsCached: false,
+    qualitativeCached: false,
+    qualitative: {
+      qualitative: { business_quality: 70, management: 70, industry: 65, moat: 60 },
+      fair_value_low: null, fair_value_high: null, entry_low: null, entry_high: null,
+      horizon: '2-3 years', bull_case: 'bull', base_case: 'base', bear_case: 'bear',
+      catalysts: [], risks: [], invalidation: [], why_now: 'test',
+      thesis_invalidated: false, sources: [], researched_at: NOW.toISOString(), regime: 'neutral',
+    },
     searchBudgetUsed: 12,
     timings: { price_ms: 5, fundamentals_ms: 100, analysis_ms: 200 },
   }
@@ -157,7 +165,7 @@ export function budgetExhausted(progressSaved = true): AnalyzeOutcome {
   return {
     ok: false,
     failure: {
-      kind: 'BUDGET_EXHAUSTED', stage: 'analysis',
+      kind: 'BUDGET_EXHAUSTED', stage: 'qualitative',
       message: 'Not enough time left in this request to complete the qualitative analysis.',
       retryable: true, progressSaved, timings: { fundamentals_ms: 30_000 },
     },
