@@ -142,7 +142,7 @@ export default function LabOverviewTab({ data }: { data: LabOverview }) {
                 domain={['auto', 'auto']} tickFormatter={(v: number) => `₹${Math.round(v / 1000)}k`} />
               <Tooltip
                 contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }}
-                formatter={(v: number | null) => [v == null ? 'no data' : inr(v), '']} />
+                formatter={v => [typeof v === 'number' ? inr(v) : 'no data', '']} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Area type="monotone" dataKey="Lab" stroke="var(--brand)" strokeWidth={2} fill="url(#gLab)" dot={false} connectNulls={false} />
               <Area type="monotone" dataKey="Nifty 50" stroke="var(--text-faint)" strokeWidth={1.5} fill="transparent" dot={false} connectNulls={false} />
