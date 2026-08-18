@@ -3,6 +3,8 @@
 // These mirror the v109 tables. Kept deliberately close to the DB shape so the
 // API routes can pass rows straight through to the client with minimal mapping.
 
+import type { ResearchFailure } from './claude'
+
 export type Exchange = 'NSE' | 'BSE'
 
 export type RecAction =
@@ -90,6 +92,17 @@ export interface FundamentalsResult {
   data_confidence: number        // 0–100 (§15)
   sources: Source[]
   notes?: string
+  /**
+   * Set when the RESEARCH CALL failed rather than the evidence being thin
+   * (correctness pass, item 9). data_confidence is 0 in both cases, so callers
+   * must check this before concluding anything: a provider outage must defer
+   * the decision, never produce "INSUFFICIENT_DATA, therefore hold".
+   */
+  failure?: ResearchFailure
+  /** True when this came from the cache rather than a fresh research call. */
+  cached?: boolean
+  /** When the underlying research was performed (ISO). */
+  fetched_at?: string | null
 }
 
 export interface Recommendation {

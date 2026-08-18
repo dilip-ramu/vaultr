@@ -13,10 +13,20 @@
 import { researchJson } from '../claude'
 import type { FundamentalsResult, Exchange, Source, MarketCapBand } from '../types'
 
+/** Transport knobs the Lab needs (retry budget, deadlines). Phase 1 omits them
+ *  and gets exactly the previous behaviour: one attempt, no client deadline. */
+export interface ResearchOptions {
+  retries?: number
+  timeoutMs?: number
+  deadline?: number
+  maxUses?: number
+}
+
 export interface FundamentalsInput {
   symbol: string
   exchange: Exchange
   companyName?: string | null
+  research?: ResearchOptions
 }
 
 export interface FundamentalsProvider {
@@ -68,7 +78,7 @@ function toResult(symbol: string, exchange: Exchange, parsed: unknown, sources: 
 
 export const claudeFundamentals: FundamentalsProvider = {
   name: 'claude-web-research',
-  async getFundamentals({ symbol, exchange, companyName }): Promise<FundamentalsResult> {
+  async getFundamentals({ symbol, exchange, companyName, research }): Promise<FundamentalsResult> {
     const who = companyName ? `${companyName} (${symbol}, ${exchange})` : `${symbol} on ${exchange}`
     const prompt = `Research the latest available fundamentals and valuation for ${who}, an Indian listed company.
 
@@ -97,15 +107,25 @@ Use web search against Tier-1/2 sources. Return ONLY a JSON object of this exact
 }
 
 Absolute figures in INR crore. If reliable data is scarce, return mostly nulls and a low data_confidence — that is the correct answer, not a fabricated one.`
-    const { data, sources, error } = await researchJson<unknown>({ system: SYSTEM, prompt, webSearch: true, maxUses: 6 })
+    const { data, sources, error, failure } = await researchJson<unknown>({
+      system: SYSTEM, prompt, webSearch: true,
+      maxUses: research?.maxUses ?? 6,
+      retries: research?.retries,
+      timeoutMs: research?.timeoutMs,
+      deadline: research?.deadline,
+    })
     if (!data) {
+      // data_confidence 0 here means "we have nothing", NOT "the evidence is
+      // thin". `failure` says which, and the caller must branch on it.
       return {
         company_name: companyName ?? null, sector: null, market_cap_band: null,
         fundamentals: {}, valuation: {}, data_confidence: 0, sources,
         notes: error ? `Research failed: ${error}` : 'No parseable fundamentals returned.',
+        failure: failure ?? { kind: 'NO_DATA_FOUND', message: error ?? 'No parseable fundamentals returned.', retryable: true, attempts: 1 },
+        fetched_at: new Date().toISOString(),
       }
     }
-    return toResult(symbol, exchange, data, sources)
+    return { ...toResult(symbol, exchange, data, sources), fetched_at: new Date().toISOString() }
   },
 }
 

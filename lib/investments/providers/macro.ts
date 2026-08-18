@@ -3,9 +3,16 @@
 // Assesses the CURRENT environment for Indian equities and classifies it into a
 // regime. Deliberately NOT a market-timing signal — it exists to influence risk
 // sizing and selectivity, and it must explain itself. Grounded via web search.
+//
+// Correctness pass (item 9): a failed assessment now reports WHY. The Lab keeps
+// using the last stored regime when the call fails, rather than silently
+// defaulting to 'neutral' and pretending that was an assessment.
 
 import { researchJson } from '../claude'
+import type { ResearchFailure } from '../claude'
 import type { MarketRegime, RegimeState, Source } from '../types'
+import type { ResearchOptions } from './fundamentals'
+import { istDateString } from '../marketdate'
 
 const SYSTEM = `You are a macro strategist assessing conditions for INDIAN equities (Nifty/Sensex).
 You translate developments into investment consequences, not headlines, and you explain your reasoning.
@@ -14,7 +21,9 @@ Be balanced and evidence-based. Cite authoritative sources. This is for risk-siz
 
 const STATES: RegimeState[] = ['risk_on', 'neutral', 'cautious', 'risk_off', 'crisis']
 
-export async function getMarketRegime(): Promise<{ regime: MarketRegime | null; error?: string }> {
+export async function getMarketRegime(
+  research?: ResearchOptions,
+): Promise<{ regime: MarketRegime | null; error?: string; failure?: ResearchFailure }> {
   const prompt = `Assess the current market regime for Indian equities as of today. Use web search for the latest data.
 
 Return ONLY a JSON object of this exact shape:
@@ -29,15 +38,21 @@ Return ONLY a JSON object of this exact shape:
   }
 }
 Each driver value is one concise sentence stating the current reading AND its equity consequence. Be specific with numbers where known.`
-  const { data, sources, error } = await researchJson<{
+  const { data, sources, error, failure } = await researchJson<{
     state?: string; summary?: string; reasons?: string[]; drivers?: Record<string, string>
-  }>({ system: SYSTEM, prompt, webSearch: true, maxUses: 6 })
+  }>({
+    system: SYSTEM, prompt, webSearch: true,
+    maxUses: research?.maxUses ?? 6,
+    retries: research?.retries,
+    timeoutMs: research?.timeoutMs,
+    deadline: research?.deadline,
+  })
 
-  if (!data) return { regime: null, error: error || 'No regime returned' }
+  if (!data) return { regime: null, error: error || 'No regime returned', failure }
   const state = (STATES.includes(data.state as RegimeState) ? data.state : 'neutral') as RegimeState
   return {
     regime: {
-      as_of: new Date().toISOString().slice(0, 10),
+      as_of: istDateString(),   // IST, not UTC (item 8)
       state,
       summary: data.summary ?? null,
       reasons: Array.isArray(data.reasons) ? data.reasons : [],

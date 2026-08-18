@@ -7,7 +7,19 @@
 
 import type { Exchange } from '../types'
 
-export interface Quote { symbol: string; price: number; currency: string; at: string }
+export interface Quote {
+  symbol: string
+  price: number
+  currency: string
+  /** When WE fetched it (ISO). */
+  at: string
+  /**
+   * The exchange's own timestamp for this print (unix seconds), when Yahoo
+   * supplies it. This is what tells us which TRADING SESSION a mark belongs to
+   * without maintaining a holiday calendar (see lib/investments/marketdate.ts).
+   */
+  marketTime?: number | null
+}
 
 /** RELIANCE on NSE → RELIANCE.NS ; on BSE → RELIANCE.BO. Already-suffixed passes through. */
 export function yahooSymbol(symbol: string, exchange: Exchange): string | null {
@@ -25,16 +37,18 @@ async function fetchOne(yahoo: string): Promise<Quote | null> {
     )
     if (!res.ok) return null
     const json = await res.json() as {
-      chart?: { result?: { meta?: { regularMarketPrice?: number; currency?: string } }[] }
+      chart?: { result?: { meta?: { regularMarketPrice?: number; currency?: string; regularMarketTime?: number } }[] }
     }
     const meta = json.chart?.result?.[0]?.meta
     const price = Number(meta?.regularMarketPrice)
     if (!Number.isFinite(price) || price <= 0) return null   // 0/missing is NOT a price
+    const marketTime = Number(meta?.regularMarketTime)
     return {
       symbol: yahoo,
       price: Math.round(price * 100) / 100,
       currency: meta?.currency ?? 'INR',
       at: new Date().toISOString(),
+      marketTime: Number.isFinite(marketTime) && marketTime > 0 ? marketTime : null,
     }
   } catch {
     return null
@@ -62,4 +76,19 @@ export async function fetchPrices(
     else failed.push(key)
   })
   return { quotes, failed }
+}
+
+/**
+ * Raw index/quote level for an EXACT Yahoo symbol (no .NS/.BO suffixing).
+ * Used for benchmark indices like ^NSEI (Nifty 50) and ^CRSLDX (Nifty 500).
+ */
+export async function fetchIndexLevel(yahooSymbolExact: string): Promise<number | null> {
+  const q = await fetchOne(yahooSymbolExact)
+  return q?.price ?? null
+}
+
+/** Full quote for an EXACT Yahoo symbol — level AND the exchange timestamp,
+ *  which the Lab uses to derive the trading session date (item 8). */
+export async function fetchIndexQuote(yahooSymbolExact: string): Promise<Quote | null> {
+  return fetchOne(yahooSymbolExact)
 }
