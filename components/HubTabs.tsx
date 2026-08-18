@@ -16,6 +16,12 @@ type Tab = { href: string; label: string }
 // up. Genuinely deeper second-level tabs (e.g. the Couriers/Reimbursables/
 // Invoices bar under Customers → Invoices) stay in their own layouts.
 const HUBS: { name: string; tabs: Tab[] }[] = [
+  { name: 'Investments', tabs: [
+    { href: '/investments', label: 'Overview' },
+    { href: '/investments/holdings', label: 'Holdings' },
+    { href: '/investments/opportunities', label: 'Opportunities' },
+    { href: '/investments/journal', label: 'Journal' },
+  ] },
   { name: 'Transactions', tabs: [
     { href: '/transactions', label: 'All transactions' },
     { href: '/transactions/fetch', label: 'Fetch' },
