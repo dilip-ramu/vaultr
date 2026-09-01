@@ -28,12 +28,15 @@ interface Props {
   suppliers: Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>[]
   accounts: PickerAccount[]
   companies?: { id: string; name: string; gstin: string | null; is_default?: boolean }[]
+  /** Set when a server query FAILED, so an empty list is never mistaken for
+   *  "you have no suppliers". Passed through to the form. */
+  loadError?: string | null
   hideHeader?: boolean
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SupplierInvoicesClient({ initialInvoices, suppliers, accounts, companies = [], hideHeader = false }: Props) {
+export default function SupplierInvoicesClient({ initialInvoices, suppliers, accounts, companies = [], loadError = null, hideHeader = false }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -1141,6 +1144,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           invoice={editing}
           suppliers={suppliers}
           companies={companies}
+          loadError={loadError}
           onSaved={handleSaved}
           onClose={() => { setShowForm(false); setEditing(null) }}
         />

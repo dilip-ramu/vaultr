@@ -16,6 +16,9 @@ interface Props {
   suppliers: (Pick<Supplier, 'id' | 'name' | 'supplier_code' | 'payment_terms' | 'custom_terms_days' | 'currency'>
     & { default_invoice_category?: string | null })[]
   companies?: { id: string; name: string; gstin: string | null; is_default?: boolean }[]
+  /** Why the supplier list is empty, when it is empty because something broke
+   *  rather than because there is nothing to show. */
+  loadError?: string | null
   onSaved: (inv: SupplierInvoice) => void
   onClose: () => void
 }
@@ -59,7 +62,7 @@ const RECOVERABLE_STATUS_OPTIONS = [
   { value: 'written_off',      label: 'Written Off' },
 ]
 
-export default function SupplierInvoiceForm({ invoice, suppliers, companies = [], onSaved, onClose }: Props) {
+export default function SupplierInvoiceForm({ invoice, suppliers, companies = [], loadError = null, onSaved, onClose }: Props) {
   const [form, setForm] = useState(() => invoice ? {
     ...EMPTY,
     supplier_id: invoice.supplier_id,
@@ -281,6 +284,14 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
                 <option value="">Select supplier…</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}{s.supplier_code ? ` (${s.supplier_code})` : ''}</option>)}
               </select>
+              {/* An empty dropdown is useless on its own — it does not say
+                  whether there is nothing to pick or whether the list failed to
+                  load. Say which. */}
+              {suppliers.length === 0 && (
+                <p className="mt-1.5 text-[11.5px] leading-relaxed" style={{ color: loadError ? 'var(--expense)' : 'var(--text-muted)' }}>
+                  {loadError ?? 'No active suppliers found. Add one in Suppliers → Directory, or re-activate an existing supplier there.'}
+                </p>
+              )}
             </Field>
             <Field label="Invoice Number">
               <Input value={form.invoice_number} onChange={v => set('invoice_number', v)} placeholder="INV-2024-001" />

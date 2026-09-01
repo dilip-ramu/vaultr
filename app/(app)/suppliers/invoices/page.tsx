@@ -10,15 +10,23 @@ async function InvoicesContent() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: invoices }, { data: suppliers }, { data: accounts }, { data: companies }] = await Promise.all([
+  const [invoicesRes, suppliersRes, accountsRes, companiesRes] = await Promise.all([
     supabase
       .from('supplier_invoices')
       .select('*, supplier:suppliers(id, name, supplier_code, default_category_id)')
       .eq('user_id', user.id)
       .order('invoice_date', { ascending: false }),
+    // SELECT * ON PURPOSE. This used to name its columns, including
+    // `default_invoice_category` — a column added late, in migration v103. On a
+    // database where that migration had not run, PostgREST rejected the WHOLE
+    // query, `data` came back null, and the Add-invoice form rendered an empty
+    // supplier dropdown. An empty dropdown and a failed query looked identical,
+    // which is why this took a while to spot. Selecting * makes the query
+    // independent of any one optional column, exactly like the directory page
+    // that kept working throughout.
     supabase
       .from('suppliers')
-      .select('id, name, supplier_code, payment_terms, custom_terms_days, currency, default_invoice_category')
+      .select('*')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('name'),
@@ -37,12 +45,34 @@ async function InvoicesContent() {
       .order('name'),
   ])
 
+  // A query that FAILED must never be presented as "you have none". Log which
+  // one broke, and tell the form so it can say so instead of showing an empty
+  // list the user cannot act on.
+  const failures: string[] = []
+  for (const [name, res] of [
+    ['invoices', invoicesRes], ['suppliers', suppliersRes],
+    ['accounts', accountsRes], ['companies', companiesRes],
+  ] as const) {
+    if (res.error) {
+      failures.push(name)
+      console.error(`[suppliers/invoices] could not load ${name}:`, res.error.message)
+    }
+  }
+
+  const invoices = invoicesRes.data
+  const suppliers = suppliersRes.data
+  const accounts = accountsRes.data
+  const companies = companiesRes.data
+
   return (
     <SupplierInvoicesClient
       initialInvoices={invoices ?? []}
       suppliers={suppliers ?? []}
       accounts={accounts ?? []}
       companies={(companies ?? []) as { id: string; name: string; gstin: string | null; is_default?: boolean }[]}
+      loadError={suppliersRes.error
+        ? `Suppliers could not be loaded (${suppliersRes.error.message}). This is a database error, not an empty list.`
+        : failures.length ? `Some data could not be loaded: ${failures.join(', ')}.` : null}
       hideHeader
     />
   )
