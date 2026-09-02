@@ -29,6 +29,7 @@
 // chit_auctions, chit_collections or transactions.
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkBid, minimumAcceptableBid } from './bidding'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -92,6 +93,34 @@ export interface PortalGroupDetail {
   group: PortalGroupSummary
   ledger: PortalLedgerRow[]
   auctions: PortalAuctionRow[]
+}
+
+/**
+ * The live auction, as one member is allowed to see it.
+ *
+ * This is an OPEN auction: the standing highest bid is visible so a member can
+ * decide whether to beat it, the way it works in the room. What is NOT visible
+ * is WHO is leading — a member sees only whether it is them. Showing names would
+ * turn every month into a record of who could afford what, which is more than
+ * the auction needs and more than members agreed to share.
+ */
+export interface PortalLiveAuction {
+  windowId: string
+  monthNumber: number
+  status: 'open' | 'closed' | 'cancelled'
+  ceilingAmount: number
+  minIncrement: number
+  /** The bid to beat, or null when nobody has bid. Amount only, never a name. */
+  highestAmount: number | null
+  youAreLeading: boolean
+  yourBestBid: number | null
+  bidCount: number
+  /** The least this member could bid right now, or null if no bid is possible. */
+  minimumNext: number | null
+  /** False when they already won, are not in the group, or the window is shut. */
+  canBid: boolean
+  blockedReason: string | null
+  openedAt: string
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -250,4 +279,71 @@ export async function getGroupDetail(
   }))
 
   return { group, ledger, auctions: auctionRows }
+}
+
+/**
+ * The state of the live auction for one group, for one member. Polled by the
+ * portal every few seconds while a window is open — polling rather than a live
+ * database subscription, because a subscription would mean handing the member a
+ * database key, and no member of this app holds one.
+ */
+export async function getLiveAuction(
+  memberId: string, groupId: string, client?: Db,
+): Promise<PortalLiveAuction | null> {
+  const db = admin(client)
+  const memberships = await membershipsOf(memberId, db)
+  const isMember = memberships.has(groupId)
+  if (!isMember) return null            // not your group: nothing, no hint
+
+  const { data: windows } = await db.from('chit_bid_windows')
+    .select('id, month_number, status, ceiling_amount, min_increment, opened_at')
+    .eq('group_id', groupId).eq('status', 'open').limit(1)
+  const w = (windows ?? [])[0] as any
+  if (!w) return null                   // no auction running
+
+  const [{ data: bids }, { data: won }] = await Promise.all([
+    db.from('chit_bids')
+      .select('member_id, amount, placed_at')
+      .eq('window_id', w.id),
+    db.from('chit_auctions')
+      .select('winner_member_id').eq('group_id', groupId),
+  ])
+
+  const all = ((bids ?? []) as any[]).map(b => ({
+    memberId: b.member_id, amount: num(b.amount), placedAt: String(b.placed_at ?? ''),
+  }))
+  // Highest wins; on an exact tie the earlier bid stands. Two members can land
+  // the same amount in the same second, and "whoever pressed first" is the only
+  // tie-break anyone would accept.
+  const leader = all.slice().sort((a, b) =>
+    b.amount - a.amount || a.placedAt.localeCompare(b.placedAt))[0] ?? null
+
+  const mine = all.filter(b => b.memberId === memberId)
+  const yourBest = mine.length ? Math.max(...mine.map(b => b.amount)) : null
+  const alreadyWon = ((won ?? []) as any[]).some(a => a.winner_member_id === memberId)
+
+  const rules = {
+    status: w.status as 'open' | 'closed' | 'cancelled',
+    ceilingAmount: num(w.ceiling_amount),
+    minIncrement: num(w.min_increment),
+  }
+  const ctx = { window: rules, highestAmount: leader?.amount ?? null, isMember, alreadyWon }
+  const minimumNext = minimumAcceptableBid(ctx)
+  const gate = checkBid(minimumNext ?? 0, ctx)
+
+  return {
+    windowId: w.id,
+    monthNumber: num(w.month_number),
+    status: rules.status,
+    ceilingAmount: rules.ceilingAmount,
+    minIncrement: rules.minIncrement,
+    highestAmount: leader?.amount ?? null,
+    youAreLeading: leader != null && leader.memberId === memberId,
+    yourBestBid: yourBest,
+    bidCount: all.length,
+    minimumNext,
+    canBid: gate.ok,
+    blockedReason: gate.ok ? null : (gate.message ?? null),
+    openedAt: String(w.opened_at ?? ''),
+  }
 }

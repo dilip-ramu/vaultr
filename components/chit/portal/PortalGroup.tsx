@@ -3,9 +3,12 @@
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { Card, Row, StatusChip, inr, fmtDate } from './shared'
-import type { PortalGroupDetail } from '@/lib/chit/portal-data'
+import PortalBidPanel from './PortalBidPanel'
+import type { PortalGroupDetail, PortalLiveAuction } from '@/lib/chit/portal-data'
 
-export default function PortalGroup({ detail }: { detail: PortalGroupDetail }) {
+export default function PortalGroup({
+  detail, groupId, auction,
+}: { detail: PortalGroupDetail; groupId: string; auction: PortalLiveAuction | null }) {
   const { group: g, ledger, auctions } = detail
   const byMonth = new Map(auctions.map(a => [a.monthNumber, a]))
 
@@ -23,6 +26,12 @@ export default function PortalGroup({ detail }: { detail: PortalGroupDetail }) {
           {g.slotNumber != null ? ` · your slot ${g.slotNumber}` : ''}
         </p>
       </div>
+
+      {/* The live auction sits ABOVE the passbook while it is running: if
+          bidding is open, that is the only thing the member came for. */}
+      {auction && auction.status === 'open' && (
+        <PortalBidPanel groupId={groupId} initial={auction} />
+      )}
 
       <Card className="p-4">
         <Row label="Monthly installment" value={inr(g.monthlyInstallment)} />

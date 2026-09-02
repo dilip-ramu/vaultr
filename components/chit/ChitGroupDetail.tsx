@@ -1,5 +1,6 @@
 'use client'
 
+import LiveBiddingPanel from './LiveBiddingPanel'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -517,6 +518,11 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
 
   return (
     <div className="space-y-3">
+      {/* Live bidding sits above the auction controls: while a window is open
+          it is the thing you are watching. It never records anything — closing
+          it just tells you who was highest. */}
+      <LiveBiddingPanel groupId={group.id} nextMonth={nextMonth} />
+
       <div className="flex flex-wrap gap-2">
         {nextMonth && (
           <button onClick={() => setConducting(true)}
