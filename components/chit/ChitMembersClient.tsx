@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Upload, Trash2, Pencil, X, Phone } from 'lucide-react'
+import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { ChitMember } from '@/lib/chit/types'
@@ -21,6 +21,41 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
     return members.filter(m =>
       m.name.toLowerCase().includes(s) || (m.phone ?? '').includes(s))
   }, [members, q])
+
+  // ── Member portal (v115) ──────────────────────────────────────────────────
+  // Access is per member and off by default. Turning it OFF also signs the
+  // member out everywhere, so "revoke" means revoked, not "revoked eventually".
+  const [busyPortal, setBusyPortal] = useState<string | null>(null)
+
+  async function portalAction(memberId: string, action: 'enable' | 'disable' | 'invite' | 'revoke') {
+    setBusyPortal(memberId)
+    try {
+      const res = await fetch('/api/chit/portal', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ memberId, action }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { notify(body?.error ?? 'Could not do that', 'error'); return }
+
+      if (action === 'enable' || action === 'disable') {
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, portal_enabled: body.portal_enabled } : m))
+        notify(body.portal_enabled ? 'Portal access on' : 'Portal access off — signed out everywhere')
+      } else if (action === 'revoke') {
+        notify(body.revoked ? `Signed out of ${body.revoked} device(s)` : 'No active sessions')
+      } else if (action === 'invite') {
+        // The link is single-use and short-lived, so it is handed straight to
+        // WhatsApp rather than parked anywhere.
+        if (body.whatsappUrl) window.open(body.whatsappUrl, '_blank', 'noopener')
+        else {
+          await navigator.clipboard?.writeText(body.url).catch(() => {})
+          notify('No phone number on file — link copied instead', 'error')
+        }
+      }
+    } finally {
+      setBusyPortal(null)
+    }
+  }
 
   async function remove(id: string) {
     if (!(await confirmDialog('Remove this member? Their group history goes too.'))) return
@@ -70,6 +105,35 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
                 {m.pan && <span>· PAN {m.pan}</span>}
               </p>
             </div>
+            {/* Portal access. Deliberately three separate controls: switching
+                access on is not the same as sending a link, and revoking is not
+                the same as switching off. */}
+            {m.portal_enabled ? (
+              <>
+                <button onClick={() => portalAction(m.id, 'invite')} disabled={busyPortal === m.id}
+                  title="Send a one-time login link on WhatsApp"
+                  className="p-1.5 disabled:opacity-40" style={{ color: 'var(--brand)' }}>
+                  <Link2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => portalAction(m.id, 'revoke')} disabled={busyPortal === m.id}
+                  title="Sign this member out of every device"
+                  className="p-1.5 disabled:opacity-40" style={{ color: 'var(--text-faint)' }}>
+                  <LogOut className="w-4 h-4" />
+                </button>
+                <button onClick={() => portalAction(m.id, 'disable')} disabled={busyPortal === m.id}
+                  className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-1 rounded-full disabled:opacity-40"
+                  style={{ color: 'var(--income)', background: 'color-mix(in srgb, var(--income) 14%, transparent)' }}>
+                  Portal on
+                </button>
+              </>
+            ) : (
+              <button onClick={() => portalAction(m.id, 'enable')} disabled={busyPortal === m.id}
+                title="Allow this member to sign in to the read-only portal"
+                className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-1 rounded-full disabled:opacity-40"
+                style={{ color: 'var(--text-faint)', border: '1px solid var(--border)' }}>
+                Portal off
+              </button>
+            )}
             <button onClick={() => setEditing(m)} className="p-1.5" style={{ color: 'var(--text-faint)' }}><Pencil className="w-4 h-4" /></button>
             <button onClick={() => remove(m.id)} className="p-1.5" style={{ color: 'var(--expense)' }}><Trash2 className="w-4 h-4" /></button>
           </div>

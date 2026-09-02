@@ -24,6 +24,9 @@ export interface ChitMember {
   securities: ChitContact[]
   notes: string | null
   is_active: boolean
+  /** Whether this member may sign in to the read-only member portal (v115).
+   *  Off by default: adding someone to a chit does not create an external login. */
+  portal_enabled?: boolean
   created_at: string
   updated_at: string
 }
