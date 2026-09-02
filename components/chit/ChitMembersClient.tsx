@@ -26,6 +26,10 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
   // Access is per member and off by default. Turning it OFF also signs the
   // member out everywhere, so "revoke" means revoked, not "revoked eventually".
   const [busyPortal, setBusyPortal] = useState<string | null>(null)
+  const [invite, setInvite] = useState<{
+    url: string; whatsappUrl: string | null; name: string
+    origin: string; originSource: string; expiresAt: string
+  } | null>(null)
 
   async function portalAction(memberId: string, action: 'enable' | 'disable' | 'invite' | 'revoke') {
     setBusyPortal(memberId)
@@ -44,13 +48,18 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
       } else if (action === 'revoke') {
         notify(body.revoked ? `Signed out of ${body.revoked} device(s)` : 'No active sessions')
       } else if (action === 'invite') {
-        // The link is single-use and short-lived, so it is handed straight to
-        // WhatsApp rather than parked anywhere.
-        if (body.whatsappUrl) window.open(body.whatsappUrl, '_blank', 'noopener')
-        else {
-          await navigator.clipboard?.writeText(body.url).catch(() => {})
-          notify('No phone number on file — link copied instead', 'error')
-        }
+        // The link is SHOWN, not fired blindly into WhatsApp. Whoever sends it
+        // should be able to see the address they are sending — a link pointing
+        // at localhost or at a preview deployment looks identical inside a chat
+        // bubble, and the member is the one who discovers it does not work.
+        setInvite({
+          url: body.url,
+          whatsappUrl: body.whatsappUrl ?? null,
+          name: body.memberName ?? '',
+          origin: body.origin ?? '',
+          originSource: body.originSource ?? '',
+          expiresAt: body.expiresAt ?? '',
+        })
       }
     } finally {
       setBusyPortal(null)
@@ -150,6 +159,8 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
           }}
         />
       )}
+
+      {invite && <InviteSheet invite={invite} onClose={() => setInvite(null)} />}
 
       {importing && <ImportSheet onClose={() => setImporting(false)} onDone={() => { setImporting(false); router.refresh() }} />}
     </div>
@@ -283,6 +294,85 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => v
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
         </label>
         {result && <p className="text-sm mt-3 font-semibold" style={{ color: 'var(--brand)' }}>{result}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ── The login link, shown before it is sent ──────────────────────────────────
+//
+// Deliberately not a toast. The address matters, the expiry matters, and the
+// person sending it should read both before a member does.
+function InviteSheet({
+  invite, onClose,
+}: {
+  invite: { url: string; whatsappUrl: string | null; name: string; origin: string; originSource: string; expiresAt: string }
+  onClose: () => void
+}) {
+  const looksLocal = /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(invite.origin)
+  const expires = invite.expiresAt
+    ? new Date(invite.expiresAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    : null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>
+              Login link{invite.name ? ` for ${invite.name}` : ''}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
+              Works once{expires ? `, expires ${expires}` : ''}. Do not post it anywhere public.
+            </p>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* THE ADDRESS, in plain sight. This is the thing that goes wrong. */}
+        <div className="mt-3 rounded-xl px-3 py-2.5 text-[11.5px] break-all"
+          style={{ background: 'var(--surface-2, var(--bg))', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+          {invite.url}
+        </div>
+
+        {looksLocal ? (
+          <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--expense)' }}>
+            This link points at your own computer, so it will not open on anyone else&apos;s phone.
+            Set <b>NEXT_PUBLIC_SITE_URL</b> in Vercel to your real address and send a new link.
+          </p>
+        ) : (
+          <p className="text-[11px] mt-2" style={{ color: 'var(--text-faint)' }}>
+            Address taken from {invite.originSource}. Members must be able to reach {invite.origin}.
+          </p>
+        )}
+
+        <div className="flex items-center gap-2 mt-4">
+          <button
+            onClick={async () => {
+              try { await navigator.clipboard.writeText(invite.url); notify('Link copied') }
+              catch { notify('Could not copy — select the link above', 'error') }
+            }}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+            Copy link
+          </button>
+          {invite.whatsappUrl && (
+            <a href={invite.whatsappUrl} target="_blank" rel="noopener noreferrer"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-center text-white"
+              style={{ background: '#25D366' }}>
+              Send on WhatsApp
+            </a>
+          )}
+        </div>
+        {!invite.whatsappUrl && (
+          <p className="text-[11.5px] mt-2" style={{ color: 'var(--text-muted)' }}>
+            No phone number on file for this member — copy the link and send it yourself.
+          </p>
+        )}
       </div>
     </div>
   )

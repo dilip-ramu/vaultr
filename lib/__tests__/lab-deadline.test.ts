@@ -27,7 +27,15 @@ describe('request budget', () => {
 
   it('never hands a call the whole remaining time', () => {
     const b = createBudget({ totalMs: 30_000, now: Date.now() })
-    expect(b.callTimeout()).toBeLessThanOrEqual(b.remaining() - CALL_RESERVE_MS)
+    // ORDER MATTERS, and not for style. remaining() reads the wall clock every
+    // time it is called, so it SHRINKS between two calls. Reading it after
+    // callTimeout() compared a number taken at t against one taken at t+1ms and
+    // failed by exactly one millisecond whenever the two landed either side of
+    // a tick. Take the budget first, then the grant: the grant must still fit
+    // inside the budget that was available when it was measured.
+    const available = b.remaining()
+    expect(b.callTimeout()).toBeLessThanOrEqual(available - CALL_RESERVE_MS)
+    expect(b.callTimeout()).toBeGreaterThan(0)
   })
 
   it('refuses to start research it cannot finish', () => {

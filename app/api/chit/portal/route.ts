@@ -15,9 +15,25 @@ import { buildWhatsAppUrl } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
 
-/** The site's own origin, so the link works in preview and production alike. */
+/**
+ * The address to put in the member's link.
+ *
+ * This matters more than it looks. `req.nextUrl.origin` is the obvious choice
+ * and it is WRONG behind a proxy: on Vercel the internal request often carries
+ * a localhost origin, which produces a link that works on the machine that
+ * generated it and nowhere else. The forwarded headers are what the browser
+ * actually asked for, so they come first after an explicit setting.
+ */
 function siteOrigin(req: NextRequest): string {
-  return process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || req.nextUrl.origin
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '')
+  if (configured) return configured
+
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
+  if (host) {
+    const proto = req.headers.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
+    return `${proto}://${host}`
+  }
+  return req.nextUrl.origin
 }
 
 export async function POST(req: NextRequest) {
@@ -71,6 +87,12 @@ export async function POST(req: NextRequest) {
       expiresAt: result.expiresAt,
       // Returned so the UI can warn when a member has no number on file.
       hasPhone: Boolean(member.phone),
+      memberName: member.name,
+      // Shown in the UI so the address in the link is never a mystery. If it
+      // says localhost, or a preview deployment, that is visible immediately
+      // instead of after a member reports that the link did not work.
+      origin: siteOrigin(req),
+      originSource: process.env.NEXT_PUBLIC_SITE_URL ? 'NEXT_PUBLIC_SITE_URL' : 'request headers',
     })
   }
 
