@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No invoices selected' }, { status: 400 })
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('supplier_invoices')
     .update({
       recoverable_status: 'recovered',
@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
     .in('id', invoice_ids)
     .eq('user_id', user.id)
     .eq('is_recoverable', true)
+    .select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true })
+  const updated_ids = (data ?? []).map(r => r.id)
+  return NextResponse.json({ success: true, updated_ids, updated: updated_ids.length, requested: invoice_ids.length })
 }

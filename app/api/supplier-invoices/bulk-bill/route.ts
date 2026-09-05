@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No invoices selected' }, { status: 400 })
   }
 
-  const { error } = await supabase
+  // RETURN WHAT ACTUALLY CHANGED. Reporting only success let the UI mark rows
+  // as billed that the database had quietly declined — anything not owned by
+  // this user, or not flagged recoverable, is filtered out here and the caller
+  // had no way to know.
+  const { data, error } = await supabase
     .from('supplier_invoices')
     .update({
       recoverable_status: 'billed',
@@ -26,8 +30,15 @@ export async function POST(req: NextRequest) {
     .in('id', invoice_ids)
     .eq('user_id', user.id)
     .eq('is_recoverable', true)
+    .select('id')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ success: true })
+  const updated_ids = (data ?? []).map(r => r.id)
+  return NextResponse.json({
+    success: true,
+    updated_ids,
+    updated: updated_ids.length,
+    requested: invoice_ids.length,
+  })
 }

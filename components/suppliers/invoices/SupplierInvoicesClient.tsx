@@ -121,8 +121,23 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   // Bulk action eligibility counts
   const selUnpaidCount        = useMemo(() => selectedInvoices.filter(i => !i.is_paid).length, [selectedInvoices])
   const selPaidCount          = useMemo(() => selectedInvoices.filter(i => i.is_paid).length, [selectedInvoices])
+  /**
+   * WHICH SELECTED BILLS CAN BE MARKED BILLED.
+   *
+   * This used to demand `recoverable_status === 'pending_billing'` exactly, and
+   * that quietly broke the whole bulk action. `recoverable_status` has no
+   * default in the schema (v15: "NULL when not recoverable"), so a recoverable
+   * bill created without the field explicitly set sits at NULL — which matched
+   * nothing. The single-row button never checked the status at all, so one at a
+   * time worked and a selection did not, which is exactly the wrong way round.
+   *
+   * Anything recoverable that has not already been billed or settled counts.
+   */
+  const canBeBilled = (i: InvoiceExt) =>
+    i.is_recoverable && i.recoverable_status !== 'billed' && i.recoverable_status !== 'recovered'
+
   const selPendingBillingCount = useMemo(
-    () => selectedInvoices.filter(i => i.is_recoverable && i.recoverable_status === 'pending_billing').length,
+    () => selectedInvoices.filter(canBeBilled).length,
     [selectedInvoices]
   )
   const selBilledCount        = useMemo(
@@ -301,22 +316,46 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   }
 
   async function handleBulkBill() {
-    const ids = invoices.filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'pending_billing').map(i => i.id)
-    if (!ids.length) return
+    const chosen = invoices.filter(i => selected.has(i.id))
+    const ids = chosen.filter(canBeBilled).map(i => i.id)
+    const skipped = chosen.length - ids.length
+
+    // Silence was the second half of this bug. Pressing a button and having
+    // nothing happen, with no message, reads as "the feature is broken" —
+    // which is fair, because from the outside it is.
+    if (!ids.length) {
+      notify(
+        chosen.length === 0
+          ? 'Select some bills first'
+          : 'None of the selected bills can be marked billed — they are already billed, settled, or not marked recoverable',
+        'error',
+      )
+      return
+    }
+
     const res = await fetch('/api/supplier-invoices/bulk-bill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invoice_ids: ids }),
     })
-    if (res.ok) {
-      setInvoices(prev => prev.map(i => ids.includes(i.id) ? { ...i, recoverable_status: 'billed' as const } : i))
-      setSelected(new Set())
-    }
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) { notify(body?.error ?? 'Could not mark those as billed', 'error'); return }
+
+    // Trust the server's list, not our own optimism: a row the database
+    // declined to update must not be shown as updated.
+    const updated: string[] = Array.isArray(body?.updated_ids) ? body.updated_ids : ids
+    setInvoices(prev => prev.map(i => updated.includes(i.id) ? { ...i, recoverable_status: 'billed' as const } : i))
+    setSelected(new Set())
+    notify(
+      `${updated.length} bill${updated.length === 1 ? '' : 's'} marked billed`
+      + (skipped ? ` · ${skipped} skipped` : ''),
+      'success',
+    )
   }
 
   async function handleBulkMarkPendingBilled() {
     const ids = invoices.filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'billed').map(i => i.id)
-    if (!ids.length) return
+    if (!ids.length) { notify('None of the selected bills are marked billed', 'error'); return }
     await Promise.all(ids.map(id =>
       fetch(`/api/supplier-invoices/${id}`, {
         method: 'PATCH',
@@ -326,11 +365,12 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     ))
     setInvoices(prev => prev.map(i => ids.includes(i.id) ? { ...i, recoverable_status: 'pending_billing' as const } : i))
     setSelected(new Set())
+    notify(`${ids.length} bill${ids.length === 1 ? '' : 's'} moved back to pending`, 'success')
   }
 
   async function handleBulkMarkSettled() {
     const ids = invoices.filter(i => selected.has(i.id) && i.is_recoverable && i.recoverable_status === 'billed').map(i => i.id)
-    if (!ids.length) return
+    if (!ids.length) { notify('None of the selected bills are billed yet', 'error'); return }
     const today = new Date().toISOString().split('T')[0]
     const res = await fetch('/api/supplier-invoices/bulk-recovered', {
       method: 'POST',
