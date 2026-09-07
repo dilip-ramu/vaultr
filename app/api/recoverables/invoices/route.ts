@@ -41,6 +41,8 @@ interface CreateInvoiceBody {
   customerName: string
   customerId?: string
   companyId?: string                   // which of your own companies issued this
+  /** Which of that company's bank accounts to print. Omitted = its default. */
+  bankAccountId?: string
   markupType: 'percentage' | 'flat' | 'none'
   markupValue: number
   allocationIds: string[]
@@ -182,6 +184,8 @@ export async function POST(req: NextRequest) {
     .insert({
       user_id:          user.id,
       company_id:       resolvedCompanyId,
+      // Which of that company's accounts to print. NULL follows the default.
+      bank_account_id:  body.bankAccountId ?? null,
       invoice_number:   invoiceNumber,
       customer_name:    customerName.trim(),
       customer_id:      customerId ?? null,

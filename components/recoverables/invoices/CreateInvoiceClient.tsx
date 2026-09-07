@@ -1,5 +1,6 @@
 'use client'
 
+import BankAccountPicker from '@/components/shared/BankAccountPicker'
 import { Fragment, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -93,6 +94,9 @@ export default function CreateInvoiceClient({
   // Picked company. Default = company marked is_default (= Contrast after backfill).
   const defaultCompanyId = companies.find(c => c.is_default)?.id ?? companies[0]?.id ?? ''
   const [companyId, setCompanyId]     = useState<string>(defaultCompanyId)
+  // null = follow the company's default account, which is what invoices did
+  // before this could be chosen.
+  const [bankAccountId, setBankAccountId] = useState<string | null>(null)
   const [showCompanyPicker, setShowCompanyPicker] = useState<boolean>(companies.length > 1)
   const pickedCompany = companies.find(c => c.id === companyId) ?? null
   const effCgst = pickedCompany ? pickedCompany.cgst_rate : cgstRate
@@ -218,6 +222,7 @@ export default function CreateInvoiceClient({
           customerName:  initialCustomerName,
           customerId:    customerId ?? undefined,
           companyId:     companyId || undefined,
+          bankAccountId: bankAccountId ?? undefined,
           markupType,
           markupValue,
           allocationIds: [...selectedIds],
@@ -619,6 +624,17 @@ export default function CreateInvoiceClient({
                   <option value="net_90">Net 90 days</option>
                 </select>
               </div>
+            </div>
+
+            {/* Which of the issuing company's accounts the customer should pay
+                into. Defaults to that company's default account. */}
+            <div className="space-y-1.5">
+              <BankAccountPicker
+                companyId={companyId || null}
+                value={bankAccountId}
+                onChange={setBankAccountId}
+                label="Bank account shown on this invoice"
+              />
             </div>
 
             <div className="space-y-1.5">

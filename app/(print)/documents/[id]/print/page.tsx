@@ -6,6 +6,7 @@ import DocPrintView from '@/components/documents/DocPrintView'
 import { normalizeAccent } from '@/lib/companies/templates'
 import { resolveSignature } from '@/lib/companies/resolveSignature'
 import { issuedDocToModel, type InvoiceSettings } from '@/lib/documents/adapters'
+import { resolveDocumentBank } from '@/lib/companies/bankAccounts'
 import { docConfigFor, type DocSide } from '@/lib/documents/config'
 import type { BandTone } from '@/lib/documents/model'
 
@@ -61,13 +62,20 @@ export default async function DocumentPrintPage({ params }: Props) {
     company_gstin: (company?.gstin as string | null) ?? null,
     company_phone: (company?.phone as string | null) ?? null,
     company_email: (company?.email as string | null) ?? null,
-    bank_account_name: (company?.bank_account_name as string | null) ?? null,
-    bank_account_number: (company?.bank_account_number as string | null) ?? null,
-    bank_ifsc: (company?.bank_ifsc as string | null) ?? null,
-    bank_name: (company?.bank_name as string | null) ?? null,
-    swift_code: (company?.swift_code as string | null) ?? null,
+    // Filled below from the account this document names, or the company's
+    // default. Never from another company.
+    bank_account_name: null,
+    bank_account_number: null,
+    bank_ifsc: null,
+    bank_name: null,
+    swift_code: null,
     terms_conditions: (company?.terms_conditions as string | null) ?? null,
   }
+  const bank = await resolveDocumentBank(
+    supabase, user.id, companyId, (d.bank_account_id as string | null) ?? null,
+  )
+  Object.assign(settings, bank.fields)
+
   // Terms are per document type (Templates → Terms & conditions), falling back
   // to the company's legacy terms and then to the built-in wording.
   settings.terms_conditions = (await resolveTerms(supabase, user.id, docType, companyId, settings.terms_conditions)) ?? null

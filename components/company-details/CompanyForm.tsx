@@ -1,5 +1,6 @@
 'use client'
 
+import BankAccountsPanel from './BankAccountsPanel'
 import { useState } from 'react'
 import { X, Upload, Loader2, Trash2, Building2, Check } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
@@ -320,16 +321,22 @@ export default function CompanyForm({ company, existingLogoUrl, existingDocLogoU
             </label>
           </div>
 
-          {/* Bank details */}
+          {/* Bank accounts (v117)
+              A company can hold several. Which one a document prints is chosen
+              on the document; the one marked default is used when it does not
+              say. The four single-bank fields that used to live here were
+              migrated into the first account, so nothing was lost. */}
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Bank details</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input className={inputCls} style={inputStyle} value={bankAcctName} onChange={e => setBankAcctName(e.target.value)} placeholder="Account name" />
-              <input className={inputCls} style={inputStyle} value={bankAcctNum}  onChange={e => setBankAcctNum(e.target.value)}  placeholder="Account number" />
-              <input className={inputCls} style={inputStyle} value={bankIfsc}     onChange={e => setBankIfsc(e.target.value)}     placeholder="IFSC code" />
-              <input className={inputCls} style={inputStyle} value={bankName}     onChange={e => setBankName(e.target.value)}     placeholder="Bank name & branch" />
-              <input className={inputCls} style={inputStyle} value={swiftCode}    onChange={e => setSwiftCode(e.target.value)}    placeholder="SWIFT / BIC code (foreign transfers)" />
-            </div>
+            {company?.id ? (
+              <BankAccountsPanel companyId={company.id} />
+            ) : (
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-faint)' }}>
+                Save the company first, then add its bank accounts here. You can add as
+                many as you need — a domestic account, an export account — and pick which
+                one each invoice shows.
+              </p>
+            )}
           </div>
 
           {/* Invoice defaults */}

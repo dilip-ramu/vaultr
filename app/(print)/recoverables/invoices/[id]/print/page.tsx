@@ -8,6 +8,7 @@ import type { RecoverableInvoice } from '@/lib/recoverables/types'
 import { normalizeAccent } from '@/lib/companies/templates'
 import { resolveSignature } from '@/lib/companies/resolveSignature'
 import { taxInvoiceToModel } from '@/lib/documents/adapters'
+import { resolveDocumentBank } from '@/lib/companies/bankAccounts'
 
 type Props = { params: Promise<{ id: string }> }
 
@@ -73,18 +74,47 @@ export default async function InvoicePrintPage({ params }: Props) {
   const legacy = settings as (typeof settings & { logo_path?: string | null; signature_path?: string | null }) | null
   const pick = (c: unknown, l: unknown) => (c ?? l ?? null) as string | null
 
-  // Merge company branding over the legacy settings shape the view expects.
+  /**
+   * BANK DETAILS DO NOT FALL BACK. Everything else does.
+   *
+   * Branding — name, address, GSTIN, logo — can sensibly borrow from the legacy
+   * single-row settings when a company has not filled it in: the worst case is
+   * a slightly stale address on a document.
+   *
+   * An ACCOUNT NUMBER is different. Falling back meant an invoice issued from
+   * one company printed a DIFFERENT entity's bank account, because that is what
+   * the old settings row happened to hold — and it did it silently, on every
+   * invoice, whichever company was chosen. A customer paying that invoice pays
+   * the wrong account. Printing no bank block is a nuisance; printing someone
+   * else's is a misdirected payment.
+   *
+   * So: once an invoice names a company, its bank details come from that
+   * company or not at all. The legacy row is used only for invoices that
+   * predate companies and carry no company_id.
+   */
+  const chosenBank = await resolveDocumentBank(
+    supabase, user.id,
+    (inv.company_id as string | null) ?? null,
+    ((inv as unknown as Record<string, unknown>).bank_account_id as string | null) ?? null,
+  )
+
+  /** Company-scoped bank details, or the legacy row for pre-company invoices. */
+  const bankFrom = (field: keyof typeof chosenBank.fields): string | null => {
+    if (inv.company_id) return chosenBank.fields[field]
+    return ((legacy as Record<string, unknown> | null)?.[field] as string | null) ?? null
+  }
+
   const mergedSettings = {
     company_name:        pick(company?.name,               legacy?.company_name),
     company_address:     pick(company?.address,            legacy?.company_address),
     company_gstin:       pick(company?.gstin,              legacy?.company_gstin),
     company_phone:       pick(company?.phone,              legacy?.company_phone),
     company_email:       pick(company?.email,              legacy?.company_email),
-    bank_account_name:   pick(company?.bank_account_name,  legacy?.bank_account_name),
-    bank_account_number: pick(company?.bank_account_number, legacy?.bank_account_number),
-    bank_ifsc:           pick(company?.bank_ifsc,          legacy?.bank_ifsc),
-    bank_name:           pick(company?.bank_name,          legacy?.bank_name),
-    swift_code:          pick(company?.swift_code,         legacy?.swift_code),
+    bank_account_name:   bankFrom('bank_account_name'),
+    bank_account_number: bankFrom('bank_account_number'),
+    bank_ifsc:           bankFrom('bank_ifsc'),
+    bank_name:           bankFrom('bank_name'),
+    swift_code:          bankFrom('swift_code'),
     terms_conditions:    pick(company?.terms_conditions,   legacy?.terms_conditions),
     hsn_sac:             pick(company?.hsn_sac,            legacy?.hsn_sac),
   }

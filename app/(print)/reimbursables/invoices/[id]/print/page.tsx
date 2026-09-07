@@ -6,6 +6,7 @@ import type { Metadata } from 'next'
 import DocPrintView from '@/components/documents/DocPrintView'
 import { normalizeAccent } from '@/lib/companies/templates'
 import { resolveSignature } from '@/lib/companies/resolveSignature'
+import { resolveDocumentBank } from '@/lib/companies/bankAccounts'
 import { invoiceStatusBand, type DocModel, type DocRow } from '@/lib/documents/model'
 
 type Props = { params: Promise<{ id: string }> }
@@ -121,13 +122,20 @@ export default async function ReimbursablePrintPage({ params }: Props) {
   const totals = [{ label: 'Subtotal', value: fmtCur(subtotal) }]
   if (gst > 0) totals.push({ label: 'GST', value: fmtCur(gst) })
 
+  // The account this invoice names, or the company's default. Same resolution
+  // as every other document, from one module, so they cannot drift apart.
+  const bank = (await resolveDocumentBank(
+    supabase, user.id, companyId,
+    ((invoice as Record<string, unknown>).bank_account_id as string | null) ?? null,
+  )).fields
+
   const bankLines: string[] = []
-  if (c?.bank_name) bankLines.push('Bank: ' + c.bank_name)
-  if (c?.bank_account_name) bankLines.push('Account Name: ' + c.bank_account_name)
-  if (c?.bank_account_number) bankLines.push('Account Number: ' + c.bank_account_number)
+  if (bank.bank_name) bankLines.push('Bank: ' + bank.bank_name)
+  if (bank.bank_account_name) bankLines.push('Account Name: ' + bank.bank_account_name)
+  if (bank.bank_account_number) bankLines.push('Account Number: ' + bank.bank_account_number)
   const b2: string[] = []
-  if (c?.bank_ifsc) b2.push('IFSC: ' + c.bank_ifsc)
-  if (c?.swift_code) b2.push('SWIFT: ' + c.swift_code)
+  if (bank.bank_ifsc) b2.push('IFSC: ' + bank.bank_ifsc)
+  if (bank.swift_code) b2.push('SWIFT: ' + bank.swift_code)
   if (b2.length) bankLines.push(b2.join(' · '))
 
   const model: DocModel = {

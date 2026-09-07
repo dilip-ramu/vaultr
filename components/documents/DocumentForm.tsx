@@ -1,5 +1,6 @@
 'use client'
 
+import BankAccountPicker from '@/components/shared/BankAccountPicker'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -14,6 +15,7 @@ interface CompanyOpt { id: string; name: string; prefix: string }
 interface PartyOpt { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
 export interface DocInitial {
   companyId: string; partyId: string; date: string; reference: string; notes: string
+  bankAccountId?: string | null
   signatoryId: string | null; number: string
   lines: { item: string; hsn: string; qty: string; rate: string; gst: string }[]
 }
@@ -46,6 +48,9 @@ export default function DocumentForm({ side, docType, companies, parties, existi
   const nextNumber = (cid: string) => buildDocNumber(companyPrefix(cid), cfg.code, existing.filter(e => e.company_id === cid).map(e => e.number))
 
   const [companyId, setCompanyId] = useState(initial?.companyId ?? companies[0]?.id ?? '')
+  // Which of the company's bank accounts this document shows. null = the
+  // company's default, which is what every document did before this existed.
+  const [bankAccountId, setBankAccountId] = useState<string | null>(initial?.bankAccountId ?? null)
   const [signatoryId, setSignatoryId] = useState<string | null>(initial?.signatoryId ?? null)
   const [partyId, setPartyId] = useState(initial?.partyId ?? '')
   const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10))
@@ -109,6 +114,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
         party_address: party.address, party_gstin: party.gstin, party_state: party.state,
         number: finalNumber, date, reference: reference.trim() || null, notes: notes.trim() || null,
         signatory_id: signatoryId || null,
+        bank_account_id: bankAccountId,
         subtotal: totals.subtotal, cgst_amount: totals.cgst, sgst_amount: totals.sgst, total: totals.total,
       }
       let savedId = docId
@@ -184,6 +190,9 @@ export default function DocumentForm({ side, docType, companies, parties, existi
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Authorised signatory
             <SignatorySelect companyId={companyId || null} value={signatoryId} onChange={setSignatoryId} className={iCls} style={iStyle} />
           </label>
+          <div>
+            <BankAccountPicker companyId={companyId || null} value={bankAccountId} onChange={setBankAccountId} />
+          </div>
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Date
             <input type="date" value={date} onChange={e => setDate(e.target.value)} className={iCls} style={iStyle} />
           </label>
