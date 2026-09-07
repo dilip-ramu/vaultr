@@ -1,40 +1,38 @@
-// Which bank account a document prints. PURE where it can be, one query where
-// it cannot.
+// Which of YOUR OWN bank accounts a document prints.
 //
-// THE RULE, IN ONE PLACE
+// The accounts are the ones already on the Accounts page — the same rows whose
+// balances you reconcile. They carry account_number, ifsc_code, branch and
+// swift_code, and since v100 they carry company_id. Nothing here re-types them:
+// a second copy of an account number is a second thing to keep correct, and it
+// would be wrong the first time either copy was edited.
 //
-// A document names a company. It may also name one of that company's bank
-// accounts. Resolution is:
-//
-//   1. the account the document names, if it still exists and belongs to that
-//      company — a document keeps the account it was issued with, even after
-//      the company's default moves;
+// RESOLUTION, in order:
+//   1. the account the document names, if it belongs to that company — a
+//      document keeps the account it was issued with, even after the company's
+//      default moves, so reprinting an old invoice reproduces it;
 //   2. otherwise the company's default account;
 //   3. otherwise nothing.
 //
-// Note what is NOT in that list: another company's details. An invoice issued
-// from one entity must never print a different entity's account number, because
-// a customer paying it pays the wrong account. Printing no bank block is a
-// nuisance; printing the wrong one is a misdirected payment. When a company has
-// no account on file the block is simply absent, which is visible and fixable.
+// What is deliberately NOT in that list is another company's account. An
+// invoice issued from one entity printing a different entity's account number
+// sends the customer's money to the wrong place. Printing no bank block is a
+// nuisance; printing the wrong one is a misdirected payment.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export interface CompanyBankAccount {
+/** An account as the billing code needs it. A subset of the accounts table. */
+export interface BillingAccount {
   id: string
-  company_id: string
-  label: string | null
-  bank_name: string | null
-  account_name: string | null
+  company_id: string | null
+  name: string
   account_number: string | null
-  ifsc: string | null
+  ifsc_code: string | null
   swift_code: string | null
   branch: string | null
-  is_default: boolean
+  account_holder: string | null
   is_active: boolean
-  sort_order: number
 }
 
 /** The shape the document adapters already expect. */
@@ -51,65 +49,82 @@ export const EMPTY_BANK: BankFields = {
   bank_ifsc: null, swift_code: null,
 }
 
-export function toBankFields(a: CompanyBankAccount | null | undefined): BankFields {
+/** The columns to select from `accounts` wherever billing needs one. */
+export const BILLING_ACCOUNT_COLUMNS =
+  'id, company_id, name, account_number, ifsc_code, swift_code, branch, account_holder, is_active'
+
+export function toBankFields(a: BillingAccount | null | undefined): BankFields {
   if (!a) return { ...EMPTY_BANK }
   return {
-    bank_name: [a.bank_name, a.branch].filter(Boolean).join(', ') || null,
-    bank_account_name: a.account_name ?? null,
+    bank_name: [a.name, a.branch].filter(Boolean).join(', ') || null,
+    bank_account_name: a.account_holder ?? null,
     bank_account_number: a.account_number ?? null,
-    bank_ifsc: a.ifsc ?? null,
+    bank_ifsc: a.ifsc_code ?? null,
     swift_code: a.swift_code ?? null,
   }
 }
 
 /** How an account reads in a picker. Never the full number — the last four
- *  digits are enough to tell two accounts apart, and a screen someone is
- *  presenting from does not need the rest. */
-export function accountLabel(a: CompanyBankAccount): string {
-  if (a.label?.trim()) return a.label.trim()
+ *  digits distinguish two accounts, and a screen someone may be presenting
+ *  from does not need the rest. */
+export function accountLabel(a: BillingAccount): string {
   const tail = a.account_number?.trim().slice(-4)
-  const bank = a.bank_name?.trim() || 'Bank account'
-  return tail ? `${bank} ····${tail}` : bank
+  return tail ? `${a.name} ····${tail}` : a.name
 }
 
-/** PURE: pick the right account from a company's list. Exported for tests. */
+/** PURE: pick the right account. Exported so the rule can be tested without a
+ *  database, because it is the rule that decides where money is sent. */
 export function selectAccount(
-  accounts: CompanyBankAccount[], companyId: string | null, chosenId: string | null,
-): CompanyBankAccount | null {
+  accounts: BillingAccount[],
+  companyId: string | null,
+  chosenId: string | null,
+  companyDefaultId: string | null,
+): BillingAccount | null {
   if (!companyId) return null
   const mine = accounts.filter(a => a.company_id === companyId)
   if (chosenId) {
-    // A document keeps what it was issued with, active or not: reprinting an old
-    // invoice must reproduce it, not quietly restate it with today's account.
     const named = mine.find(a => a.id === chosenId)
-    if (named) return named
+    if (named) return named          // inactive included: history must reprint
   }
-  return mine.find(a => a.is_default) ?? null
+  if (companyDefaultId) {
+    const fallback = mine.find(a => a.id === companyDefaultId)
+    if (fallback) return fallback
+  }
+  return null
 }
 
-/** Load a company's accounts. Active ones only unless `includeInactive`. */
-export async function listBankAccounts(
-  supabase: SupabaseClient, userId: string, companyId: string,
-  includeInactive = false,
-): Promise<CompanyBankAccount[]> {
-  let q = supabase.from('company_bank_accounts').select('*')
+/** Accounts assigned to a company. Active only unless `includeInactive`. */
+export async function listBillingAccounts(
+  supabase: SupabaseClient, userId: string, companyId: string, includeInactive = false,
+): Promise<BillingAccount[]> {
+  let q = supabase.from('accounts').select(BILLING_ACCOUNT_COLUMNS)
     .eq('user_id', userId).eq('company_id', companyId)
   if (!includeInactive) q = q.eq('is_active', true)
-  const { data } = await q.order('sort_order').order('created_at')
-  return (data ?? []) as CompanyBankAccount[]
+  const { data } = await q.order('name')
+  return (data ?? []) as unknown as BillingAccount[]
 }
 
 /**
- * The bank block for one document. Used by every print path so they cannot
- * drift apart — which is exactly how invoices ended up showing the wrong bank.
+ * The bank block for one document. Every print path goes through here so they
+ * cannot drift apart — which is exactly how invoices ended up showing the bank
+ * of a company they were not issued from.
  */
 export async function resolveDocumentBank(
   supabase: SupabaseClient, userId: string,
   companyId: string | null, chosenAccountId: string | null,
-): Promise<{ fields: BankFields; account: CompanyBankAccount | null }> {
+): Promise<{ fields: BankFields; account: BillingAccount | null }> {
   if (!companyId) return { fields: { ...EMPTY_BANK }, account: null }
-  // Inactive included on purpose: an old document may name a closed account.
-  const accounts = await listBankAccounts(supabase, userId, companyId, true)
-  const account = selectAccount(accounts, companyId, chosenAccountId)
+
+  const [{ data: company }, accounts] = await Promise.all([
+    supabase.from('companies').select('default_bank_account_id')
+      .eq('id', companyId).eq('user_id', userId).maybeSingle(),
+    // Inactive included: an old document may name an account since closed.
+    listBillingAccounts(supabase, userId, companyId, true),
+  ])
+
+  const account = selectAccount(
+    accounts, companyId, chosenAccountId,
+    (company as any)?.default_bank_account_id ?? null,
+  )
   return { fields: toBankFields(account), account }
 }

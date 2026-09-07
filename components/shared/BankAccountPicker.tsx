@@ -7,7 +7,7 @@
 // behaviour there was before choosing was possible.
 
 import { useEffect, useState } from 'react'
-import type { CompanyBankAccount } from '@/lib/companies/bankAccounts'
+import type { BillingAccount } from '@/lib/companies/bankAccounts'
 import { accountLabel } from '@/lib/companies/bankAccounts'
 
 export default function BankAccountPicker({
@@ -18,22 +18,24 @@ export default function BankAccountPicker({
   onChange: (id: string | null) => void
   label?: string
 }) {
-  const [accounts, setAccounts] = useState<CompanyBankAccount[]>([])
+  const [accounts, setAccounts] = useState<BillingAccount[]>([])
+  const [defaultId, setDefaultId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     if (!companyId) { setAccounts([]); setLoaded(true); return }
     setLoaded(false)
-    fetch(`/api/companies/bank-accounts?companyId=${encodeURIComponent(companyId)}`, { cache: 'no-store' })
+    fetch(`/api/companies/billing-accounts?companyId=${encodeURIComponent(companyId)}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(b => {
         if (cancelled) return
-        const active = (b.accounts ?? []).filter((a: CompanyBankAccount) => a.is_active)
+        const active = (b.accounts ?? []).filter((a: BillingAccount) => a.is_active)
         setAccounts(active)
+        setDefaultId(b.defaultAccountId ?? null)
         // Changing company must not leave the previous company's account
         // selected — that is the exact mistake this feature exists to prevent.
-        if (value && !active.some((a: CompanyBankAccount) => a.id === value)) onChange(null)
+        if (value && !active.some((a: BillingAccount) => a.id === value)) onChange(null)
       })
       .catch(() => { if (!cancelled) setAccounts([]) })
       .finally(() => { if (!cancelled) setLoaded(true) })
@@ -43,15 +45,15 @@ export default function BankAccountPicker({
 
   if (!companyId || !loaded) return null
 
-  const fallback = accounts.find(a => a.is_default) ?? null
+  const fallback = accounts.find(a => a.id === defaultId) ?? null
 
   return (
     <div>
       <label className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>{label}</label>
       {accounts.length === 0 ? (
         <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--amber)' }}>
-          This company has no bank account on file, so the document will print no bank
-          details. Add one in Company details → Bank accounts.
+          No bank account is assigned to this company, so the document will print no
+          bank details. Assign one in Company details → Bank accounts.
         </p>
       ) : (
         <>
