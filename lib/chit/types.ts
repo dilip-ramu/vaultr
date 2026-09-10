@@ -12,6 +12,8 @@ export interface ChitContact {
 export interface ChitMember {
   id: string
   user_id: string
+  /** The number on the passbook, e.g. UC00001. Editable, unique per user (v119). */
+  member_code?: string | null
   name: string
   phone: string | null
   dial_code: string
@@ -23,6 +25,14 @@ export interface ChitMember {
   guarantors: ChitContact[]
   securities: ChitContact[]
   notes: string | null
+  /** Where this member is PAID their prize. Their account, not one of yours. */
+  bank_name?: string | null
+  bank_account_name?: string | null
+  bank_account_number?: string | null
+  bank_ifsc?: string | null
+  bank_branch?: string | null
+  /** Who introduced them — a real member, not a name typed in a box (v119). */
+  referred_by_member_id?: string | null
   is_active: boolean
   /** Whether this member may sign in to the read-only member portal (v115).
    *  Off by default: adding someone to a chit does not create an external login. */

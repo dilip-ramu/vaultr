@@ -1,8 +1,10 @@
 'use client'
 
+import { sampleMemberCsv, parseMemberCsv } from '@/lib/chit/memberCsv'
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut } from 'lucide-react'
+import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut, Download } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { ChitMember } from '@/lib/chit/types'
@@ -19,7 +21,9 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
     const s = q.trim().toLowerCase()
     if (!s) return members
     return members.filter(m =>
-      m.name.toLowerCase().includes(s) || (m.phone ?? '').includes(s))
+      m.name.toLowerCase().includes(s)
+      || (m.phone ?? '').includes(s)
+      || (m.member_code ?? '').toLowerCase().includes(s))
   }, [members, q])
 
   // ── Member portal (v115) ──────────────────────────────────────────────────
@@ -107,13 +111,21 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
         {filtered.map((m, i) => (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3"
             style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold truncate" style={{ color: 'var(--text)' }}>{m.name}</p>
+            <Link href={`/chit/members/${m.id}`} className="min-w-0 flex-1 group">
+              <p className="text-sm font-bold truncate flex items-center gap-2" style={{ color: 'var(--text)' }}>
+                <span className="group-hover:underline underline-offset-2">{m.name}</span>
+                {m.member_code && (
+                  <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{ color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
+                    {m.member_code}
+                  </span>
+                )}
+              </p>
               <p className="text-xs flex items-center gap-1.5" style={{ color: 'var(--text-faint)' }}>
                 {m.phone && <><Phone className="w-3 h-3" />{m.phone}</>}
                 {m.pan && <span>· PAN {m.pan}</span>}
               </p>
-            </div>
+            </Link>
             {/* Portal access. Deliberately three separate controls: switching
                 access on is not the same as sending a link, and revoking is not
                 the same as switching off. */}
@@ -152,6 +164,7 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
       {(adding || editing) && (
         <MemberForm
           member={editing}
+          members={members}
           onClose={() => { setAdding(false); setEditing(null) }}
           onSaved={m => {
             setMembers(prev => prev.some(x => x.id === m.id) ? prev.map(x => x.id === m.id ? m : x) : [...prev, m].sort((a, b) => a.name.localeCompare(b.name)))
@@ -167,12 +180,21 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
   )
 }
 
-function MemberForm({ member, onClose, onSaved }: {
+function MemberForm({ member, members, onClose, onSaved }: {
   member: ChitMember | null
+  /** Everyone else, so "introduced by" can point at a real member. */
+  members: ChitMember[]
   onClose: () => void
   onSaved: (m: ChitMember) => void
 }) {
+  const [code, setCode] = useState(member?.member_code ?? '')
   const [name, setName] = useState(member?.name ?? '')
+  const [bankName, setBankName] = useState(member?.bank_name ?? '')
+  const [bankBranch, setBankBranch] = useState(member?.bank_branch ?? '')
+  const [bankAcctName, setBankAcctName] = useState(member?.bank_account_name ?? '')
+  const [bankAcctNum, setBankAcctNum] = useState(member?.bank_account_number ?? '')
+  const [bankIfsc, setBankIfsc] = useState(member?.bank_ifsc ?? '')
+  const [referredBy, setReferredBy] = useState(member?.referred_by_member_id ?? '')
   const [dial, setDial] = useState(member?.dial_code ?? '91')
   const [phone, setPhone] = useState(member?.phone ?? '')
   const [address, setAddress] = useState(member?.address ?? '')
@@ -189,7 +211,14 @@ function MemberForm({ member, onClose, onSaved }: {
     if (!name.trim()) { notify('Name is required', 'error'); return }
     setBusy(true)
     try {
-      const payload = { id: member?.id, name, dial_code: dial, phone, address, aadhaar, pan, notes, force }
+      const payload = {
+        id: member?.id, name, dial_code: dial, phone, address, aadhaar, pan, notes, force,
+        // Blank on a NEW member means "give me the next number".
+        member_code: code.trim() || (member ? null : undefined),
+        bank_name: bankName, bank_branch: bankBranch, bank_account_name: bankAcctName,
+        bank_account_number: bankAcctNum, bank_ifsc: bankIfsc,
+        referred_by_member_id: referredBy || null,
+      }
       const res = await fetch('/api/chit/members', {
         method: member ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,9 +242,14 @@ function MemberForm({ member, onClose, onSaved }: {
           <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>{member ? 'Edit member' : 'Add member'}</p>
           <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
         </div>
-        <div className="space-y-2.5">
-          <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Name</label>
-            <input className={fld} style={fs} value={name} onChange={e => setName(e.target.value)} /></div>
+        <div className="space-y-2.5 max-h-[70dvh] overflow-y-auto pr-0.5">
+          <div className="grid grid-cols-3 gap-2">
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Member no.</label>
+              <input className={fld} style={fs} value={code} onChange={e => setCode(e.target.value.toUpperCase())}
+                placeholder={member ? '' : 'auto'} title="Leave blank to get the next number" /></div>
+            <div className="col-span-2"><label className={lbl} style={{ color: 'var(--text-muted)' }}>Name</label>
+              <input className={fld} style={fs} value={name} onChange={e => setName(e.target.value)} /></div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Phone</label>
               <div className="flex gap-1.5">
@@ -233,6 +267,36 @@ function MemberForm({ member, onClose, onSaved }: {
             <input className={fld} style={fs} value={aadhaar} onChange={e => setAadhaar(e.target.value)} inputMode="numeric" /></div>
           <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Address</label>
             <textarea className={fld} style={fs} rows={2} value={address} onChange={e => setAddress(e.target.value)} /></div>
+          {/* Where this member is PAID their prize. Their account, not one of
+              your company's billing accounts. */}
+          <p className="text-[10.5px] font-extrabold uppercase tracking-wide pt-1" style={{ color: 'var(--text-faint)' }}>
+            Bank account — for paying their prize
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Bank</label>
+              <input className={fld} style={fs} value={bankName} onChange={e => setBankName(e.target.value)} /></div>
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Branch</label>
+              <input className={fld} style={fs} value={bankBranch} onChange={e => setBankBranch(e.target.value)} /></div>
+          </div>
+          <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Account name</label>
+            <input className={fld} style={fs} value={bankAcctName} onChange={e => setBankAcctName(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Account number</label>
+              <input className={fld} style={fs} value={bankAcctNum} onChange={e => setBankAcctNum(e.target.value)} inputMode="numeric" /></div>
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>IFSC</label>
+              <input className={fld} style={fs} value={bankIfsc} onChange={e => setBankIfsc(e.target.value.toUpperCase())} /></div>
+          </div>
+
+          <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Introduced by</label>
+            <select className={fld} style={fs} value={referredBy} onChange={e => setReferredBy(e.target.value)}>
+              <option value="">— nobody recorded —</option>
+              {members.filter(m => m.id !== member?.id).map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.member_code ? `${m.member_code} · ` : ''}{m.name}
+                </option>
+              ))}
+            </select></div>
+
           <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Notes</label>
             <input className={fld} style={fs} value={notes} onChange={e => setNotes(e.target.value)} placeholder="nominees, guarantors, securities…" /></div>
           <button onClick={() => save()} disabled={busy}
@@ -248,32 +312,77 @@ function MemberForm({ member, onClose, onSaved }: {
 function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [problems, setProblems] = useState<string[]>([])
+
+  /** The sample is generated from the SAME column list the parser reads, so a
+   *  column in the file is always a column that gets imported. */
+  function downloadSample() {
+    const blob = new Blob([sampleMemberCsv()], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'chit-members-example.csv'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
 
   async function handleFile(file: File) {
-    setBusy(true); setResult(null)
+    setBusy(true); setResult(null); setProblems([])
     try {
-      const text = await file.text()
-      // Expect columns: Serial, Name, Phone (header row, comma-separated).
-      const rows = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-      const header = rows.shift()?.toLowerCase().split(',').map(s => s.trim()) ?? []
-      const nameIdx = header.findIndex(h => h.includes('name'))
-      const phoneIdx = header.findIndex(h => h.includes('phone') || h.includes('mobile'))
-      if (nameIdx < 0) { notify('CSV needs a Name column', 'error'); return }
+      const { rows, headers } = parseMemberCsv(await file.text())
+      if (!('name' in headers)) {
+        notify('That file has no Name column. Download the example to see the format.', 'error')
+        return
+      }
+      if (!rows.length) { notify('No rows found in that file', 'error'); return }
 
-      let ok = 0, skip = 0
-      for (const line of rows) {
-        const cols = line.split(',')
-        const name = cols[nameIdx]?.trim()
-        if (!name) { skip++; continue }
-        const phone = phoneIdx >= 0 ? cols[phoneIdx]?.trim() : ''
+      // Introduced-by is given as a member NUMBER in the file, which means
+      // nothing to the database. Resolve it after every row exists, so a file
+      // can reference a member it also creates.
+      const pending: { code: string; referrer: string }[] = []
+      const failed: string[] = []
+      let ok = 0
+
+      for (const r of rows) {
+        if (r.error) { failed.push(`Row ${r.row}: ${r.error}`); continue }
+        const { referred_by_code, ...fields } = r.values
         const res = await fetch('/api/chit/members', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, phone, force: true }),
+          body: JSON.stringify({ ...fields, force: true }),
         })
-        if (res.ok) ok++; else skip++
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) { failed.push(`Row ${r.row} (${fields.name}): ${json?.error ?? 'could not be added'}`); continue }
+        ok++
+        if (referred_by_code && json.member?.member_code) {
+          pending.push({ code: json.member.member_code, referrer: referred_by_code })
+        }
       }
-      setResult(`Imported ${ok}. Skipped ${skip}.`)
-      if (ok > 0) setTimeout(onDone, 1200)
+
+      // Second pass: link the introducers now that everyone has a number.
+      if (pending.length) {
+        const all = await (await fetch('/api/chit/members')).json().catch(() => ({ members: [] }))
+        const byCode = new Map<string, string>(
+          (all.members ?? []).map((m: ChitMember) => [String(m.member_code ?? '').toUpperCase(), m.id]),
+        )
+        for (const link of pending) {
+          const selfId = byCode.get(link.code.toUpperCase())
+          const refId = byCode.get(link.referrer.trim().toUpperCase())
+          if (!selfId || !refId || selfId === refId) {
+            failed.push(`${link.code}: introducer ${link.referrer} not found`)
+            continue
+          }
+          await fetch('/api/chit/members', {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: selfId, referred_by_member_id: refId }),
+          })
+        }
+      }
+
+      setResult(`Imported ${ok} of ${rows.length}.`)
+      setProblems(failed.slice(0, 8))
+      if (ok > 0) setTimeout(onDone, failed.length ? 4000 : 1200)
     } finally { setBusy(false) }
   }
 
@@ -285,15 +394,38 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => v
           <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Import members</p>
           <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
         </div>
-        <p className="text-[12.5px] mb-4" style={{ color: 'var(--text-muted)' }}>
-          A CSV with <b>Name</b> and <b>Phone</b> columns (a Serial column is fine, it's ignored). One member per row.
+
+        <p className="text-[12.5px] mb-3" style={{ color: 'var(--text-muted)' }}>
+          Only <b>Name</b> is required. Everything else is optional, and any column the
+          file does not have is simply left blank.
         </p>
+
+        <button onClick={downloadSample}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold mb-3"
+          style={{ border: '1px solid var(--border)', color: 'var(--brand)' }}>
+          <Download className="w-4 h-4" /> Download example CSV
+        </button>
+
         <label className="block w-full text-center py-8 rounded-xl cursor-pointer" style={{ border: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
           {busy ? 'Importing…' : 'Choose CSV file'}
           <input type="file" accept=".csv,text/csv" className="hidden" disabled={busy}
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
         </label>
+
         {result && <p className="text-sm mt-3 font-semibold" style={{ color: 'var(--brand)' }}>{result}</p>}
+        {problems.length > 0 && (
+          <div className="mt-2 space-y-0.5">
+            {problems.map((p, i) => (
+              <p key={i} className="text-[11.5px]" style={{ color: 'var(--expense)' }}>{p}</p>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
+          Members without a number in the file are given the next one automatically.
+          &ldquo;Introduced By&rdquo; takes a member number and is linked after every row is
+          added, so a file can reference someone it creates further down.
+        </p>
       </div>
     </div>
   )
