@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Radio, Square, Play, Trophy } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import { BID_STEP } from '@/lib/chit/bidding'
 
 const POLL_MS = 4000
 const inr = (n: unknown) => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN')
@@ -130,7 +131,7 @@ export default function LiveBiddingPanel({
       {open ? (
         <>
           <p className="text-xs mt-1.5" style={{ color: 'var(--text-faint)' }}>
-            Month {open.month_number} · ceiling {inr(open.ceiling_amount)} · minimum raise {inr(open.min_increment)}
+            Month {open.month_number} · ceiling {inr(open.ceiling_amount)} · bids rise in {inr(BID_STEP)}s
             {' · '}{bids.length} {bids.length === 1 ? 'bid' : 'bids'}
           </p>
 

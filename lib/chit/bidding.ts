@@ -31,8 +31,11 @@ export interface BidWindowRules {
   status: BidWindowStatus
   /** The most any bid may be, frozen when the window opened. */
   ceilingAmount: number
-  /** The least a new bid must beat the standing one by. */
-  minIncrement: number
+  /**
+   * Kept because the column exists and old windows carry a value, but NOT used.
+   * See minimumAcceptableBid for why honouring it would keep a live bug alive.
+   */
+  minIncrement?: number
 }
 
 export interface BidContext {
@@ -50,8 +53,21 @@ export type BidRejection =
   | 'NOT_IN_GROUP'
   | 'ALREADY_WON'
   | 'NOT_A_NUMBER'
+  | 'NOT_A_STEP'
   | 'BELOW_MINIMUM'
   | 'ABOVE_CEILING'
+
+/**
+ * Bids move in hundreds. That is how the auction is called in the room, so it
+ * is how it works here — a member may bid any amount they like as long as it is
+ * a round hundred and it beats the standing bid.
+ */
+export const BID_STEP = 100
+
+/** The next multiple of BID_STEP at or above n. */
+export function roundUpToStep(n: number): number {
+  return Math.ceil(num(n) / BID_STEP) * BID_STEP
+}
 
 export interface BidCheck {
   ok: boolean
@@ -66,8 +82,17 @@ export interface BidCheck {
  * Returns null when no bid could be accepted at all.
  */
 export function minimumAcceptableBid(ctx: BidContext): number | null {
-  const inc = Math.max(1, num(ctx.window.minIncrement))
-  const floor = ctx.highestAmount == null ? inc : round2(num(ctx.highestAmount) + inc)
+  // One step above the standing bid. Nothing else.
+  //
+  // The window stores a frozen min_increment, and this deliberately ignores it.
+  // No screen has ever let a foreman choose that number — every stored value
+  // came from an automatic quarter-of-a-percent default, which on a ₹5,20,000
+  // chit meant a member who bid ₹1,500 was told their next bid had to be
+  // ₹2,800. Reading the frozen value back would keep that wrong number alive
+  // for every window that is already open.
+  const floor = ctx.highestAmount == null
+    ? BID_STEP
+    : roundUpToStep(round2(num(ctx.highestAmount) + BID_STEP))
   return floor > num(ctx.window.ceilingAmount) ? null : floor
 }
 
@@ -89,6 +114,14 @@ export function checkBid(amountRaw: unknown, ctx: BidContext): BidCheck {
   const amount = Number(amountRaw)
   if (!Number.isFinite(amount) || amount <= 0) {
     return { ok: false, reason: 'NOT_A_NUMBER', message: 'Enter a bid amount in rupees.' }
+  }
+
+  if (round2(amount) % BID_STEP !== 0) {
+    return {
+      ok: false, reason: 'NOT_A_STEP',
+      message: `Bids go up in ${BID_STEP}s. Enter a round figure — ${
+        Math.round(roundUpToStep(amount)).toLocaleString('en-IN')}, for example.`,
+    }
   }
 
   const ceiling = num(ctx.window.ceilingAmount)
@@ -120,11 +153,17 @@ export function checkBid(amountRaw: unknown, ctx: BidContext): BidCheck {
 }
 
 /**
- * A sensible minimum increment for a group that has not set one. A quarter of a
- * percent of the pot, rounded up to the nearest hundred, never below ₹100 —
- * small enough not to distort the auction, big enough that bidding cannot crawl.
+ * The minimum increment for a group that has not set one: one step.
+ *
+ * This used to be a quarter of a percent of the pot, which on a ₹5,20,000 chit
+ * made the smallest legal raise ₹1,300 — so a member who bid ₹1,500 was then
+ * told their next bid had to be ₹2,800. That is not how the auction is called.
+ * Any round hundred that beats the standing bid is a valid bid, and the
+ * increment exists only to stop bidding crawling in rupees.
+ *
+ * A foreman who wants a larger step can still set one when opening the window;
+ * it is frozen onto that window and honoured.
  */
-export function defaultIncrement(chitValue: number): number {
-  const quarterPct = num(chitValue) * 0.0025
-  return Math.max(100, Math.ceil(quarterPct / 100) * 100)
+export function defaultIncrement(_chitValue?: number): number {
+  return BID_STEP
 }

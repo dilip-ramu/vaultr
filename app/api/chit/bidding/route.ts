@@ -101,9 +101,10 @@ export async function POST(req: NextRequest) {
     const ceiling = bidCeiling({
       chitValue: Number(group.chit_value), bidCeilingPct: Number(group.bid_ceiling_pct),
     })
-    const increment = num(body?.minIncrement) > 0
-      ? num(body.minIncrement)
-      : defaultIncrement(Number(group.chit_value))
+    // Bids go up in hundreds, so the stored increment is one step. It used to
+    // be a quarter of a percent of the pot, which made the smallest legal raise
+    // ₹1,300 on a ₹5.2L chit — not how the auction is called in the room.
+    const increment = defaultIncrement()
 
     const { data, error } = await supabase.from('chit_bid_windows').upsert({
       user_id: owner, group_id: groupId, month_number: monthNumber,

@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Card, inr } from './shared'
 import type { PortalLiveAuction } from '@/lib/chit/portal-data'
+import { BID_STEP } from '@/lib/chit/bidding'
 
 const POLL_MS = 4000
 
@@ -122,7 +123,7 @@ export default function PortalBidPanel({
               style={{ ...field, fontVariantNumeric: 'tabular-nums' }}
             />
             <p className="text-[11px] mt-1" style={{ color: 'var(--text-faint)' }}>
-              At least {min != null ? inr(min) : '—'} · ceiling {inr(auction.ceilingAmount)}
+              At least {min != null ? inr(min) : '—'} · in multiples of {inr(BID_STEP)} · ceiling {inr(auction.ceilingAmount)}
             </p>
           </div>
 

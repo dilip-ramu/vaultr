@@ -50,16 +50,37 @@ describe('the rules that decide whether a bid stands', () => {
     expect(checkBid(1000, ctx()).ok).toBe(true)
   })
 
-  it('refuses a first bid below the increment', () => {
-    const r = checkBid(500, ctx())
-    expect(r.ok).toBe(false)
-    expect(r.reason).toBe('BELOW_MINIMUM')
+  it('takes any round hundred as a first bid', () => {
+    expect(checkBid(100, ctx()).ok).toBe(true)
+    expect(checkBid(500, ctx()).ok).toBe(true)
+    expect(checkBid(1500, ctx()).ok).toBe(true)
   })
 
-  it('requires a new bid to beat the standing one by the increment', () => {
-    const c = ctx({ highestAmount: 50000 })
-    expect(checkBid(50500, c).reason).toBe('BELOW_MINIMUM')
-    expect(checkBid(51000, c).ok).toBe(true)
+  it('needs a new bid to be only one hundred above the standing one', () => {
+    // THE BUG THIS REPLACED: the increment was a quarter of a percent of the
+    // pot, so after bidding ₹1,500 a member was told their next bid had to be
+    // ₹2,800. Any round hundred that beats the standing bid is a valid bid.
+    const c = ctx({ highestAmount: 1500 })
+    expect(checkBid(1600, c).ok).toBe(true)
+    expect(checkBid(1700, c).ok).toBe(true)
+    expect(checkBid(1500, c).reason).toBe('BELOW_MINIMUM')
+  })
+
+  it('does not care how big the pot is', () => {
+    // A ₹5.2L chit and a ₹10,000 chit raise by the same hundred.
+    const big = ctx({ window: { status: 'open', ceilingAmount: 200000 }, highestAmount: 1500 })
+    expect(checkBid(1600, big).ok).toBe(true)
+  })
+
+  it('ignores an increment frozen onto an older window', () => {
+    // Every stored value came from the old automatic default, never from a
+    // person. Reading it back would keep the bug alive for open windows.
+    const stale = ctx({
+      window: { status: 'open', ceilingAmount: 150000, minIncrement: 1300 },
+      highestAmount: 1500,
+    })
+    expect(minimumAcceptableBid(stale)).toBe(1600)
+    expect(checkBid(1600, stale).ok).toBe(true)
   })
 
   it('refuses a bid equal to the standing one', () => {
@@ -67,8 +88,22 @@ describe('the rules that decide whether a bid stands', () => {
   })
 
   it('refuses a bid above the ceiling', () => {
-    expect(checkBid(150001, ctx()).reason).toBe('ABOVE_CEILING')
+    expect(checkBid(150100, ctx()).reason).toBe('ABOVE_CEILING')
     expect(checkBid(150000, ctx()).ok).toBe(true)
+  })
+
+  it('refuses anything that is not a round hundred', () => {
+    for (const odd of [150, 1501, 1550, 99, 2999.5]) {
+      expect(checkBid(odd, ctx()).reason, String(odd)).toBe('NOT_A_STEP')
+    }
+  })
+
+  it('tells them the round figure to use instead of just saying no', () => {
+    expect(checkBid(1550, ctx()).message).toContain('1,600')
+  })
+
+  it('checks the step before the ceiling, so the advice is the useful one', () => {
+    expect(checkBid(1550, ctx()).reason).toBe('NOT_A_STEP')
   })
 
   it('says plainly when the ceiling has been reached and no bid is possible', () => {
@@ -103,13 +138,23 @@ describe('the rules that decide whether a bid stands', () => {
   })
 
   it('quotes a floor the member can actually bid', () => {
-    expect(minimumAcceptableBid(ctx())).toBe(1000)
-    expect(minimumAcceptableBid(ctx({ highestAmount: 50000 }))).toBe(51000)
+    expect(minimumAcceptableBid(ctx())).toBe(100)
+    expect(minimumAcceptableBid(ctx({ highestAmount: 1500 }))).toBe(1600)
+    expect(minimumAcceptableBid(ctx({ highestAmount: 50000 }))).toBe(50100)
   })
 
-  it('derives a sane default increment from the pot', () => {
-    expect(defaultIncrement(500000)).toBe(1300)   // 0.25% = 1250, rounded up
-    expect(defaultIncrement(10000)).toBe(100)     // never below ₹100
+  it('never quotes a floor that the step rule would then refuse', () => {
+    // A standing bid that is not itself a round hundred can only have come from
+    // older data. The floor above it must still be biddable.
+    expect(minimumAcceptableBid(ctx({ highestAmount: 1550 }))).toBe(1700)
+    const floor = minimumAcceptableBid(ctx({ highestAmount: 1550 }))!
+    expect(checkBid(floor, ctx({ highestAmount: 1550 })).ok).toBe(true)
+  })
+
+  it('uses one step as the increment, whatever the pot', () => {
+    expect(defaultIncrement(500000)).toBe(100)
+    expect(defaultIncrement(10000)).toBe(100)
+    expect(defaultIncrement()).toBe(100)
   })
 })
 
@@ -204,9 +249,9 @@ describe('placing a bid', () => {
 
   it('does not burn a PIN attempt when the BID is the thing that is wrong', async () => {
     const d = await withPin(db())
-    // Below the increment: rejected on the rules, before the PIN is consulted.
+    // Not a round hundred: rejected on the rules, before the PIN is consulted.
     const r = await placeBid(bid({ amount: 10 }), asClient(d)) as any
-    expect(r.reason).toBe('BELOW_MINIMUM')
+    expect(r.reason).toBe('NOT_A_STEP')
     expect(Number(d.rows('chit_member_pins')[0].failed_attempts)).toBe(0)
   })
 
@@ -245,8 +290,8 @@ describe('placing a bid', () => {
       bids: [{ id: 'b-1', user_id: OWNER, group_id: GROUP, window_id: WINDOW, member_id: BOB, month_number: 4, amount: 60000, placed_at: NOW.toISOString() }],
     }))
     expect((await placeBid(bid({ amount: 60000 }), asClient(d)) as any).reason).toBe('BELOW_MINIMUM')
-    expect((await placeBid(bid({ amount: 60500 }), asClient(d)) as any).reason).toBe('BELOW_MINIMUM')
-    expect((await placeBid(bid({ amount: 61000 }), asClient(d)) as any).ok).toBe(true)
+    expect((await placeBid(bid({ amount: 60050 }), asClient(d)) as any).reason).toBe('NOT_A_STEP')
+    expect((await placeBid(bid({ amount: 60100 }), asClient(d)) as any).ok).toBe(true)
   })
 
   it('refuses a bid above the frozen ceiling', async () => {
@@ -304,7 +349,7 @@ describe('the live auction as a member sees it', () => {
       bids: [{ id: 'b-1', user_id: OWNER, group_id: GROUP, window_id: WINDOW, member_id: BOB, month_number: 4, amount: 75000, placed_at: NOW.toISOString() }],
     })
     const live = await getLiveAuction(ALICE, GROUP, asClient(d))
-    expect(live!.minimumNext).toBe(76000)
+    expect(live!.minimumNext).toBe(75100)
     expect(live!.canBid).toBe(true)
   })
 
