@@ -17,7 +17,7 @@ import {
   sampleMemberCsv, parseMemberCsv, splitCsvLine, mapHeaders, MEMBER_COLUMNS,
   buildMemberIndex, existingCodeOwner, resolveReference, normalizeName, planGroupImport,
 } from '@/lib/chit/memberCsv'
-import { summariseMember } from '@/lib/chit/memberSummary'
+import { summariseMember, pendingCollectionCount } from '@/lib/chit/memberSummary'
 
 // ── 1. Member numbers ───────────────────────────────────────────────────────
 
@@ -409,5 +409,62 @@ describe('planning a group import', () => {
       { name: 'Ramu P G' },
     ), index)
     expect(plan.map(p => p.kind)).toEqual(['existing', 'existing', 'create', 'problem'])
+  })
+})
+
+// ── 6. What the collections tab counts ──────────────────────────────────────
+
+describe('instalments still to collect', () => {
+  const members = ['m1', 'm2', 'm3']
+
+  it('counts nothing before any auction has been held', () => {
+    // A twenty-month chit does not owe twenty months on day one.
+    expect(pendingCollectionCount({ memberIds: members, auctions: [], collections: [] })).toBe(0)
+  })
+
+  it('counts every member for every month held', () => {
+    expect(pendingCollectionCount({
+      memberIds: members,
+      auctions: [{ month_number: 1 }, { month_number: 2 }],
+      collections: [],
+    })).toBe(6)
+  })
+
+  it('subtracts what has come in', () => {
+    expect(pendingCollectionCount({
+      memberIds: members,
+      auctions: [{ month_number: 1 }, { month_number: 2 }],
+      collections: [
+        { member_id: 'm1', month_number: 1 },
+        { member_id: 'm2', month_number: 1 },
+        { member_id: 'm1', month_number: 2 },
+      ],
+    })).toBe(3)
+  })
+
+  it('reaches zero when everyone has paid every month held', () => {
+    const collections = [1, 2].flatMap(month_number => members.map(member_id => ({ member_id, month_number })))
+    expect(pendingCollectionCount({
+      memberIds: members,
+      auctions: [{ month_number: 1 }, { month_number: 2 }],
+      collections,
+    })).toBe(0)
+  })
+
+  it('ignores a payment for a month that has not been auctioned', () => {
+    // Somebody paying ahead must not make the count go negative or skip a month.
+    expect(pendingCollectionCount({
+      memberIds: members,
+      auctions: [{ month_number: 1 }],
+      collections: [{ member_id: 'm1', month_number: 5 }],
+    })).toBe(3)
+  })
+
+  it('is not confused by a duplicated auction row for one month', () => {
+    expect(pendingCollectionCount({
+      memberIds: members,
+      auctions: [{ month_number: 1 }, { month_number: 1 }],
+      collections: [],
+    })).toBe(3)
   })
 })

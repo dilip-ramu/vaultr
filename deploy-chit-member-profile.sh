@@ -99,6 +99,20 @@ then seated, and the group's seat count is respected rather than overfilled.
 Matching prefers the member number and refuses to guess between two members of
 the same name - seating the wrong person means billing them for that chit.
 
+Inside a chit group: member names link to the member page, and the member
+number is shown beside the name.
+
+Collections no longer arrive with everyone pre-ticked. Defaulting to all-unpaid
+assumed a month settles at once; in practice collections arrive a few at a time,
+so every use began by unticking twenty people to reach the three who paid - and
+a stray click posted payments for the whole group. Tick who paid; Select all is
+still one press away.
+
+The Collections tab now counts what is PENDING rather than what has been
+collected. A count of collections made only rises and says nothing about whether
+there is work to do; pending reaches zero. An instalment counts only once its
+month has actually been auctioned.
+
 Adds migration v119.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

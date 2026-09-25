@@ -187,3 +187,30 @@ export function summariseMember(params: {
     groups,
   }
 }
+
+/**
+ * How many instalments a group is still waiting on. PURE.
+ *
+ * An instalment only becomes collectable once its month has actually been
+ * auctioned — a twenty-month chit does not owe twenty months on day one. So the
+ * count is (months held × members) minus what has been received.
+ *
+ * This is the number worth putting on a tab, because it reaches zero. A count
+ * of collections MADE only ever rises and says nothing about whether there is
+ * work left to do.
+ */
+export function pendingCollectionCount(params: {
+  memberIds: string[]
+  auctions: { month_number: number }[]
+  collections: { member_id: string; month_number: number }[]
+}): number {
+  const heldMonths = [...new Set(params.auctions.map(a => Number(a.month_number)))]
+  const paid = new Set(params.collections.map(c => `${c.member_id}:${Number(c.month_number)}`))
+  let pending = 0
+  for (const month of heldMonths) {
+    for (const id of params.memberIds) {
+      if (!paid.has(`${id}:${month}`)) pending++
+    }
+  }
+  return pending
+}

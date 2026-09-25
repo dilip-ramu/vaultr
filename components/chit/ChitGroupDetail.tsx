@@ -11,6 +11,7 @@ import {
   sampleMemberCsv, parseMemberCsv, buildMemberIndex, planGroupImport, type KnownMember,
 } from '@/lib/chit/memberCsv'
 import { codeSequence } from '@/lib/chit/memberCode'
+import { pendingCollectionCount } from '@/lib/chit/memberSummary'
 import { inr } from '@/lib/assets/valuation'
 import {
   monthlyInstallment, numberOfMonths, runAuction, monthlyDue, type GroupParams,
@@ -75,10 +76,25 @@ export default function ChitGroupDetail({
     ?? accounts.find(a => a.company_id === group.company_id)?.id
     ?? accounts[0]?.id ?? ''
 
+  /**
+   * How many instalments are still to be collected.
+   *
+   * The tab used to count collections MADE, which is the one number nobody
+   * needs on a tab: it only ever goes up, and it says nothing about whether
+   * there is work to do. What you want to know at a glance is how many people
+   * still owe for months that have actually been auctioned — an instalment is
+   * only due once its month has been held.
+   */
+  const pendingCollections = useMemo(() => pendingCollectionCount({
+    memberIds: members.map(gm => gm.member_id),
+    auctions, collections,
+  }), [auctions, collections, members])
+
   const TABS: [Tab, string][] = [
     ['members', `Members · ${members.length}`],
     ['auctions', `Auctions · ${auctions.length}`],
-    ['collections', `Collections · ${collections.length}`],
+    // Pending, not collected: a count that goes to zero is worth looking at.
+    ['collections', pendingCollections > 0 ? `Collections · ${pendingCollections} pending` : 'Collections · all in'],
     ['receivables', 'Receivables'],
   ]
 
@@ -361,7 +377,14 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
             <SlotEditor gm={gm} onSaved={updated => onChange(members.map(m => m.id === updated.id ? { ...m, slot_number: updated.slot_number } : m))} />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold truncate flex items-center gap-1.5" style={{ color: 'var(--text)' }}>
-                {gm.member?.name ?? 'Member'}
+                <Link href={`/chit/members/${gm.member_id}`} className="hover:underline underline-offset-2 truncate">
+                  {gm.member?.name ?? 'Member'}
+                </Link>
+                {gm.member?.member_code && (
+                  <span className="text-[11px] font-bold shrink-0" style={{ color: 'var(--income)' }}>
+                    ({gm.member.member_code})
+                  </span>
+                )}
                 {win && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(240,195,109,.18)', color: '#b7791f' }}>
                     <Trophy className="w-3 h-3" /> Won
@@ -1122,11 +1145,14 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
   const unpaid = members.filter(gm => !paidThisMonth.has(gm.member_id))
   const unpaidIds = unpaid.map(gm => gm.member_id).join(',')
 
-  // Selection is explicit and defaults to EVERYONE unpaid — the common case is
-  // "all paid this month". Reset it whenever the month (or who's unpaid) changes,
-  // so you always start from "all ticked" rather than a stale set from last month.
+  // Selection starts EMPTY. It used to default to everyone unpaid, on the theory
+  // that most months everybody pays — but collections arrive a few at a time, so
+  // in practice every use began by unticking twenty people to reach the three
+  // who actually paid. Worse, the safe mistake became the easy one: a stray
+  // click posted payments for the whole group. Tick who paid. "Select all" is
+  // one press away when a month really does settle at once.
   useEffect(() => {
-    setSelected(new Set(unpaid.map(gm => gm.member_id)))
+    setSelected(new Set())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, unpaidIds])
 
