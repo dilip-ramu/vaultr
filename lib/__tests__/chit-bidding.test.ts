@@ -18,7 +18,7 @@ import { describe, it, expect } from 'vitest'
 import {
   checkBid, minimumAcceptableBid, defaultIncrement, type BidContext,
 } from '@/lib/chit/bidding'
-import { placeBid } from '@/lib/chit/portal-bids'
+import { placeBid, placeBidForMember } from '@/lib/chit/portal-bids'
 import { getLiveAuction } from '@/lib/chit/portal-data'
 import { setPin } from '@/lib/chit/portal-auth'
 import { FakeSupabase, asClient } from './helpers/fake-supabase'
@@ -232,27 +232,29 @@ describe('placing a bid', () => {
     expect(row.placed_at).toBe(NOW.toISOString())
   })
 
-  it('refuses without the PIN', async () => {
+  it('does not ask for the PIN again on every bid', async () => {
+    // The PIN is now asked once, at the door. A member raising three times
+    // during a live auction should not be typing four digits between each one
+    // — and the session cookie was only issued to somebody who entered it.
     const d = await withPin(db())
-    const r = await placeBid(bid({ pin: '0000' }), asClient(d)) as any
-    expect(r.ok).toBe(false)
-    expect(r.reason).toBe('BAD_PIN')
-    expect(d.rows('chit_bids')).toHaveLength(0)
+    for (const amount of [1500, 1600, 1700]) {
+      const r = await placeBid(bid({ amount }), asClient(d)) as any
+      expect(r.ok, String(amount)).toBe(true)
+    }
+    expect(d.rows('chit_bids')).toHaveLength(3)
   })
 
-  it('refuses when no PIN has been set at all', async () => {
+  it('takes a bid from a member who has never set a PIN, because the session is the proof', async () => {
     const d = db()   // no setPin
     const r = await placeBid(bid(), asClient(d)) as any
-    expect(r.ok).toBe(false)
-    expect(r.reason).toBe('BAD_PIN')
+    expect(r.ok).toBe(true)
   })
 
-  it('does not burn a PIN attempt when the BID is the thing that is wrong', async () => {
+  it('refuses a bid that is not a round hundred, and writes nothing', async () => {
     const d = await withPin(db())
-    // Not a round hundred: rejected on the rules, before the PIN is consulted.
     const r = await placeBid(bid({ amount: 10 }), asClient(d)) as any
     expect(r.reason).toBe('NOT_A_STEP')
-    expect(Number(d.rows('chit_member_pins')[0].failed_attempts)).toBe(0)
+    expect(d.rows('chit_bids')).toHaveLength(0)
   })
 
   it('refuses a member who already won this chit', async () => {
@@ -324,6 +326,49 @@ describe('placing a bid', () => {
     const live = await getLiveAuction(BOB, GROUP, asClient(d))
     expect(live!.highestAmount).toBe(91000)
     expect(live!.youAreLeading).toBe(true)     // Bob bid first
+  })
+})
+
+
+// ── The foreman bidding for somebody in the room ────────────────────────────
+
+describe('a bid recorded by the foreman', () => {
+  it('follows exactly the same rules as a member\u2019s own bid', async () => {
+    const d = await withPin(db())
+    const bad = await placeBidForMember({ memberId: ALICE, groupId: GROUP, amount: 1550, now: NOW }, asClient(d)) as any
+    expect(bad.reason).toBe('NOT_A_STEP')
+  })
+
+  it('is written down as entered by the foreman, not disguised as the member', async () => {
+    // The bid log is what settles an argument later, and a bid nobody can
+    // account for settles nothing.
+    const d = await withPin(db())
+    const r = await placeBidForMember({ memberId: ALICE, groupId: GROUP, amount: 1500, now: NOW }, asClient(d)) as any
+    expect(r.ok).toBe(true)
+    const row = d.rows('chit_bids')[0]
+    expect(row.source).toBe('foreman')
+    expect(row.member_id).toBe(ALICE)
+    expect(row.session_id).toBeNull()
+  })
+
+  it('cannot bid for somebody who is not in the group', async () => {
+    const d = await withPin(db())
+    const r = await placeBidForMember({ memberId: CARL, groupId: GROUP, amount: 1500, now: NOW }, asClient(d)) as any
+    expect(r.ok).toBe(false)
+  })
+
+  it('cannot bid for a member who has already won', async () => {
+    const d = await withPin(db({
+      auctions: [{ id: 'a-1', user_id: OWNER, group_id: GROUP, month_number: 2, winner_member_id: ALICE, bid_amount: 40000 }],
+    }))
+    const r = await placeBidForMember({ memberId: ALICE, groupId: GROUP, amount: 1500, now: NOW }, asClient(d)) as any
+    expect(r.reason).toBe('ALREADY_WON')
+  })
+
+  it('needs no PIN, because the foreman is signed in to the app', async () => {
+    const d = db()   // no PIN anywhere
+    const r = await placeBidForMember({ memberId: ALICE, groupId: GROUP, amount: 1500, now: NOW }, asClient(d)) as any
+    expect(r.ok).toBe(true)
   })
 })
 

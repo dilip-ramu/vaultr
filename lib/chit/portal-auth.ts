@@ -38,17 +38,6 @@ import { findMemberByPhone, type LookupMember } from './memberLookup'
 
 const scrypt = promisify(scryptCb) as (p: string, s: Buffer, k: number) => Promise<Buffer>
 
-/**
- * How long an unopened WhatsApp link stays valid.
- *
- * This was thirty minutes, which assumed the member is holding their phone when
- * you press send. They are not: the message is read after work, or the next
- * morning, and by then the link was dead and they concluded the portal does not
- * work. Seven days costs little — the link is still single-use, still bound to
- * one member, and using it forces them to set a PIN.
- */
-export const INVITE_TTL_DAYS = 7
-export const INVITE_TTL_MINUTES = INVITE_TTL_DAYS * 24 * 60
 /** How long a phone stays signed in before it needs a fresh link. */
 export const SESSION_TTL_DAYS = 90
 /** Wrong PINs before the member is locked out. */
@@ -102,45 +91,131 @@ export function validatePin(pin: string): { ok: true } | { ok: false; reason: st
 
 // ── Invites ─────────────────────────────────────────────────────────────────
 
-export interface MintedInvite {
-  /** The only place the raw token ever exists. Send it, do not store it. */
-  token: string
-  expiresAt: string
+/* ── The permanent link ───────────────────────────────────────────────────── */
+//
+// One link per member, for as long as they are a member. It used to be
+// single-use and short-lived, which read as careful and behaved as broken: a
+// member who tapped it twice, changed phone or cleared their browser was locked
+// out and had to ask for another.
+//
+// The secret moved rather than disappeared. The link says WHO you are; the PIN
+// proves you ARE them, asked once per device instead of once per action. A link
+// forwarded to the wrong person opens nothing once its owner has set a PIN.
+
+/**
+ * The member's link token, creating one the first time it is asked for.
+ *
+ * Stored in plain text on purpose. Hashing it would mean the foreman could
+ * never show a member their own link again, only replace it — and "I lost the
+ * message" is the everyday case, not the rare one. It is an identifier behind a
+ * PIN, not a password.
+ */
+export async function ensurePortalToken(
+  userId: string, memberId: string, client?: Db,
+): Promise<{ token: string } | { error: string }> {
+  const db = admin(client)
+
+  const { data } = await db.from('chit_members')
+    .select('id, user_id, portal_token, portal_enabled')
+    .eq('id', memberId).eq('user_id', userId).limit(1)
+  const row = data?.[0]
+  if (!row) return { error: 'Member not found.' }
+  if (!row.portal_enabled) {
+    return { error: 'Portal access is switched off for this member. Turn it on first.' }
+  }
+  if (row.portal_token) return { token: String(row.portal_token) }
+
+  const token = newToken()
+  const { error } = await db.from('chit_members')
+    .update({ portal_token: token, updated_at: new Date().toISOString() })
+    .eq('id', memberId).eq('user_id', userId)
+  if (error) return { error: error.message }
+  return { token }
 }
 
 /**
- * Create a one-time login link for a member. Owner-authenticated callers only —
- * `userId` is the FOREMAN, and it is checked against the member row so one
- * account cannot mint a link into another account's chit.
+ * Issue a new link and kill the old one. For a member who says their link
+ * reached somebody it should not have. Signing every device out as well,
+ * because a new link is meaningless while the old sessions still work.
  */
-export async function mintInvite(
+export async function rotatePortalToken(
   userId: string, memberId: string, now: Date = new Date(), client?: Db,
-): Promise<MintedInvite | { error: string }> {
+): Promise<{ token: string } | { error: string }> {
   const db = admin(client)
-
-  const { data: member } = await db.from('chit_members')
-    .select('id, user_id, portal_enabled')
-    .eq('id', memberId).eq('user_id', userId).limit(1)
-  const row = member?.[0]
-  if (!row) return { error: 'Member not found.' }
-  if (!row.portal_enabled) return { error: 'Portal access is switched off for this member. Turn it on first.' }
-
   const token = newToken()
-  const expiresAt = new Date(now.getTime() + INVITE_TTL_MINUTES * 60_000).toISOString()
-
-  // Any earlier unused invite is spent now. Only the newest link ever works, so
-  // re-sending cannot leave two valid keys in circulation.
-  await db.from('chit_portal_invites')
-    .update({ used_at: now.toISOString() })
-    .eq('member_id', memberId).is('used_at', null)
-
-  const { error } = await db.from('chit_portal_invites').insert({
-    user_id: userId, member_id: memberId,
-    token_hash: hashToken(token), expires_at: expiresAt,
-  })
+  const { data, error } = await db.from('chit_members')
+    .update({ portal_token: token, updated_at: now.toISOString() })
+    .eq('id', memberId).eq('user_id', userId).select('id')
   if (error) return { error: error.message }
+  if (!data?.length) return { error: 'Member not found.' }
+  await revokeAllSessions(userId, memberId, now, db)
+  return { token }
+}
 
-  return { token, expiresAt }
+export interface TokenPeek {
+  ok: true
+  memberId: string
+  userId: string
+  memberName: string
+  /** Whether a PIN exists. No PIN yet means the next step is setting one. */
+  hasPin: boolean
+}
+
+/**
+ * Who does this link belong to? Reads only — a link preview, a prefetch or a
+ * scanner can hit this as often as it likes and nothing happens.
+ */
+export async function peekPortalToken(
+  token: string, client?: Db,
+): Promise<TokenPeek | { ok: false; reason: string }> {
+  const db = admin(client)
+  const dead = { ok: false as const, reason: 'This link is not valid. Ask the chit organiser for yours.' }
+  if (!token) return dead
+
+  const { data } = await db.from('chit_members')
+    .select('id, user_id, name, portal_enabled, is_active')
+    .eq('portal_token', token).limit(1)
+  const m = data?.[0]
+  if (!m) return dead
+  if (!m.portal_enabled || !m.is_active) {
+    return { ok: false, reason: 'This account is no longer open. Please speak to the chit organiser.' }
+  }
+
+  const { data: pin } = await db.from('chit_member_pins')
+    .select('member_id').eq('member_id', m.id).limit(1)
+
+  return {
+    ok: true, memberId: m.id, userId: m.user_id,
+    memberName: m.name ?? '', hasPin: Boolean(pin?.length),
+  }
+}
+
+/**
+ * Open the portal from a permanent link.
+ *
+ * With a PIN already set, the PIN is required — that is what stops a forwarded
+ * link being enough. Without one, the link alone gets them in and the very next
+ * screen makes them set one, which is the only window in which the link is a
+ * credential on its own.
+ */
+export async function openWithToken(
+  token: string,
+  pin: string | null,
+  meta: { userAgent?: string | null; ip?: string | null } = {},
+  now: Date = new Date(),
+  client?: Db,
+): Promise<SessionGrant | { error: string; needsPin?: boolean }> {
+  const db = admin(client)
+  const peek = await peekPortalToken(token, db)
+  if (!peek.ok) return { error: peek.reason }
+
+  if (peek.hasPin) {
+    if (!pin) return { error: 'Enter your PIN.', needsPin: true }
+    const check = await checkPin(peek.memberId, pin, now, db)
+    if (!check.ok) return { error: check.reason, needsPin: true }
+  }
+
+  return startSession(peek.userId, peek.memberId, meta, now, db)
 }
 
 export interface SessionGrant {
@@ -148,84 +223,6 @@ export interface SessionGrant {
   memberId: string
   expiresAt: string
   hasPin: boolean
-}
-
-/**
- * Exchange a link token for a session. This is the ONLY way a session is ever
- * created. It refuses an invite that is expired, already used, or belongs to a
- * member whose access has since been switched off.
- */
-export async function redeemInvite(
-  token: string,
-  meta: { userAgent?: string | null; ip?: string | null } = {},
-  now: Date = new Date(),
-  client?: Db,
-): Promise<SessionGrant | { error: string }> {
-  const db = admin(client)
-  const nowIso = now.toISOString()
-
-  const { data } = await db.from('chit_portal_invites')
-    .select('id, user_id, member_id, expires_at, used_at')
-    .eq('token_hash', hashToken(token)).limit(1)
-  const invite = data?.[0]
-
-  // One message for every failure mode on purpose: telling a stranger WHICH
-  // part was wrong helps them and helps nobody else.
-  const dead = { error: 'This link is no longer valid. Ask for a new one.' }
-  if (!invite) return dead
-  if (invite.used_at) return dead
-  if (new Date(invite.expires_at) <= now) return dead
-
-  const { data: member } = await db.from('chit_members')
-    .select('id, portal_enabled, is_active')
-    .eq('id', invite.member_id).limit(1)
-  const m = member?.[0]
-  if (!m || !m.portal_enabled || !m.is_active) return dead
-
-  // Spend the invite FIRST. If anything below fails the link is still burnt,
-  // which is the safe direction to fail in.
-  const { data: spent } = await db.from('chit_portal_invites')
-    .update({ used_at: nowIso })
-    .eq('id', invite.id).is('used_at', null)
-    .select('id')
-  // Empty means someone else redeemed it in the moment between our read and our
-  // write. The unique index is doing its job; treat it as already used.
-  if (!spent?.length) return dead
-
-  return startSession(invite.user_id, invite.member_id, meta, now, db, invite.id)
-}
-
-/**
- * Look at an invite WITHOUT spending it.
- *
- * WhatsApp fetches a link to build its preview card. Every messaging app does.
- * When redeeming happened on that GET, the preview burned the token and the
- * member tapped a link that was already dead — which is exactly the failure
- * that made the portal look broken. So the landing page only peeks, and the
- * token is not spent until somebody presses a button, which a preview bot
- * never does.
- */
-export async function peekInvite(
-  token: string, now: Date = new Date(), client?: Db,
-): Promise<{ ok: true; memberName: string; memberId: string } | { ok: false; reason: string }> {
-  const db = admin(client)
-  const dead = { ok: false as const, reason: 'This link is no longer valid. Ask for a new one.' }
-
-  const { data } = await db.from('chit_portal_invites')
-    .select('id, member_id, expires_at, used_at')
-    .eq('token_hash', hashToken(token)).limit(1)
-  const invite = data?.[0]
-  if (!invite) return dead
-  if (invite.used_at) return dead
-  if (new Date(invite.expires_at) <= now) return dead
-
-  const { data: member } = await db.from('chit_members')
-    .select('id, name, portal_enabled, is_active')
-    .eq('id', invite.member_id).limit(1)
-  const m = member?.[0]
-  if (!m || !m.portal_enabled || !m.is_active) return dead
-
-  return { ok: true, memberName: m.name ?? '', memberId: m.id }
 }
 
 /**

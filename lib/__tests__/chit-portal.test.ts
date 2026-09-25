@@ -4,7 +4,7 @@
 // The tests below are not about whether the pages look right; they are about the
 // three things that would actually hurt if they were wrong:
 //
-//   1. A login link works exactly once, briefly, and dies.
+//   1. The link identifies a member; the PIN is what proves they are them.
 //   2. A session can be killed, and a member whose access is withdrawn loses it
 //      on their next page load rather than whenever their session expires.
 //   3. A member can never read another member's numbers, and never sees the
@@ -16,8 +16,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   hashToken, newToken, hashPin, verifyPin, validatePin,
-  mintInvite, redeemInvite, readSession, revokeSession, revokeAllSessions,
-  setPin, checkPin, PIN_MAX_ATTEMPTS, INVITE_TTL_MINUTES,
+  ensurePortalToken, rotatePortalToken, openWithToken, peekPortalToken,
+  readSession, revokeSession, revokeAllSessions,
+  setPin, checkPin, PIN_MAX_ATTEMPTS,
 } from '@/lib/chit/portal-auth'
 import { getMember, getGroups, getGroupDetail } from '@/lib/chit/portal-data'
 import { FakeSupabase, asClient } from './helpers/fake-supabase'
@@ -113,67 +114,109 @@ describe('nothing readable is ever stored', () => {
   })
 })
 
-// ── 2. The login link ───────────────────────────────────────────────────────
+// ── 2. The permanent link, and the PIN that guards it ──────────────────────
 
-describe('a login link works once, briefly, and then never again', () => {
-  it('signs the member in and returns a session', async () => {
+describe('one link per member, for as long as they are a member', () => {
+  it('hands back the SAME link every time it is asked for', async () => {
     const d = db()
-    const minted = await mintInvite(OWNER, ALICE, NOW, asClient(d)) as any
-    expect(minted.token).toBeDefined()
+    const a = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    const b = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    // Asking again must not break the link already in somebody's WhatsApp.
+    expect(a.token).toBe(b.token)
+  })
 
-    const grant = await redeemInvite(minted.token, {}, later(1), asClient(d)) as any
+  it('opens as many times as the member likes', async () => {
+    const d = db()
+    const { token } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    for (const t of [1, 2, 3, 400]) {
+      const grant = await openWithToken(token, null, {}, later(t), asClient(d)) as any
+      expect(grant.memberId, `open #${t}`).toBe(ALICE)
+    }
+  })
+
+  it('can be looked at without anything happening', async () => {
+    const d = db()
+    const { token } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    const peek = await peekPortalToken(token, asClient(d)) as any
+    expect(peek.ok).toBe(true)
+    expect(peek.memberName).toBe('Alice Kumar')
+    // A link preview must not create a session.
+    expect(d.rows('chit_portal_sessions')).toHaveLength(0)
+  })
+
+  it('once a PIN exists, the link alone opens nothing', async () => {
+    const d = db()
+    const { token } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    await setPin(OWNER, ALICE, '4915', NOW, asClient(d))
+
+    const noPin = await openWithToken(token, null, {}, later(1), asClient(d)) as any
+    expect(noPin.error).toBeDefined()
+    expect(noPin.needsPin).toBe(true)
+
+    const wrong = await openWithToken(token, '0000', {}, later(2), asClient(d)) as any
+    expect(wrong.error).toBeDefined()
+
+    const right = await openWithToken(token, '4915', {}, later(3), asClient(d)) as any
+    expect(right.memberId).toBe(ALICE)
+  })
+
+  it('lets a member with no PIN in, because the next screen sets one', async () => {
+    const d = db()
+    const { token } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    const grant = await openWithToken(token, null, {}, later(1), asClient(d)) as any
     expect(grant.memberId).toBe(ALICE)
     expect(grant.hasPin).toBe(false)
-
-    const session = await readSession(grant.sessionToken, later(2), asClient(d))
-    expect(session!.memberId).toBe(ALICE)
   })
 
-  it('refuses the SAME link a second time', async () => {
+  it('locks out a PIN being guessed at the door', async () => {
     const d = db()
-    const minted = await mintInvite(OWNER, ALICE, NOW, asClient(d)) as any
-    await redeemInvite(minted.token, {}, later(1), asClient(d))
-    const again = await redeemInvite(minted.token, {}, later(2), asClient(d)) as any
-    expect(again.error).toBeDefined()
-    // A forwarded WhatsApp message must not create a second session.
+    const { token } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    await setPin(OWNER, ALICE, '4915', NOW, asClient(d))
+    for (let i = 0; i < PIN_MAX_ATTEMPTS; i++) {
+      await openWithToken(token, '0000', {}, NOW, asClient(d))
+    }
+    const evenRight = await openWithToken(token, '4915', {}, NOW, asClient(d)) as any
+    expect(evenRight.error).toMatch(/locked|Too many/i)
+  })
+
+  it('rotating issues a new link, kills the old one, and signs every device out', async () => {
+    const d = db()
+    const { token: old } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    await openWithToken(old, null, {}, later(1), asClient(d))
     expect(d.rows('chit_portal_sessions')).toHaveLength(1)
+
+    const { token: fresh } = await rotatePortalToken(OWNER, ALICE, later(2), asClient(d)) as any
+    expect(fresh).not.toBe(old)
+    expect((await openWithToken(old, null, {}, later(3), asClient(d)) as any).error).toBeDefined()
+    expect((await openWithToken(fresh, null, {}, later(3), asClient(d)) as any).memberId).toBe(ALICE)
+    // The old sessions must die too, or a new link changes nothing.
+    expect(d.rows('chit_portal_sessions').filter((r: any) => !r.revoked_at)).toHaveLength(1)
   })
 
-  it('refuses a link that was never opened in time', async () => {
+  it('refuses to issue a link for a member whose portal access is off', async () => {
     const d = db()
-    const minted = await mintInvite(OWNER, ALICE, NOW, asClient(d)) as any
-    const late = await redeemInvite(minted.token, {}, later(INVITE_TTL_MINUTES + 1), asClient(d)) as any
-    expect(late.error).toBeDefined()
-  })
-
-  it('kills the previous link when a new one is sent', async () => {
-    const d = db()
-    const first = await mintInvite(OWNER, ALICE, NOW, asClient(d)) as any
-    const second = await mintInvite(OWNER, ALICE, later(1), asClient(d)) as any
-    expect((await redeemInvite(first.token, {}, later(2), asClient(d)) as any).error).toBeDefined()
-    expect((await redeemInvite(second.token, {}, later(2), asClient(d)) as any).memberId).toBe(ALICE)
-  })
-
-  it('refuses to mint for a member whose portal access is off', async () => {
-    const d = db()
-    const r = await mintInvite(OWNER, BOB, NOW, asClient(d)) as any
+    const r = await ensurePortalToken(OWNER, BOB, asClient(d)) as any
     expect(r.error).toMatch('switched off')
   })
 
-  it('refuses to mint into another account’s chit', async () => {
+  it('refuses to issue a link into another account\u2019s chit', async () => {
     const d = db()
-    const r = await mintInvite('someone-else', ALICE, NOW, asClient(d)) as any
+    const r = await ensurePortalToken('someone-else', ALICE, asClient(d)) as any
     expect(r.error).toMatch('not found')
   })
 
-  it('gives the same message whatever went wrong', async () => {
+  it('says nothing useful about a link that is not real', async () => {
     const d = db()
-    const bogus = await redeemInvite('completely-made-up', {}, NOW, asClient(d)) as any
-    const minted = await mintInvite(OWNER, ALICE, NOW, asClient(d)) as any
-    await redeemInvite(minted.token, {}, later(1), asClient(d))
-    const used = await redeemInvite(minted.token, {}, later(2), asClient(d)) as any
-    // Telling a stranger WHICH part failed helps only the stranger.
-    expect(bogus.error).toBe(used.error)
+    const bogus = await peekPortalToken('completely-made-up', asClient(d)) as any
+    expect(bogus.ok).toBe(false)
+    expect(bogus.reason).toMatch('not valid')
+  })
+
+  it('shuts the door when access is switched off, link or no link', async () => {
+    const d = db()
+    const { token } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    await asClient(d).from('chit_members').update({ portal_enabled: false }).eq('id', ALICE)
+    expect((await openWithToken(token, null, {}, later(1), asClient(d)) as any).error).toBeDefined()
   })
 })
 
@@ -181,8 +224,8 @@ describe('a login link works once, briefly, and then never again', () => {
 
 describe('access can be withdrawn, and takes effect immediately', () => {
   async function signedIn(d: FakeSupabase) {
-    const minted = await mintInvite(OWNER, ALICE, NOW, asClient(d)) as any
-    return (await redeemInvite(minted.token, {}, later(1), asClient(d)) as any).sessionToken as string
+    const { token } = await ensurePortalToken(OWNER, ALICE, asClient(d)) as any
+    return (await openWithToken(token, null, {}, later(1), asClient(d)) as any).sessionToken as string
   }
 
   it('a revoked session stops working', async () => {

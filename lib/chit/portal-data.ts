@@ -30,6 +30,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkBid, minimumAcceptableBid } from './bidding'
+import { winnerFromBids } from './closeAuction'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -312,11 +313,10 @@ export async function getLiveAuction(
   const all = ((bids ?? []) as any[]).map(b => ({
     memberId: b.member_id, amount: num(b.amount), placedAt: String(b.placed_at ?? ''),
   }))
-  // Highest wins; on an exact tie the earlier bid stands. Two members can land
-  // the same amount in the same second, and "whoever pressed first" is the only
-  // tie-break anyone would accept.
-  const leader = all.slice().sort((a, b) =>
-    b.amount - a.amount || a.placedAt.localeCompare(b.placedAt))[0] ?? null
+  // One rule for who is leading, shared with the code that writes the winner
+  // down when bidding closes — so the name on the phone during the auction is
+  // the name in the books afterwards.
+  const leader = winnerFromBids(all, [])
 
   const mine = all.filter(b => b.memberId === memberId)
   const yourBest = mine.length ? Math.max(...mine.map(b => b.amount)) : null

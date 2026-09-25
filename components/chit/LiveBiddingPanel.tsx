@@ -2,14 +2,21 @@
 
 // The foreman's view of a live auction.
 //
-// Opening a window lets members bid from their phones. Closing it stops new
-// bids and tells you who is highest. It does NOT record the auction — that
-// stays the same deliberate step in the same form it has always been, because
-// the moment an external person's action can write your books is the moment
-// this stops being safe.
+// Opening a window lets members bid from their phones. CLOSING IT RECORDS THE
+// AUCTION: winner, discount, commission, dividend and payout, through the same
+// maths as the manual form. It used to only report who was highest and leave
+// you to retype it, which is two chances to get the one record that matters
+// wrong — a mistyped figure, or a close nobody follows up.
+//
+// Closing still does not PAY anybody. That stays a separate act against a
+// chosen account, because that is the step where money actually leaves.
+//
+// You can also bid here on behalf of a member who is in the room or on the
+// phone. It is logged as entered by you, not disguised as their own tap.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Radio, Square, Play, Trophy } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Radio, Square, Play, Trophy, Gavel } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { BID_STEP } from '@/lib/chit/bidding'
@@ -40,12 +47,22 @@ const nameOf = (b: BidRow): string => {
 }
 
 export default function LiveBiddingPanel({
-  groupId, nextMonth,
-}: { groupId: string; nextMonth: number | null }) {
+  groupId, nextMonth, roster = [],
+}: {
+  groupId: string
+  nextMonth: number | null
+  /** Who is in this group, for bidding on somebody's behalf. */
+  roster?: { id: string; name: string; code?: string | null }[]
+}) {
+  // Closing now writes an auction row, so the list above this panel is stale
+  // the moment it succeeds.
+  const router = useRouter()
   const [open, setOpen] = useState<WindowRow | null>(null)
   const [bids, setBids] = useState<BidRow[]>([])
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<{ name: string; amount: number; month: number; count: number } | null>(null)
+  const [result, setResult] = useState<{ message: string; recorded: boolean } | null>(null)
+  const [forMember, setForMember] = useState('')
+  const [forAmount, setForAmount] = useState('')
   const loaded = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -81,14 +98,30 @@ export default function LiveBiddingPanel({
         notify(`Bidding open for month ${monthNumber}`, 'success')
         setResult(null)
       } else if (action === 'close') {
-        const w = body.winner as BidRow | null
-        setResult(w
-          ? { name: nameOf(w), amount: Number(w.amount), month: body.window.month_number, count: body.bidCount }
-          : { name: '', amount: 0, month: body.window.month_number, count: 0 })
-        notify(w ? `Bidding closed — highest ${inr(w.amount)}` : 'Bidding closed — no bids received')
+        setResult({ message: body.message ?? 'Bidding closed.', recorded: Boolean(body.auction) })
+        notify(body.message ?? 'Bidding closed', body.auction ? 'success' : undefined)
+        if (body.auction) router.refresh()
       } else {
         notify('Bidding cancelled')
       }
+      await refresh()
+    } finally { setBusy(false) }
+  }
+
+  async function bidFor() {
+    const amount = Number(forAmount)
+    if (!forMember || !amount) return
+    setBusy(true)
+    try {
+      const res = await fetch('/api/chit/bidding', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'bid_for', groupId, memberId: forMember, amount }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { notify(body?.error ?? 'That bid was not accepted', 'error'); return }
+      notify(`${body.memberName ?? 'Bid'} — ${inr(body.amount)} recorded`)
+      setForAmount('')
       await refresh()
     } finally { setBusy(false) }
   }
@@ -135,6 +168,33 @@ export default function LiveBiddingPanel({
             {' · '}{bids.length} {bids.length === 1 ? 'bid' : 'bids'}
           </p>
 
+          {roster.length > 0 && (
+            <div className="mt-3 pt-3 flex flex-wrap items-center gap-2"
+              style={{ borderTop: '1px dashed var(--border)' }}>
+              <span className="text-[11px] font-extrabold inline-flex items-center gap-1.5"
+                style={{ color: 'var(--text-faint)' }}>
+                <Gavel className="w-3.5 h-3.5" /> Bid for a member
+              </span>
+              <select value={forMember} onChange={e => setForMember(e.target.value)}
+                className="text-xs font-bold px-2 py-1.5 rounded-lg flex-1 min-w-[140px]"
+                style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
+                <option value="">Choose member…</option>
+                {roster.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}{m.code ? ` (${m.code})` : ''}</option>
+                ))}
+              </select>
+              <input value={forAmount} inputMode="numeric" placeholder="Amount"
+                onChange={e => setForAmount(e.target.value.replace(/[^\d]/g, ''))}
+                className="text-xs font-bold px-2 py-1.5 rounded-lg w-24"
+                style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }} />
+              <button onClick={bidFor} disabled={busy || !forMember || !forAmount}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
+                style={{ background: 'var(--brand)', color: 'white' }}>
+                Record bid
+              </button>
+            </div>
+          )}
+
           {bids.length === 0 ? (
             <p className="text-xs mt-3" style={{ color: 'var(--text-faint)' }}>
               No bids yet. Members with portal access can bid from their phones.
@@ -158,20 +218,16 @@ export default function LiveBiddingPanel({
         </>
       ) : result ? (
         <div className="mt-2.5 rounded-xl p-3" style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)' }}>
-          {result.amount > 0 ? (
-            <>
-              <p className="text-sm font-extrabold" style={{ color: 'var(--text)' }}>
-                {result.name} — {inr(result.amount)}
-              </p>
-              <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                Highest of {result.count} {result.count === 1 ? 'bid' : 'bids'} for month {result.month}.
-                Nothing has been recorded yet — use <b>Conduct auction</b> above and enter this
-                winner and bid to write it to the books.
-              </p>
-            </>
-          ) : (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Bidding closed for month {result.month} with no bids. Conduct the auction as usual.
+          <p className="text-[11px] uppercase tracking-wide font-extrabold" style={{ color: 'var(--text-faint)' }}>
+            {result.recorded ? 'Auction recorded' : 'Bidding closed'}
+          </p>
+          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text)' }}>
+            {result.message}
+          </p>
+          {result.recorded && (
+            <p className="text-xs mt-1.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              The winner and the amounts are in the auction list above. Paying the winner is
+              still a separate step — that is where the money actually leaves.
             </p>
           )}
         </div>

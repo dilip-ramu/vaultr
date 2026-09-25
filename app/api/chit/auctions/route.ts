@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { runAuction, type GroupParams } from '@/lib/chit/auction'
+import { runAuction, toParams } from '@/lib/chit/auction'
 import { payoutTransaction, CHIT_EXPENSE_CATEGORY, alreadyPosted } from '@/lib/chit/posting'
 import type { ChitGroup } from '@/lib/chit/types'
 
@@ -11,14 +11,6 @@ export const dynamic = 'force-dynamic'
 /** Either the caller's own session client or the elevated one used to post on
  *  the owner's behalf. The helper below does not care which it is given. */
 type SupabaseLike = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>
-
-const toParams = (g: ChitGroup): GroupParams => ({
-  chitValue: Number(g.chit_value),
-  members: g.members,
-  commissionPct: Number(g.commission_pct),
-  bidCeilingPct: Number(g.bid_ceiling_pct),
-  model: g.commission_model,
-})
 
 // GET ?group_id= — auction history for a group.
 export async function GET(req: NextRequest) {

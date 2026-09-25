@@ -109,6 +109,29 @@ export interface AuctionResult {
   /** Set when the entered bid was above the ceiling and got capped. */
   cappedFrom?: number
 }
+/**
+ * A stored group row, as the maths wants it.
+ *
+ * Exported because two places record auctions — the manual form and the close
+ * of a bidding window — and they must feed runAuction identical inputs. When
+ * this lived as a private helper in one route, the other one was a copy.
+ */
+export function toParams(g: {
+  chit_value: number | string
+  members: number
+  commission_pct: number | string
+  bid_ceiling_pct: number | string
+  commission_model: CommissionModel
+}): GroupParams {
+  return {
+    chitValue: Number(g.chit_value),
+    members: g.members,
+    commissionPct: Number(g.commission_pct),
+    bidCeilingPct: Number(g.bid_ceiling_pct),
+    model: g.commission_model,
+  }
+}
+
 
 /**
  * Run one auction. Pure: give it the group, the month and the winning bid, and

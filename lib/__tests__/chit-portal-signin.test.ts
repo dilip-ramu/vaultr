@@ -1,20 +1,15 @@
-// Getting into the member portal — the two things that were broken.
+// Getting into the member portal.
 //
-// ONE: a link preview spent the token. Every messaging app fetches a URL to
-// build its preview card, and redeeming used to happen on that GET. So WhatsApp
-// consumed the invite the moment it was sent, and the member tapped a link that
-// was already used. The portal was not broken; it worked once, for a robot.
-//
-// TWO: there was no way back in. The link is single use and the session
-// eventually expires, so a member on a new phone had to ask the organiser for
-// another link. That is not a login.
-//
-// Both fixes are asserted here against the in-memory Supabase.
+// The link is permanent and identifies the member; the PIN proves they are
+// them, once per device. This file covers the second door — a member who has
+// lost the message entirely and signs in with their phone number instead — and
+// the property that matters for the first: a link preview can fetch the URL as
+// often as it likes without anything happening.
 
 import { describe, it, expect } from 'vitest'
 import {
-  mintInvite, peekInvite, redeemInvite, signInWithPin, startSession,
-  readSession, setPin, INVITE_TTL_MINUTES, INVITE_TTL_DAYS, PIN_MAX_ATTEMPTS,
+  ensurePortalToken, peekPortalToken, openWithToken, signInWithPin, startSession,
+  readSession, setPin, PIN_MAX_ATTEMPTS,
 } from '@/lib/chit/portal-auth'
 import { FakeSupabase, asClient } from './helpers/fake-supabase'
 
@@ -42,67 +37,57 @@ function db(): FakeSupabase {
 
 /* ── The preview problem ─────────────────────────────────────────────────── */
 
-describe('a link preview must not spend the invite', () => {
-  it('lets the link be looked at without using it up', async () => {
+describe('a link preview must change nothing', () => {
+  it('can be fetched as often as an app likes, without starting anything', async () => {
     const d = db()
-    const minted = await mintInvite(OWNER, ASHA, NOW, asClient(d) as any)
-    const token = (minted as any).token
+    const { token } = await ensurePortalToken(OWNER, ASHA, asClient(d) as any) as any
 
-    // WhatsApp fetches it. Twice, because apps do.
-    const first = await peekInvite(token, later(1), asClient(d) as any)
-    const second = await peekInvite(token, later(2), asClient(d) as any)
-    expect(first.ok).toBe(true)
-    expect(second.ok).toBe(true)
+    // WhatsApp, then Safari's prefetch, then a scanner.
+    for (let i = 0; i < 3; i++) {
+      const peek = await peekPortalToken(token, asClient(d) as any) as any
+      expect(peek.ok).toBe(true)
+    }
+    expect(d.rows('chit_portal_sessions')).toHaveLength(0)
 
-    // And the member, later, still gets in.
-    const grant = await redeemInvite(token, {}, later(30), asClient(d) as any)
-    expect('error' in grant).toBe(false)
+    // And the member still gets in afterwards.
+    const grant = await openWithToken(token, null, {}, later(30), asClient(d) as any) as any
+    expect(grant.memberId).toBe(ASHA)
   })
 
-  it('greets the member by name from the peek, without a session', async () => {
+  it('greets the member by name from the peek alone', async () => {
     const d = db()
-    const minted = await mintInvite(OWNER, ASHA, NOW, asClient(d) as any)
-    const peek = await peekInvite((minted as any).token, later(1), asClient(d) as any)
-    expect(peek.ok && peek.memberName).toBe('Asha Rani')
-    expect(d.rows('chit_portal_sessions').length).toBe(0)
+    const { token } = await ensurePortalToken(OWNER, ASHA, asClient(d) as any) as any
+    const peek = await peekPortalToken(token, asClient(d) as any) as any
+    expect(peek.memberName).toBe('Asha Rani')
+    expect(peek.hasPin).toBe(false)
   })
 
-  it('still refuses a token that has actually been used', async () => {
+  it('reports that a PIN exists, so the page knows to ask for it', async () => {
     const d = db()
-    const minted = await mintInvite(OWNER, ASHA, NOW, asClient(d) as any)
-    const token = (minted as any).token
-    await redeemInvite(token, {}, later(5), asClient(d) as any)
-
-    const peek = await peekInvite(token, later(6), asClient(d) as any)
-    expect(peek.ok).toBe(false)
-  })
-
-  it('refuses an expired token, and one for a member whose access is off', async () => {
-    const d = db()
-    const minted = await mintInvite(OWNER, ASHA, NOW, asClient(d) as any)
-    expect((await peekInvite((minted as any).token, later(INVITE_TTL_MINUTES + 1), asClient(d) as any)).ok).toBe(false)
-
-    const off = await mintInvite(OWNER, OFF, NOW, asClient(d) as any)
-    expect('error' in off).toBe(true)   // never minted in the first place
+    const { token } = await ensurePortalToken(OWNER, ASHA, asClient(d) as any) as any
+    await setPin(OWNER, ASHA, '8317', NOW, asClient(d) as any)
+    const peek = await peekPortalToken(token, asClient(d) as any) as any
+    expect(peek.hasPin).toBe(true)
   })
 
   it('refuses a token that was never real', async () => {
     const d = db()
-    expect((await peekInvite('not-a-token', NOW, asClient(d) as any)).ok).toBe(false)
+    expect((await peekPortalToken('not-a-token', asClient(d) as any) as any).ok).toBe(false)
+  })
+
+  it('will not issue a link for a member whose portal access is off', async () => {
+    const d = db()
+    const off = await ensurePortalToken(OWNER, OFF, asClient(d) as any) as any
+    expect(off.error).toBeDefined()
   })
 })
 
-describe('how long a link lasts', () => {
-  it('is a week, not half an hour — the message is read after work', () => {
-    expect(INVITE_TTL_DAYS).toBe(7)
-    expect(INVITE_TTL_MINUTES).toBe(7 * 24 * 60)
-  })
-
-  it('a link opened the next morning still works', async () => {
+describe('a link opened the next morning', () => {
+  it('still works, because it never expires', async () => {
     const d = db()
-    const minted = await mintInvite(OWNER, ASHA, NOW, asClient(d) as any)
-    const grant = await redeemInvite((minted as any).token, {}, later(16 * 60), asClient(d) as any)
-    expect('error' in grant).toBe(false)
+    const { token } = await ensurePortalToken(OWNER, ASHA, asClient(d) as any) as any
+    const grant = await openWithToken(token, null, {}, later(400 * 24 * 60), asClient(d) as any) as any
+    expect(grant.memberId).toBe(ASHA)
   })
 })
 

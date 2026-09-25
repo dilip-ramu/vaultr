@@ -5,15 +5,25 @@
 // there is never an argument about whether a bid landed a second too late
 // because of a scheduler.
 //
-// Closing does NOT award anything. It stops new bids and tells the foreman who
-// is highest; recording the auction remains the same manual step it has always
-// been, in the same form, writing the same rows.
+// CLOSING NOW RECORDS THE AUCTION. It used to stop new bids and report who was
+// highest, leaving the foreman to retype the winner and the amount into the
+// auction form. Two ways to lose money there: a mistyped figure, and a close
+// that never gets followed up. The numbers are already known at the moment of
+// closing, so closing writes them — winner, discount, commission, dividend and
+// net payout — through the same runAuction maths the manual form uses.
+//
+// What it still does NOT do is pay anybody. The payout stays a separate,
+// deliberate act against a chosen account, because that is the step where money
+// actually leaves.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { bidCeiling } from '@/lib/chit/auction'
+import { bidCeiling, runAuction, toParams } from '@/lib/chit/auction'
+import { decideClose } from '@/lib/chit/closeAuction'
+import { placeBidForMember } from '@/lib/chit/portal-bids'
+import type { ChitGroup } from '@/lib/chit/types'
 import { defaultIncrement } from '@/lib/chit/bidding'
 
 export const dynamic = 'force-dynamic'
@@ -115,6 +125,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, window: data })
   }
 
+  // The foreman bidding for somebody standing in front of him, or on the phone.
+  // Same rules as a member's own bid; written down as source 'foreman' so the
+  // log says who actually pressed the button.
+  if (action === 'bid_for') {
+    const memberId = String(body?.memberId ?? '')
+    if (!memberId) return NextResponse.json({ error: 'Choose a member.' }, { status: 400 })
+
+    const { data: m } = await supabase.from('chit_members')
+      .select('id, name').eq('id', memberId).eq('user_id', owner).maybeSingle()
+    if (!m) return NextResponse.json({ error: 'Member not found.' }, { status: 404 })
+
+    const result = await placeBidForMember({
+      memberId, groupId, amount: body?.amount,
+      ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+    })
+    if (!result.ok) return NextResponse.json({ error: result.message }, { status: 400 })
+    return NextResponse.json({ ok: true, amount: result.amount, memberName: m.name })
+  }
+
   if (action === 'close' || action === 'cancel') {
     const status = action === 'close' ? 'closed' : 'cancelled'
     const { data, error } = await supabase.from('chit_bid_windows')
@@ -125,21 +154,100 @@ export async function POST(req: NextRequest) {
     const closed = data?.[0] ?? null
     if (!closed) return NextResponse.json({ error: 'No open bidding window for this group.' }, { status: 400 })
 
-    // Report the highest bid so the foreman can carry it into the auction form.
-    // Reported, NOT applied: recording the auction stays a deliberate act.
     const db = createAdminClient()
-    const { data: bids } = await db.from('chit_bids')
+    const { data: bidRows } = await db.from('chit_bids')
       .select('member_id, amount, placed_at, member:chit_members(name)')
       .eq('window_id', closed.id)
-      .order('amount', { ascending: false }).order('placed_at', { ascending: true })
+
+    const bids = ((bidRows ?? []) as any[]).map(b => ({
+      memberId: b.member_id, amount: num(b.amount), placedAt: String(b.placed_at ?? ''),
+      name: Array.isArray(b.member) ? b.member[0]?.name : b.member?.name,
+    }))
+
+    // Cancelling throws the window away. It records nothing, on purpose —
+    // "cancelled" means the auction did not happen.
+    if (action === 'cancel') {
+      return NextResponse.json({ ok: true, window: closed, cancelled: true, bidCount: bids.length })
+    }
+
+    // A member wins the pot once. Anyone who already has cannot win again, even
+    // if an older bid of theirs is still the highest number in the list.
+    const { data: priorWins } = await supabase.from('chit_auctions')
+      .select('winner_member_id, month_number')
+      .eq('group_id', groupId).eq('user_id', owner)
+      .neq('month_number', closed.month_number)
+    const alreadyWon = ((priorWins ?? []) as any[])
+      .map(a => a.winner_member_id).filter(Boolean) as string[]
+
+    const outcome = decideClose(bids, alreadyWon)
+    if (outcome.kind === 'no_bids') {
+      // Said out loud rather than left to be noticed. Nothing was recorded.
+      return NextResponse.json({
+        ok: true, window: closed, bidCount: bids.length, auction: null,
+        message: 'Bidding closed. Nobody bid, so no auction was recorded for this month.',
+      })
+    }
+
+    // Already paid out? Then this month is settled and must not be rewritten.
+    const { data: prior } = await supabase.from('chit_auctions')
+      .select('id, payout_transaction_id')
+      .eq('group_id', groupId).eq('month_number', closed.month_number).maybeSingle()
+    if (prior?.payout_transaction_id) {
+      return NextResponse.json({
+        ok: true, window: closed, bidCount: bids.length, auction: null,
+        message: 'Bidding closed. This month was already paid out, so the recorded auction was left untouched.',
+      })
+    }
+
+    const { data: group } = await supabase.from('chit_groups')
+      .select('*').eq('id', groupId).eq('user_id', owner).maybeSingle()
+    if (!group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
+
+    // The same maths the manual auction form runs. One implementation, so a
+    // recorded auction is identical whichever way it was entered.
+    const result = runAuction({
+      group: toParams(group as ChitGroup),
+      monthNumber: num(closed.month_number),
+      bidAmount: outcome.winner.amount,
+    })
+
+    const winnerName = bids.find(b => b.memberId === outcome.winner.memberId)?.name ?? null
+    const row = {
+      user_id: owner,
+      group_id: groupId,
+      month_number: num(closed.month_number),
+      auction_date: new Date().toISOString().split('T')[0],
+      winner_member_id: outcome.winner.memberId,
+      bid_amount: result.discount,
+      commission: result.commission,
+      net_payout: result.netPayout,
+      dividend_per_member: result.dividendPerMember,
+      notes: `Recorded automatically when bidding closed. `
+        + `${bids.length} bid${bids.length === 1 ? '' : 's'}, highest ${outcome.winner.amount}.`,
+    }
+
+    const { data: auction, error: auctionErr } = prior
+      ? await supabase.from('chit_auctions').update(row).eq('id', prior.id).select('*').single()
+      : await supabase.from('chit_auctions').insert(row).select('*').single()
+
+    if (auctionErr) {
+      // The window IS closed — that part stuck. Say exactly what did and did not
+      // happen rather than implying the whole thing failed.
+      return NextResponse.json({
+        ok: true, window: closed, bidCount: bids.length, auction: null,
+        message: `Bidding closed, but the auction could not be recorded: ${auctionErr.message}. `
+          + 'Record it by hand from the bid list.',
+      })
+    }
 
     return NextResponse.json({
       ok: true,
       window: closed,
-      // Highest amount, earliest bid breaking a tie — the same rule the members
-      // were shown while bidding.
-      winner: bids?.[0] ?? null,
-      bidCount: bids?.length ?? 0,
+      bidCount: bids.length,
+      auction,
+      winner: { memberId: outcome.winner.memberId, name: winnerName, amount: outcome.winner.amount },
+      message: `Bidding closed. ${winnerName ?? 'The highest bidder'} won month ${closed.month_number} `
+        + `with a discount of ${result.discount}. Payout ${result.netPayout} is ready to pay.`,
     })
   }
 

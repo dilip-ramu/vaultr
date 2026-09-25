@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     sessionId: session.sessionId,
     groupId,
     amount: body?.amount,
-    pin: String(body?.pin ?? ''),
+
     ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
   })
 

@@ -107,7 +107,8 @@ export function checkBid(amountRaw: unknown, ctx: BidContext): BidCheck {
   if (ctx.alreadyWon) {
     return {
       ok: false, reason: 'ALREADY_WON',
-      message: 'You have already taken the prize in this chit, so you cannot bid again.',
+      message: 'You have already taken the prize in this chit, so you cannot bid again. '
+        + 'You can still watch this auction as it happens.',
     }
   }
 

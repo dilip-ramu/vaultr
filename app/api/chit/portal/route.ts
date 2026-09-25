@@ -10,10 +10,10 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveSiteOrigin, originSource } from '@/lib/siteOrigin'
-import { memberInviteMessage, durationWords } from '@/lib/chit/handover'
+import { memberInviteMessage } from '@/lib/chit/handover'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
-import { mintInvite, revokeAllSessions, INVITE_TTL_MINUTES } from '@/lib/chit/portal-auth'
+import { ensurePortalToken, rotatePortalToken, revokeAllSessions } from '@/lib/chit/portal-auth'
 import { buildWhatsAppUrl } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
@@ -68,22 +68,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, revoked: count })
   }
 
-  if (action === 'invite') {
-    const result = await mintInvite(owner, memberId)
+  // 'invite' is kept as a name because that is what the button says, but there
+  // is nothing to mint any more: a member has ONE link, for as long as they are
+  // a member. Asking twice returns the same link rather than breaking the one
+  // already sitting in their WhatsApp.
+  if (action === 'invite' || action === 'link' || action === 'rotate_link') {
+    const result = action === 'rotate_link'
+      ? await rotatePortalToken(owner, memberId)
+      : await ensurePortalToken(owner, memberId)
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
 
     const url = `${siteOrigin(req)}/m/enter?t=${result.token}`
-    const message = memberInviteMessage({
-      name: member.name ?? null,
-      url,
-      expiresInWords: durationWords(INVITE_TTL_MINUTES),
-    })
+    const message = memberInviteMessage({ name: member.name ?? null, url })
 
     return NextResponse.json({
       ok: true,
       url,
       whatsappUrl: buildWhatsAppUrl(member.phone, message),
-      expiresAt: result.expiresAt,
+      rotated: action === 'rotate_link',
       // Returned so the UI can warn when a member has no number on file.
       hasPhone: Boolean(member.phone),
       memberName: member.name,
@@ -93,7 +95,6 @@ export async function POST(req: NextRequest) {
       origin: siteOrigin(req),
       originSource: originSource(),
       message,
-      expiresInWords: durationWords(INVITE_TTL_MINUTES),
     })
   }
 

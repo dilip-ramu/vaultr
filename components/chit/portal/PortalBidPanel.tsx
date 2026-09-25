@@ -22,7 +22,6 @@ export default function PortalBidPanel({
 }: { groupId: string; initial: PortalLiveAuction | null }) {
   const [auction, setAuction] = useState(initial)
   const [amount, setAmount] = useState('')
-  const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -59,12 +58,12 @@ export default function PortalBidPanel({
       const res = await fetch('/api/portal/bid', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId, amount: Number(amount), pin }),
+        body: JSON.stringify({ groupId, amount: Number(amount) }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) { setError(body?.error ?? 'Your bid was not accepted.'); return }
       setAuction(body.auction)
-      setAmount(''); setPin('')
+      setAmount('')
       setFlash(body.youAreLeading
         ? `Bid of ${inr(body.amount)} placed — you are leading.`
         : `Bid of ${inr(body.amount)} placed, but someone is already higher.`)
@@ -127,20 +126,7 @@ export default function PortalBidPanel({
             </p>
           </div>
 
-          <div>
-            <label className="text-[12px] font-bold" style={{ color: 'var(--text-muted)' }}>Your PIN</label>
-            <input
-              type="password" inputMode="numeric" maxLength={4} value={pin} autoComplete="off"
-              onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-              className="w-full mt-1 px-3 py-3 rounded-xl border text-lg tracking-[0.5em] outline-none"
-              style={field}
-            />
-          </div>
-
-          {error && <p className="text-[12.5px]" style={{ color: 'var(--expense)' }}>{error}</p>}
-          {flash && <p className="text-[12.5px]" style={{ color: 'var(--income)' }}>{flash}</p>}
-
-          <button type="submit" disabled={busy || !amount || pin.length !== 4}
+          <button type="submit" disabled={busy || !amount}
             className="w-full py-3 rounded-xl text-[13.5px] font-extrabold disabled:opacity-50"
             style={{ background: 'var(--brand)', color: 'white' }}>
             {busy ? 'Placing…' : 'Place bid'}

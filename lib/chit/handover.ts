@@ -40,21 +40,27 @@ export function adminHandoverMessage(a: AdminHandover): string {
   ].filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n')
 }
 
-/** What you send a member with their portal link. */
-export function memberInviteMessage(opts: {
-  name: string | null
-  url: string
-  expiresInWords: string
-}): string {
+/**
+ * What you send a member with their portal link.
+ *
+ * The link no longer expires and is not single-use, so the message no longer
+ * tells them to hurry. It tells them to KEEP it, which is the new instruction,
+ * and explains the PIN — because the PIN is now what makes the link safe to
+ * keep in a chat thread.
+ */
+export function memberInviteMessage(opts: { name: string | null; url: string }): string {
   const first = firstName(opts.name) ?? 'there'
   return [
-    `Hi ${first}, here is your private link to see your chit account — `
-    + 'what you have paid, what is due, and each month\'s auction result.',
+    `Hi ${first}, here is your link to see your chit account — what you have paid, `
+    + 'what is due, and each month\'s auction result.',
     '',
     opts.url,
     '',
-    `Open it on your own phone and set a 4-digit PIN when it asks. `
-    + `The link works once and expires in ${opts.expiresInWords}. Please do not forward it.`,
+    'Save this message. The link is yours for as long as you are a member, so you '
+    + 'will not need a new one.',
+    '',
+    'The first time you open it you will set a 4-digit PIN. After that the link asks '
+    + 'for your PIN, so nobody else can use it.',
   ].join('\n')
 }
 

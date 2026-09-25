@@ -51,19 +51,25 @@ describe('the message that carries a new login', () => {
 })
 
 describe('the message that carries a portal link', () => {
-  const msg = memberInviteMessage({ name: 'Asha Rani', url: 'https://x.test/m/enter?t=abc', expiresInWords: '7 days' })
+  const msg = memberInviteMessage({ name: 'Asha Rani', url: 'https://x.test/m/enter?t=abc' })
 
-  it('contains the link and how long it lasts', () => {
+  it('contains the link', () => {
     expect(msg).toContain('https://x.test/m/enter?t=abc')
-    expect(msg).toContain('7 days')
   })
 
-  it('tells them what to expect, so the PIN prompt is not a surprise', () => {
+  it('tells them to KEEP it, because the link no longer expires', () => {
+    expect(msg.toLowerCase()).toContain('save this message')
+    expect(msg.toLowerCase()).toContain('as long as you are a member')
+  })
+
+  it('does not tell them to hurry, which was true of the old single-use link', () => {
+    expect(msg.toLowerCase()).not.toContain('expires')
+    expect(msg.toLowerCase()).not.toContain('works once')
+  })
+
+  it('explains the PIN, since the PIN is what makes a kept link safe', () => {
     expect(msg).toContain('4-digit PIN')
-  })
-
-  it('asks them not to forward it', () => {
-    expect(msg.toLowerCase()).toContain('not forward')
+    expect(msg.toLowerCase()).toContain('nobody else can use it')
   })
 })
 

@@ -15,15 +15,19 @@
 // WHAT IT TAKES TO PLACE ONE
 //
 //   • a live portal session (the cookie, not anything from the request body)
-//   • the correct 4-digit PIN, checked every time, with lockout
 //   • every rule in lib/chit/bidding.ts
 //
-// The PIN is why phase 1 collected one. Reading a passbook needs only the phone;
-// committing to money needs something the phone alone does not supply.
+// THE PIN USED TO BE ASKED FOR ON EVERY BID, AND IS NOT ANY MORE.
+//
+// That was right when a permanent-looking link was the only thing guarding the
+// portal. It is not right now: the link is permanent, so the PIN guards the
+// DOOR — it is asked once per device, at sign-in — and asking again for every
+// bid was making a member type four digits between each raise while an auction
+// ran. The session cookie is the proof, and it was only issued to somebody who
+// entered the PIN.
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkBid, minimumAcceptableBid, type BidRejection } from './bidding'
-import { checkPin } from './portal-auth'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -33,17 +37,19 @@ const num = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0)
 
 export interface PlaceBidParams {
   memberId: string
-  sessionId: string
+  /** Null when the foreman is recording the bid for somebody in the room. */
+  sessionId: string | null
   groupId: string
   amount: unknown
-  pin: string
   ip?: string | null
   now?: Date
+  /** 'portal' = the member did it. 'foreman' = recorded on their behalf. */
+  source?: 'portal' | 'foreman'
 }
 
 export type PlaceBidResult =
   | { ok: true; amount: number; youAreLeading: boolean; bidId: string }
-  | { ok: false; reason: BidRejection | 'BAD_PIN' | 'NO_WINDOW' | 'WRITE_FAILED'; message: string }
+  | { ok: false; reason: BidRejection | 'NO_WINDOW' | 'WRITE_FAILED'; message: string }
 
 /**
  * Place one bid. Every failure returns a message written for the member — the
@@ -98,17 +104,13 @@ export async function placeBid(p: PlaceBidParams, client?: Db): Promise<PlaceBid
     return { ok: false, reason: verdict.reason!, message: verdict.message! }
   }
 
-  // ── Then the PIN ─────────────────────────────────────────────────────────
-  const pin = await checkPin(p.memberId, p.pin, now, db)
-  if (!pin.ok) return { ok: false, reason: 'BAD_PIN', message: pin.reason }
-
   const amount = Math.round(Number(p.amount) * 100) / 100
 
   const { data: inserted, error } = await db.from('chit_bids').insert({
     user_id: w.user_id, group_id: p.groupId, window_id: w.id,
     member_id: p.memberId, month_number: w.month_number,
     amount, placed_at: now.toISOString(),
-    session_id: p.sessionId, ip: p.ip ?? null, source: 'portal',
+    session_id: p.sessionId, ip: p.ip ?? null, source: p.source ?? 'portal',
   }).select('id')
 
   if (error || !inserted?.length) {
@@ -129,6 +131,22 @@ export async function placeBid(p: PlaceBidParams, client?: Db): Promise<PlaceBid
     youAreLeading: sorted[0]?.memberId === p.memberId,
     bidId: inserted[0].id,
   }
+}
+
+/**
+ * The foreman placing a bid for a member who is in the room, or on the phone.
+ *
+ * Same rules, no session and no PIN — the foreman is signed in to the app and
+ * the role has already been checked by the route. It is written down as
+ * source: 'foreman' rather than disguised as the member's own tap, because the
+ * bid log is what settles an argument later and a bid nobody can account for
+ * settles nothing.
+ */
+export async function placeBidForMember(
+  p: { memberId: string; groupId: string; amount: unknown; ip?: string | null; now?: Date },
+  client?: Db,
+): Promise<PlaceBidResult> {
+  return placeBid({ ...p, sessionId: null, source: 'foreman' }, client)
 }
 
 /** Re-exported so the phone and the server quote the same floor. */
