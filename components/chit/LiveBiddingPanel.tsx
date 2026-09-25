@@ -11,12 +11,14 @@
 // Closing still does not PAY anybody. That stays a separate act against a
 // chosen account, because that is the step where money actually leaves.
 //
-// You can also bid here on behalf of a member who is in the room or on the
-// phone. It is logged as entered by you, not disguised as their own tap.
+// Running the auction itself happens on its own page — the auction room — where
+// every member has a box beside their name. This panel is the status strip on
+// the group page: what is happening, and the way in.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Radio, Square, Play, Trophy, Gavel } from 'lucide-react'
+import { Radio, Square, Play, Trophy, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { BID_STEP } from '@/lib/chit/bidding'
@@ -47,12 +49,10 @@ const nameOf = (b: BidRow): string => {
 }
 
 export default function LiveBiddingPanel({
-  groupId, nextMonth, roster = [],
+  groupId, nextMonth,
 }: {
   groupId: string
   nextMonth: number | null
-  /** Who is in this group, for bidding on somebody's behalf. */
-  roster?: { id: string; name: string; code?: string | null }[]
 }) {
   // Closing now writes an auction row, so the list above this panel is stale
   // the moment it succeeds.
@@ -61,8 +61,6 @@ export default function LiveBiddingPanel({
   const [bids, setBids] = useState<BidRow[]>([])
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ message: string; recorded: boolean } | null>(null)
-  const [forMember, setForMember] = useState('')
-  const [forAmount, setForAmount] = useState('')
   const loaded = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -108,24 +106,6 @@ export default function LiveBiddingPanel({
     } finally { setBusy(false) }
   }
 
-  async function bidFor() {
-    const amount = Number(forAmount)
-    if (!forMember || !amount) return
-    setBusy(true)
-    try {
-      const res = await fetch('/api/chit/bidding', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'bid_for', groupId, memberId: forMember, amount }),
-      })
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) { notify(body?.error ?? 'That bid was not accepted', 'error'); return }
-      notify(`${body.memberName ?? 'Bid'} — ${inr(body.amount)} recorded`)
-      setForAmount('')
-      await refresh()
-    } finally { setBusy(false) }
-  }
-
   if (!loaded.current && !open) return null
 
   return (
@@ -137,10 +117,15 @@ export default function LiveBiddingPanel({
         </p>
         {open ? (
           <div className="flex items-center gap-2">
+            <Link href={`/chit/groups/${groupId}/auction`}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg"
+              style={{ background: 'var(--brand)', color: 'white' }}>
+              Auction room <ArrowRight className="w-3 h-3" />
+            </Link>
             <button onClick={() => act('close')} disabled={busy}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
-              style={{ background: 'var(--brand)', color: 'white' }}>
-              <Square className="w-3 h-3" /> Close bidding
+              style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <Square className="w-3 h-3" /> Close &amp; record
             </button>
             <button
               onClick={async () => {
@@ -153,11 +138,11 @@ export default function LiveBiddingPanel({
             </button>
           </div>
         ) : nextMonth ? (
-          <button onClick={() => act('open', nextMonth)} disabled={busy}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
+          <Link href={`/chit/groups/${groupId}/auction`}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg"
             style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-            <Play className="w-3 h-3" /> Open bidding for month {nextMonth}
-          </button>
+            <Play className="w-3 h-3" /> Open auction room — month {nextMonth}
+          </Link>
         ) : null}
       </div>
 
@@ -167,33 +152,6 @@ export default function LiveBiddingPanel({
             Month {open.month_number} · ceiling {inr(open.ceiling_amount)} · bids rise in {inr(BID_STEP)}s
             {' · '}{bids.length} {bids.length === 1 ? 'bid' : 'bids'}
           </p>
-
-          {roster.length > 0 && (
-            <div className="mt-3 pt-3 flex flex-wrap items-center gap-2"
-              style={{ borderTop: '1px dashed var(--border)' }}>
-              <span className="text-[11px] font-extrabold inline-flex items-center gap-1.5"
-                style={{ color: 'var(--text-faint)' }}>
-                <Gavel className="w-3.5 h-3.5" /> Bid for a member
-              </span>
-              <select value={forMember} onChange={e => setForMember(e.target.value)}
-                className="text-xs font-bold px-2 py-1.5 rounded-lg flex-1 min-w-[140px]"
-                style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }}>
-                <option value="">Choose member…</option>
-                {roster.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}{m.code ? ` (${m.code})` : ''}</option>
-                ))}
-              </select>
-              <input value={forAmount} inputMode="numeric" placeholder="Amount"
-                onChange={e => setForAmount(e.target.value.replace(/[^\d]/g, ''))}
-                className="text-xs font-bold px-2 py-1.5 rounded-lg w-24"
-                style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }} />
-              <button onClick={bidFor} disabled={busy || !forMember || !forAmount}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
-                style={{ background: 'var(--brand)', color: 'white' }}>
-                Record bid
-              </button>
-            </div>
-          )}
 
           {bids.length === 0 ? (
             <p className="text-xs mt-3" style={{ color: 'var(--text-faint)' }}>

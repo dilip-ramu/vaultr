@@ -735,15 +735,7 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
     <div className="space-y-3">
       {/* Live bidding sits above the auction controls: while a window is open
           it is the thing you are watching. Closing it records the auction. */}
-      <LiveBiddingPanel
-        groupId={group.id}
-        nextMonth={nextMonth}
-        roster={members.map(m => ({
-          id: m.member_id,
-          name: m.member?.name ?? 'Member',
-          code: m.member?.member_code ?? null,
-        }))}
-      />
+      <LiveBiddingPanel groupId={group.id} nextMonth={nextMonth} />
 
       <div className="flex flex-wrap gap-2">
         {nextMonth && (
