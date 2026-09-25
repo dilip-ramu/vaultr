@@ -6,6 +6,8 @@
 // not arrive. Here the sample is generated FROM the column list the parser
 // reads, so a column that appears in the file is a column that is imported.
 
+import { normalizeMemberCode } from './memberCode'
+
 export interface MemberColumn {
   /** Header text written into the sample file. */
   header: string
@@ -117,4 +119,152 @@ export function parseMemberCsv(text: string): { rows: ParsedMemberRow[]; headers
     })
   }
   return { rows, headers }
+}
+
+// ── Matching a CSV row against members that already exist ───────────────────
+//
+// Two jobs, both of which go wrong quietly if done casually.
+//
+// SKIPPING DUPLICATES. A member number in the file that already belongs to
+// someone is not an error in the file — it is a row you have already imported.
+// Re-importing last month's spreadsheet should add the new people and leave the
+// rest alone, not create a second Suresh or refuse the whole file.
+//
+// RESOLVING "INTRODUCED BY". The column may hold a member number or a name,
+// because whoever fills the sheet writes whichever they know. A number is
+// unambiguous. A name is not: chit registers are full of repeated names, and
+// picking the first match would attach the introduction to the wrong person
+// silently. So a name that matches two members is reported and left unlinked —
+// an empty field you can see beats a link you cannot check.
+
+export interface KnownMember {
+  id: string
+  name: string
+  member_code?: string | null
+}
+
+/** Names are compared with case and spacing ignored, initials and all. */
+export function normalizeName(raw: string | null | undefined): string {
+  return String(raw ?? '').trim().replace(/\s+/g, ' ').toUpperCase()
+}
+
+export interface MemberIndex {
+  byCode: Map<string, string>
+  /** name → the single member with it, or AMBIGUOUS when several share it. */
+  byName: Map<string, string | typeof AMBIGUOUS>
+}
+
+export const AMBIGUOUS = Symbol('ambiguous')
+
+export function buildMemberIndex(members: KnownMember[]): MemberIndex {
+  const byCode = new Map<string, string>()
+  const byName = new Map<string, string | typeof AMBIGUOUS>()
+  for (const m of members) {
+    const code = normalizeMemberCode(m.member_code)
+    if (code) byCode.set(code, m.id)
+    const name = normalizeName(m.name)
+    if (!name) continue
+    byName.set(name, byName.has(name) ? AMBIGUOUS : m.id)
+  }
+  return { byCode, byName }
+}
+
+/** Does this row's member number already belong to somebody? */
+export function existingCodeOwner(
+  values: Record<string, string>, index: MemberIndex,
+): string | null {
+  const code = normalizeMemberCode(values.member_code)
+  if (!code) return null
+  return index.byCode.get(code) ?? null
+}
+
+export type ReferenceResolution =
+  | { kind: 'none' }
+  | { kind: 'matched'; memberId: string; by: 'code' | 'name' }
+  | { kind: 'ambiguous'; reason: string }
+  | { kind: 'missing'; reason: string }
+  | { kind: 'self'; reason: string }
+
+/**
+ * Work out who "Introduced By" points at. Number first, then name — a number is
+ * the stronger claim, so a sheet carrying both kinds resolves the certain ones
+ * the certain way.
+ */
+export function resolveReference(
+  raw: string | null | undefined, index: MemberIndex, selfId?: string | null,
+): ReferenceResolution {
+  const value = String(raw ?? '').trim()
+  if (!value) return { kind: 'none' }
+
+  const asCode = normalizeMemberCode(value)
+  if (asCode && index.byCode.has(asCode)) {
+    const id = index.byCode.get(asCode)!
+    if (id === selfId) return { kind: 'self', reason: `${value} is the same member` }
+    return { kind: 'matched', memberId: id, by: 'code' }
+  }
+
+  const hit = index.byName.get(normalizeName(value))
+  if (hit === AMBIGUOUS) {
+    return {
+      kind: 'ambiguous',
+      reason: `more than one member is called "${value}" — use their member number instead`,
+    }
+  }
+  if (typeof hit === 'string') {
+    if (hit === selfId) return { kind: 'self', reason: `${value} is the same member` }
+    return { kind: 'matched', memberId: hit, by: 'name' }
+  }
+
+  return { kind: 'missing', reason: `no member matches "${value}"` }
+}
+
+// ── Importing straight into a group ─────────────────────────────────────────
+//
+// Adding people to a chit usually starts from a list someone already has. Most
+// of those names are on the register; a few are not. Making the user add the
+// new ones on another page first, then come back and tick them, is work the app
+// can do itself.
+//
+// The matching rule is the same one used for "Introduced By", and for the same
+// reason: a member NUMBER is certain, a name is not. A row whose name matches
+// two existing members is reported rather than guessed at — attaching the wrong
+// person to a chit means billing them for it.
+
+export type GroupRowPlan =
+  | { kind: 'existing'; memberId: string; matchedBy: 'code' | 'name'; label: string }
+  | { kind: 'create'; values: Record<string, string>; label: string }
+  | { kind: 'problem'; reason: string; label: string }
+
+/**
+ * Decide, for each parsed row, whether it is somebody we already have or
+ * somebody to create. PURE — the caller does the writing.
+ */
+export function planGroupImport(
+  rows: ParsedMemberRow[], index: MemberIndex,
+): GroupRowPlan[] {
+  return rows.map(r => {
+    const label = `Row ${r.row}${r.values.name ? ` (${r.values.name})` : ''}`
+    if (r.error) return { kind: 'problem', reason: r.error, label }
+
+    // A member number in the file is a direct claim about who this is.
+    const code = normalizeMemberCode(r.values.member_code)
+    if (code) {
+      const hit = index.byCode.get(code)
+      if (hit) return { kind: 'existing', memberId: hit, matchedBy: 'code', label }
+      // A number nobody holds: this is a new member who already has a number
+      // on paper. Keep it rather than issuing a different one.
+      return { kind: 'create', values: r.values, label }
+    }
+
+    const byName = index.byName.get(normalizeName(r.values.name))
+    if (byName === AMBIGUOUS) {
+      return {
+        kind: 'problem', label,
+        reason: `more than one member is called "${r.values.name}" — add their member number to the file`,
+      }
+    }
+    if (typeof byName === 'string') return { kind: 'existing', memberId: byName, matchedBy: 'name', label }
+
+    return { kind: 'create', values: r.values, label }
+  })
 }

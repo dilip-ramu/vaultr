@@ -4,9 +4,13 @@ import LiveBiddingPanel from './LiveBiddingPanel'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ChevronDown, ChevronRight, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronRight, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy, Upload, Download } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
+import {
+  sampleMemberCsv, parseMemberCsv, buildMemberIndex, planGroupImport, type KnownMember,
+} from '@/lib/chit/memberCsv'
+import { codeSequence } from '@/lib/chit/memberCode'
 import { inr } from '@/lib/assets/valuation'
 import {
   monthlyInstallment, numberOfMonths, runAuction, monthlyDue, type GroupParams,
@@ -284,10 +288,31 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
   }
   const [picking, setPicking] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [pickQ, setPickQ] = useState('')
+  const [pickSort, setPickSort] = useState<'name' | 'code'>('name')
+  const [importing, setImporting] = useState(false)
   const inGroup = new Set(members.map(m => m.member_id))
   const room = group.members - members.length
 
-  const available = allMembers.filter(m => !inGroup.has(m.id))
+  const available = useMemo(() => {
+    const q = pickQ.trim().toLowerCase()
+    let list = allMembers.filter(m => !inGroup.has(m.id))
+    if (q) list = list.filter(m =>
+      m.name.toLowerCase().includes(q)
+      || (m.member_code ?? '').toLowerCase().includes(q)
+      || (m.phone ?? '').includes(q))
+    const sorted = [...list]
+    if (pickSort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
+    else sorted.sort((a, b) => {
+      const x = codeSequence(a.member_code), y = codeSequence(b.member_code)
+      if (x != null && y != null) return x - y
+      if (x != null) return -1
+      if (y != null) return 1
+      return a.name.localeCompare(b.name)
+    })
+    return sorted
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allMembers, members, pickQ, pickSort])
 
   async function add() {
     if (selected.size === 0) return
@@ -313,10 +338,17 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
       <div className="flex items-center justify-between">
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{members.length} of {group.members} seats filled</p>
         {room > 0 && (
-          <button onClick={() => setPicking(true)}
-            className="flex items-center gap-1.5 text-sm font-bold px-3.5 py-2 rounded-xl text-white" style={{ background: 'var(--brand)' }}>
-            <Plus className="w-4 h-4" /> Add members
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setImporting(true)}
+              className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-xl"
+              style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <Upload className="w-4 h-4" /> Import CSV
+            </button>
+            <button onClick={() => setPicking(true)}
+              className="flex items-center gap-1.5 text-sm font-bold px-3.5 py-2 rounded-xl text-white" style={{ background: 'var(--brand)' }}>
+              <Plus className="w-4 h-4" /> Add members
+            </button>
+          </div>
         )}
       </div>
 
@@ -363,9 +395,24 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
               <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Add members</p>
               <button onClick={() => setPicking(false)} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
             </div>
-            <p className="text-[12px] mb-3" style={{ color: 'var(--text-faint)' }}>{room} seat{room === 1 ? '' : 's'} left. Selected: {selected.size}</p>
+            <p className="text-[12px] mb-2" style={{ color: 'var(--text-faint)' }}>{room} seat{room === 1 ? '' : 's'} left. Selected: {selected.size}</p>
+            <div className="flex items-center gap-2 mb-3">
+              <input value={pickQ} onChange={e => setPickQ(e.target.value)} placeholder="Search name or number"
+                className="flex-1 px-3 py-2 rounded-xl text-sm"
+                style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text)' }} />
+              <select value={pickSort} onChange={e => setPickSort(e.target.value as 'name' | 'code')}
+                className="text-[11.5px] font-bold px-2 py-2 rounded-lg shrink-0"
+                style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                <option value="name">A–Z</option>
+                <option value="code">By number</option>
+              </select>
+            </div>
             <div className="space-y-1">
-              {available.length === 0 && <p className="text-sm py-4 text-center" style={{ color: 'var(--text-faint)' }}>Everyone is already in a group. Add more on the Members page.</p>}
+              {available.length === 0 && (
+                <p className="text-sm py-4 text-center" style={{ color: 'var(--text-faint)' }}>
+                  {pickQ ? 'Nobody matches that search.' : 'Everyone on the register is already in this group.'}
+                </p>
+              )}
               {available.map(m => {
                 const on = selected.has(m.id)
                 return (
@@ -375,7 +422,10 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
                     <span className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: on ? 'var(--brand)' : 'transparent', border: on ? 'none' : '1.5px solid var(--border)' }}>
                       {on && <Check className="w-3.5 h-3.5 text-white" />}
                     </span>
-                    <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{m.name}</span>
+                    <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: 'var(--text)' }}>{m.name}</span>
+                    {m.member_code && (
+                      <span className="text-[10px] font-extrabold shrink-0" style={{ color: 'var(--text-faint)' }}>{m.member_code}</span>
+                    )}
                   </button>
                 )
               })}
@@ -387,6 +437,148 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
           </div>
         </div>
       )}
+      {importing && (
+        <GroupImportSheet
+          groupId={group.id}
+          room={room}
+          existing={allMembers}
+          alreadyIn={inGroup}
+          onClose={() => setImporting(false)}
+          onDone={() => { setImporting(false); onRefresh() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Adding a whole list at once ──────────────────────────────────────────────
+//
+// The list someone hands you is mostly people already on the register, plus a
+// few who are not. Making them add the new ones elsewhere first and come back
+// is work the app can do itself.
+function GroupImportSheet({
+  groupId, room, existing, alreadyIn, onClose, onDone,
+}: {
+  groupId: string
+  room: number
+  existing: ChitMember[]
+  alreadyIn: Set<string>
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const [notes, setNotes] = useState<string[]>([])
+
+  function downloadSample() {
+    const blob = new Blob([sampleMemberCsv()], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'chit-group-members-example.csv'
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleFile(file: File) {
+    setBusy(true); setResult(null); setNotes([])
+    try {
+      const { rows, headers } = parseMemberCsv(await file.text())
+      if (!('name' in headers)) { notify('That file has no Name column.', 'error'); return }
+      if (!rows.length) { notify('No rows found in that file', 'error'); return }
+
+      const known: KnownMember[] = existing.map(m => ({ id: m.id, name: m.name, member_code: m.member_code }))
+      const plan = planGroupImport(rows, buildMemberIndex(known))
+
+      const problems: string[] = []
+      const ids: string[] = []
+      let created = 0
+
+      for (const p of plan) {
+        if (p.kind === 'problem') { problems.push(`${p.label}: ${p.reason}`); continue }
+        if (p.kind === 'existing') { ids.push(p.memberId); continue }
+
+        const res = await fetch('/api/chit/members', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...p.values, force: true }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok || !json.member) { problems.push(`${p.label}: ${json?.error ?? 'could not be added'}`); continue }
+        created++
+        ids.push(json.member.id)
+      }
+
+      // Anyone already seated is not an error — a list is often re-sent with a
+      // few names appended.
+      const fresh = ids.filter(id => !alreadyIn.has(id))
+      const dropped = ids.length - fresh.length
+      if (dropped) problems.push(`${dropped} already in this group — left as they were`)
+
+      // The seat count is the group's own rule; refuse rather than overfill it.
+      const toAdd = fresh.slice(0, Math.max(0, room))
+      if (fresh.length > room) {
+        problems.push(`Only ${room} seat${room === 1 ? '' : 's'} left — ${fresh.length - room} not added`)
+      }
+
+      let added = 0
+      if (toAdd.length) {
+        const res = await fetch('/api/chit/group-members', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ group_id: groupId, member_ids: toAdd }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) { notify(json?.error ?? 'Could not add to the group', 'error'); return }
+        added = json.added ?? toAdd.length
+      }
+
+      setResult(`Added ${added} to the group${created ? `, ${created} newly created` : ''}.`)
+      setNotes(problems.slice(0, 10))
+      if (added > 0) setTimeout(onDone, problems.length ? 5000 : 1200)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center">
+      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up" style={{ background: 'var(--surface)' }}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Import members into this chit</p>
+          <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
+        </div>
+
+        <p className="text-[12.5px] mb-3" style={{ color: 'var(--text-muted)' }}>
+          Anyone already on the register is matched and seated. Anyone new is added to the
+          register first, then seated. Only <b>Name</b> is required.
+        </p>
+
+        <button onClick={downloadSample}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold mb-3"
+          style={{ border: '1px solid var(--border)', color: 'var(--brand)' }}>
+          <Download className="w-4 h-4" /> Download example CSV
+        </button>
+
+        <label className="block w-full text-center py-8 rounded-xl cursor-pointer"
+          style={{ border: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
+          {busy ? 'Importing…' : `Choose CSV file · ${room} seat${room === 1 ? '' : 's'} left`}
+          <input type="file" accept=".csv,text/csv" className="hidden" disabled={busy}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+        </label>
+
+        {result && <p className="text-sm mt-3 font-semibold" style={{ color: 'var(--brand)' }}>{result}</p>}
+        {notes.length > 0 && (
+          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
+            {notes.map((n, i) => (
+              <p key={i} className="text-[11.5px]"
+                style={{ color: n.includes('already in this group') ? 'var(--text-muted)' : 'var(--expense)' }}>{n}</p>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
+          Matching uses the member number when the file has one, otherwise the name. A name
+          shared by two members is reported rather than guessed at — seating the wrong
+          person means billing them for this chit.
+        </p>
+      </div>
     </div>
   )
 }

@@ -1,6 +1,10 @@
 'use client'
 
-import { sampleMemberCsv, parseMemberCsv } from '@/lib/chit/memberCsv'
+import {
+  sampleMemberCsv, parseMemberCsv, buildMemberIndex, existingCodeOwner, resolveReference,
+  type KnownMember,
+} from '@/lib/chit/memberCsv'
+import { nextMemberCode, codeSequence } from '@/lib/chit/memberCode'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -13,18 +17,49 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
   const router = useRouter()
   const [members, setMembers] = useState(initialMembers)
   const [q, setQ] = useState('')
+  const [sort, setSort] = useState<'name' | 'code' | 'recent'>('name')
+  const [filter, setFilter] = useState<'all' | 'active' | 'inactive' | 'portal' | 'no_phone'>('all')
+
+  /** What the next member will be numbered. One past the HIGHEST issued, so a
+   *  number freed by deleting a duplicate import is not handed out again. */
+  const nextCode = useMemo(() => nextMemberCode(members.map(m => m.member_code)), [members])
   const [editing, setEditing] = useState<ChitMember | null>(null)
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    if (!s) return members
-    return members.filter(m =>
-      m.name.toLowerCase().includes(s)
-      || (m.phone ?? '').includes(s)
-      || (m.member_code ?? '').toLowerCase().includes(s))
-  }, [members, q])
+    let list = members
+
+    if (filter === 'active')   list = list.filter(m => m.is_active)
+    if (filter === 'inactive') list = list.filter(m => !m.is_active)
+    if (filter === 'portal')   list = list.filter(m => m.portal_enabled)
+    if (filter === 'no_phone') list = list.filter(m => !m.phone)
+
+    if (s) {
+      // PAN is searchable too: it is often the only thing written on a document
+      // someone is holding when they ring up.
+      list = list.filter(m =>
+        m.name.toLowerCase().includes(s)
+        || (m.phone ?? '').includes(s)
+        || (m.member_code ?? '').toLowerCase().includes(s)
+        || (m.pan ?? '').toLowerCase().includes(s))
+    }
+
+    const sorted = [...list]
+    if (sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
+    // By number, in issue order — codes that do not follow the pattern sink to
+    // the bottom rather than sorting as text among the ones that do.
+    if (sort === 'code') sorted.sort((a, b) => {
+      const x = codeSequence(a.member_code), y = codeSequence(b.member_code)
+      if (x != null && y != null) return x - y
+      if (x != null) return -1
+      if (y != null) return 1
+      return (a.member_code ?? '').localeCompare(b.member_code ?? '')
+    })
+    if (sort === 'recent') sorted.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))
+    return sorted
+  }, [members, q, sort, filter])
 
   // ── Member portal (v115) ──────────────────────────────────────────────────
   // Access is per member and off by default. Turning it OFF also signs the
@@ -82,7 +117,12 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Chit members</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{members.length} on the roster</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {filtered.length === members.length
+              ? `${members.length} on the roster`
+              : `${filtered.length} of ${members.length}`}
+            {' · next number '}<b style={{ color: 'var(--text)' }}>{nextCode}</b>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setImporting(true)}
@@ -97,11 +137,34 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-faint)' }} />
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name or phone"
-          className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm"
-          style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-faint)' }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, member number, phone or PAN"
+            className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm"
+            style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {([
+            ['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive'],
+            ['portal', 'Portal on'], ['no_phone', 'No phone'],
+          ] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setFilter(key)}
+              className="text-[11.5px] font-bold px-2.5 py-1 rounded-full"
+              style={filter === key
+                ? { background: 'color-mix(in srgb, var(--brand) 14%, transparent)', color: 'var(--brand)' }
+                : { border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              {label}
+            </button>
+          ))}
+          <select value={sort} onChange={e => setSort(e.target.value as typeof sort)}
+            className="ml-auto text-[11.5px] font-bold px-2.5 py-1 rounded-lg"
+            style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)' }}>
+            <option value="name">Sort: Name</option>
+            <option value="code">Sort: Member number</option>
+            <option value="recent">Sort: Recently added</option>
+          </select>
+        </div>
       </div>
 
       <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -165,6 +228,7 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
         <MemberForm
           member={editing}
           members={members}
+          nextCode={nextCode}
           onClose={() => { setAdding(false); setEditing(null) }}
           onSaved={m => {
             setMembers(prev => prev.some(x => x.id === m.id) ? prev.map(x => x.id === m.id ? m : x) : [...prev, m].sort((a, b) => a.name.localeCompare(b.name)))
@@ -180,10 +244,12 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
   )
 }
 
-function MemberForm({ member, members, onClose, onSaved }: {
+function MemberForm({ member, members, nextCode, onClose, onSaved }: {
   member: ChitMember | null
   /** Everyone else, so "introduced by" can point at a real member. */
   members: ChitMember[]
+  /** Shown as the placeholder, so the number about to be issued is visible. */
+  nextCode: string
   onClose: () => void
   onSaved: (m: ChitMember) => void
 }) {
@@ -226,7 +292,10 @@ function MemberForm({ member, members, onClose, onSaved }: {
       })
       const json = await res.json()
       if (res.status === 409 && json.duplicate) {
-        if (await confirmDialog(`${json.error}. Add anyway?`)) return save(true)
+        const what = json.matchedOn === 'pan' ? 'PAN' : 'phone number'
+        if (await confirmDialog(
+          `${json.error}.\n\nTwo members sharing a ${what} is usually the same person entered twice. Add anyway?`,
+        )) return save(true)
         return
       }
       if (!res.ok) { notify(json.error ?? 'Save failed', 'error'); return }
@@ -246,7 +315,7 @@ function MemberForm({ member, members, onClose, onSaved }: {
           <div className="grid grid-cols-3 gap-2">
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Member no.</label>
               <input className={fld} style={fs} value={code} onChange={e => setCode(e.target.value.toUpperCase())}
-                placeholder={member ? '' : 'auto'} title="Leave blank to get the next number" /></div>
+                placeholder={member ? '' : nextCode} title="Leave blank to get the next number" /></div>
             <div className="col-span-2"><label className={lbl} style={{ color: 'var(--text-muted)' }}>Name</label>
               <input className={fld} style={fs} value={name} onChange={e => setName(e.target.value)} /></div>
           </div>
@@ -313,6 +382,7 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => v
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [problems, setProblems] = useState<string[]>([])
+  const [skipped, setSkipped] = useState(0)
 
   /** The sample is generated from the SAME column list the parser reads, so a
    *  column in the file is always a column that gets imported. */
@@ -329,7 +399,7 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => v
   }
 
   async function handleFile(file: File) {
-    setBusy(true); setResult(null); setProblems([])
+    setBusy(true); setResult(null); setProblems([]); setSkipped(0)
     try {
       const { rows, headers } = parseMemberCsv(await file.text())
       if (!('name' in headers)) {
@@ -338,51 +408,73 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => v
       }
       if (!rows.length) { notify('No rows found in that file', 'error'); return }
 
-      // Introduced-by is given as a member NUMBER in the file, which means
-      // nothing to the database. Resolve it after every row exists, so a file
-      // can reference a member it also creates.
-      const pending: { code: string; referrer: string }[] = []
-      const failed: string[] = []
-      let ok = 0
+      // Who already exists. Re-importing last month's sheet should add the new
+      // people and leave the rest alone, so this is the list we skip against.
+      const existing = await (await fetch('/api/chit/members')).json().catch(() => ({ members: [] }))
+      const known: KnownMember[] = (existing.members ?? []) as KnownMember[]
+      let index = buildMemberIndex(known)
+
+      const notes: string[] = []
+      const pending: { selfId: string; raw: string; label: string }[] = []
+      let added = 0
+      let skippedRows = 0
 
       for (const r of rows) {
-        if (r.error) { failed.push(`Row ${r.row}: ${r.error}`); continue }
+        if (r.error) { notes.push(`Row ${r.row}: ${r.error}`); continue }
+
+        // Already imported. Not a failure — say so and move on.
+        const owner = existingCodeOwner(r.values, index)
+        if (owner) {
+          skippedRows++
+          notes.push(`Row ${r.row}: ${r.values.member_code} already exists — skipped`)
+          continue
+        }
+
         const { referred_by_code, ...fields } = r.values
         const res = await fetch('/api/chit/members', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...fields, force: true }),
         })
         const json = await res.json().catch(() => ({}))
-        if (!res.ok) { failed.push(`Row ${r.row} (${fields.name}): ${json?.error ?? 'could not be added'}`); continue }
-        ok++
-        if (referred_by_code && json.member?.member_code) {
-          pending.push({ code: json.member.member_code, referrer: referred_by_code })
+        if (!res.ok) { notes.push(`Row ${r.row} (${fields.name}): ${json?.error ?? 'could not be added'}`); continue }
+        added++
+
+        // The new member joins the index immediately, so a later row may be
+        // introduced by someone this same file created.
+        if (json.member) {
+          known.push(json.member as KnownMember)
+          index = buildMemberIndex(known)
+          if (referred_by_code) {
+            pending.push({ selfId: json.member.id, raw: referred_by_code, label: `Row ${r.row} (${fields.name})` })
+          }
         }
       }
 
-      // Second pass: link the introducers now that everyone has a number.
-      if (pending.length) {
-        const all = await (await fetch('/api/chit/members')).json().catch(() => ({ members: [] }))
-        const byCode = new Map<string, string>(
-          (all.members ?? []).map((m: ChitMember) => [String(m.member_code ?? '').toUpperCase(), m.id]),
-        )
-        for (const link of pending) {
-          const selfId = byCode.get(link.code.toUpperCase())
-          const refId = byCode.get(link.referrer.trim().toUpperCase())
-          if (!selfId || !refId || selfId === refId) {
-            failed.push(`${link.code}: introducer ${link.referrer} not found`)
-            continue
-          }
+      // Second pass, once every row exists: a sheet listing people in any order
+      // still links up.
+      for (const link of pending) {
+        const hit = resolveReference(link.raw, index, link.selfId)
+        if (hit.kind === 'matched') {
           await fetch('/api/chit/members', {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: selfId, referred_by_member_id: refId }),
+            body: JSON.stringify({ id: link.selfId, referred_by_member_id: hit.memberId }),
           })
+        } else if (hit.kind !== 'none') {
+          // The member is created either way; only the introduction is missing,
+          // and it is named so it can be set by hand.
+          notes.push(`${link.label}: introduced-by not linked — ${hit.reason}`)
         }
       }
 
-      setResult(`Imported ${ok} of ${rows.length}.`)
-      setProblems(failed.slice(0, 8))
-      if (ok > 0) setTimeout(onDone, failed.length ? 4000 : 1200)
+      setSkipped(skippedRows)
+      setResult(
+        `Added ${added}`
+        + (skippedRows ? `, skipped ${skippedRows} already on file` : '')
+        + ` of ${rows.length} row${rows.length === 1 ? '' : 's'}.`,
+      )
+      setProblems(notes.slice(0, 10))
+      if (added > 0 && !notes.length) setTimeout(onDone, 1200)
+      else if (added > 0) setTimeout(onDone, 5000)
     } finally { setBusy(false) }
   }
 
@@ -414,17 +506,23 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => v
 
         {result && <p className="text-sm mt-3 font-semibold" style={{ color: 'var(--brand)' }}>{result}</p>}
         {problems.length > 0 && (
-          <div className="mt-2 space-y-0.5">
+          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
             {problems.map((p, i) => (
-              <p key={i} className="text-[11.5px]" style={{ color: 'var(--expense)' }}>{p}</p>
+              <p key={i} className="text-[11.5px]"
+                style={{ color: p.includes('already exists') ? 'var(--text-muted)' : 'var(--expense)' }}>
+                {p}
+              </p>
             ))}
           </div>
         )}
 
         <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
-          Members without a number in the file are given the next one automatically.
-          &ldquo;Introduced By&rdquo; takes a member number and is linked after every row is
-          added, so a file can reference someone it creates further down.
+          A row whose member number already exists is skipped, so you can re-import the
+          same sheet after adding a few names to it. Members without a number get the next
+          one automatically. &ldquo;Introduced By&rdquo; accepts either a member number or an
+          existing member&rsquo;s name, and is linked after every row is added — so a file can
+          reference someone it creates further down. A name shared by two members is left
+          unlinked and reported, rather than guessed at.
         </p>
       </div>
     </div>

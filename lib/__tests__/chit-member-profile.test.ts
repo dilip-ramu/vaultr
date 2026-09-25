@@ -15,6 +15,7 @@ import {
 } from '@/lib/chit/memberCode'
 import {
   sampleMemberCsv, parseMemberCsv, splitCsvLine, mapHeaders, MEMBER_COLUMNS,
+  buildMemberIndex, existingCodeOwner, resolveReference, normalizeName, planGroupImport,
 } from '@/lib/chit/memberCsv'
 import { summariseMember } from '@/lib/chit/memberSummary'
 
@@ -249,5 +250,164 @@ describe('one member’s position across their chits', () => {
     expect(s.groupCount).toBe(0)
     expect(s.totalOwed).toBe(0)
     expect(s.groups).toHaveLength(0)
+  })
+})
+
+// ── 4. Re-importing a sheet, and matching the introducer ────────────────────
+//
+// Two behaviours that fail quietly if done casually: adding a second Suresh
+// because the sheet was imported twice, and attaching an introduction to the
+// wrong person because two members share a name.
+
+describe('skipping members already on file', () => {
+  const index = buildMemberIndex([
+    { id: 'a', name: 'Suresh Balan', member_code: 'UC00001' },
+    { id: 'b', name: 'Narmadha K', member_code: 'UC00002' },
+  ])
+
+  it('recognises a member number that already belongs to someone', () => {
+    expect(existingCodeOwner({ member_code: 'UC00002', name: 'Anyone' }, index)).toBe('b')
+  })
+
+  it('recognises it whatever the spacing and case', () => {
+    expect(existingCodeOwner({ member_code: ' uc 00002 ', name: 'x' }, index)).toBe('b')
+  })
+
+  it('lets an unused number through', () => {
+    expect(existingCodeOwner({ member_code: 'UC00099', name: 'New Person' }, index)).toBeNull()
+  })
+
+  it('lets a row with no number through — it will be issued one', () => {
+    expect(existingCodeOwner({ name: 'New Person' }, index)).toBeNull()
+  })
+
+  it('does not skip on a matching NAME — same name, different person is normal', () => {
+    // Skipping by name would silently drop a genuinely new member who happens
+    // to share a name with someone already on the register.
+    expect(existingCodeOwner({ name: 'Suresh Balan' }, index)).toBeNull()
+  })
+})
+
+describe('resolving who introduced a member', () => {
+  const index = buildMemberIndex([
+    { id: 'a', name: 'Suresh Balan', member_code: 'UC00001' },
+    { id: 'b', name: 'Narmadha K', member_code: 'UC00002' },
+    { id: 'c', name: 'Ramu P G', member_code: 'UC00003' },
+    { id: 'd', name: 'Ramu P G', member_code: 'UC00004' },   // same name, real case
+  ])
+
+  it('matches a member number', () => {
+    const r = resolveReference('UC00002', index)
+    expect(r).toEqual({ kind: 'matched', memberId: 'b', by: 'code' })
+  })
+
+  it('matches an existing member by name', () => {
+    const r = resolveReference('Suresh Balan', index)
+    expect(r).toEqual({ kind: 'matched', memberId: 'a', by: 'name' })
+  })
+
+  it('matches a name despite case and extra spacing', () => {
+    expect(resolveReference('  suresh   balan ', index)).toEqual({ kind: 'matched', memberId: 'a', by: 'name' })
+  })
+
+  it('REFUSES to guess when two members share the name', () => {
+    // Picking the first would attach the introduction to the wrong person, and
+    // nobody would ever notice.
+    const r = resolveReference('Ramu P G', index)
+    expect(r.kind).toBe('ambiguous')
+    expect((r as { reason: string }).reason).toContain('member number')
+  })
+
+  it('still resolves those two by their numbers', () => {
+    expect(resolveReference('UC00004', index)).toEqual({ kind: 'matched', memberId: 'd', by: 'code' })
+  })
+
+  it('prefers the number when a value could be read either way', () => {
+    const odd = buildMemberIndex([
+      { id: 'x', name: 'UC00001', member_code: 'UC00009' },   // someone named like a code
+      { id: 'y', name: 'Real Person', member_code: 'UC00001' },
+    ])
+    expect(resolveReference('UC00001', odd)).toEqual({ kind: 'matched', memberId: 'y', by: 'code' })
+  })
+
+  it('reports a name that matches nobody', () => {
+    const r = resolveReference('Someone Not Here', index)
+    expect(r.kind).toBe('missing')
+    expect((r as { reason: string }).reason).toContain('Someone Not Here')
+  })
+
+  it('treats a blank as simply not recorded', () => {
+    expect(resolveReference('', index).kind).toBe('none')
+    expect(resolveReference('   ', index).kind).toBe('none')
+    expect(resolveReference(null, index).kind).toBe('none')
+  })
+
+  it('refuses to make a member their own introducer', () => {
+    expect(resolveReference('UC00001', index, 'a').kind).toBe('self')
+    expect(resolveReference('Suresh Balan', index, 'a').kind).toBe('self')
+  })
+})
+
+// ── 5. Importing a list straight into a chit ────────────────────────────────
+
+describe('planning a group import', () => {
+  const index = buildMemberIndex([
+    { id: 'a', name: 'Suresh Balan', member_code: 'UC00001' },
+    { id: 'b', name: 'Narmadha K', member_code: 'UC00002' },
+    { id: 'c', name: 'Ramu P G', member_code: 'UC00003' },
+    { id: 'd', name: 'Ramu P G', member_code: 'UC00004' },
+  ])
+  const rows = (...vals: Record<string, string>[]) =>
+    vals.map((values, i) => ({ row: i + 2, values }))
+
+  it('seats an existing member matched by number', () => {
+    const [p] = planGroupImport(rows({ member_code: 'UC00002', name: 'Narmadha K' }), index)
+    expect(p).toMatchObject({ kind: 'existing', memberId: 'b', matchedBy: 'code' })
+  })
+
+  it('seats an existing member matched by name alone', () => {
+    const [p] = planGroupImport(rows({ name: 'suresh balan' }), index)
+    expect(p).toMatchObject({ kind: 'existing', memberId: 'a', matchedBy: 'name' })
+  })
+
+  it('creates somebody who is not on the register', () => {
+    const [p] = planGroupImport(rows({ name: 'Brand New', phone: '9000000000' }), index)
+    expect(p.kind).toBe('create')
+    expect((p as { values: Record<string, string> }).values.name).toBe('Brand New')
+  })
+
+  it('keeps a number the file supplies for a new member', () => {
+    // They already have a number on paper; issuing a different one would make
+    // the register disagree with the passbook.
+    const [p] = planGroupImport(rows({ member_code: 'UC00099', name: 'On Paper Already' }), index)
+    expect(p.kind).toBe('create')
+    expect((p as { values: Record<string, string> }).values.member_code).toBe('UC00099')
+  })
+
+  it('refuses to guess between two members of the same name', () => {
+    // Seating the wrong person means billing them for this chit.
+    const [p] = planGroupImport(rows({ name: 'Ramu P G' }), index)
+    expect(p.kind).toBe('problem')
+    expect((p as { reason: string }).reason).toContain('member number')
+  })
+
+  it('resolves those two when the file gives the number', () => {
+    const [p] = planGroupImport(rows({ member_code: 'UC00004', name: 'Ramu P G' }), index)
+    expect(p).toMatchObject({ kind: 'existing', memberId: 'd' })
+  })
+
+  it('carries a row error through instead of acting on it', () => {
+    const plan = planGroupImport([{ row: 5, values: { phone: '9' }, error: 'No name in this row' }], index)
+    expect(plan[0].kind).toBe('problem')
+  })
+
+  it('handles a realistic mixed list in one pass', () => {
+    const plan = planGroupImport(rows(
+      { member_code: 'UC00001', name: 'Suresh Balan' },
+      { name: 'Narmadha K' },
+      { name: 'Someone New' },
+      { name: 'Ramu P G' },
+    ), index)
+    expect(plan.map(p => p.kind)).toEqual(['existing', 'existing', 'create', 'problem'])
   })
 })

@@ -39,7 +39,15 @@ export async function GET() {
   const { data, error } = await supabase.from('chit_members')
     .select('*').eq('user_id', user.id).order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ members: data ?? [] })
+
+  const members = data ?? []
+  return NextResponse.json({
+    members,
+    // What the next member would be given. One past the HIGHEST issued, so
+    // numbers freed by deleting a duplicate import are not handed out again to
+    // collide with a receipt that still carries them.
+    nextCode: nextMemberCode(members.map((m: { member_code: string | null }) => m.member_code)),
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -55,13 +63,26 @@ export async function POST(req: NextRequest) {
 
   const phone = normalizePhone(body.phone as string) || null
 
-  // Same person, entered twice, is one person — phone is the natural key. Warn,
-  // don't silently merge: the caller decides whether it's really a duplicate.
-  if (phone) {
-    const { data: dupe } = await supabase.from('chit_members')
-      .select('id, name').eq('user_id', user.id).eq('phone', phone).maybeSingle()
-    if (dupe && body.force !== true) {
-      return NextResponse.json({ error: `A member with this phone already exists: ${dupe.name}`, duplicate: dupe }, { status: 409 })
+  // Same person entered twice is one person. Phone and PAN are both natural
+  // keys — a PAN especially, since it is issued once per person and a second
+  // member carrying it is almost always the same human typed in again. Warn,
+  // do not silently merge: the caller decides whether it is really a duplicate.
+  const pan = (body.pan as string)?.trim().toUpperCase() || null
+  if (phone || pan) {
+    const checks: { label: string; column: string; value: string }[] = []
+    if (phone) checks.push({ label: 'phone number', column: 'phone', value: phone })
+    if (pan) checks.push({ label: 'PAN', column: 'pan', value: pan })
+
+    for (const c of checks) {
+      const { data: dupe } = await supabase.from('chit_members')
+        .select('id, name, member_code').eq('user_id', user.id).eq(c.column, c.value).maybeSingle()
+      if (dupe && body.force !== true) {
+        const who = dupe.member_code ? `${dupe.name} (${dupe.member_code})` : dupe.name
+        return NextResponse.json(
+          { error: `${who} already has this ${c.label}`, duplicate: dupe, matchedOn: c.column },
+          { status: 409 },
+        )
+      }
     }
   }
 
@@ -80,7 +101,7 @@ export async function POST(req: NextRequest) {
     dial_code: (body.dial_code as string)?.replace(/\D/g, '') || '91',
     address: (body.address as string)?.trim() || null,
     aadhaar: (body.aadhaar as string)?.trim() || null,
-    pan: (body.pan as string)?.trim() || null,
+    pan,
     nominees: body.nominees ?? [],
     reference_contacts: body.reference_contacts ?? [],
     guarantors: body.guarantors ?? [],
@@ -129,6 +150,7 @@ export async function PATCH(req: NextRequest) {
     patch.member_code = check.code
   }
   if ('phone' in body) patch.phone = normalizePhone(body.phone as string) || null
+  if ('pan' in body) patch.pan = (body.pan as string)?.trim().toUpperCase() || null
   if ('dial_code' in body) patch.dial_code = (body.dial_code as string)?.replace(/\D/g, '') || '91'
 
   const { data, error } = await supabase.from('chit_members')

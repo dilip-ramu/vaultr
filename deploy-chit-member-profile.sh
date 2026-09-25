@@ -73,6 +73,32 @@ reports bad rows individually instead of failing the file, and resolves
 Introduced By after every row exists so a file can reference a member it creates
 further down.
 
+A row whose member number already belongs to someone is skipped and reported,
+not treated as an error, so last month's sheet can be re-imported after a few
+names are added to it. Skipping is by NUMBER only - skipping by name would
+silently drop a genuinely new member who happens to share a name with someone
+already on the register.
+
+Introduced By accepts a member number or an existing member's name. The number
+wins when a value could be read either way. A name shared by two members is
+left unlinked and reported rather than guessed at: picking the first match would
+attach the introduction to the wrong person and nobody would ever notice.
+
+The members page gains sorting (name, member number, recently added) and filters
+(active, inactive, portal on, no phone); search now covers PAN as well, since a
+PAN is often the only thing written on the document someone is holding when they
+ring up. The header shows the number the next member will be given.
+
+PAN now warns on a duplicate the way phone already did, naming which field
+matched. A PAN is issued once per person, so a second member carrying one is
+almost always the same human typed in again.
+
+Adding members to a group gains search and sorting, and a CSV import: anyone
+already on the register is matched and seated, anyone new is created first and
+then seated, and the group's seat count is respected rather than overfilled.
+Matching prefers the member number and refuses to guess between two members of
+the same name - seating the wrong person means billing them for that chit.
+
 Adds migration v119.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
