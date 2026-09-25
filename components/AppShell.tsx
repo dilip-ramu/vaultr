@@ -125,6 +125,7 @@ const navSections: NavSection[] = [
           // Owner only — filtered out below for admins, who must not see the
           // list of who else has access, let alone change it.
           { href: '/chit/admins',  label: 'Admins', icon: ShieldCheck },
+          { href: '/chit/statement', label: 'Statement', icon: FileText },
         ],
       },
     ],
@@ -245,7 +246,7 @@ export default function AppShell({ user, profile, chitOnly = false, adminName = 
           ...sec,
           items: sec.items
             .filter(i => i.href.startsWith('/chit'))
-            .map(i => ({ ...i, subItems: i.subItems?.filter(si => si.href !== '/chit/admins') })),
+            .map(i => ({ ...i, subItems: i.subItems?.filter(si => si.href !== '/chit/admins' && si.href !== '/chit/statement') })),
         }))
         .filter(sec => sec.items.length > 0)
     : navSections

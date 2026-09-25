@@ -76,6 +76,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     // redirects them and the database refuses the rows, so this is tidiness,
     // not the lock.
     { href: '/chit/admins', label: 'Admins', ownerOnly: true },
+    { href: '/chit/statement', label: 'Statement', ownerOnly: true },
   ] },
   { name: 'System', tabs: [
     { href: '/setup/settings',      label: 'Settings' },
