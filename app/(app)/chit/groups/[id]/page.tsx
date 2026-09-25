@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient } from '@/lib/chit/access'
 import { redirect, notFound } from 'next/navigation'
 import ChitGroupDetail from '@/components/chit/ChitGroupDetail'
 import type { ChitGroup, ChitGroupMember, ChitAuction, ChitCollection, ChitMember } from '@/lib/chit/types'
@@ -17,9 +18,11 @@ export async function generateMetadata({ params }: Props) {
 export default async function ChitGroupPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const uid = user.id
+  const access = await resolveChitAccess()
+  if (!access) redirect('/login')
+  // Whose books: the owner, or the owner who granted this staff member access.
+  const uid = access.ownerId
+  const ledger = await ledgerClient(access)
 
   const { data: group } = await supabase.from('chit_groups')
     .select('*').eq('id', id).eq('user_id', uid).maybeSingle()
@@ -40,9 +43,13 @@ export default async function ChitGroupPage({ params }: Props) {
     supabase.from('chit_collections').select('*, member:chit_members(name)').eq('user_id', uid).eq('group_id', id),
     // Accounts belonging to the group's company (or all, if no company set) — the
     // ones a collection/payout can be posted to.
-    supabase.from('accounts').select('id, name, type, company_id')
+    // accounts and companies stay OWNER-ONLY under RLS — the general ledger is
+    // not part of the chit grant. A staff member still needs to see which
+    // account a collection lands in, so these two reads are made on the owner's
+    // behalf with an elevated client, scoped to their id and nothing else.
+    ledger.from('accounts').select('id, name, type, company_id')
       .eq('user_id', uid).eq('is_active', true),
-    supabase.from('companies').select('id, name').eq('user_id', uid).order('name'),
+    ledger.from('companies').select('id, name').eq('user_id', uid).order('name'),
   ])
 
   const accounts = ((companyAccounts ?? []) as { id: string; name: string; type: string; company_id: string | null }[])

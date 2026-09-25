@@ -13,7 +13,7 @@ import {
   Banknote, UserSquare, CalendarClock, History,
   Building2, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
-  CalendarRange, CreditCard, Gem, BarChart3, Coins, LineChart, FlaskConical } from 'lucide-react'
+  CalendarRange, CreditCard, Gem, BarChart3, Coins, LineChart, FlaskConical , ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
@@ -29,6 +29,10 @@ const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), 
 interface AppShellProps {
   user: User
   profile: Profile | null
+  /** A chit-only staff member (v120): they see the chit section and nothing
+   *  else. Cosmetic — the database refuses the rest regardless. */
+  chitOnly?: boolean
+  staffName?: string | null
   children: React.ReactNode
 }
 
@@ -118,6 +122,9 @@ const navSections: NavSection[] = [
         subItems: [
           { href: '/chit/groups',  label: 'Groups',  icon: Layers },
           { href: '/chit/members', label: 'Members', icon: Users },
+          // Owner only — filtered out below for staff, who must not see the
+          // list of who else has access, let alone change it.
+          { href: '/chit/staff',   label: 'Staff logins', icon: ShieldCheck },
         ],
       },
     ],
@@ -228,8 +235,20 @@ function SidebarSection({
 
 // ── Main shell ──────────────────────────────────────────────────────────────
 
-export default function AppShell({ user, profile, children }: AppShellProps) {
+export default function AppShell({ user, profile, chitOnly = false, staffName = null, children }: AppShellProps) {
   const pathname = usePathname()
+  // Staff see one destination. Showing them the rest greyed out would only
+  // advertise what they cannot reach.
+  const sections = chitOnly
+    ? navSections
+        .map(sec => ({
+          ...sec,
+          items: sec.items
+            .filter(i => i.href.startsWith('/chit'))
+            .map(i => ({ ...i, subItems: i.subItems?.filter(si => si.href !== '/chit/staff') })),
+        }))
+        .filter(sec => sec.items.length > 0)
+    : navSections
   const router = useRouter()
   const [showAddTx, setShowAddTx] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -380,7 +399,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
   const sidebarNav = (onItemClick?: () => void) => (
     <nav className="flex-1 px-2 py-2 overflow-y-auto space-y-0.5">
-      {navSections.map(section => (
+      {sections.map(section => (
         <SidebarSection
           key={section.id}
           section={section}
@@ -600,7 +619,7 @@ export default function AppShell({ user, profile, children }: AppShellProps) {
 
             {/* Mobile nav — section headers always expanded in mobile drawer */}
             <nav className="flex-1 px-3 py-2 overflow-y-auto">
-              {navSections.map(section => (
+              {sections.map(section => (
                 <div key={section.id} className="mb-1">
                   {section.label && (
                     <p className="px-2 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>

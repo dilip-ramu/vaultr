@@ -40,3 +40,6 @@ app/redesign 1.html
 screenshots.zip
 *.zip
 lib/pdf/fonts/*.ttf
+
+# files retired during development, deleted by hand later
+_to_delete/

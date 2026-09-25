@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { collectionTransaction, CHIT_INCOME_CATEGORY, alreadyPosted } from '@/lib/chit/posting'
 
 export const dynamic = 'force-dynamic'
+
+/** Either the caller's own session client or the elevated one used to post on
+ *  the owner's behalf. The helper below does not care which it is given. */
+type SupabaseLike = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>
 
 /**
  * Mark several members paid for a month in one go.
@@ -18,8 +24,20 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.recordCollection(access.role)) {
+    return NextResponse.json({ error: forbidden('record collections', access.role) }, { status: 403 })
+  }
+  // transactions / categories keep their OWNER-ONLY policies: a staff session
+  // cannot touch the general ledger. The posting below is done on the owner's
+  // behalf with an elevated client, and only after the grant and the role have
+  // both been checked.
+  const ledger = await ledgerClient(access)
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -32,22 +50,22 @@ export async function POST(req: NextRequest) {
   if (!groupId || entries.length === 0) return NextResponse.json({ error: 'group_id and entries required' }, { status: 400 })
 
   const { data: group } = await supabase.from('chit_groups')
-    .select('name').eq('id', groupId).eq('user_id', user.id).maybeSingle()
+    .select('name').eq('id', groupId).eq('user_id', owner).maybeSingle()
   if (!group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
 
-  const category = await ensureCategory(supabase, user.id, CHIT_INCOME_CATEGORY, 'income')
+  const category = await ensureCategory(ledger, owner, CHIT_INCOME_CATEGORY, 'income')
 
   // Names once, not per row.
   const memberIds = [...new Set(entries.map(e => e.member_id))]
   const { data: memberRows } = await supabase.from('chit_members')
-    .select('id, name').in('id', memberIds).eq('user_id', user.id)
+    .select('id, name').in('id', memberIds).eq('user_id', owner)
   const nameOf = new Map((memberRows ?? []).map(m => [m.id, m.name]))
 
   // What's already collected this month, so we never double a slot.
   const months = [...new Set(entries.map(e => e.month_number))]
   const { data: existing } = await supabase.from('chit_collections')
     .select('id, member_id, month_number, income_transaction_id')
-    .eq('group_id', groupId).eq('user_id', user.id).in('month_number', months)
+    .eq('group_id', groupId).eq('user_id', owner).in('month_number', months)
   const priorKey = new Map(
     (existing ?? []).map(c => [`${c.member_id}:${c.month_number}`, c]),
   )
@@ -67,16 +85,16 @@ export async function POST(req: NextRequest) {
     if (prior && alreadyPosted(prior.income_transaction_id)) { skipped++; continue }
 
     const txn = collectionTransaction({
-      userId: user.id, accountId, amount, date: paidDate,
+      userId: owner, accountId, amount, date: paidDate,
       groupName: group.name, memberName: name, monthNumber: e.month_number,
     })
 
-    const { data: posted, error: txErr } = await supabase.from('transactions')
+    const { data: posted, error: txErr } = await ledger.from('transactions')
       .insert({ ...txn, category_id: category }).select('id').single()
     if (txErr) { failed.push(`${name}: ${txErr.message}`); continue }
 
     const row = {
-      user_id: user.id, group_id: groupId, member_id: e.member_id, month_number: e.month_number,
+      user_id: owner, group_id: groupId, member_id: e.member_id, month_number: e.month_number,
       amount, paid_date: paidDate, account_id: accountId, income_transaction_id: posted.id,
     }
     const { error: cErr } = prior
@@ -84,14 +102,14 @@ export async function POST(req: NextRequest) {
       : await supabase.from('chit_collections').insert(row)
 
     if (cErr) {
-      await supabase.from('transactions').delete().eq('id', posted.id)   // roll the money back
+      await ledger.from('transactions').delete().eq('id', posted.id)   // roll the money back
       failed.push(`${name}: ${cErr.message}`)
       continue
     }
 
     await supabase.from('chit_receivables')
       .update({ status: 'PAID' })
-      .eq('user_id', user.id).eq('group_id', groupId).eq('member_id', e.member_id).eq('month_number', e.month_number)
+      .eq('user_id', owner).eq('group_id', groupId).eq('member_id', e.member_id).eq('month_number', e.month_number)
 
     done++
   }
@@ -100,7 +118,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function ensureCategory(
-  supabase: Awaited<ReturnType<typeof createClient>>, userId: string,
+  supabase: SupabaseLike, userId: string,
   name: string, type: 'income' | 'expense',
 ): Promise<string | null> {
   const { data: found } = await supabase.from('categories')

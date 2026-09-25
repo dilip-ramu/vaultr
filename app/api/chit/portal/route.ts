@@ -5,11 +5,12 @@
 //   invite           — mint a one-time login link and return a wa.me URL
 //   revoke           — sign out every phone that member is signed in on
 //
-// The member id always arrives with `.eq('user_id', user.id)` attached, so one
+// The member id always arrives with `.eq('user_id', owner)` attached, so one
 // account can never reach into another account's chit.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { mintInvite, revokeAllSessions, INVITE_TTL_MINUTES } from '@/lib/chit/portal-auth'
 import { buildWhatsAppUrl } from '@/lib/whatsapp'
 
@@ -38,8 +39,15 @@ function siteOrigin(req: NextRequest): string {
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.manageMembers(access.role)) {
+    return NextResponse.json({ error: forbidden('manage member portal access', access.role) }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => ({}))
   const action = String(body?.action ?? '')
@@ -48,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   const { data: rows } = await supabase.from('chit_members')
     .select('id, name, phone, portal_enabled')
-    .eq('id', memberId).eq('user_id', user.id).limit(1)
+    .eq('id', memberId).eq('user_id', owner).limit(1)
   const member = rows?.[0]
   if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
 
@@ -56,20 +64,20 @@ export async function POST(req: NextRequest) {
     const enabled = action === 'enable'
     const { error } = await supabase.from('chit_members')
       .update({ portal_enabled: enabled, updated_at: new Date().toISOString() })
-      .eq('id', memberId).eq('user_id', user.id)
+      .eq('id', memberId).eq('user_id', owner)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     // Switching access off must take effect NOW, not whenever a session expires.
-    if (!enabled) await revokeAllSessions(user.id, memberId)
+    if (!enabled) await revokeAllSessions(owner, memberId)
     return NextResponse.json({ ok: true, portal_enabled: enabled })
   }
 
   if (action === 'revoke') {
-    const count = await revokeAllSessions(user.id, memberId)
+    const count = await revokeAllSessions(owner, memberId)
     return NextResponse.json({ ok: true, revoked: count })
   }
 
   if (action === 'invite') {
-    const result = await mintInvite(user.id, memberId)
+    const result = await mintInvite(owner, memberId)
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
 
     const url = `${siteOrigin(req)}/m/enter?t=${result.token}`

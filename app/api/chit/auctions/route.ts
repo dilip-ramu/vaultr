@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { runAuction, type GroupParams } from '@/lib/chit/auction'
 import { payoutTransaction, CHIT_EXPENSE_CATEGORY, alreadyPosted } from '@/lib/chit/posting'
 import type { ChitGroup } from '@/lib/chit/types'
 
 export const dynamic = 'force-dynamic'
+
+/** Either the caller's own session client or the elevated one used to post on
+ *  the owner's behalf. The helper below does not care which it is given. */
+type SupabaseLike = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>
 
 const toParams = (g: ChitGroup): GroupParams => ({
   chitValue: Number(g.chit_value),
@@ -17,13 +23,22 @@ const toParams = (g: ChitGroup): GroupParams => ({
 // GET ?group_id= — auction history for a group.
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  // transactions / categories keep their OWNER-ONLY policies: a staff session
+  // cannot touch the general ledger. The posting below is done on the owner's
+  // behalf with an elevated client, and only after the grant and the role have
+  // both been checked.
+  const ledger = await ledgerClient(access)
   const groupId = req.nextUrl.searchParams.get('group_id')
   if (!groupId) return NextResponse.json({ error: 'group_id required' }, { status: 400 })
 
   const { data, error } = await supabase.from('chit_auctions')
-    .select('*').eq('user_id', user.id).eq('group_id', groupId)
+    .select('*').eq('user_id', owner).eq('group_id', groupId)
     .order('month_number', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ auctions: data ?? [] })
@@ -33,8 +48,20 @@ export async function GET(req: NextRequest) {
 // not trusted from the client, so a tampered payload can't mis-pay a winner.
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.runAuction(access.role)) {
+    return NextResponse.json({ error: forbidden('conduct auctions', access.role) }, { status: 403 })
+  }
+  // transactions / categories keep their OWNER-ONLY policies: a staff session
+  // cannot touch the general ledger. The posting below is done on the owner's
+  // behalf with an elevated client, and only after the grant and the role have
+  // both been checked.
+  const ledger = await ledgerClient(access)
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -44,7 +71,7 @@ export async function POST(req: NextRequest) {
   if (!groupId || !monthNumber) return NextResponse.json({ error: 'group_id and month_number required' }, { status: 400 })
 
   const { data: group } = await supabase.from('chit_groups')
-    .select('*').eq('id', groupId).eq('user_id', user.id).maybeSingle()
+    .select('*').eq('id', groupId).eq('user_id', owner).maybeSingle()
   if (!group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
 
   // A member wins the pot ONCE — that's the whole structure of a chit. Reject a
@@ -53,7 +80,7 @@ export async function POST(req: NextRequest) {
   const winnerId = (body.winner_member_id as string) || null
   if (winnerId) {
     const { data: priorWin } = await supabase.from('chit_auctions')
-      .select('month_number').eq('group_id', groupId).eq('user_id', user.id)
+      .select('month_number').eq('group_id', groupId).eq('user_id', owner)
       .eq('winner_member_id', winnerId).neq('month_number', monthNumber).maybeSingle()
     if (priorWin) {
       return NextResponse.json({ error: `That member already won month ${priorWin.month_number}. Each member wins only once.` }, { status: 409 })
@@ -67,7 +94,7 @@ export async function POST(req: NextRequest) {
   })
 
   const row = {
-    user_id: user.id,
+    user_id: owner,
     group_id: groupId,
     month_number: monthNumber,
     auction_date: (body.auction_date as string) || new Date().toISOString().split('T')[0],
@@ -100,8 +127,20 @@ export async function POST(req: NextRequest) {
 // real EXPENSE from the chosen account. THIS is where a payout becomes money.
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.runAuction(access.role)) {
+    return NextResponse.json({ error: forbidden('edit auctions', access.role) }, { status: 403 })
+  }
+  // transactions / categories keep their OWNER-ONLY policies: a staff session
+  // cannot touch the general ledger. The posting below is done on the owner's
+  // behalf with an elevated client, and only after the grant and the role have
+  // both been checked.
+  const ledger = await ledgerClient(access)
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -110,7 +149,7 @@ export async function PATCH(req: NextRequest) {
   if (!id || !accountId) return NextResponse.json({ error: 'id and account_id required' }, { status: 400 })
 
   const { data: auction } = await supabase.from('chit_auctions')
-    .select('*, group:chit_groups(name)').eq('id', id).eq('user_id', user.id).maybeSingle()
+    .select('*, group:chit_groups(name)').eq('id', id).eq('user_id', owner).maybeSingle()
   if (!auction) return NextResponse.json({ error: 'Auction not found' }, { status: 404 })
 
   // Already paid? Do nothing. Clicking twice must not pay twice — that's real
@@ -130,15 +169,15 @@ export async function PATCH(req: NextRequest) {
   }
 
   const groupName = (auction.group as { name?: string })?.name ?? 'Chit'
-  const category = await ensureCategory(supabase, user.id, CHIT_EXPENSE_CATEGORY, 'expense')
+  const category = await ensureCategory(ledger, owner, CHIT_EXPENSE_CATEGORY, 'expense')
 
   const txn = payoutTransaction({
-    userId: user.id, accountId, amount: Number(auction.net_payout),
+    userId: owner, accountId, amount: Number(auction.net_payout),
     date: (body.date as string) || new Date().toISOString().split('T')[0],
     groupName, memberName, monthNumber: auction.month_number,
   })
 
-  const { data: posted, error: txErr } = await supabase.from('transactions')
+  const { data: posted, error: txErr } = await ledger.from('transactions')
     .insert({ ...txn, category_id: category }).select('id').single()
   if (txErr) return NextResponse.json({ error: `Could not post the payout: ${txErr.message}` }, { status: 500 })
 
@@ -146,9 +185,9 @@ export async function PATCH(req: NextRequest) {
   // linked would be re-payable, doubling the money.
   const { error: linkErr } = await supabase.from('chit_auctions')
     .update({ payout_transaction_id: posted.id, paid_at: new Date().toISOString() })
-    .eq('id', id).eq('user_id', user.id)
+    .eq('id', id).eq('user_id', owner)
   if (linkErr) {
-    await supabase.from('transactions').delete().eq('id', posted.id)
+    await ledger.from('transactions').delete().eq('id', posted.id)
     return NextResponse.json({ error: `Could not record the payout: ${linkErr.message}` }, { status: 500 })
   }
 
@@ -160,27 +199,39 @@ export async function PATCH(req: NextRequest) {
 // that's real money out; you'd delete the payout transaction first.
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.runAuction(access.role)) {
+    return NextResponse.json({ error: forbidden('delete auctions', access.role) }, { status: 403 })
+  }
+  // transactions / categories keep their OWNER-ONLY policies: a staff session
+  // cannot touch the general ledger. The posting below is done on the owner's
+  // behalf with an elevated client, and only after the grant and the role have
+  // both been checked.
+  const ledger = await ledgerClient(access)
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const { data: auction } = await supabase.from('chit_auctions')
-    .select('payout_transaction_id').eq('id', id).eq('user_id', user.id).maybeSingle()
+    .select('payout_transaction_id').eq('id', id).eq('user_id', owner).maybeSingle()
   if (!auction) return NextResponse.json({ error: 'Auction not found' }, { status: 404 })
 
   if (alreadyPosted(auction.payout_transaction_id)) {
     return NextResponse.json({ error: 'This payout is already recorded — reverse the payment before deleting the auction.' }, { status: 409 })
   }
 
-  const { error } = await supabase.from('chit_auctions').delete().eq('id', id).eq('user_id', user.id)
+  const { error } = await supabase.from('chit_auctions').delete().eq('id', id).eq('user_id', owner)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
 
 async function ensureCategory(
-  supabase: Awaited<ReturnType<typeof createClient>>, userId: string,
+  supabase: SupabaseLike, userId: string,
   name: string, type: 'income' | 'expense',
 ): Promise<string | null> {
   const { data: found } = await supabase.from('categories')

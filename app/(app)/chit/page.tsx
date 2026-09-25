@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess } from '@/lib/chit/access'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Coins, Users, Layers, ChevronRight, AlertTriangle } from 'lucide-react'
@@ -11,9 +12,10 @@ export const metadata = { title: 'Chit funds — Vaultr' }
 
 export default async function ChitDashboard() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const uid = user.id
+  const access = await resolveChitAccess()
+  if (!access) redirect('/login')
+  // Whose books: the owner, or the owner who granted this staff member access.
+  const uid = access.ownerId
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]

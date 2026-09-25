@@ -1,24 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { validateGroup } from '@/lib/chit/auction'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
 
   const { data, error } = await supabase.from('chit_groups')
-    .select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    .select('*').eq('user_id', owner).order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ groups: data ?? [] })
 }
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.manageGroups(access.role)) {
+    return NextResponse.json({ error: forbidden('create chit groups', access.role) }, { status: 403 })
+  }
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -35,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (!String(body.name ?? '').trim()) return NextResponse.json({ error: 'Name the group' }, { status: 400 })
 
   const row = {
-    user_id: user.id,
+    user_id: owner,
     company_id: (body.company_id as string) || null,
     name: String(body.name).trim(),
     chit_value: params.chitValue,
@@ -54,8 +66,15 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.manageGroups(access.role)) {
+    return NextResponse.json({ error: forbidden('edit chit groups', access.role) }, { status: 403 })
+  }
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -76,8 +95,8 @@ export async function PATCH(req: NextRequest) {
   const wantsStructural = ['chit_value', 'members', 'commission_model'].some(k => k in body)
   if (wantsStructural) {
     const [{ count: aCount }, { count: cCount }] = await Promise.all([
-      supabase.from('chit_auctions').select('id', { count: 'exact', head: true }).eq('group_id', id).eq('user_id', user.id),
-      supabase.from('chit_collections').select('id', { count: 'exact', head: true }).eq('group_id', id).eq('user_id', user.id),
+      supabase.from('chit_auctions').select('id', { count: 'exact', head: true }).eq('group_id', id).eq('user_id', owner),
+      supabase.from('chit_collections').select('id', { count: 'exact', head: true }).eq('group_id', id).eq('user_id', owner),
     ])
     if ((aCount ?? 0) > 0 || (cCount ?? 0) > 0) {
       return NextResponse.json({ error: 'Chit value, member count and model are locked once auctions or collections exist — they would restate past figures.' }, { status: 409 })
@@ -88,22 +107,29 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { data, error } = await supabase.from('chit_groups')
-    .update(patch).eq('id', id).eq('user_id', user.id).select('*').single()
+    .update(patch).eq('id', id).eq('user_id', owner).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ group: data })
 }
 
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.deleteGroup(access.role)) {
+    return NextResponse.json({ error: forbidden('delete a chit group', access.role) }, { status: 403 })
+  }
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   // Cascade is defined on the FKs, so members/auctions/collections for this group
   // go with it. The posted transactions do NOT — they're real money that
   // happened, and deleting a group shouldn't rewrite your bank history.
-  const { error } = await supabase.from('chit_groups').delete().eq('id', id).eq('user_id', user.id)
+  const { error } = await supabase.from('chit_groups').delete().eq('id', id).eq('user_id', owner)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

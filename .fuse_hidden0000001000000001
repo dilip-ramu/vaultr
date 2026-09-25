@@ -24,6 +24,8 @@ import { isPortalPath } from '@/lib/chit/portalPath'
 
 export const PATHNAME_HEADER = 'x-pathname'
 
+
+
 function withPathname(request: NextRequest): Headers {
   const headers = new Headers(request.headers)
   headers.set(PATHNAME_HEADER, request.nextUrl.pathname)

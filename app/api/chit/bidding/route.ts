@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { bidCeiling } from '@/lib/chit/auction'
 import { defaultIncrement } from '@/lib/chit/bidding'
@@ -22,14 +23,18 @@ const num = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0)
 /** The bid book for one group: the open window, if any, and every bid in it. */
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
 
   const groupId = req.nextUrl.searchParams.get('groupId') ?? ''
   if (!groupId) return NextResponse.json({ error: 'groupId is required' }, { status: 400 })
 
   const { data: windows } = await supabase.from('chit_bid_windows')
-    .select('*').eq('user_id', user.id).eq('group_id', groupId)
+    .select('*').eq('user_id', owner).eq('group_id', groupId)
     .order('month_number', { ascending: false })
   const open = (windows ?? []).find((w: { status: string }) => w.status === 'open') ?? null
 
@@ -38,7 +43,7 @@ export async function GET(req: NextRequest) {
     // The foreman DOES see names — it is his chit and he has to pay someone.
     const { data } = await supabase.from('chit_bids')
       .select('id, member_id, amount, placed_at, source, ip, member:chit_members(name)')
-      .eq('user_id', user.id).eq('window_id', (open as { id: string }).id)
+      .eq('user_id', owner).eq('window_id', (open as { id: string }).id)
       .order('amount', { ascending: false })
     bids = data ?? []
   }
@@ -48,8 +53,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.runAuction(access.role)) {
+    return NextResponse.json({ error: forbidden('open or close bidding', access.role) }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => ({}))
   const action = String(body?.action ?? '')
@@ -58,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   const { data: groups } = await supabase.from('chit_groups')
     .select('id, chit_value, members, bid_ceiling_pct, commission_model')
-    .eq('id', groupId).eq('user_id', user.id).limit(1)
+    .eq('id', groupId).eq('user_id', owner).limit(1)
   const group = groups?.[0]
   if (!group) return NextResponse.json({ error: 'Group not found' }, { status: 404 })
 
@@ -94,7 +106,7 @@ export async function POST(req: NextRequest) {
       : defaultIncrement(Number(group.chit_value))
 
     const { data, error } = await supabase.from('chit_bid_windows').upsert({
-      user_id: user.id, group_id: groupId, month_number: monthNumber,
+      user_id: owner, group_id: groupId, month_number: monthNumber,
       status: 'open', ceiling_amount: ceiling, min_increment: increment,
       opened_at: new Date().toISOString(), closed_at: null,
     }, { onConflict: 'group_id,month_number' }).select('*').single()
@@ -106,7 +118,7 @@ export async function POST(req: NextRequest) {
     const status = action === 'close' ? 'closed' : 'cancelled'
     const { data, error } = await supabase.from('chit_bid_windows')
       .update({ status, closed_at: new Date().toISOString() })
-      .eq('user_id', user.id).eq('group_id', groupId).eq('status', 'open')
+      .eq('user_id', owner).eq('group_id', groupId).eq('status', 'open')
       .select('*')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const closed = data?.[0] ?? null

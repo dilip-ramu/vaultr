@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CHIT_INCOME_CATEGORY } from '@/lib/chit/posting'
 
 export const dynamic = 'force-dynamic'
+
+/** Either the caller's own session client or the elevated one used to post on
+ *  the owner's behalf. The helper below does not care which it is given. */
+type SupabaseLike = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>
 
 /**
  * One member paying several months at once → ONE transaction, not one per month.
@@ -21,8 +27,20 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.recordCollection(access.role)) {
+    return NextResponse.json({ error: forbidden('record collections', access.role) }, { status: 403 })
+  }
+  // transactions / categories keep their OWNER-ONLY policies: a staff session
+  // cannot touch the general ledger. The posting below is done on the owner's
+  // behalf with an elevated client, and only after the grant and the role have
+  // both been checked.
+  const ledger = await ledgerClient(access)
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -38,8 +56,8 @@ export async function POST(req: NextRequest) {
   }
 
   const [{ data: group }, { data: member }] = await Promise.all([
-    supabase.from('chit_groups').select('name').eq('id', groupId).eq('user_id', user.id).maybeSingle(),
-    supabase.from('chit_members').select('name').eq('id', memberId).eq('user_id', user.id).maybeSingle(),
+    supabase.from('chit_groups').select('name').eq('id', groupId).eq('user_id', owner).maybeSingle(),
+    supabase.from('chit_members').select('name').eq('id', memberId).eq('user_id', owner).maybeSingle(),
   ])
   if (!group || !member) return NextResponse.json({ error: 'Group or member not found' }, { status: 404 })
 
@@ -48,7 +66,7 @@ export async function POST(req: NextRequest) {
   const wantMonths = entries.map(e => e.month_number)
   const { data: existing } = await supabase.from('chit_collections')
     .select('month_number, income_transaction_id')
-    .eq('group_id', groupId).eq('member_id', memberId).eq('user_id', user.id).in('month_number', wantMonths)
+    .eq('group_id', groupId).eq('member_id', memberId).eq('user_id', owner).in('month_number', wantMonths)
   const alreadyPaid = new Set((existing ?? []).filter(e => e.income_transaction_id).map(e => e.month_number))
 
   const fresh = entries.filter(e => !alreadyPaid.has(e.month_number) && Number(e.amount) > 0)
@@ -58,11 +76,11 @@ export async function POST(req: NextRequest) {
 
   const months = fresh.map(e => e.month_number).sort((a, b) => a - b)
   const total = Math.round(fresh.reduce((t, e) => t + Number(e.amount), 0) * 100) / 100
-  const category = await ensureCategory(supabase, user.id, CHIT_INCOME_CATEGORY, 'income')
+  const category = await ensureCategory(ledger, owner, CHIT_INCOME_CATEGORY, 'income')
 
   // The one consolidated transaction.
-  const { data: posted, error: txErr } = await supabase.from('transactions').insert({
-    user_id: user.id,
+  const { data: posted, error: txErr } = await ledger.from('transactions').insert({
+    user_id: owner,
     account_id: accountId,
     type: 'income',
     amount: total,
@@ -75,23 +93,23 @@ export async function POST(req: NextRequest) {
 
   // A collection row per month, all linked to that one transaction.
   const rows = fresh.map(e => ({
-    user_id: user.id, group_id: groupId, member_id: memberId, month_number: e.month_number,
+    user_id: owner, group_id: groupId, member_id: memberId, month_number: e.month_number,
     amount: Number(e.amount), paid_date: paidDate, account_id: accountId, income_transaction_id: posted.id,
   }))
 
   // Upsert-ish: an unpaid row for the slot may already exist; delete any then insert.
   await supabase.from('chit_collections')
-    .delete().eq('group_id', groupId).eq('member_id', memberId).eq('user_id', user.id).in('month_number', months)
+    .delete().eq('group_id', groupId).eq('member_id', memberId).eq('user_id', owner).in('month_number', months)
 
   const { error: cErr } = await supabase.from('chit_collections').insert(rows)
   if (cErr) {
-    await supabase.from('transactions').delete().eq('id', posted.id)   // roll the money back
+    await ledger.from('transactions').delete().eq('id', posted.id)   // roll the money back
     return NextResponse.json({ error: `Could not save the collections: ${cErr.message}` }, { status: 500 })
   }
 
   await supabase.from('chit_receivables')
     .update({ status: 'PAID' })
-    .eq('user_id', user.id).eq('group_id', groupId).eq('member_id', memberId).in('month_number', months)
+    .eq('user_id', owner).eq('group_id', groupId).eq('member_id', memberId).in('month_number', months)
 
   return NextResponse.json({ done: months.length, months, transaction_id: posted.id, total })
 }
@@ -104,7 +122,7 @@ export function consolidatedName(groupName: string, memberName: string, months: 
 }
 
 async function ensureCategory(
-  supabase: Awaited<ReturnType<typeof createClient>>, userId: string,
+  supabase: SupabaseLike, userId: string,
   name: string, type: 'income' | 'expense',
 ): Promise<string | null> {
   const { data: found } = await supabase.from('categories')

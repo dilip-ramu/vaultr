@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { normalizePhone } from '@/lib/chit/types'
 import { checkMemberCode, nextMemberCode, normalizeMemberCode } from '@/lib/chit/memberCode'
 
@@ -33,11 +34,15 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
 
   const { data, error } = await supabase.from('chit_members')
-    .select('*').eq('user_id', user.id).order('name')
+    .select('*').eq('user_id', owner).order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const members = data ?? []
@@ -52,8 +57,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.manageMembers(access.role)) {
+    return NextResponse.json({ error: forbidden('add or edit members', access.role) }, { status: 403 })
+  }
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -75,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     for (const c of checks) {
       const { data: dupe } = await supabase.from('chit_members')
-        .select('id, name, member_code').eq('user_id', user.id).eq(c.column, c.value).maybeSingle()
+        .select('id, name, member_code').eq('user_id', owner).eq(c.column, c.value).maybeSingle()
       if (dupe && body.force !== true) {
         const who = dupe.member_code ? `${dupe.name} (${dupe.member_code})` : dupe.name
         return NextResponse.json(
@@ -86,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { taken, all } = await codeIndex(supabase, user.id)
+  const { taken, all } = await codeIndex(supabase, owner)
   // A typed code is checked; a blank one is issued from the sequence, so every
   // member has a number without anyone having to remember the next one.
   const codeCheck = checkMemberCode(body.member_code as string, taken)
@@ -94,7 +106,7 @@ export async function POST(req: NextRequest) {
   const memberCode = codeCheck.code ?? nextMemberCode(all)
 
   const row = {
-    user_id: user.id,
+    user_id: owner,
     member_code: memberCode,
     name,
     phone,
@@ -118,8 +130,15 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.manageMembers(access.role)) {
+    return NextResponse.json({ error: forbidden('add or edit members', access.role) }, { status: 403 })
+  }
 
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
@@ -144,7 +163,7 @@ export async function PATCH(req: NextRequest) {
     patch.referred_by_member_id = ref
   }
   if ('member_code' in body) {
-    const { taken } = await codeIndex(supabase, user.id)
+    const { taken } = await codeIndex(supabase, owner)
     const check = checkMemberCode(body.member_code as string, taken, id)
     if (!check.ok) return NextResponse.json({ error: check.reason }, { status: 400 })
     patch.member_code = check.code
@@ -154,19 +173,26 @@ export async function PATCH(req: NextRequest) {
   if ('dial_code' in body) patch.dial_code = (body.dial_code as string)?.replace(/\D/g, '') || '91'
 
   const { data, error } = await supabase.from('chit_members')
-    .update(patch).eq('id', id).eq('user_id', user.id).select('*').single()
+    .update(patch).eq('id', id).eq('user_id', owner).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ member: data })
 }
 
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Whose chit books are we in? The owner, or a staff member they granted
+  // chit-only access to. Everything below filters on access.ownerId, never on
+  // the signed-in user — they are the same person only when the owner works.
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.manageMembers(access.role)) {
+    return NextResponse.json({ error: forbidden('delete members', access.role) }, { status: 403 })
+  }
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  const { error } = await supabase.from('chit_members').delete().eq('id', id).eq('user_id', user.id)
+  const { error } = await supabase.from('chit_members').delete().eq('id', id).eq('user_id', owner)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
