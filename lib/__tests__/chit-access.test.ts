@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest'
 import { CAN, forbidden, type ChitRole } from '@/lib/chit/permissions'
 
-const ROLES: ChitRole[] = ['owner', 'manager', 'collector', 'viewer']
+const ROLES: ChitRole[] = ['owner', 'partner', 'collector', 'viewer']
 
 describe('what each role may do', () => {
   it('lets everyone read — that is the point of the grant', () => {
@@ -24,18 +24,18 @@ describe('what each role may do', () => {
     for (const can of Object.values(CAN)) expect(can('owner')).toBe(true)
   })
 
-  it('lets a manager run the chit day to day', () => {
-    expect(CAN.recordCollection('manager')).toBe(true)
-    expect(CAN.manageMembers('manager')).toBe(true)
-    expect(CAN.runAuction('manager')).toBe(true)
-    expect(CAN.manageGroups('manager')).toBe(true)
+  it('lets a partner run the chit day to day', () => {
+    expect(CAN.recordCollection('partner')).toBe(true)
+    expect(CAN.manageMembers('partner')).toBe(true)
+    expect(CAN.runAuction('partner')).toBe(true)
+    expect(CAN.manageGroups('partner')).toBe(true)
   })
 
-  it('stops a manager destroying a group or rewriting its terms', () => {
+  it('stops a partner destroying a group or rewriting its terms', () => {
     // Deleting a group takes its auctions and collections with it; changing the
     // pot after money has moved rewrites what every past month meant.
-    expect(CAN.deleteGroup('manager')).toBe(false)
-    expect(CAN.changeChitTerms('manager')).toBe(false)
+    expect(CAN.deleteGroup('partner')).toBe(false)
+    expect(CAN.changeChitTerms('partner')).toBe(false)
   })
 
   it('limits a collector to taking payments', () => {
@@ -53,22 +53,22 @@ describe('what each role may do', () => {
     }
   })
 
-  it('never lets staff of any kind manage other staff', () => {
-    // Otherwise a manager could promote themselves, or add their own second
+  it('never lets an admin of any kind manage other admins', () => {
+    // Otherwise a partner could promote themselves, or add their own second
     // account, and the grant would no longer be the owner's decision.
     for (const r of ROLES) {
-      expect(CAN.manageStaff(r)).toBe(r === 'owner')
+      expect(CAN.manageAdmins(r)).toBe(r === 'owner')
     }
   })
 
-  it('never lets staff of any kind delete a group', () => {
+  it('never lets an admin of any kind delete a group', () => {
     for (const r of ROLES) expect(CAN.deleteGroup(r)).toBe(r === 'owner')
   })
 
-  it('has no permission that a collector holds but a manager does not', () => {
+  it('has no permission that a collector holds but a partner does not', () => {
     // A guard against the table drifting into nonsense as it grows.
     for (const can of Object.values(CAN)) {
-      if (can('collector')) expect(can('manager')).toBe(true)
+      if (can('collector')) expect(can('partner')).toBe(true)
     }
   })
 
@@ -80,7 +80,7 @@ describe('what each role may do', () => {
 })
 
 describe('the refusal message', () => {
-  it('tells staff who to ask', () => {
+  it('tells an admin who to ask', () => {
     expect(forbidden('conduct auctions', 'collector')).toContain('account owner')
     expect(forbidden('conduct auctions', 'collector')).toContain('conduct auctions')
   })

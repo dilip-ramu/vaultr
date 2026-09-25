@@ -8,5 +8,5 @@ export const metadata = { title: 'Set your password — Inex' }
 export default async function ChitPasswordPage() {
   const access = await resolveChitAccess()
   if (!access) redirect('/login')
-  return <SetPasswordForm name={access.staffName} forced={access.mustChangePassword} />
+  return <SetPasswordForm name={access.adminName} forced={access.mustChangePassword} />
 }

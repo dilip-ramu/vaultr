@@ -14,9 +14,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   /**
-   * CHIT-ONLY STAFF (v120).
+   * CHIT-ONLY ADMINS (v120).
    *
-   * A staff member signs in as themselves and is granted access to one owner's
+   * An admin signs in as themselves and is granted access to one owner's
    * CHIT data. Everything else in Inex is not theirs to see, and — because the
    * other tables keep their owner-only policies — would render empty anyway.
    * An empty Payroll page invites a bug report; a redirect states the rule.
@@ -25,11 +25,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * the data regardless of which URL they reach.
    */
   const access = await resolveChitAccess()
-  const isStaff = access != null && !access.isOwner
-  if (isStaff) {
-    // middleware.ts sets this; it does nothing else. If it were ever missing we
+  const isChitOnly = access != null && !access.isOwner
+  if (isChitOnly) {
+    // proxy.ts sets this header; it does no auth work. If it were ever missing we
     // would not redirect — and the database would still refuse every non-chit
-    // row to a staff session, so the failure is a confusing empty page rather
+    // row to an admin session, so the failure is a confusing empty page rather
     // than a leak.
     const path = (await headers()).get('x-pathname') ?? ''
     // The owner chose this account's first password, so until it is replaced
@@ -47,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <BalanceProvider>
-      <AppShell user={user} profile={profile} chitOnly={isStaff} staffName={access?.staffName ?? null}>
+      <AppShell user={user} profile={profile} chitOnly={isChitOnly} adminName={access?.adminName ?? null}>
         {children}
       </AppShell>
     </BalanceProvider>

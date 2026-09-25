@@ -29,10 +29,10 @@ const TransactionForm = dynamic(() => import('./transactions/TransactionForm'), 
 interface AppShellProps {
   user: User
   profile: Profile | null
-  /** A chit-only staff member (v120): they see the chit section and nothing
+  /** A chit-only admin (v120): they see the chit section and nothing
    *  else. Cosmetic — the database refuses the rest regardless. */
   chitOnly?: boolean
-  staffName?: string | null
+  adminName?: string | null
   children: React.ReactNode
 }
 
@@ -122,9 +122,9 @@ const navSections: NavSection[] = [
         subItems: [
           { href: '/chit/groups',  label: 'Groups',  icon: Layers },
           { href: '/chit/members', label: 'Members', icon: Users },
-          // Owner only — filtered out below for staff, who must not see the
+          // Owner only — filtered out below for admins, who must not see the
           // list of who else has access, let alone change it.
-          { href: '/chit/staff',   label: 'Staff logins', icon: ShieldCheck },
+          { href: '/chit/admins',  label: 'Admins', icon: ShieldCheck },
         ],
       },
     ],
@@ -235,9 +235,9 @@ function SidebarSection({
 
 // ── Main shell ──────────────────────────────────────────────────────────────
 
-export default function AppShell({ user, profile, chitOnly = false, staffName = null, children }: AppShellProps) {
+export default function AppShell({ user, profile, chitOnly = false, adminName = null, children }: AppShellProps) {
   const pathname = usePathname()
-  // Staff see one destination. Showing them the rest greyed out would only
+  // A chit-only admin sees one destination. Showing them the rest greyed out would only
   // advertise what they cannot reach.
   const sections = chitOnly
     ? navSections
@@ -245,7 +245,7 @@ export default function AppShell({ user, profile, chitOnly = false, staffName = 
           ...sec,
           items: sec.items
             .filter(i => i.href.startsWith('/chit'))
-            .map(i => ({ ...i, subItems: i.subItems?.filter(si => si.href !== '/chit/staff') })),
+            .map(i => ({ ...i, subItems: i.subItems?.filter(si => si.href !== '/chit/admins') })),
         }))
         .filter(sec => sec.items.length > 0)
     : navSections

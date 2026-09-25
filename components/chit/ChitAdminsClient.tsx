@@ -11,38 +11,38 @@ import { Plus, X, KeyRound, UserMinus, ShieldCheck } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
-interface Staff {
+interface Admin {
   id: string
   name: string | null
   email: string
-  role: 'manager' | 'collector' | 'viewer'
+  role: 'partner' | 'collector' | 'viewer'
   is_active: boolean
   must_change_password: boolean
   last_seen_at: string | null
 }
 
-const ROLE_LABEL: Record<Staff['role'], string> = {
-  manager: 'Manager — runs the chit',
+const ROLE_LABEL: Record<Admin['role'], string> = {
+  partner: 'Partner — runs the chit',
   collector: 'Collector — records payments only',
   viewer: 'Viewer — read only',
 }
 
-export default function ChitStaffClient() {
-  const [staff, setStaff] = useState<Staff[]>([])
+export default function ChitAdminsClient() {
+  const [admins, setAdmins] = useState<Admin[]>([])
   const [adding, setAdding] = useState(false)
-  const [resetting, setResetting] = useState<Staff | null>(null)
+  const [resetting, setResetting] = useState<Admin | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/chit/staff', { cache: 'no-store' })
+    const res = await fetch('/api/chit/admins', { cache: 'no-store' })
     const body = await res.json().catch(() => ({}))
-    if (res.ok) setStaff(body.staff ?? [])
+    if (res.ok) setAdmins(body.admins ?? [])
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
 
   async function patch(id: string, payload: Record<string, unknown>) {
-    const res = await fetch('/api/chit/staff', {
+    const res = await fetch('/api/chit/admins', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...payload }),
     })
@@ -52,13 +52,13 @@ export default function ChitStaffClient() {
     return true
   }
 
-  async function remove(s: Staff) {
+  async function remove(a: Admin) {
     if (!(await confirmDialog(
-      `Remove ${s.name ?? s.email} from your chit?\n\n`
+      `Remove ${a.name ?? a.email} from your chit?\n\n`
       + 'Their access ends immediately. The login itself is left alone — this button '
       + 'takes away permission, it does not delete a person\'s account.',
     ))) return
-    const res = await fetch(`/api/chit/staff?id=${s.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/chit/admins?id=${a.id}`, { method: 'DELETE' })
     if (!res.ok) { notify('Could not remove', 'error'); return }
     await load()
     notify('Access removed')
@@ -69,7 +69,7 @@ export default function ChitStaffClient() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>
-            Chit staff
+            Chit admins
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Logins that can reach your chit module and nothing else.
@@ -82,54 +82,54 @@ export default function ChitStaffClient() {
         </button>
       </div>
 
-      {!loading && staff.length === 0 && (
+      {!loading && admins.length === 0 && (
         <div className="rounded-2xl p-6 text-center" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
           <p className="text-sm font-bold" style={{ color: 'var(--text)' }}>Nobody else has access</p>
           <p className="text-[12.5px] mt-1.5 leading-relaxed max-w-md mx-auto" style={{ color: 'var(--text-muted)' }}>
-            Add a login for someone who runs the chit with you. They will see the chit
+            Add a login for a partner who runs the chit with you. They will see the chit
             section only — your transactions, invoices, payroll and investments stay
             invisible to them.
           </p>
         </div>
       )}
 
-      {staff.length > 0 && (
+      {admins.length > 0 && (
         <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-          {staff.map((s, i) => (
-            <div key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-3"
-              style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined, opacity: s.is_active ? 1 : 0.55 }}>
+          {admins.map((a, i) => (
+            <div key={a.id} className="flex flex-wrap items-center gap-3 px-4 py-3"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined, opacity: a.is_active ? 1 : 0.55 }}>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold truncate flex items-center gap-2" style={{ color: 'var(--text)' }}>
-                  {s.name ?? s.email}
-                  {!s.is_active && <span className="text-[10px] uppercase" style={{ color: 'var(--text-faint)' }}>suspended</span>}
-                  {s.must_change_password && (
+                  {a.name ?? a.email}
+                  {!a.is_active && <span className="text-[10px] uppercase" style={{ color: 'var(--text-faint)' }}>suspended</span>}
+                  {a.must_change_password && (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                       style={{ color: 'var(--amber)', background: 'color-mix(in srgb, var(--amber) 14%, transparent)' }}>
                       password not yet changed
                     </span>
                   )}
                 </p>
-                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{s.email}</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{a.email}</p>
               </div>
 
-              <select value={s.role} onChange={e => patch(s.id, { role: e.target.value })}
+              <select value={a.role} onChange={e => patch(a.id, { role: e.target.value })}
                 className="text-[11.5px] font-bold px-2 py-1.5 rounded-lg"
                 style={{ border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                {(Object.keys(ROLE_LABEL) as Staff['role'][]).map(r => (
+                {(Object.keys(ROLE_LABEL) as Admin['role'][]).map(r => (
                   <option key={r} value={r}>{ROLE_LABEL[r]}</option>
                 ))}
               </select>
 
-              <button onClick={() => setResetting(s)} title="Set a new password"
+              <button onClick={() => setResetting(a)} title="Set a new password"
                 className="p-1.5" style={{ color: 'var(--text-faint)' }}><KeyRound className="w-4 h-4" /></button>
-              <button onClick={() => patch(s.id, { is_active: !s.is_active })}
+              <button onClick={() => patch(a.id, { is_active: !a.is_active })}
                 className="text-[11px] font-bold px-2 py-1 rounded-full"
-                style={s.is_active
+                style={a.is_active
                   ? { color: 'var(--income)', background: 'color-mix(in srgb, var(--income) 12%, transparent)' }
                   : { color: 'var(--text-faint)', border: '1px solid var(--border)' }}>
-                {s.is_active ? 'Active' : 'Suspended'}
+                {a.is_active ? 'Active' : 'Suspended'}
               </button>
-              <button onClick={() => remove(s)} className="p-1.5" style={{ color: 'var(--expense)' }}>
+              <button onClick={() => remove(a)} className="p-1.5" style={{ color: 'var(--expense)' }}>
                 <UserMinus className="w-4 h-4" />
               </button>
             </div>
@@ -144,15 +144,15 @@ export default function ChitStaffClient() {
         </p>
         <ul className="text-[12.5px] leading-relaxed space-y-1" style={{ color: 'var(--text-muted)' }}>
           <li>• Chit members, groups, auctions and collections — nothing else in Inex.</li>
-          <li>• A <b>manager</b> can do everything you can in Chit except delete a group or change a chit&rsquo;s value.</li>
+          <li>• A <b>partner</b> can do everything you can in Chit except delete a group or change a chit&rsquo;s value.</li>
           <li>• A <b>collector</b> can record payments and nothing more.</li>
           <li>• Recording a collection still posts income to your accounts, as it does for you. They cannot otherwise see or touch your accounts.</li>
         </ul>
       </div>
 
-      {adding && <AddStaff onClose={() => setAdding(false)} onDone={() => { setAdding(false); load() }} />}
+      {adding && <AddAdmin onClose={() => setAdding(false)} onDone={() => { setAdding(false); load() }} />}
       {resetting && (
-        <ResetPassword staff={resetting} onClose={() => setResetting(null)}
+        <ResetPassword admin={resetting} onClose={() => setResetting(null)}
           onDone={async pw => {
             const ok = await patch(resetting.id, { password: pw })
             if (ok) { setResetting(null); notify('Password set — they must change it on next sign-in', 'success') }
@@ -180,17 +180,17 @@ function Sheet({ title, children, onClose }: { title: string; children: React.Re
 const FLD = 'w-full px-3 py-2.5 rounded-xl border text-sm outline-none'
 const FS = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
 
-function AddStaff({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function AddAdmin({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<Staff['role']>('manager')
+  const [role, setRole] = useState<Admin['role']>('partner')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function save() {
     setBusy(true); setError(null)
-    const res = await fetch('/api/chit/staff', {
+    const res = await fetch('/api/chit/admins', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password, role }),
     })
@@ -208,8 +208,8 @@ function AddStaff({ onClose, onDone }: { onClose: () => void; onDone: () => void
           value={email} onChange={e => setEmail(e.target.value)} />
         <input className={FLD} style={FS} placeholder="First password" autoComplete="new-password"
           value={password} onChange={e => setPassword(e.target.value)} />
-        <select className={FLD} style={FS} value={role} onChange={e => setRole(e.target.value as Staff['role'])}>
-          {(Object.keys(ROLE_LABEL) as Staff['role'][]).map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+        <select className={FLD} style={FS} value={role} onChange={e => setRole(e.target.value as Admin['role'])}>
+          {(Object.keys(ROLE_LABEL) as Admin['role'][]).map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
         </select>
         {error && <p className="text-[12.5px]" style={{ color: 'var(--expense)' }}>{error}</p>}
         <button onClick={save} disabled={busy || !email || password.length < 10}
@@ -227,12 +227,12 @@ function AddStaff({ onClose, onDone }: { onClose: () => void; onDone: () => void
   )
 }
 
-function ResetPassword({ staff, onClose, onDone }: {
-  staff: Staff; onClose: () => void; onDone: (pw: string) => void
+function ResetPassword({ admin, onClose, onDone }: {
+  admin: Admin; onClose: () => void; onDone: (pw: string) => void
 }) {
   const [pw, setPw] = useState('')
   return (
-    <Sheet title={`New password for ${staff.name ?? staff.email}`} onClose={onClose}>
+    <Sheet title={`New password for ${admin.name ?? admin.email}`} onClose={onClose}>
       <div className="space-y-2.5">
         <input className={FLD} style={FS} placeholder="New password" autoComplete="new-password"
           value={pw} onChange={e => setPw(e.target.value)} />

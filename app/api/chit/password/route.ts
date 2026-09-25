@@ -1,8 +1,8 @@
-// A staff member setting their own password for the first time.
+// An admin setting their own password for the first time.
 //
 // Supabase's updateUser changes the password of whoever is signed in, so the
 // session is the authority here — there is no user id in the body to get wrong.
-// Clearing must_change_password needs the service role, because a staff member
+// Clearing must_change_password needs the service role, because an admin
 // cannot write their own grant row (by design: otherwise they could promote
 // themselves).
 
@@ -29,9 +29,9 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   if (!access.isOwner) {
-    await createAdminClient().from('chit_staff')
+    await createAdminClient().from('chit_admins')
       .update({ must_change_password: false, updated_at: new Date().toISOString() })
-      .eq('staff_user_id', access.actorId).eq('owner_user_id', access.ownerId)
+      .eq('admin_user_id', access.actorId).eq('owner_user_id', access.ownerId)
   }
   return NextResponse.json({ ok: true })
 }

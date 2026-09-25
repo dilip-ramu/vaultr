@@ -1,7 +1,7 @@
 // WHOSE CHIT BOOKS AM I IN? SERVER ONLY.
 //
 // Inex was built for one person: every row carries your user id, and every
-// query asks "what belongs to me". Chit staff break that assumption — they sign
+// query asks "what belongs to me". Chit admins break that assumption — they sign
 // in as themselves and work inside YOUR books. So chit code cannot ask "what is
 // mine"; it has to ask "whose books am I working in, and may I write here".
 //
@@ -9,8 +9,8 @@
 // with it. The rule is deliberately narrow:
 //
 //   • The owner is always the owner.
-//   • A staff member is granted access to exactly one owner's chit data, by a
-//     row in chit_staff that only that owner can create.
+//   • An admin is granted access to exactly one owner's chit data, by a
+//     row in chit_admins that only that owner can create.
 //   • Nothing here grants anything outside the chit module. The general ledger
 //     keeps its owner-only policies; when a collection has to post income, the
 //     route does it with the service role AFTER checking the grant — see
@@ -39,9 +39,9 @@ export interface ChitAccess {
   actorId: string
   role: ChitRole
   isOwner: boolean
-  /** Staff whose first password is still the one the owner typed. */
+  /** An admin whose first password is still the one the owner typed. */
   mustChangePassword: boolean
-  staffName: string | null
+  adminName: string | null
 }
 
 
@@ -55,10 +55,10 @@ export async function resolveChitAccess(): Promise<ChitAccess | null> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  // A staff grant, if there is one. RLS lets a user read only their own row.
-  const { data } = await supabase.from('chit_staff')
+  // An admin grant, if there is one. RLS lets a user read only their own row.
+  const { data } = await supabase.from('chit_admins')
     .select('owner_user_id, role, is_active, must_change_password, name')
-    .eq('staff_user_id', user.id).eq('is_active', true).limit(1)
+    .eq('admin_user_id', user.id).eq('is_active', true).limit(1)
   const grant = data?.[0] as any
 
   if (grant) {
@@ -68,7 +68,7 @@ export async function resolveChitAccess(): Promise<ChitAccess | null> {
       role: (grant.role ?? 'viewer') as ChitRole,
       isOwner: false,
       mustChangePassword: grant.must_change_password === true,
-      staffName: grant.name ?? null,
+      adminName: grant.name ?? null,
     }
   }
 
@@ -76,7 +76,7 @@ export async function resolveChitAccess(): Promise<ChitAccess | null> {
   // still the common case.
   return {
     ownerId: user.id, actorId: user.id, role: 'owner', isOwner: true,
-    mustChangePassword: false, staffName: null,
+    mustChangePassword: false, adminName: null,
   }
 }
 
@@ -84,7 +84,7 @@ export async function resolveChitAccess(): Promise<ChitAccess | null> {
  * A client for writing to the GENERAL LEDGER on the owner's behalf.
  *
  * transactions, categories and accounts keep their owner-only policies — a
- * staff member's own session cannot touch them, and that is the point. A
+ * admin's own session cannot touch them, and that is the point. A
  * collection still has to post income, so the route does it with the service
  * role, scoped to access.ownerId, only after resolveChitAccess has said yes and
  * the role has been checked.

@@ -6,24 +6,24 @@
 // is wrong in one direction is an annoyance; wrong in the other, it is a
 // stranger in the ledger. So it is stated once, here, and tested exhaustively.
 
-export type ChitRole = 'owner' | 'manager' | 'collector' | 'viewer'
+export type ChitRole = 'owner' | 'partner' | 'collector' | 'viewer'
 
 export const CAN = {
   /** Everyone granted access can read the chit books — that is the grant. */
   read:             (_r: ChitRole) => true,
-  recordCollection: (r: ChitRole) => r === 'owner' || r === 'manager' || r === 'collector',
-  manageMembers:    (r: ChitRole) => r === 'owner' || r === 'manager',
-  runAuction:       (r: ChitRole) => r === 'owner' || r === 'manager',
-  manageGroups:     (r: ChitRole) => r === 'owner' || r === 'manager',
+  recordCollection: (r: ChitRole) => r === 'owner' || r === 'partner' || r === 'collector',
+  manageMembers:    (r: ChitRole) => r === 'owner' || r === 'partner',
+  runAuction:       (r: ChitRole) => r === 'owner' || r === 'partner',
+  manageGroups:     (r: ChitRole) => r === 'owner' || r === 'partner',
   /** Deleting a group takes its auctions and collections with it. Owner only,
    *  and a restrictive database policy says so independently (v120). */
   deleteGroup:      (r: ChitRole) => r === 'owner',
   /** Changing the pot or the member count after money has moved rewrites what
    *  every past month meant. Owner only. */
   changeChitTerms:  (r: ChitRole) => r === 'owner',
-  /** Otherwise a manager could promote themselves, and the grant would stop
+  /** Otherwise a partner could promote themselves, and the grant would stop
    *  being the owner's decision. */
-  manageStaff:      (r: ChitRole) => r === 'owner',
+  manageAdmins:     (r: ChitRole) => r === 'owner',
 } satisfies Record<string, (r: ChitRole) => boolean>
 
 /** Refusal, in words a person can act on. */
