@@ -7,7 +7,7 @@
 // it — so this page is about granting, not about pretending.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, X, KeyRound, UserMinus, ShieldCheck } from 'lucide-react'
+import { Plus, X, KeyRound, UserMinus, ShieldCheck, Copy, Check, MessageCircle } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 
@@ -32,6 +32,10 @@ export default function ChitAdminsClient() {
   const [adding, setAdding] = useState(false)
   const [resetting, setResetting] = useState<Admin | null>(null)
   const [loading, setLoading] = useState(true)
+  // The password exists in readable form for exactly as long as this panel is
+  // open. It is not stored anywhere and cannot be fetched back, so if it is
+  // dismissed before being sent, the only way forward is to set a new one.
+  const [handover, setHandover] = useState<{ message: string; appUrl: string; name: string } | null>(null)
 
   const load = useCallback(async () => {
     const res = await fetch('/api/chit/admins', { cache: 'no-store' })
@@ -48,6 +52,9 @@ export default function ChitAdminsClient() {
     })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) { notify(body?.error ?? 'Could not save', 'error'); return false }
+    if (body?.handover?.message) {
+      setHandover({ message: body.handover.message, appUrl: body.handover.appUrl, name: body.admin?.name ?? body.admin?.email ?? '' })
+    }
     await load()
     return true
   }
@@ -150,12 +157,18 @@ export default function ChitAdminsClient() {
         </ul>
       </div>
 
-      {adding && <AddAdmin onClose={() => setAdding(false)} onDone={() => { setAdding(false); load() }} />}
+      {adding && (
+        <AddAdmin
+          onClose={() => setAdding(false)}
+          onDone={(h) => { setAdding(false); if (h) setHandover(h); load() }}
+        />
+      )}
+      {handover && <Handover {...handover} onClose={() => setHandover(null)} />}
       {resetting && (
         <ResetPassword admin={resetting} onClose={() => setResetting(null)}
           onDone={async pw => {
             const ok = await patch(resetting.id, { password: pw })
-            if (ok) { setResetting(null); notify('Password set — they must change it on next sign-in', 'success') }
+            if (ok) setResetting(null)
           }} />
       )}
     </div>
@@ -180,7 +193,12 @@ function Sheet({ title, children, onClose }: { title: string; children: React.Re
 const FLD = 'w-full px-3 py-2.5 rounded-xl border text-sm outline-none'
 const FS = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
 
-function AddAdmin({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+interface HandoverData { message: string; appUrl: string; name: string }
+
+function AddAdmin({ onClose, onDone }: {
+  onClose: () => void
+  onDone: (handover: HandoverData | null) => void
+}) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -197,7 +215,9 @@ function AddAdmin({ onClose, onDone }: { onClose: () => void; onDone: () => void
     const body = await res.json().catch(() => ({}))
     setBusy(false)
     if (!res.ok) { setError(body?.error ?? 'Could not create that login'); return }
-    onDone()
+    onDone(body?.handover?.message
+      ? { message: body.handover.message, appUrl: body.handover.appUrl, name: name || email }
+      : null)
   }
 
   return (
@@ -243,6 +263,75 @@ function ResetPassword({ admin, onClose, onDone }: {
         </button>
         <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-faint)' }}>
           They will be asked to choose their own the next time they sign in.
+        </p>
+      </div>
+    </Sheet>
+  )
+}
+
+/**
+ * The one moment the password is readable.
+ *
+ * It is hashed the instant Supabase receives it and there is no way to read it
+ * back, so this panel is the only chance to get it to the person it belongs to.
+ * That is stated plainly rather than left for them to discover: dismissing this
+ * without sending it means setting a new password.
+ *
+ * The whole message is built server-side and copied as one block, because a
+ * login handed over in three separate WhatsApp messages is how a password ends
+ * up in the wrong thread.
+ */
+function Handover({ message, appUrl, name, onClose }: {
+  message: string; appUrl: string; name: string; onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(message)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2200)
+    } catch {
+      notify('Could not copy. Select the text and copy it by hand.', 'error')
+    }
+  }
+
+  return (
+    <Sheet title={`Send this to ${name || 'them'}`} onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-[12.5px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          Copy the whole message and send it on WhatsApp. The password is not saved anywhere
+          and cannot be shown again — if you close this without sending it, you will have to
+          set a new one.
+        </p>
+
+        <pre
+          className="whitespace-pre-wrap text-[12.5px] leading-relaxed p-3 rounded-xl max-h-64 overflow-auto"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'inherit' }}
+        >{message}</pre>
+
+        <button
+          onClick={copy}
+          className="w-full flex items-center justify-center gap-2 text-white text-sm font-bold py-2.5 rounded-xl"
+          style={{ background: copied ? 'var(--income)' : 'var(--brand)' }}
+        >
+          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          {copied ? 'Copied — now paste it in WhatsApp' : 'Copy message'}
+        </button>
+
+        <a
+          href="https://web.whatsapp.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 rounded-xl"
+          style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+        >
+          <MessageCircle className="w-4 h-4" /> Open WhatsApp
+        </a>
+
+        <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-faint)' }}>
+          The link in the message points at <b>{appUrl}</b>. If that is not the address you
+          use, set NEXT_PUBLIC_SITE_URL in Vercel before sending any more of these.
         </p>
       </div>
     </Sheet>

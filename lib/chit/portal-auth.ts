@@ -34,10 +34,21 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export type Db = ReturnType<typeof createAdminClient>
 const admin = (db?: Db): Db => db ?? createAdminClient()
 
+import { findMemberByPhone, type LookupMember } from './memberLookup'
+
 const scrypt = promisify(scryptCb) as (p: string, s: Buffer, k: number) => Promise<Buffer>
 
-/** How long an unopened WhatsApp link stays valid. */
-export const INVITE_TTL_MINUTES = 30
+/**
+ * How long an unopened WhatsApp link stays valid.
+ *
+ * This was thirty minutes, which assumed the member is holding their phone when
+ * you press send. They are not: the message is read after work, or the next
+ * morning, and by then the link was dead and they concluded the portal does not
+ * work. Seven days costs little — the link is still single-use, still bound to
+ * one member, and using it forces them to set a PIN.
+ */
+export const INVITE_TTL_DAYS = 7
+export const INVITE_TTL_MINUTES = INVITE_TTL_DAYS * 24 * 60
 /** How long a phone stays signed in before it needs a fresh link. */
 export const SESSION_TTL_DAYS = 90
 /** Wrong PINs before the member is locked out. */
@@ -181,24 +192,75 @@ export async function redeemInvite(
   // write. The unique index is doing its job; treat it as already used.
   if (!spent?.length) return dead
 
+  return startSession(invite.user_id, invite.member_id, meta, now, db, invite.id)
+}
+
+/**
+ * Look at an invite WITHOUT spending it.
+ *
+ * WhatsApp fetches a link to build its preview card. Every messaging app does.
+ * When redeeming happened on that GET, the preview burned the token and the
+ * member tapped a link that was already dead — which is exactly the failure
+ * that made the portal look broken. So the landing page only peeks, and the
+ * token is not spent until somebody presses a button, which a preview bot
+ * never does.
+ */
+export async function peekInvite(
+  token: string, now: Date = new Date(), client?: Db,
+): Promise<{ ok: true; memberName: string; memberId: string } | { ok: false; reason: string }> {
+  const db = admin(client)
+  const dead = { ok: false as const, reason: 'This link is no longer valid. Ask for a new one.' }
+
+  const { data } = await db.from('chit_portal_invites')
+    .select('id, member_id, expires_at, used_at')
+    .eq('token_hash', hashToken(token)).limit(1)
+  const invite = data?.[0]
+  if (!invite) return dead
+  if (invite.used_at) return dead
+  if (new Date(invite.expires_at) <= now) return dead
+
+  const { data: member } = await db.from('chit_members')
+    .select('id, name, portal_enabled, is_active')
+    .eq('id', invite.member_id).limit(1)
+  const m = member?.[0]
+  if (!m || !m.portal_enabled || !m.is_active) return dead
+
+  return { ok: true, memberName: m.name ?? '', memberId: m.id }
+}
+
+/**
+ * Create a portal session for a member who has already been identified.
+ *
+ * Two callers: redeeming a link, and signing in with a phone number and PIN.
+ * Both have proved who they are by the time they get here, in different ways.
+ * Neither should be writing session rows by hand.
+ */
+export async function startSession(
+  userId: string,
+  memberId: string,
+  meta: { userAgent?: string | null; ip?: string | null } = {},
+  now: Date = new Date(),
+  client?: Db,
+  inviteId?: string | null,
+): Promise<SessionGrant | { error: string }> {
+  const db = admin(client)
+  const nowIso = now.toISOString()
   const sessionToken = newToken()
   const expiresAt = new Date(now.getTime() + SESSION_TTL_DAYS * 86_400_000).toISOString()
+
   const { error } = await db.from('chit_portal_sessions').insert({
-    user_id: invite.user_id, member_id: invite.member_id, invite_id: invite.id,
+    user_id: userId, member_id: memberId, invite_id: inviteId ?? null,
     session_hash: hashToken(sessionToken), expires_at: expiresAt,
     last_seen_at: nowIso,
     user_agent: (meta.userAgent ?? '').slice(0, 400) || null,
     ip: meta.ip ?? null,
   })
-  if (error) return { error: 'Could not start a session. Please try the link again.' }
+  if (error) return { error: 'Could not start a session. Please try again.' }
 
   const { data: pin } = await db.from('chit_member_pins')
-    .select('member_id').eq('member_id', invite.member_id).limit(1)
+    .select('member_id').eq('member_id', memberId).limit(1)
 
-  return {
-    sessionToken, memberId: invite.member_id, expiresAt,
-    hasPin: Boolean(pin?.length),
-  }
+  return { sessionToken, memberId, expiresAt, hasPin: Boolean(pin?.length) }
 }
 
 // ── Sessions ────────────────────────────────────────────────────────────────
@@ -318,4 +380,58 @@ export async function checkPin(
       ? `Too many wrong attempts. The PIN is locked for ${PIN_LOCK_MINUTES} minutes.`
       : `Wrong PIN. ${PIN_MAX_ATTEMPTS - attempts} ${PIN_MAX_ATTEMPTS - attempts === 1 ? 'try' : 'tries'} left.`,
   }
+}
+
+// ── Signing back in without a new link ──────────────────────────────────────
+//
+// A link gets somebody in the first time. It does not get them back in three
+// months later when the cookie has expired, or when they change phones, or when
+// they clear their browser — and in all three cases the only recovery was to
+// ask the foreman for another link. That is not a login, it is a favour.
+//
+// So: the number they already gave you, plus the PIN they set on their first
+// visit. Four digits is a weak secret, which is why checkPin locks the member
+// out after PIN_MAX_ATTEMPTS and the portal is read-only. Nothing here can move
+// money.
+
+/**
+ * Sign in with a phone number and a PIN. Returns the same grant a link does.
+ *
+ * "We could not find that number" and "that PIN is wrong" are deliberately
+ * different messages: a chit's members already know who else is in it, so
+ * hiding existence buys nothing, while a member who mistyped their own number
+ * and is told only "wrong PIN" will try the PIN five times and lock themselves
+ * out of an account they were never in.
+ */
+export async function signInWithPin(
+  phone: string,
+  pin: string,
+  meta: { userAgent?: string | null; ip?: string | null } = {},
+  now: Date = new Date(),
+  client?: Db,
+): Promise<SessionGrant | { error: string }> {
+  const db = admin(client)
+
+  const { data } = await db.from('chit_members')
+    .select('id, user_id, name, phone, portal_enabled, is_active')
+    .eq('portal_enabled', true).eq('is_active', true)
+
+  const found = findMemberByPhone((data ?? []) as LookupMember[], phone)
+  if (found.kind === 'none') {
+    return { error: 'We could not find that number. Check it, or ask the chit organiser for a link.' }
+  }
+  if (found.kind === 'ambiguous') {
+    // Two members on one number. Guessing which one would show somebody else's
+    // dues, so it is refused and handled by a person.
+    return { error: 'That number is on more than one member. Please ask the chit organiser for a link.' }
+  }
+
+  const row = (data ?? []).find(m => m.id === found.member.id) as
+    { id: string; user_id: string } | undefined
+  if (!row) return { error: 'We could not sign you in. Please try again.' }
+
+  const check = await checkPin(row.id, pin, now, db)
+  if (!check.ok) return { error: check.reason }
+
+  return startSession(row.user_id, row.id, meta, now, db)
 }

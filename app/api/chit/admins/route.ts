@@ -10,6 +10,8 @@
 // after confirming the caller is the owner of their own account.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveSiteOrigin, originSource } from '@/lib/siteOrigin'
+import { adminHandoverMessage } from '@/lib/chit/handover'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveChitAccess, CAN, forbidden, type ChitRole } from '@/lib/chit/access'
@@ -93,7 +95,19 @@ export async function POST(req: NextRequest) {
   }, { onConflict: 'owner_user_id,admin_user_id' }).select('*').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ admin: data })
+
+  // The password is in hand exactly once: right here, because the owner just
+  // typed it. It is never stored in readable form and cannot be fetched back
+  // later, so the message to send has to be built now or not at all.
+  const appUrl = resolveSiteOrigin(req.headers, req.nextUrl.origin)
+  return NextResponse.json({
+    admin: data,
+    handover: {
+      message: adminHandoverMessage({ name, email, password, role, appUrl }),
+      appUrl,
+      appUrlSource: originSource(),
+    },
+  })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -109,8 +123,10 @@ export async function PATCH(req: NextRequest) {
 
   const supabase = await createClient()
   const { data: row } = await supabase.from('chit_admins')
-    .select('id, admin_user_id').eq('id', id).eq('owner_user_id', access.ownerId).maybeSingle()
+    .select('id, admin_user_id, name, email, role').eq('id', id).eq('owner_user_id', access.ownerId).maybeSingle()
   if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  let resetHandover: { message: string; appUrl: string; appUrlSource: string } | null = null
 
   // Resetting a password: set a new one and require it to be changed again.
   if (typeof b?.password === 'string' && b.password.length) {
@@ -120,6 +136,14 @@ export async function PATCH(req: NextRequest) {
     const { error } = await admin.auth.admin.updateUserById(row.admin_user_id, { password: b.password })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     await admin.from('chit_admins').update({ must_change_password: true }).eq('id', id)
+    resetHandover = {
+      message: adminHandoverMessage({
+        name: row.name ?? null, email: row.email, password: b.password,
+        role: row.role, appUrl: resolveSiteOrigin(req.headers, req.nextUrl.origin),
+      }),
+      appUrl: resolveSiteOrigin(req.headers, req.nextUrl.origin),
+      appUrlSource: originSource(),
+    }
   }
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -130,7 +154,7 @@ export async function PATCH(req: NextRequest) {
   const { data, error } = await supabase.from('chit_admins')
     .update(patch).eq('id', id).eq('owner_user_id', access.ownerId).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ admin: data })
+  return NextResponse.json({ admin: data, handover: resetHandover })
 }
 
 export async function DELETE(req: NextRequest) {

@@ -9,6 +9,8 @@
 // account can never reach into another account's chit.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveSiteOrigin, originSource } from '@/lib/siteOrigin'
+import { memberInviteMessage, durationWords } from '@/lib/chit/handover'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { mintInvite, revokeAllSessions, INVITE_TTL_MINUTES } from '@/lib/chit/portal-auth'
@@ -25,17 +27,7 @@ export const dynamic = 'force-dynamic'
  * generated it and nowhere else. The forwarded headers are what the browser
  * actually asked for, so they come first after an explicit setting.
  */
-function siteOrigin(req: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '')
-  if (configured) return configured
-
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host')
-  if (host) {
-    const proto = req.headers.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
-    return `${proto}://${host}`
-  }
-  return req.nextUrl.origin
-}
+const siteOrigin = (req: NextRequest) => resolveSiteOrigin(req.headers, req.nextUrl.origin)
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -81,12 +73,11 @@ export async function POST(req: NextRequest) {
     if ('error' in result) return NextResponse.json({ error: result.error }, { status: 400 })
 
     const url = `${siteOrigin(req)}/m/enter?t=${result.token}`
-    const firstName = String(member.name ?? '').trim().split(/\s+/)[0] || 'there'
-    const message =
-      `Hi ${firstName}, here is your private link to view your chit account — `
-      + `your dues, payments and each month's auction result.\n\n${url}\n\n`
-      + `This link works once and expires in ${INVITE_TTL_MINUTES} minutes, so please open it now. `
-      + `Do not forward it to anyone.`
+    const message = memberInviteMessage({
+      name: member.name ?? null,
+      url,
+      expiresInWords: durationWords(INVITE_TTL_MINUTES),
+    })
 
     return NextResponse.json({
       ok: true,
@@ -100,7 +91,9 @@ export async function POST(req: NextRequest) {
       // says localhost, or a preview deployment, that is visible immediately
       // instead of after a member reports that the link did not work.
       origin: siteOrigin(req),
-      originSource: process.env.NEXT_PUBLIC_SITE_URL ? 'NEXT_PUBLIC_SITE_URL' : 'request headers',
+      originSource: originSource(),
+      message,
+      expiresInWords: durationWords(INVITE_TTL_MINUTES),
     })
   }
 

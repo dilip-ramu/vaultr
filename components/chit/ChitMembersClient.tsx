@@ -68,6 +68,7 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
   const [invite, setInvite] = useState<{
     url: string; whatsappUrl: string | null; name: string
     origin: string; originSource: string; expiresAt: string
+    message: string; expiresInWords: string
   } | null>(null)
 
   async function portalAction(memberId: string, action: 'enable' | 'disable' | 'invite' | 'revoke') {
@@ -98,6 +99,8 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
           origin: body.origin ?? '',
           originSource: body.originSource ?? '',
           expiresAt: body.expiresAt ?? '',
+          message: body.message ?? '',
+          expiresInWords: body.expiresInWords ?? '',
         })
       }
     } finally {
@@ -536,12 +539,15 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => v
 function InviteSheet({
   invite, onClose,
 }: {
-  invite: { url: string; whatsappUrl: string | null; name: string; origin: string; originSource: string; expiresAt: string }
+  invite: {
+    url: string; whatsappUrl: string | null; name: string; origin: string
+    originSource: string; expiresAt: string; message: string; expiresInWords: string
+  }
   onClose: () => void
 }) {
   const looksLocal = /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(invite.origin)
   const expires = invite.expiresAt
-    ? new Date(invite.expiresAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(invite.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
     : null
 
   return (
@@ -556,7 +562,7 @@ function InviteSheet({
               Login link{invite.name ? ` for ${invite.name}` : ''}
             </p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
-              Works once{expires ? `, expires ${expires}` : ''}. Do not post it anywhere public.
+              Works once{invite.expiresInWords ? `, valid for ${invite.expiresInWords}` : ''}{expires ? ` (until ${expires})` : ''}. Do not post it anywhere public.
             </p>
           </div>
           <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
@@ -579,7 +585,19 @@ function InviteSheet({
           </p>
         )}
 
-        <div className="flex items-center gap-2 mt-4">
+        {invite.message && (
+          <button
+            onClick={async () => {
+              try { await navigator.clipboard.writeText(invite.message); notify('Message copied — paste it in WhatsApp') }
+              catch { notify('Could not copy — select the link above', 'error') }
+            }}
+            className="w-full mt-4 py-2.5 rounded-xl text-sm font-bold text-white"
+            style={{ background: 'var(--brand)' }}>
+            Copy the whole message
+          </button>
+        )}
+
+        <div className="flex items-center gap-2 mt-2">
           <button
             onClick={async () => {
               try { await navigator.clipboard.writeText(invite.url); notify('Link copied') }
@@ -587,7 +605,7 @@ function InviteSheet({
             }}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold"
             style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-            Copy link
+            Copy link only
           </button>
           {invite.whatsappUrl && (
             <a href={invite.whatsappUrl} target="_blank" rel="noopener noreferrer"
