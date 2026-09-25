@@ -9,7 +9,7 @@ import { usePathname } from 'next/navigation'
  * the current route belongs to and shows that hub's tabs. On routes that
  * aren't part of a hub (Dashboard, Settings, detail pages) it renders nothing.
  */
-type Tab = { href: string; label: string }
+type Tab = { href: string; label: string; ownerOnly?: boolean }
 // Single canonical sub-nav per hub. This is the ONE tab strip a hub gets —
 // the old per-layout tab bars (OrganizationTabs, Suppliers/CustomersHomeTabs,
 // SupplierInvoicesTabs, TransactionsPageTabs) were removed so nothing doubles
@@ -72,6 +72,10 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/chit', label: 'Overview' },
     { href: '/chit/groups', label: 'Groups' },
     { href: '/chit/members', label: 'Members' },
+    // Owner only. Hidden when the signed-in person is a chit admin — the page
+    // redirects them and the database refuses the rows, so this is tidiness,
+    // not the lock.
+    { href: '/chit/admins', label: 'Admins', ownerOnly: true },
   ] },
   { name: 'System', tabs: [
     { href: '/setup/settings',      label: 'Settings' },
@@ -91,8 +95,12 @@ function matchLen(pathname: string, href: string): number {
   return -1
 }
 
-export default function HubTabs() {
+export default function HubTabs({ chitOnly = false }: { chitOnly?: boolean } = {}) {
   const pathname = usePathname() || ''
+
+  // A chit admin who has not replaced the password the owner chose has exactly
+  // one thing to do. Tabs would only offer them doors that bounce them back.
+  if (pathname.startsWith('/chit/password')) return null
 
   // Find the hub + active tab: the tab whose href is the longest match.
   let hub: { name: string; tabs: Tab[] } | null = null
@@ -106,10 +114,13 @@ export default function HubTabs() {
   }
   if (!hub || bestLen < 0) return null
 
+  // chitOnly means the signed-in person is a chit admin, not the account owner.
+  const tabs = hub.tabs.filter(t => !t.ownerOnly || !chitOnly)
+
   return (
     <div className="px-4 md:px-8 pt-4" style={{ background: 'var(--bg)' }}>
       <div className="flex gap-1 overflow-x-auto no-scrollbar" style={{ borderBottom: '1px solid var(--border)' }}>
-        {hub.tabs.map(t => {
+        {tabs.map(t => {
           const active = t.href === activeHref
           return (
             <Link

@@ -525,7 +525,7 @@ export default function AppShell({ user, profile, chitOnly = false, adminName = 
         {/* Desktop main content */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}>
-            <HubTabs />
+            <HubTabs chitOnly={chitOnly} />
             <div className="min-w-0">{children}</div>
           </main>
         </div>
@@ -579,7 +579,7 @@ export default function AppShell({ user, profile, chitOnly = false, adminName = 
             backgroundColor: 'var(--bg)',
           }}
         >
-          <HubTabs />
+          <HubTabs chitOnly={chitOnly} />
           <div className="min-w-0" style={{ minHeight: '100%', backgroundColor: 'var(--bg)' }}>
             {children}
           </div>
