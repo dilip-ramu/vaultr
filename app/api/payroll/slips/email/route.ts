@@ -5,6 +5,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { SalarySlipDocument } from '@/components/payroll/slips/SalarySlipPDF'
 import type { PayrollEntry, PayrollMonth, Employee } from '@/lib/payroll/types'
 import { resolveCompanyLook, type CompaniesById } from '@/lib/companies/templates'
+import { explainEmailFailure } from '@/lib/payroll/emailError'
 
 // Fonts: SalarySlipPDF registers environment-aware font sources itself
 // (browser URL in the browser, deployment URL on Vercel, disk in local dev).
@@ -55,8 +56,9 @@ async function sendViaBrevo(opts: {
     }),
   })
   if (!res.ok) {
+    // Brevo's own prose, truncated, told nobody anything. Translate it.
     const body = await res.text()
-    throw new Error(`Email service error (${res.status}): ${body.slice(0, 200)}`)
+    throw new Error(explainEmailFailure(res.status, body).message)
   }
 }
 
@@ -169,7 +171,7 @@ export async function POST(req: NextRequest) {
 
       results.push({ entry_id: entry.id, employee: name, status: 'sent' })
     } catch (err) {
-      results.push({ entry_id: entry.id, employee: name, status: 'error', error: String(err).slice(0, 200) })
+      results.push({ entry_id: entry.id, employee: name, status: 'error', error: (err instanceof Error ? err.message : String(err)).slice(0, 400) })
     }
   }
 
