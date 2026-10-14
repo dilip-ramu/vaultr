@@ -52,6 +52,8 @@ export interface ChitGroup {
   bid_ceiling_pct: number
   commission_model: CommissionModel
   auction_day: number | null
+  /** What time the auction starts, as the database stores it: '18:30:00'. */
+  auction_time?: string | null
   start_date: string | null
   status: 'active' | 'completed' | 'cancelled'
   created_at: string

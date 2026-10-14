@@ -20,6 +20,7 @@ import type { ChitGroup, ChitGroupMember, ChitAuction, ChitCollection, ChitMembe
 import { auctionNotice, auctionResult, winnerPayout, scheduledAuctionDate, niceDate, ordinal as ordinalWord } from '@/lib/chit/messages'
 import NotifyModal, { toTarget, type NotifyTarget } from './NotifyModal'
 import { Send } from 'lucide-react'
+import { formatAuctionTime, toTimeInput } from '@/lib/chit/auctionTime'
 
 type Tab = 'members' | 'auctions' | 'collections' | 'receivables'
 type Account = { id: string; name: string; type: string; company_id: string | null }
@@ -181,6 +182,7 @@ function GroupEditForm({ group, companies, locked, onClose, onSaved }: {
   const [ceiling, setCeiling] = useState(String(group.bid_ceiling_pct))
   const [companyId, setCompanyId] = useState(group.company_id ?? '')
   const [auctionDay, setAuctionDay] = useState(group.auction_day ? String(group.auction_day) : '')
+  const [auctionTime, setAuctionTime] = useState(toTimeInput(group.auction_time))
   const [startDate, setStartDate] = useState(group.start_date ?? '')
   const [status, setStatus] = useState(group.status)
   const [busy, setBusy] = useState(false)
@@ -195,7 +197,8 @@ function GroupEditForm({ group, companies, locked, onClose, onSaved }: {
       const payload: Record<string, unknown> = {
         id: group.id, name, company_id: companyId || null,
         commission_pct: parseFloat(commissionPct) || 0, bid_ceiling_pct: parseFloat(ceiling) || 0,
-        auction_day: auctionDay || null, start_date: startDate || null, status,
+        auction_day: auctionDay || null, auction_time: auctionTime || null,
+        start_date: startDate || null, status,
       }
       // Only send the structural fields when they're actually editable — otherwise
       // the server rejects the whole PATCH and nothing saves.
@@ -258,12 +261,18 @@ function GroupEditForm({ group, companies, locked, onClose, onSaved }: {
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select></div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Auction day</label>
               <input className={fld} style={fs} inputMode="numeric" value={auctionDay} onChange={e => setAuctionDay(e.target.value.replace(/[^0-9]/g, ''))} /></div>
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Auction time</label>
+              <input className={fld} style={fs} type="time" value={auctionTime} onChange={e => setAuctionTime(e.target.value)} /></div>
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Start date</label>
               <input className={fld} style={fs} type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
           </div>
+          <p className="text-[11px] -mt-1" style={{ color: 'var(--text-faint)' }}>
+            The auction notice states this time. Blank means the notice does not mention a
+            time at all, which is better than naming the wrong one.
+          </p>
 
           <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Status</label>
             <select className={fld} style={fs} value={status} onChange={e => setStatus(e.target.value as ChitGroup['status'])}>
@@ -671,7 +680,11 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
     const message = auctionNotice({
       companyName, chitValue: Number(group.chit_value), members: group.members,
       tenureMonths: months, startDate: group.start_date, installment,
-      dueDay: group.auction_day, auctionTime: '6:30 PM', monthNumber,
+      dueDay: group.auction_day,
+      // Was hardcoded '6:30 PM' for every group in every month. Members turn up
+      // when the notice says, so this has to be the group's own time or nothing.
+      auctionTime: formatAuctionTime(group.auction_time) ?? undefined,
+      monthNumber,
       auctionDate: scheduledAuctionDate(group.start_date, group.auction_day, monthNumber),
       bidCeilingPct: Number(group.bid_ceiling_pct),
     })

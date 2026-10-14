@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { validateGroup } from '@/lib/chit/auction'
+import { toStoredTime } from '@/lib/chit/auctionTime'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,9 @@ export async function POST(req: NextRequest) {
     bid_ceiling_pct: params.bidCeilingPct,
     commission_model: params.model,
     auction_day: body.auction_day ? Number(body.auction_day) : null,
+    // Refused rather than stored raw: a bad time silently wrong in a notice
+    // sends members to an empty room.
+    auction_time: toStoredTime(body.auction_time as string | null),
     start_date: (body.start_date as string) || null,
   }
 
@@ -84,9 +88,13 @@ export async function PATCH(req: NextRequest) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   // Freely editable — presentation and scheduling, no effect on past figures.
   for (const k of ['name', 'company_id', 'commission_pct', 'bid_ceiling_pct',
-    'auction_day', 'start_date', 'status'] as const) {
+    'auction_day', 'auction_time', 'start_date', 'status'] as const) {
     if (k in body) patch[k] = body[k]
   }
+  // The loop above copies what it is given. A time is the one field here where
+  // being given rubbish ends up printed on a notice, so it goes through the
+  // parser rather than straight into the row.
+  if ('auction_time' in body) patch.auction_time = toStoredTime(body.auction_time as string | null)
 
   // Structural fields — the pot, the head-count, the model — decide the
   // installment and month count, and every auction and collection already

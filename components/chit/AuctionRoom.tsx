@@ -58,12 +58,14 @@ interface WindowRow {
 }
 
 export default function AuctionRoom({
-  groupId, groupName, chitValue, installment, members, nextMonth,
+  groupId, groupName, chitValue, installment, members, nextMonth, auctionTime,
 }: {
   groupId: string
   groupName: string
   chitValue: number
   installment: number
+  /** When this group's auction is meant to start, e.g. '6:30 PM'. */
+  auctionTime?: string | null
   members: RoomMember[]
   nextMonth: number | null
 }) {
@@ -168,6 +170,7 @@ export default function AuctionRoom({
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {groupName} · pot {inr(chitValue)} · installment {inr(installment)}
+            {auctionTime ? ` · starts ${auctionTime}` : ''}
           </p>
         </div>
 

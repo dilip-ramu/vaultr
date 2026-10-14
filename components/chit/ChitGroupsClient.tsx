@@ -110,6 +110,7 @@ function GroupForm({ companies, onClose, onSaved }: {
   const [ceiling, setCeiling] = useState('30')
   const [companyId, setCompanyId] = useState('')
   const [auctionDay, setAuctionDay] = useState('')
+  const [auctionTime, setAuctionTime] = useState('18:30')
   const [startDate, setStartDate] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -131,7 +132,8 @@ function GroupForm({ companies, onClose, onSaved }: {
         body: JSON.stringify({
           name, chit_value: cv, members: mem, commission_model: model,
           commission_pct: parseFloat(commissionPct) || 0, bid_ceiling_pct: parseFloat(ceiling) || 0,
-          company_id: companyId || null, auction_day: auctionDay || null, start_date: startDate || null,
+          company_id: companyId || null, auction_day: auctionDay || null,
+          auction_time: auctionTime || null, start_date: startDate || null,
         }),
       })
       const json = await res.json()
@@ -191,12 +193,18 @@ function GroupForm({ companies, onClose, onSaved }: {
             <p className="text-[11px] mt-1" style={{ color: 'var(--text-faint)' }}>Collections and payouts post to this company&apos;s bank accounts.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Auction day</label>
               <input className={fld} style={fs} inputMode="numeric" value={auctionDay} onChange={e => setAuctionDay(e.target.value.replace(/[^0-9]/g, ''))} placeholder="5" /></div>
+            <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Auction time</label>
+              <input className={fld} style={fs} type="time" value={auctionTime} onChange={e => setAuctionTime(e.target.value)} /></div>
             <div><label className={lbl} style={{ color: 'var(--text-muted)' }}>Start date</label>
               <input className={fld} style={fs} type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
           </div>
+          <p className="text-[11px] -mt-1" style={{ color: 'var(--text-faint)' }}>
+            The auction notice states this time. Leave it blank and the notice simply does not
+            mention a time, which is better than naming the wrong one.
+          </p>
 
           {preview && (
             <div className="rounded-xl px-3.5 py-3 text-[12px]" style={{ background: 'var(--brand-light)', color: 'var(--text-muted)' }}>

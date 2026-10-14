@@ -14,6 +14,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, CAN } from '@/lib/chit/access'
 import { monthlyInstallment, numberOfMonths } from '@/lib/chit/auction'
+import { formatAuctionTime } from '@/lib/chit/auctionTime'
 import AuctionRoom from '@/components/chit/AuctionRoom'
 import type { ChitGroup } from '@/lib/chit/types'
 
@@ -78,6 +79,7 @@ export default async function AuctionRoomPage({
       groupName={group.name}
       chitValue={Number(group.chit_value)}
       installment={monthlyInstallment({ chitValue: group.chit_value, members: group.members })}
+      auctionTime={formatAuctionTime(group.auction_time)}
       members={members}
       nextMonth={nextMonth}
     />
