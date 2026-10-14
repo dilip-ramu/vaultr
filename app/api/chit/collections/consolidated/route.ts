@@ -95,6 +95,8 @@ export async function POST(req: NextRequest) {
   const rows = fresh.map(e => ({
     user_id: owner, group_id: groupId, member_id: memberId, month_number: e.month_number,
     amount: Number(e.amount), paid_date: paidDate, account_id: accountId, income_transaction_id: posted.id,
+    recorded_by_user_id: access.actorId,
+    recorded_by_name: access.actorName,
   }))
 
   // Upsert-ish: an unpaid row for the slot may already exist; delete any then insert.

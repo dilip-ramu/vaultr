@@ -48,6 +48,8 @@ export interface StatementCollection {
   amount: number
   paid_date: string
   income_transaction_id: string | null
+  /** Who entered it. Copied onto the row when it was written. */
+  recorded_by_name?: string | null
 }
 
 export interface StatementAuction {
@@ -60,6 +62,7 @@ export interface StatementAuction {
   net_payout: number
   dividend_per_member: number
   payout_transaction_id: string | null
+  recorded_by_name?: string | null
 }
 
 export interface StatementGroup {
@@ -99,6 +102,12 @@ export interface StatementLine {
   date: string
   description: string
   kind: LineKind
+  /**
+   * Who entered it, where the books know. Blank for anything that did not come
+   * through the chit, and blank for rows recorded before this was tracked —
+   * writing a name there would be inventing evidence.
+   */
+  recordedBy: string | null
   /** Signed effect on this account. Positive is money in. */
   effect: number
   /** Balance after this line. */
@@ -278,6 +287,22 @@ export function buildStatement(input: StatementInput): ChitStatement {
   const payoutTxnIds = new Set(
     auctions.map(a => a.payout_transaction_id).filter((x): x is string => !!x))
 
+  // Transaction id → who entered it. With several groups and several people
+  // recording, "who logged this?" is the first question asked about anything
+  // that looks wrong, and a statement that cannot answer it sends the asker
+  // back to the person who wrote it.
+  const recordedBy = new Map<string, string>()
+  for (const c of collections) {
+    if (c.income_transaction_id && c.recorded_by_name) {
+      recordedBy.set(c.income_transaction_id, c.recorded_by_name)
+    }
+  }
+  for (const a of auctions) {
+    if (a.payout_transaction_id && a.recorded_by_name) {
+      recordedBy.set(a.payout_transaction_id, a.recorded_by_name)
+    }
+  }
+
   const mine = txns
     .filter(t => t.account_id === accountId || t.to_account_id === accountId)
     .slice()
@@ -319,6 +344,7 @@ export function buildStatement(input: StatementInput): ChitStatement {
       date: t.date,
       description: t.name?.trim() || t.category_name?.trim() || 'Unnamed transaction',
       kind,
+      recordedBy: recordedBy.get(t.id) ?? null,
       effect,
       running,
     })

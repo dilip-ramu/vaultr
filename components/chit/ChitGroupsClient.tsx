@@ -8,7 +8,7 @@ import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { inr } from '@/lib/assets/valuation'
 import {
-  monthlyInstallment, numberOfMonths, monthlyCommission, groupTotals,
+  monthlyInstallment, monthlyCommission, groupTotals,
   type CommissionModel,
 } from '@/lib/chit/auction'
 import type { ChitGroup } from '@/lib/chit/types'

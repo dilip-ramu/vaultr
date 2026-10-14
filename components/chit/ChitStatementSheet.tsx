@@ -194,9 +194,10 @@ export default function ChitStatementSheet({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.8 }}>
           <thead>
             <tr style={{ borderBottom: `1.5px solid ${INK}` }}>
-              <Th w={62}>Date</Th>
+              <Th w={58}>Date</Th>
               <Th>Description</Th>
-              <Th w={70}>Type</Th>
+              <Th w={64}>Type</Th>
+              <Th w={74}>Recorded by</Th>
               <Th w={82} right>In</Th>
               <Th w={82} right>Out</Th>
               <Th w={92} right>Balance</Th>
@@ -204,7 +205,7 @@ export default function ChitStatementSheet({
           </thead>
           <tbody>
             <tr>
-              <Td colSpan={5} muted>Opening balance</Td>
+              <Td colSpan={6} muted>Opening balance</Td>
               <Td right strong>{money(s.opening)}</Td>
             </tr>
             {s.lines.map(l => (
@@ -220,13 +221,14 @@ export default function ChitStatementSheet({
                     {KIND_LABEL[l.kind]}
                   </span>
                 </Td>
+                <Td muted>{l.recordedBy ?? '—'}</Td>
                 <Td right colour={IN}>{l.effect > 0 ? money(l.effect) : ''}</Td>
                 <Td right colour={OUT}>{l.effect < 0 ? money(l.effect) : ''}</Td>
                 <Td right>{money(l.running)}</Td>
               </tr>
             ))}
             <tr data-pdf-break style={{ borderTop: `1.5px solid ${INK}` }}>
-              <Td colSpan={3} strong>Closing balance on {dmy(s.periodEnd)}</Td>
+              <Td colSpan={4} strong>Closing balance on {dmy(s.periodEnd)}</Td>
               <Td right strong colour={IN}>{money(s.moneyIn)}</Td>
               <Td right strong colour={OUT}>{money(s.moneyOut)}</Td>
               <Td right strong>{money(s.closing)}</Td>
@@ -241,6 +243,12 @@ export default function ChitStatementSheet({
           chit payouts. They are shown so they can be asked about.
         </p>
       )}
+
+      <p style={{ marginTop: 6, fontSize: 10.5, color: MUTED }}>
+        <b>Recorded by</b> is whoever entered the collection or the auction in Inex. A dash means
+        the line did not come through the chit, or predates this being tracked — a name is never
+        guessed.
+      </p>
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <div data-pdf-break style={{ marginTop: 28, paddingTop: 10, borderTop: `1px solid ${RULE}`, color: MUTED, fontSize: 10 }}>

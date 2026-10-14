@@ -96,6 +96,9 @@ export interface ChitCollection {
   income_transaction_id: string | null
   account_id: string | null
   notes: string | null
+  /** Who entered it, copied onto the row at the time (v123). */
+  recorded_by_user_id?: string | null
+  recorded_by_name?: string | null
   created_at: string
 }
 

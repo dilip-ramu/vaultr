@@ -98,6 +98,9 @@ export async function POST(req: NextRequest) {
     user_id: owner, group_id: groupId, member_id: memberId, month_number: monthNumber,
     amount, paid_date: date, account_id: accountId, income_transaction_id: posted.id,
     notes: (body.notes as string)?.trim() || null,
+    // Who entered this. Copied in now, not joined later — see v123.
+    recorded_by_user_id: access.actorId,
+    recorded_by_name: access.actorName,
   }
 
   const { data: collection, error } = prior

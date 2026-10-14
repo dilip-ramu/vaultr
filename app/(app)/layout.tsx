@@ -47,7 +47,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <BalanceProvider>
-      <AppShell user={user} profile={profile} chitOnly={isChitOnly} adminName={access?.adminName ?? null}>
+      <AppShell user={user} profile={profile} chitOnly={isChitOnly} adminName={access?.adminName ?? null}
+        chitRole={access?.role ?? 'owner'}>
         {children}
       </AppShell>
     </BalanceProvider>

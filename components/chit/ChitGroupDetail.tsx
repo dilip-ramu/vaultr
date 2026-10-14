@@ -1443,6 +1443,14 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
                 <p className="text-[13px] font-extrabold" style={{ color: c ? 'var(--income)' : 'var(--text-muted)' }}>
                   {c ? inr(c.amount) : inr(dueForMonth(m))}
                 </p>
+                {/* With several people recording across several groups, "who
+                    entered this?" is the first question asked about anything
+                    that looks wrong. */}
+                {c?.recorded_by_name && (
+                  <p className="text-[10px] truncate" style={{ color: 'var(--text-faint)' }}>
+                    by {c.recorded_by_name}
+                  </p>
+                )}
               </div>
               {c && <span className="text-[10px] font-bold shrink-0" style={{ color: 'var(--income)' }}>Paid ✕</span>}
             </button>

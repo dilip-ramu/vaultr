@@ -1,5 +1,6 @@
 'use client'
 
+import { CAN, type ChitRole } from '@/lib/chit/permissions'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
@@ -9,7 +10,12 @@ import { usePathname } from 'next/navigation'
  * the current route belongs to and shows that hub's tabs. On routes that
  * aren't part of a hub (Dashboard, Settings, detail pages) it renders nothing.
  */
-type Tab = { href: string; label: string; ownerOnly?: boolean }
+type Tab = {
+  href: string
+  label: string
+  /** When set, the tab shows only for roles this returns true for. */
+  needs?: (r: ChitRole) => boolean
+}
 // Single canonical sub-nav per hub. This is the ONE tab strip a hub gets —
 // the old per-layout tab bars (OrganizationTabs, Suppliers/CustomersHomeTabs,
 // SupplierInvoicesTabs, TransactionsPageTabs) were removed so nothing doubles
@@ -75,8 +81,9 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     // Owner only. Hidden when the signed-in person is a chit admin — the page
     // redirects them and the database refuses the rows, so this is tidiness,
     // not the lock.
-    { href: '/chit/admins', label: 'Admins', ownerOnly: true },
-    { href: '/chit/statement', label: 'Statement', ownerOnly: true },
+    { href: '/chit/admins', label: 'Admins', needs: CAN.manageAdmins },
+    // Partners see this: they are the people it is written for.
+    { href: '/chit/statement', label: 'Statement', needs: CAN.viewStatement },
   ] },
   { name: 'System', tabs: [
     { href: '/setup/settings',      label: 'Settings' },
@@ -96,7 +103,7 @@ function matchLen(pathname: string, href: string): number {
   return -1
 }
 
-export default function HubTabs({ chitOnly = false }: { chitOnly?: boolean } = {}) {
+export default function HubTabs({ chitRole = 'owner' }: { chitRole?: ChitRole } = {}) {
   const pathname = usePathname() || ''
 
   // A chit admin who has not replaced the password the owner chose has exactly
@@ -115,8 +122,7 @@ export default function HubTabs({ chitOnly = false }: { chitOnly?: boolean } = {
   }
   if (!hub || bestLen < 0) return null
 
-  // chitOnly means the signed-in person is a chit admin, not the account owner.
-  const tabs = hub.tabs.filter(t => !t.ownerOnly || !chitOnly)
+  const tabs = hub.tabs.filter(t => !t.needs || t.needs(chitRole))
 
   return (
     <div className="px-4 md:px-8 pt-4" style={{ background: 'var(--bg)' }}>

@@ -224,6 +224,8 @@ export async function POST(req: NextRequest) {
       dividend_per_member: result.dividendPerMember,
       notes: `Recorded automatically when bidding closed. `
         + `${bids.length} bid${bids.length === 1 ? '' : 's'}, highest ${outcome.winner.amount}.`,
+      recorded_by_user_id: access.actorId,
+      recorded_by_name: access.actorName,
     }
 
     const { data: auction, error: auctionErr } = prior

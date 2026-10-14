@@ -42,6 +42,14 @@ export interface ChitAccess {
   /** An admin whose first password is still the one the owner typed. */
   mustChangePassword: boolean
   adminName: string | null
+  /**
+   * Who to write against anything this person records.
+   *
+   * Copied onto the row at the time, not looked up later: when an admin's
+   * access is removed a year from now, the collections they took must still
+   * say they took them.
+   */
+  actorName: string
 }
 
 
@@ -57,7 +65,7 @@ export async function resolveChitAccess(): Promise<ChitAccess | null> {
 
   // An admin grant, if there is one. RLS lets a user read only their own row.
   const { data } = await supabase.from('chit_admins')
-    .select('owner_user_id, role, is_active, must_change_password, name')
+    .select('owner_user_id, role, is_active, must_change_password, name, email')
     .eq('admin_user_id', user.id).eq('is_active', true).limit(1)
   const grant = data?.[0] as any
 
@@ -69,14 +77,23 @@ export async function resolveChitAccess(): Promise<ChitAccess | null> {
       isOwner: false,
       mustChangePassword: grant.must_change_password === true,
       adminName: grant.name ?? null,
+      actorName: (grant.name ?? '').trim() || grant.email || 'An admin',
     }
   }
 
   // No grant: they are working in their own books, which is the original and
   // still the common case.
+  // The owner's own name, so their rows read like a person rather than "Owner".
+  const { data: profile } = await supabase.from('profiles')
+    .select('full_name, nickname').eq('id', user.id).maybeSingle()
+  const p = profile as { full_name?: string | null; nickname?: string | null } | null
+
   return {
     ownerId: user.id, actorId: user.id, role: 'owner', isOwner: true,
     mustChangePassword: false, adminName: null,
+    actorName: (p?.nickname || p?.full_name || '').trim()
+      || user.email?.split('@')[0]
+      || 'Owner',
   }
 }
 

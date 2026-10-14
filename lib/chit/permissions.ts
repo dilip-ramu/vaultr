@@ -24,6 +24,17 @@ export const CAN = {
   /** Otherwise a partner could promote themselves, and the grant would stop
    *  being the owner's decision. */
   manageAdmins:     (r: ChitRole) => r === 'owner',
+  /**
+   * The partner statement — the bank balance, and every movement in the
+   * account including the ones that are not chit money.
+   *
+   * Partners are shareholders in the business, and the statement is the
+   * document written FOR them; withholding it from the people it is addressed
+   * to would be an odd kind of transparency. A collector records payments and a
+   * viewer reads the chit: neither needs the balance of a bank account, so
+   * neither gets it.
+   */
+  viewStatement:    (r: ChitRole) => r === 'owner' || r === 'partner',
 } satisfies Record<string, (r: ChitRole) => boolean>
 
 /** Refusal, in words a person can act on. */

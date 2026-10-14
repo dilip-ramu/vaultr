@@ -1,5 +1,6 @@
 'use client'
 
+import { CAN, type ChitRole } from '@/lib/chit/permissions'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -33,6 +34,8 @@ interface AppShellProps {
    *  else. Cosmetic — the database refuses the rest regardless. */
   chitOnly?: boolean
   adminName?: string | null
+  /** What the signed-in person may do in the chit. 'owner' for the account holder. */
+  chitRole?: ChitRole
   children: React.ReactNode
 }
 
@@ -236,7 +239,7 @@ function SidebarSection({
 
 // ── Main shell ──────────────────────────────────────────────────────────────
 
-export default function AppShell({ user, profile, chitOnly = false, adminName = null, children }: AppShellProps) {
+export default function AppShell({ user, profile, chitOnly = false, adminName = null, chitRole = 'owner', children }: AppShellProps) {
   const pathname = usePathname()
   // A chit-only admin sees one destination. Showing them the rest greyed out would only
   // advertise what they cannot reach.
@@ -246,7 +249,14 @@ export default function AppShell({ user, profile, chitOnly = false, adminName = 
           ...sec,
           items: sec.items
             .filter(i => i.href.startsWith('/chit'))
-            .map(i => ({ ...i, subItems: i.subItems?.filter(si => si.href !== '/chit/admins' && si.href !== '/chit/statement') })),
+            // Hidden by what the role may do, not by "is an admin at all" —
+            // a partner sees the Statement, a collector does not.
+            .map(i => ({
+              ...i,
+              subItems: i.subItems?.filter(si =>
+                (si.href !== '/chit/admins' || CAN.manageAdmins(chitRole))
+                && (si.href !== '/chit/statement' || CAN.viewStatement(chitRole))),
+            })),
         }))
         .filter(sec => sec.items.length > 0)
     : navSections
@@ -526,7 +536,7 @@ export default function AppShell({ user, profile, chitOnly = false, adminName = 
         {/* Desktop main content */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <main className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' as never, overscrollBehaviorY: 'contain' }}>
-            <HubTabs chitOnly={chitOnly} />
+            <HubTabs chitRole={chitRole} />
             <div className="min-w-0">{children}</div>
           </main>
         </div>
@@ -580,7 +590,7 @@ export default function AppShell({ user, profile, chitOnly = false, adminName = 
             backgroundColor: 'var(--bg)',
           }}
         >
-          <HubTabs chitOnly={chitOnly} />
+          <HubTabs chitRole={chitRole} />
           <div className="min-w-0" style={{ minHeight: '100%', backgroundColor: 'var(--bg)' }}>
             {children}
           </div>

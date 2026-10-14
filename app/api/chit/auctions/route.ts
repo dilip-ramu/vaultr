@@ -96,6 +96,8 @@ export async function POST(req: NextRequest) {
     net_payout: result.netPayout,
     dividend_per_member: result.dividendPerMember,
     notes: (body.notes as string)?.trim() || null,
+    recorded_by_user_id: access.actorId,
+    recorded_by_name: access.actorName,
   }
 
   // Upsert on (group, month): conducting the same month again corrects it rather

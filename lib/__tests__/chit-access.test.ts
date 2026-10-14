@@ -61,6 +61,15 @@ describe('what each role may do', () => {
     }
   })
 
+  it('lets a partner read the statement, because it is written for them', () => {
+    // It carries the bank balance and every movement in the account, so it
+    // stops there: a collector records payments and a viewer reads the chit.
+    expect(CAN.viewStatement('partner')).toBe(true)
+    expect(CAN.viewStatement('owner')).toBe(true)
+    expect(CAN.viewStatement('collector')).toBe(false)
+    expect(CAN.viewStatement('viewer')).toBe(false)
+  })
+
   it('never lets an admin of any kind delete a group', () => {
     for (const r of ROLES) expect(CAN.deleteGroup(r)).toBe(r === 'owner')
   })

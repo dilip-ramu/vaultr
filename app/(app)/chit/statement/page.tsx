@@ -1,12 +1,16 @@
 // The monthly statement partners get.
 //
-// Owner only. The document is meant to be SENT to partners, not browsed by
-// them — a chit admin has no business reading the bank balance, and the page
-// turns them away the same way the Admins page does.
+// The owner and partners. Partners are shareholders and this is the document
+// written for them, so withholding it from the people it is addressed to would
+// be an odd kind of transparency.
+//
+// A collector records payments and a viewer reads the chit. Neither needs the
+// balance of a bank account or the movements in and out of it, so neither gets
+// this page — and typing the URL lands them back in Chit.
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { resolveChitAccess } from '@/lib/chit/access'
+import { resolveChitAccess, CAN } from '@/lib/chit/access'
 import ChitStatementClient from '@/components/chit/ChitStatementClient'
 import {
   buildStatement, monthPeriod, lastCompletedMonth, selectableMonths, customPeriod,
@@ -24,7 +28,7 @@ export default async function ChitStatementPage({
 }: { searchParams: Promise<{ m?: string; from?: string; to?: string }> }) {
   const access = await resolveChitAccess()
   if (!access) redirect('/login')
-  if (!access.isOwner) redirect('/chit')
+  if (!CAN.viewStatement(access.role)) redirect('/chit')
 
   const supabase = await createClient()
   const uid = access.ownerId
@@ -103,10 +107,10 @@ export default async function ChitStatementPage({
     await Promise.all([
       supabase.from('chit_groups').select('id, name, chit_value, members, status').eq('user_id', uid).order('name'),
       supabase.from('chit_collections')
-        .select('group_id, member_id, month_number, amount, paid_date, income_transaction_id')
+        .select('group_id, member_id, month_number, amount, paid_date, income_transaction_id, recorded_by_name')
         .eq('user_id', uid),
       supabase.from('chit_auctions')
-        .select('group_id, month_number, auction_date, winner_member_id, bid_amount, commission, net_payout, dividend_per_member, payout_transaction_id')
+        .select('group_id, month_number, auction_date, winner_member_id, bid_amount, commission, net_payout, dividend_per_member, payout_transaction_id, recorded_by_name')
         .eq('user_id', uid),
       supabase.from('chit_members').select('id, name, member_code').eq('user_id', uid),
       supabase.from('chit_group_members').select('group_id, member_id').eq('user_id', uid),

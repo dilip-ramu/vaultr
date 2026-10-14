@@ -235,6 +235,51 @@ describe('the balance', () => {
   })
 })
 
+/* ── Who entered it ──────────────────────────────────────────────────────── */
+
+describe('who recorded each line', () => {
+  const s = buildStatement(input({
+    txns: [
+      txn({ id: 'c1', date: '2026-08-05', amount: 2_000 }),
+      txn({ id: 'p1', date: '2026-08-09', amount: 1_500, type: 'expense' }),
+      txn({ id: 'fee', date: '2026-08-11', amount: 200, type: 'expense', name: 'Bank charges' }),
+      txn({ id: 'old', date: '2026-08-12', amount: 900 }),
+    ],
+    collections: [
+      { group_id: 'g1', member_id: 'm1', month_number: 1, amount: 2_000, paid_date: '2026-08-05', income_transaction_id: 'c1', recorded_by_name: 'Lokesh' },
+      // Recorded before this was tracked.
+      { group_id: 'g1', member_id: 'm2', month_number: 1, amount: 900, paid_date: '2026-08-12', income_transaction_id: 'old', recorded_by_name: null },
+    ],
+    auctions: [
+      { group_id: 'g1', month_number: 1, auction_date: '2026-08-09', winner_member_id: 'm1', bid_amount: 0, commission: 0, net_payout: 1_500, dividend_per_member: 0, payout_transaction_id: 'p1', recorded_by_name: 'Dilip' },
+    ],
+  }))
+
+  const by = (id: string) => s.lines.find(l => l.id === id)!.recordedBy
+
+  it('names whoever entered a collection', () => {
+    expect(by('c1')).toBe('Lokesh')
+  })
+
+  it('names whoever recorded the auction behind a payout', () => {
+    expect(by('p1')).toBe('Dilip')
+  })
+
+  it('leaves it blank for a movement that did not come through the chit', () => {
+    // Nobody "recorded" a bank charge, so claiming somebody did would be wrong.
+    expect(by('fee')).toBeNull()
+  })
+
+  it('leaves it blank for rows that predate this being tracked', () => {
+    // Filling those in with the owner would be inventing evidence.
+    expect(by('old')).toBeNull()
+  })
+
+  it('does not change any figure', () => {
+    for (const c of balanceChecks(s)) expect(c.ok, c.label).toBe(true)
+  })
+})
+
 /* ── The rows a partner most wants explained ─────────────────────────────── */
 
 describe('transactions that are not chit money', () => {

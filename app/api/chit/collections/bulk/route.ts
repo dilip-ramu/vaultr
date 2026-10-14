@@ -96,6 +96,9 @@ export async function POST(req: NextRequest) {
     const row = {
       user_id: owner, group_id: groupId, member_id: e.member_id, month_number: e.month_number,
       amount, paid_date: paidDate, account_id: accountId, income_transaction_id: posted.id,
+      // Who entered this. Copied in now, not joined later — see v123.
+      recorded_by_user_id: access.actorId,
+      recorded_by_name: access.actorName,
     }
     const { error: cErr } = prior
       ? await supabase.from('chit_collections').update(row).eq('id', prior.id)
