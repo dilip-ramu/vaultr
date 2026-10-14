@@ -205,6 +205,46 @@ export function selectableMonths(today: string, count = 13): Period[] {
   return out
 }
 
+/**
+ * Any two dates the person picks.
+ *
+ * Returned as a Period so the page does not care whether it is looking at a
+ * whole month or a range somebody typed. Refused rather than corrected when the
+ * dates make no sense: silently swapping a backwards range, or quietly clamping
+ * one, produces a statement whose heading does not match what was asked for —
+ * and this document's whole value is that it says what it did.
+ */
+export function customPeriod(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): Period | { error: string } {
+  const a = (from ?? '').trim()
+  const b = (to ?? '').trim()
+
+  if (!isIsoDate(a) || !isIsoDate(b)) {
+    return { error: 'Pick both a start and an end date.' }
+  }
+  if (a > b) {
+    return { error: 'The start date is after the end date.' }
+  }
+  if (!isRealDate(a) || !isRealDate(b)) {
+    return { error: 'That is not a real date.' }
+  }
+
+  return { start: a, end: b, label: periodLabelFor(a, b), key: `${a}_${b}` }
+}
+
+export function isIsoDate(v: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v)
+}
+
+/** 2026-02-30 passes the shape test and is not a day. */
+export function isRealDate(iso: string): boolean {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (m < 1 || m > 12 || d < 1) return false
+  return d <= lastDayOfMonth(y, m)
+}
+
 /* ── The signed effect of a transaction on one account ────────────────────── */
 // Mirrors lib/reconcile.ts and the account_balances SQL view. Restated here
 // rather than imported so this module stays free of the ledger's own types,

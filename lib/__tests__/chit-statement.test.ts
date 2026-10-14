@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildStatement, balanceChecks, effectOn, monthPeriod, lastCompletedMonth,
   selectableMonths, lastDayOfMonth, periodLabelFor, money, signed, nameOf,
+  customPeriod, isRealDate,
   type StatementInput, type StatementTxn,
 } from '@/lib/chit/statement'
 
@@ -76,6 +77,79 @@ describe('periods', () => {
   it('labels a whole month by name and anything else by its dates', () => {
     expect(periodLabelFor('2026-08-01', '2026-08-31')).toBe('August 2026')
     expect(periodLabelFor('2026-08-01', '2026-08-30')).toBe('1 Aug 2026 to 30 Aug 2026')
+  })
+})
+
+/* ── Any two dates ───────────────────────────────────────────────────────── */
+
+describe('a statement between two dates', () => {
+  it('takes the dates as given', () => {
+    const p = customPeriod('2026-08-12', '2026-09-04')
+    expect('error' in p).toBe(false)
+    if ('error' in p) return
+    expect(p.start).toBe('2026-08-12')
+    expect(p.end).toBe('2026-09-04')
+  })
+
+  it('heads itself with the dates, not with a month name', () => {
+    const p = customPeriod('2026-08-12', '2026-09-04')
+    if ('error' in p) throw new Error('should have been accepted')
+    expect(p.label).toBe('12 Aug 2026 to 4 Sep 2026')
+  })
+
+  it('still says "August 2026" when the dates happen to be a whole month', () => {
+    const p = customPeriod('2026-08-01', '2026-08-31')
+    if ('error' in p) throw new Error('should have been accepted')
+    expect(p.label).toBe('August 2026')
+  })
+
+  it('allows a single day', () => {
+    const p = customPeriod('2026-08-12', '2026-08-12')
+    expect('error' in p).toBe(false)
+  })
+
+  it('refuses a backwards range instead of quietly swapping it', () => {
+    // Swapping would produce a statement whose heading is not what was asked
+    // for, and this document is only worth anything if it says what it did.
+    const p = customPeriod('2026-09-04', '2026-08-12')
+    expect('error' in p && p.error).toContain('after the end date')
+  })
+
+  it('refuses a half-filled pair', () => {
+    expect('error' in customPeriod('2026-08-12', '')).toBe(true)
+    expect('error' in customPeriod('', '2026-08-12')).toBe(true)
+    expect('error' in customPeriod(null, null)).toBe(true)
+  })
+
+  it('refuses something shaped like a date that is not one', () => {
+    expect('error' in customPeriod('2026-02-30', '2026-03-01')).toBe(true)
+    expect('error' in customPeriod('2026-13-01', '2026-13-02')).toBe(true)
+    expect('error' in customPeriod('12/08/2026', '2026-09-04')).toBe(true)
+  })
+
+  it('knows which February dates exist', () => {
+    expect(isRealDate('2026-02-28')).toBe(true)
+    expect(isRealDate('2026-02-29')).toBe(false)
+    expect(isRealDate('2028-02-29')).toBe(true)   // leap year
+  })
+
+  it('builds a statement over a range exactly as it does over a month', () => {
+    const p = customPeriod('2026-08-05', '2026-08-20')
+    if ('error' in p) throw new Error('should have been accepted')
+    const s = buildStatement(input({
+      periodStart: p.start,
+      periodEnd: p.end,
+      initialBalance: 1000,
+      txns: [
+        txn({ id: 'before', date: '2026-08-04', amount: 500 }),
+        txn({ id: 'inside', date: '2026-08-10', amount: 300 }),
+        txn({ id: 'after', date: '2026-08-21', amount: 900 }),
+      ],
+    }))
+    expect(s.opening).toBe(1500)        // the 4th counts as opening
+    expect(s.lines.map(l => l.id)).toEqual(['inside'])
+    expect(s.closing).toBe(1800)        // the 21st is left out
+    for (const c of balanceChecks(s)) expect(c.ok, c.label).toBe(true)
   })
 })
 

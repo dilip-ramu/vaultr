@@ -1,6 +1,13 @@
 'use client'
 
-// Pick a month, look at it, download it, send it.
+// Pick a period, look at it, download it, send it.
+//
+// A whole month is the normal case — that is what goes out on the 1st — so it
+// is the default and stays one click. Two dates are there for the other
+// question, the one that starts "what happened between the auction and the
+// payout", and they are deliberately a second mode rather than the only mode:
+// hand-picked dates can overlap or leave gaps between statements, and that is
+// fine for a one-off and wrong for the monthly.
 //
 // The preview is the real document at real size, scaled down to fit the screen.
 // What you see is what the partners get — there is no second rendering path
@@ -8,13 +15,14 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, FileText, AlertTriangle } from 'lucide-react'
+import { Download, FileText, AlertTriangle, CalendarRange, CalendarDays } from 'lucide-react'
 import ChitStatementSheet from './ChitStatementSheet'
 import type { ChitStatement, Period } from '@/lib/chit/statement'
 import { notify } from '@/components/shared/Toast'
 
 export default function ChitStatementClient({
   months, selectedKey, statement, businessName, missingAccount, knownAccounts,
+  periodStart, periodEnd, rangeError,
 }: {
   months: Period[]
   selectedKey: string
@@ -22,10 +30,26 @@ export default function ChitStatementClient({
   businessName: string
   missingAccount?: string
   knownAccounts?: string[]
+  /** What is on screen now, so the date boxes open on it rather than empty. */
+  periodStart: string
+  periodEnd: string
+  rangeError?: string | null
 }) {
   const router = useRouter()
   const sheetRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
+
+  // A range is showing when the dates are not a whole month, or when the one
+  // that was asked for was refused — in which case the boxes must stay open so
+  // the mistake can be corrected rather than vanishing.
+  const isWholeMonth = months.some(m => m.start === periodStart && m.end === periodEnd)
+  const [byRange, setByRange] = useState(!isWholeMonth || Boolean(rangeError))
+  const [from, setFrom] = useState(periodStart)
+  const [to, setTo] = useState(periodEnd)
+
+  function showRange() {
+    router.push(`/chit/statement?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+  }
 
   const generatedOn = new Date().toLocaleDateString('en-IN', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -54,19 +78,48 @@ export default function ChitStatementClient({
             Partner statement
           </h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            One month of the {businessName} account, ready to send to the partners.
+            The {businessName} account, ready to send to the partners.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            value={selectedKey}
-            onChange={e => router.push(`/chit/statement?m=${e.target.value}`)}
-            className="text-[13px] font-bold px-3 py-2 rounded-xl"
-            style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+          {byRange ? (
+            <div className="flex items-center gap-1.5">
+              <input type="date" value={from} max={to || undefined}
+                onChange={e => setFrom(e.target.value)}
+                className="text-[13px] font-bold px-2.5 py-2 rounded-xl"
+                style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+              <span className="text-[12px]" style={{ color: 'var(--text-faint)' }}>to</span>
+              <input type="date" value={to} min={from || undefined}
+                onChange={e => setTo(e.target.value)}
+                className="text-[13px] font-bold px-2.5 py-2 rounded-xl"
+                style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }} />
+              <button onClick={showRange} disabled={!from || !to}
+                className="text-[13px] font-bold px-3 py-2 rounded-xl disabled:opacity-40"
+                style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                Show
+              </button>
+            </div>
+          ) : (
+            <select
+              value={selectedKey}
+              onChange={e => router.push(`/chit/statement?m=${e.target.value}`)}
+              className="text-[13px] font-bold px-3 py-2 rounded-xl"
+              style={{ border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+            >
+              {months.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
+          )}
+
+          <button
+            onClick={() => setByRange(v => !v)}
+            title={byRange ? 'Pick a whole month instead' : 'Pick any two dates instead'}
+            className="flex items-center gap-1.5 text-[13px] font-bold px-3 py-2 rounded-xl"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
           >
-            {months.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
-          </select>
+            {byRange ? <CalendarDays className="w-4 h-4" /> : <CalendarRange className="w-4 h-4" />}
+            {byRange ? 'Month' : 'Dates'}
+          </button>
           <button
             onClick={download}
             disabled={busy || !statement}
@@ -78,6 +131,15 @@ export default function ChitStatementClient({
           </button>
         </div>
       </div>
+
+      {rangeError && (
+        <div className="rounded-2xl p-4" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+          <p className="text-[13px] font-bold" style={{ color: 'var(--expense)' }}>{rangeError}</p>
+          <p className="text-[12.5px] mt-1" style={{ color: 'var(--text-muted)' }}>
+            The statement below is still showing {statement?.periodLabel ?? 'the last full month'}.
+          </p>
+        </div>
+      )}
 
       {missingAccount && (
         <div className="rounded-2xl p-5" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>

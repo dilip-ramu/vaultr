@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess } from '@/lib/chit/access'
 import ChitStatementClient from '@/components/chit/ChitStatementClient'
 import {
-  buildStatement, monthPeriod, lastCompletedMonth, selectableMonths,
+  buildStatement, monthPeriod, lastCompletedMonth, selectableMonths, customPeriod,
   type StatementTxn, type StatementCollection, type StatementAuction, type StatementGroup,
 } from '@/lib/chit/statement'
 
@@ -21,7 +21,7 @@ const CHIT_ACCOUNT_NAME = 'Unyra Capital'
 
 export default async function ChitStatementPage({
   searchParams,
-}: { searchParams: Promise<{ m?: string }> }) {
+}: { searchParams: Promise<{ m?: string; from?: string; to?: string }> }) {
   const access = await resolveChitAccess()
   if (!access) redirect('/login')
   if (!access.isOwner) redirect('/chit')
@@ -30,9 +30,20 @@ export default async function ChitStatementPage({
   const uid = access.ownerId
   const today = new Date().toISOString().split('T')[0]
 
-  const { m } = await searchParams
+  const { m, from, to } = await searchParams
   const months = selectableMonths(today, 14)
-  const period = m && /^\d{4}-\d{2}$/.test(m) ? monthPeriod(m) : lastCompletedMonth(today)
+
+  // Two dates beat a month when both are given. A bad pair is reported rather
+  // than quietly falling back to a month the person did not ask for — a
+  // statement headed with the wrong period is the one mistake this document
+  // cannot afford.
+  let rangeError: string | null = null
+  let period = m && /^\d{4}-\d{2}$/.test(m) ? monthPeriod(m) : lastCompletedMonth(today)
+  if (from || to) {
+    const custom = customPeriod(from, to)
+    if ('error' in custom) rangeError = custom.error
+    else period = custom
+  }
 
   // The account. Matched by name, case-insensitively, so renaming the case does
   // not silently produce an empty statement.
@@ -51,6 +62,7 @@ export default async function ChitStatementPage({
     return (
       <ChitStatementClient
         months={months} selectedKey={period.key} statement={null}
+        periodStart={period.start} periodEnd={period.end} rangeError={rangeError}
         missingAccount={CHIT_ACCOUNT_NAME}
         knownAccounts={all.map(a => a.name).sort()}
         businessName={CHIT_ACCOUNT_NAME}
@@ -127,6 +139,7 @@ export default async function ChitStatementPage({
   return (
     <ChitStatementClient
       months={months} selectedKey={period.key} statement={statement}
+      periodStart={period.start} periodEnd={period.end} rangeError={rangeError}
       businessName={account.name}
     />
   )
