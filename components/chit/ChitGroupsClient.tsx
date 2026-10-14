@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, X, Users, ChevronRight, Trash2 } from 'lucide-react'
+import { Plus, X, Users, ChevronRight, Trash2, CalendarRange, Clock, Archive } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { inr } from '@/lib/assets/valuation'
@@ -12,6 +12,9 @@ import {
   type CommissionModel,
 } from '@/lib/chit/auction'
 import type { ChitGroup } from '@/lib/chit/types'
+import { groupSchedule, isPast, type GroupPhase } from '@/lib/chit/groupSchedule'
+import { formatAuctionTime } from '@/lib/chit/auctionTime'
+import { niceDate } from '@/lib/chit/messages'
 
 export default function ChitGroupsClient({ initialGroups, companies, memberCounts }: {
   initialGroups: ChitGroup[]
@@ -21,6 +24,13 @@ export default function ChitGroupsClient({ initialGroups, companies, memberCount
   const router = useRouter()
   const [groups, setGroups] = useState(initialGroups)
   const [adding, setAdding] = useState(false)
+  const [showPast, setShowPast] = useState(false)
+
+  // Today, as a plain date. A chit's calendar is days, not instants.
+  const today = new Date().toISOString().split('T')[0]
+  const withSchedule = groups.map(g => ({ g, s: groupSchedule(g, today) }))
+  const live = withSchedule.filter(x => !isPast(x.s.phase))
+  const past = withSchedule.filter(x => isPast(x.s.phase))
 
   async function remove(id: string) {
     if (!(await confirmDialog('Delete this group and its members, auctions and collections? Posted transactions stay in your books.'))) return
@@ -36,7 +46,9 @@ export default function ChitGroupsClient({ initialGroups, companies, memberCount
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text)' }}>Chit groups</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{groups.length} group{groups.length === 1 ? '' : 's'}</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {live.length} running{past.length > 0 ? ` · ${past.length} finished` : ''}
+          </p>
         </div>
         <button onClick={() => setAdding(true)}
           className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl" style={{ background: 'var(--brand)' }}>
@@ -45,45 +57,123 @@ export default function ChitGroupsClient({ initialGroups, companies, memberCount
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {groups.length === 0 && (
-          <p className="px-4 py-8 text-center text-sm md:col-span-2" style={{ color: 'var(--text-faint)' }}>No groups yet.</p>
+        {live.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm md:col-span-2" style={{ color: 'var(--text-faint)' }}>
+            {past.length > 0 ? 'No groups running. The finished ones are below.' : 'No groups yet.'}
+          </p>
         )}
-        {groups.map(g => {
-          const installment = monthlyInstallment({ chitValue: g.chit_value, members: g.members })
-          const months = numberOfMonths({ members: g.members, model: g.commission_model })
-          const inGroup = memberCounts[g.id] ?? 0
-          return (
-            <div key={g.id} className="rounded-2xl p-4" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
-              <div className="flex items-start justify-between gap-2">
-                <Link href={`/chit/groups/${g.id}`} className="min-w-0 flex-1">
-                  <p className="text-[15px] font-extrabold truncate" style={{ color: 'var(--text)' }}>{g.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
-                    {inr(g.chit_value)} · {g.members} members · {g.commission_model === 'UPFRONT' ? 'Upfront' : `${g.commission_pct}% monthly`}
-                    {companyName(g.company_id) && <> · {companyName(g.company_id)}</>}
-                  </p>
-                </Link>
-                <button onClick={() => remove(g.id)} className="p-1 shrink-0" style={{ color: 'var(--expense)' }}><Trash2 className="w-4 h-4" /></button>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                <Stat label="Installment" value={inr(installment)} />
-                <Stat label="Months" value={String(months)} />
-                <Stat label="Members" value={`${inGroup} / ${g.members}`} />
-              </div>
-              <Link href={`/chit/groups/${g.id}`}
-                className="flex items-center justify-center gap-1 mt-3 py-2 rounded-xl text-[12.5px] font-bold"
-                style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>
-                Open <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          )
-        })}
+        {live.map(({ g, s: sched }) => (
+          <GroupCard key={g.id} g={g} sched={sched}
+            inGroup={memberCounts[g.id] ?? 0}
+            company={companyName(g.company_id)}
+            onRemove={() => remove(g.id)} />
+        ))}
       </div>
+
+      {past.length > 0 && (
+        <div>
+          <button onClick={() => setShowPast(v => !v)}
+            className="flex items-center gap-2 text-[12px] font-extrabold uppercase tracking-wide py-2"
+            style={{ color: 'var(--text-faint)' }}>
+            <Archive className="w-3.5 h-3.5" />
+            Finished groups ({past.length})
+            <ChevronRight className="w-3.5 h-3.5 transition-transform"
+              style={{ transform: showPast ? 'rotate(90deg)' : undefined }} />
+          </button>
+
+          {showPast && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
+              {past.map(({ g, s: sched }) => (
+                <GroupCard key={g.id} g={g} sched={sched}
+                  inGroup={memberCounts[g.id] ?? 0}
+                  company={companyName(g.company_id)}
+                  onRemove={() => remove(g.id)} past />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {adding && (
         <GroupForm companies={companies}
           onClose={() => setAdding(false)}
           onSaved={g => { setGroups(prev => [g, ...prev]); setAdding(false); router.refresh() }} />
       )}
+    </div>
+  )
+}
+
+const PHASE_WORD: Record<GroupPhase, string> = {
+  running: 'Running',
+  upcoming: 'Not started',
+  past: 'Finished',
+  undated: 'No start date',
+}
+
+function GroupCard({ g, sched, inGroup, company, onRemove, past }: {
+  g: ChitGroup
+  sched: ReturnType<typeof groupSchedule>
+  inGroup: number
+  company?: string
+  onRemove: () => void
+  past?: boolean
+}) {
+  const installment = monthlyInstallment({ chitValue: g.chit_value, members: g.members })
+  const time = formatAuctionTime(g.auction_time)
+
+  return (
+    <div className="rounded-2xl p-4"
+      style={{ border: '1px solid var(--border)', background: 'var(--surface)', opacity: past ? 0.75 : 1 }}>
+      <div className="flex items-start justify-between gap-2">
+        <Link href={`/chit/groups/${g.id}`} className="min-w-0 flex-1">
+          <p className="text-[15px] font-extrabold truncate flex items-center gap-2" style={{ color: 'var(--text)' }}>
+            {g.name}
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+              style={sched.phase === 'running'
+                ? { color: 'var(--income)', background: 'color-mix(in srgb, var(--income) 14%, transparent)' }
+                : { color: 'var(--text-faint)', border: '1px solid var(--border)' }}>
+              {PHASE_WORD[sched.phase]}
+            </span>
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
+            {inr(g.chit_value)} · {g.members} members · {g.commission_model === 'UPFRONT' ? 'Upfront' : `${g.commission_pct}% monthly`}
+            {company && <> · {company}</>}
+          </p>
+        </Link>
+        <button onClick={onRemove} className="p-1 shrink-0" style={{ color: 'var(--expense)' }}>
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* When it runs, and at what time. Both derived — neither is stored, so
+          correcting the start date corrects the end date with it. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5 text-[11.5px]"
+        style={{ color: 'var(--text-muted)' }}>
+        <span className="inline-flex items-center gap-1.5">
+          <CalendarRange className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />
+          {sched.firstAuction && sched.lastAuction
+            ? <>{niceDate(sched.firstAuction)} → {niceDate(sched.lastAuction)}</>
+            : <span style={{ color: 'var(--text-faint)' }}>No start date set</span>}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5" style={{ color: 'var(--text-faint)' }} />
+          {time ?? <span style={{ color: 'var(--text-faint)' }}>No time set</span>}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        <Stat label="Installment" value={inr(installment)} />
+        <Stat label="Months" value={sched.phase === 'past'
+          ? String(sched.months)
+          : `${sched.monthsElapsed} / ${sched.months}`} />
+        <Stat label="Members" value={`${inGroup} / ${g.members}`} />
+      </div>
+
+      <Link href={`/chit/groups/${g.id}`}
+        className="flex items-center justify-center gap-1 mt-3 py-2 rounded-xl text-[12.5px] font-bold"
+        style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>
+        Open <ChevronRight className="w-3.5 h-3.5" />
+      </Link>
     </div>
   )
 }

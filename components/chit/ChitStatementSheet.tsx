@@ -9,6 +9,12 @@
 // The order is the argument: what the balance is, then anything that needs
 // explaining, then the chit activity that caused it, then every single line so
 // the reader can check the claim for themselves.
+//
+// data-pdf-break marks the places a page may end. The PDF used to be one tall
+// image sliced every 297mm, so pages broke through the middle of a transaction
+// row and sheared a balance figure in half — and a reader cannot tell that from
+// a number that has gone wrong. Every block and every row now offers a safe
+// offset, and a page ends at the last one that fits.
 
 import type { ChitStatement } from '@/lib/chit/statement'
 import { money, dmy } from '@/lib/chit/statement'
@@ -66,6 +72,7 @@ export default function ChitStatementSheet({
       </div>
 
       {/* ── The balance, with its arithmetic on show ─────────────────────── */}
+      <div data-pdf-break />
       <Section title="The balance" />
       <div style={{ border: `1px solid ${RULE}`, borderRadius: 6, overflow: 'hidden', marginBottom: 6 }}>
         <BalanceRow label={`Opening balance on ${dmy(s.periodStart)}`} value={money(s.opening)} />
@@ -95,7 +102,7 @@ export default function ChitStatementSheet({
       {s.recordedBalance == null && <div style={{ height: 10 }} />}
 
       {/* ── Where the money came from and went ──────────────────────────── */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+      <div data-pdf-break style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
         <Stat label="Collections received" value={money(s.collectionsIn)} colour={IN} />
         <Stat label="Payouts made" value={money(s.payoutsOut)} colour={OUT} />
         <Stat label="Other money in" value={money(s.otherIn)} colour={s.otherIn ? IN : MUTED} />
@@ -105,6 +112,7 @@ export default function ChitStatementSheet({
       {/* ── Anything a reader should not have to work out ───────────────── */}
       {s.notes.length > 0 && (
         <>
+          <div data-pdf-break />
           <Section title="Notes" />
           <div style={{
             border: `1px solid ${RULE}`, borderLeft: `3px solid ${INK}`,
@@ -118,12 +126,13 @@ export default function ChitStatementSheet({
       )}
 
       {/* ── The chits themselves ────────────────────────────────────────── */}
+      <div data-pdf-break />
       <Section title="Chit groups this period" />
       {s.groups.length === 0 && (
         <p style={{ fontSize: 11.5, color: MUTED, marginTop: 0 }}>No chit groups on the books.</p>
       )}
       {s.groups.map(g => (
-        <div key={g.id} style={{
+        <div key={g.id} data-pdf-break style={{
           border: `1px solid ${RULE}`, borderRadius: 6, padding: '12px 14px', marginBottom: 10,
           breakInside: 'avoid',
         }}>
@@ -174,7 +183,7 @@ export default function ChitStatementSheet({
       ))}
 
       {/* ── Every line ──────────────────────────────────────────────────── */}
-      <div style={{ marginTop: 22 }}>
+      <div data-pdf-break style={{ marginTop: 22 }}>
         <Section title={`Every transaction in ${s.accountName}`} />
       </div>
       {s.lines.length === 0 ? (
@@ -199,7 +208,7 @@ export default function ChitStatementSheet({
               <Td right strong>{money(s.opening)}</Td>
             </tr>
             {s.lines.map(l => (
-              <tr key={l.id} style={{ borderTop: `1px solid ${RULE}` }}>
+              <tr key={l.id} data-pdf-break style={{ borderTop: `1px solid ${RULE}` }}>
                 <Td>{dmy(l.date)}</Td>
                 <Td>{l.description}</Td>
                 <Td>
@@ -216,7 +225,7 @@ export default function ChitStatementSheet({
                 <Td right>{money(l.running)}</Td>
               </tr>
             ))}
-            <tr style={{ borderTop: `1.5px solid ${INK}` }}>
+            <tr data-pdf-break style={{ borderTop: `1.5px solid ${INK}` }}>
               <Td colSpan={3} strong>Closing balance on {dmy(s.periodEnd)}</Td>
               <Td right strong colour={IN}>{money(s.moneyIn)}</Td>
               <Td right strong colour={OUT}>{money(s.moneyOut)}</Td>
@@ -234,7 +243,7 @@ export default function ChitStatementSheet({
       )}
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
-      <div style={{ marginTop: 28, paddingTop: 10, borderTop: `1px solid ${RULE}`, color: MUTED, fontSize: 10 }}>
+      <div data-pdf-break style={{ marginTop: 28, paddingTop: 10, borderTop: `1px solid ${RULE}`, color: MUTED, fontSize: 10 }}>
         <p style={{ margin: 0 }}>
           Prepared {generatedOn} from the {s.accountName} account ledger. Figures are computed from
           transaction records, not entered by hand. Any partner who spots a line that does not match

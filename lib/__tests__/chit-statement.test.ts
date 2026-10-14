@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildStatement, balanceChecks, effectOn, monthPeriod, lastCompletedMonth,
   selectableMonths, lastDayOfMonth, periodLabelFor, money, signed, nameOf,
-  customPeriod, isRealDate,
+  customPeriod, isRealDate, statementFileName,
   type StatementInput, type StatementTxn,
 } from '@/lib/chit/statement'
 
@@ -402,6 +402,35 @@ describe('a month with no movement', () => {
 })
 
 /* ── Presentation helpers the document depends on ────────────────────────── */
+
+describe('what the downloaded file is called', () => {
+  it('names the period, not the day it was generated', () => {
+    expect(statementFileName('2026-08-01', '2026-08-31')).toBe('UC-Statement-2026-08-01-to-2026-08-31')
+  })
+
+  it('uses ISO dates so a folder of them sorts chronologically', () => {
+    const names = [
+      statementFileName('2026-09-01', '2026-09-30'),
+      statementFileName('2026-08-01', '2026-08-31'),
+      statementFileName('2025-12-01', '2025-12-31'),
+    ].sort()
+    expect(names[0]).toContain('2025-12-01')
+    expect(names[2]).toContain('2026-09-01')
+  })
+
+  it('works for a hand-picked range too', () => {
+    expect(statementFileName('2026-08-12', '2026-09-04')).toBe('UC-Statement-2026-08-12-to-2026-09-04')
+  })
+
+  it('contains nothing a filesystem would object to', () => {
+    expect(statementFileName('2026-08-01', '2026-08-31')).toMatch(/^[A-Za-z0-9._-]+$/)
+  })
+
+  it('falls back to a plain name rather than writing rubbish into a filename', () => {
+    expect(statementFileName('', '')).toBe('UC-Statement')
+    expect(statementFileName('12/08/2026', '2026-09-04')).toBe('UC-Statement')
+  })
+})
 
 describe('how figures are written', () => {
   it('uses Indian grouping', () => {

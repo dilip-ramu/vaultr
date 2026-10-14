@@ -3,6 +3,8 @@
 // and lays it into a multi-page A4 PDF via jsPDF. Dynamically imported so the
 // (large) libs never load until the user actually downloads.
 
+import { chooseBreaks, pageSlices } from './pageBreaks'
+
 function pickSheet(root: Document | HTMLElement): HTMLElement | null {
   return (
     (root.querySelector('.vinv .sheet') as HTMLElement | null) ??       // legacy / template layout
@@ -171,4 +173,101 @@ export async function downloadPrintRouteAsPdf(printUrl: string, filename: string
     const pdf = await elementToPdf(el)
     pdf.save(withExt(filename))
   })
+}
+
+/* ── Long documents, cut where the content allows ─────────────────────────── */
+//
+// elementToPdf above rasterises a sheet and slices it every 297mm. That is
+// right for an invoice, which is designed to be one page. It is wrong for a
+// statement, which is as long as the month was — there it cuts through the
+// middle of a transaction row and shears a balance figure in half, and a reader
+// cannot tell that from a number that has gone wrong.
+//
+// This renders the same element, then cuts only at offsets the content says are
+// safe: elements carrying data-pdf-break. Each page is a crop of the one canvas,
+// placed on its own A4 sheet with real margins, and footed with the page number
+// so a printed stack cannot be shuffled into the wrong order unnoticed.
+
+export interface PagedPdfOptions {
+  /** Printed bottom-left on every page, e.g. "Unyra Capital · August 2026". */
+  footer?: string
+  /** Page margins in mm. */
+  margin?: { top: number; bottom: number; side: number }
+}
+
+const DEFAULT_MARGIN = { top: 10, bottom: 13, side: 10 }
+
+export async function downloadPagedPdf(
+  el: HTMLElement,
+  filename: string,
+  opts: PagedPdfOptions = {},
+): Promise<void> {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas-pro'),
+    import('jspdf'),
+  ])
+
+  const margin = opts.margin ?? DEFAULT_MARGIN
+  const cssWidth = el.offsetWidth || 794
+
+  // Safe cut points, in CSS pixels from the top of the sheet. Measured BEFORE
+  // rasterising, because html2canvas renders a clone and these offsets must
+  // describe the element we are about to photograph.
+  const sheetTop = el.getBoundingClientRect().top
+  const candidates: number[] = []
+  el.querySelectorAll<HTMLElement>('[data-pdf-break]').forEach(node => {
+    candidates.push(node.getBoundingClientRect().top - sheetTop)
+  })
+
+  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
+  const pxPerCss = canvas.width / cssWidth
+
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const contentW = pageW - margin.side * 2
+  const contentH = pageH - margin.top - margin.bottom
+
+  // One CSS pixel is this many millimetres once the sheet is fitted to the page
+  // width. Everything below is in CSS pixels and converted at the last moment.
+  const mmPerCss = contentW / cssWidth
+  const pageHeightCss = contentH / mmPerCss
+  const totalCss = canvas.height / pxPerCss
+
+  const slices = pageSlices(chooseBreaks(candidates, totalCss, pageHeightCss))
+  const pages = slices.length || 1
+
+  slices.forEach((slice, i) => {
+    if (i > 0) pdf.addPage()
+
+    // Crop this page out of the single rasterised sheet.
+    const sx = 0
+    const sy = Math.round(slice.top * pxPerCss)
+    const sw = canvas.width
+    const sh = Math.min(Math.round(slice.height * pxPerCss), canvas.height - sy)
+    if (sh <= 0) return
+
+    const cut = document.createElement('canvas')
+    cut.width = sw
+    cut.height = sh
+    const ctx = cut.getContext('2d')
+    if (!ctx) return
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, sw, sh)
+    ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh)
+
+    pdf.addImage(
+      cut.toDataURL('image/jpeg', 0.95), 'JPEG',
+      margin.side, margin.top, contentW, sh / pxPerCss * mmPerCss,
+    )
+
+    // A statement gets printed and passed around. Unnumbered pages can be
+    // reordered or lost without anybody noticing.
+    pdf.setFontSize(7.5)
+    pdf.setTextColor(130)
+    if (opts.footer) pdf.text(opts.footer, margin.side, pageH - 6)
+    pdf.text(`Page ${i + 1} of ${pages}`, pageW - margin.side, pageH - 6, { align: 'right' })
+  })
+
+  pdf.save(withExt(filename))
 }

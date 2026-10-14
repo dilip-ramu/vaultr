@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation'
 import { Download, FileText, AlertTriangle, CalendarRange, CalendarDays } from 'lucide-react'
 import ChitStatementSheet from './ChitStatementSheet'
 import type { ChitStatement, Period } from '@/lib/chit/statement'
+import { statementFileName } from '@/lib/chit/statement'
 import { notify } from '@/components/shared/Toast'
 
 export default function ChitStatementClient({
@@ -61,8 +62,12 @@ export default function ChitStatementClient({
     if (!el || !statement) return
     setBusy(true)
     try {
-      const { downloadElementPdf } = await import('@/lib/pdf/downloadElementPdf')
-      await downloadElementPdf(el, `Chit statement — ${statement.periodLabel}`)
+      // NOT downloadElementPdf: that one fits a single A4 sheet and slices
+      // anything longer every 297mm, which is what was cutting rows in half.
+      const { downloadPagedPdf } = await import('@/lib/pdf/downloadElementPdf')
+      await downloadPagedPdf(el, statementFileName(statement.periodStart, statement.periodEnd), {
+        footer: `${businessName} · ${statement.periodLabel}`,
+      })
     } catch {
       notify('Could not build the PDF. Try again.', 'error')
     } finally {

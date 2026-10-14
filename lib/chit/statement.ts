@@ -496,6 +496,27 @@ export function dmy(iso: string): string {
   return `${d} ${MONTHS[m - 1]?.slice(0, 3) ?? '?'} ${y}`
 }
 
+/**
+ * What the downloaded file is called.
+ *
+ * These land in a folder and stay there for years, so the name carries the
+ * period rather than the month it was generated in. ISO dates because a folder
+ * of them then sorts into chronological order on its own — "01-08-2026" sorts
+ * between January and February, which is no use to anyone looking for last
+ * August two years from now.
+ */
+export function statementFileName(start: string, end: string): string {
+  const a = fileDate(start)
+  const b = fileDate(end)
+  if (!a || !b) return 'UC-Statement'
+  return `UC-Statement-${a}-to-${b}`
+}
+
+/** Only a real date reaches a filename; anything else is left out entirely. */
+function fileDate(iso: string): string | null {
+  return isIsoDate(String(iso ?? '')) ? String(iso) : null
+}
+
 /** The arithmetic the statement claims, restated so a test can assert it. */
 export function balanceChecks(s: ChitStatement): { label: string; ok: boolean }[] {
   return [
