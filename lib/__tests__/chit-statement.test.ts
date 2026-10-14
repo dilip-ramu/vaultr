@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildStatement, balanceChecks, effectOn, monthPeriod, lastCompletedMonth,
   selectableMonths, lastDayOfMonth, periodLabelFor, money, signed, nameOf,
-  customPeriod, isRealDate, statementFileName,
+  customPeriod, isRealDate, statementFileName, linesNewestFirst,
   type StatementInput, type StatementTxn,
 } from '@/lib/chit/statement'
 
@@ -232,6 +232,45 @@ describe('the balance', () => {
     }))
     expect(s.lines).toEqual([])
     expect(s.closing).toBe(0)
+  })
+})
+
+/* ── The order it prints in ──────────────────────────────────────────────── */
+
+describe('printing newest first', () => {
+  const s = buildStatement(input({
+    initialBalance: 10_000,
+    txns: [
+      txn({ id: 'first', date: '2026-08-05', amount: 2_000 }),
+      txn({ id: 'middle', date: '2026-08-10', amount: 3_000 }),
+      txn({ id: 'last', date: '2026-08-20', amount: 1_000, type: 'expense' }),
+    ],
+  }))
+
+  it('keeps the model in date order, because the balance runs forwards', () => {
+    expect(s.lines.map(l => l.id)).toEqual(['first', 'middle', 'last'])
+  })
+
+  it('prints the most recent movement first, the way a bank statement reads', () => {
+    expect(linesNewestFirst(s.lines).map(l => l.id)).toEqual(['last', 'middle', 'first'])
+  })
+
+  it('still means "balance after this transaction" once reversed', () => {
+    // This is the bit that goes wrong: reversing the rows must not reverse what
+    // the balance column says. The top row carries the closing balance.
+    const printed = linesNewestFirst(s.lines)
+    expect(printed[0].running).toBe(s.closing)
+    expect(printed[printed.length - 1].running).toBe(s.opening + 2_000)
+  })
+
+  it('does not disturb the model it was given', () => {
+    const before = s.lines.map(l => l.id)
+    linesNewestFirst(s.lines)
+    expect(s.lines.map(l => l.id)).toEqual(before)
+  })
+
+  it('copes with an empty month', () => {
+    expect(linesNewestFirst([])).toEqual([])
   })
 })
 

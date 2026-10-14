@@ -543,6 +543,21 @@ function fileDate(iso: string): string | null {
   return isIsoDate(String(iso ?? '')) ? String(iso) : null
 }
 
+/**
+ * The lines as a statement prints them: newest first.
+ *
+ * The model keeps them in date order because the running balance can only be
+ * computed forwards. Printing is the other way round, the way a bank statement
+ * reads — the most recent thing is what anyone opening it wants first.
+ *
+ * `running` still means "the balance AFTER this transaction", which is why the
+ * top row carries the closing balance and the bottom row the first movement of
+ * the period. Reversing the rows must not reverse what the column means.
+ */
+export function linesNewestFirst(lines: StatementLine[]): StatementLine[] {
+  return lines.slice().reverse()
+}
+
 /** The arithmetic the statement claims, restated so a test can assert it. */
 export function balanceChecks(s: ChitStatement): { label: string; ok: boolean }[] {
   return [

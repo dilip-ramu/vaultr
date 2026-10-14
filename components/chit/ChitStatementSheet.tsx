@@ -17,7 +17,7 @@
 // offset, and a page ends at the last one that fits.
 
 import type { ChitStatement } from '@/lib/chit/statement'
-import { money, dmy } from '@/lib/chit/statement'
+import { money, dmy, linesNewestFirst } from '@/lib/chit/statement'
 
 const INK = '#111111'
 const MUTED = '#6b6b6b'
@@ -204,11 +204,17 @@ export default function ChitStatementSheet({
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <Td colSpan={6} muted>Opening balance</Td>
-              <Td right strong>{money(s.opening)}</Td>
+            {/* Newest first, as a bank statement reads. The balance column still
+                means "after this transaction", so the closing balance is at the
+                top and the opening balance at the bottom — reversing the rows
+                must not reverse what the column says. */}
+            <tr style={{ borderBottom: `1.5px solid ${INK}` }}>
+              <Td colSpan={4} strong>Closing balance on {dmy(s.periodEnd)}</Td>
+              <Td right strong colour={IN}>{money(s.moneyIn)}</Td>
+              <Td right strong colour={OUT}>{money(s.moneyOut)}</Td>
+              <Td right strong>{money(s.closing)}</Td>
             </tr>
-            {s.lines.map(l => (
+            {linesNewestFirst(s.lines).map(l => (
               <tr key={l.id} data-pdf-break style={{ borderTop: `1px solid ${RULE}` }}>
                 <Td>{dmy(l.date)}</Td>
                 <Td>{l.description}</Td>
@@ -228,10 +234,8 @@ export default function ChitStatementSheet({
               </tr>
             ))}
             <tr data-pdf-break style={{ borderTop: `1.5px solid ${INK}` }}>
-              <Td colSpan={4} strong>Closing balance on {dmy(s.periodEnd)}</Td>
-              <Td right strong colour={IN}>{money(s.moneyIn)}</Td>
-              <Td right strong colour={OUT}>{money(s.moneyOut)}</Td>
-              <Td right strong>{money(s.closing)}</Td>
+              <Td colSpan={6} strong>Opening balance on {dmy(s.periodStart)}</Td>
+              <Td right strong>{money(s.opening)}</Td>
             </tr>
           </tbody>
         </table>
