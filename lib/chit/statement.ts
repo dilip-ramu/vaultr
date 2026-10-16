@@ -25,6 +25,7 @@
 // a trust the numbers have not earned.
 
 import { monthlyInstallment } from './auction'
+import { groupLedger, type CreditMoveRow } from './groupLedger'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -91,6 +92,8 @@ export interface StatementInput {
   memberNames: Record<string, { name: string; code: string | null }>
   /** member id → group ids they are on the roster for. */
   rosterByGroup: Record<string, string[]>
+  /** Credit members moved between their chits (v124). */
+  creditMoves?: CreditMoveRow[]
 }
 
 /* ── What comes out ───────────────────────────────────────────────────────── */
@@ -272,7 +275,7 @@ export function buildStatement(input: StatementInput): ChitStatement {
   const {
     accountId, accountName, initialBalance, recordedBalance,
     periodStart, periodEnd, txns, collections, auctions, groups,
-    memberNames, rosterByGroup,
+    memberNames, rosterByGroup, creditMoves = [],
   } = input
 
   const period = { start: periodStart, end: periodEnd }
@@ -370,24 +373,33 @@ export function buildStatement(input: StatementInput): ChitStatement {
       a.group_id === g.id && a.auction_date >= period.start && a.auction_date <= period.end)
     const a = auctionsInPeriod.sort((x, y) => y.month_number - x.month_number)[0] ?? null
 
-    // What is owed, measured only against auctions that have actually run by
-    // the period end. A month whose auction has not happened owes nothing —
-    // counting it would invent a debt.
-    const runByEnd = auctions.filter(x => x.group_id === g.id && x.auction_date <= period.end)
-    const paidSlots = new Set(collections
-      .filter(c => c.group_id === g.id && c.paid_date <= period.end)
-      .map(c => `${c.member_id}:${c.month_number}`))
-
-    let outstanding = 0, outstandingCount = 0
-    for (const month of runByEnd) {
-      const due = Math.max(0, round2(installment - Number(month.dividend_per_member || 0)))
-      for (const memberId of roster) {
-        if (!paidSlots.has(`${memberId}:${month.month_number}`)) {
-          outstanding = round2(outstanding + due)
-          outstandingCount++
-        }
-      }
-    }
+    // What is owed, from the same ledger the collection screens use.
+    //
+    // This used to ask "is there a row for this member and month" and charge
+    // the full amount when there was not. That treats a member who paid ₹1,400
+    // too much last month as owing the full figure this month, which is not
+    // what they will be asked for — so the statement would disagree with the
+    // app on the one number partners check.
+    const gl = groupLedger({
+      groupId: g.id,
+      installment,
+      memberIds: roster,
+      auctions: auctions
+        .filter(x => x.group_id === g.id)
+        .map(x => ({
+          group_id: x.group_id,
+          month_number: x.month_number,
+          dividend_per_member: x.dividend_per_member,
+          auction_date: x.auction_date,
+        })),
+      collections: collections
+        .filter(c => c.group_id === g.id && c.paid_date <= period.end)
+        .map(c => ({ group_id: c.group_id, member_id: c.member_id, month_number: c.month_number, amount: c.amount })),
+      creditMoves,
+      asOf: period.end,
+    })
+    const outstanding = gl.outstanding
+    const outstandingCount = gl.pendingCount
 
     return {
       id: g.id,

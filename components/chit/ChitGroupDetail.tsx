@@ -21,16 +21,21 @@ import { auctionNotice, auctionResult, winnerPayout, scheduledAuctionDate, niceD
 import NotifyModal, { toTarget, type NotifyTarget } from './NotifyModal'
 import { Send } from 'lucide-react'
 import { formatAuctionTime, toTimeInput } from '@/lib/chit/auctionTime'
+import { isChitAccount } from '@/lib/chit/account'
+import { groupLedger, ledgerFor, type CreditMoveRow } from '@/lib/chit/groupLedger'
+import { balanceWords } from '@/lib/chit/memberLedger'
 
 type Tab = 'members' | 'auctions' | 'collections' | 'receivables'
 type Account = { id: string; name: string; type: string; company_id: string | null }
 type Coll = ChitCollection & { member?: { name: string } }
 
 export default function ChitGroupDetail({
-  group: initialGroup, groupMembers, allMembers, auctions: initialAuctions, collections: initialCollections, accounts, companies,
+  group: initialGroup, groupMembers, allMembers, auctions: initialAuctions, collections: initialCollections, accounts, companies, creditMoves = [],
 }: {
   group: ChitGroup
   groupMembers: ChitGroupMember[]
+  /** Credit these members moved between their chits (v124). */
+  creditMoves?: CreditMoveRow[]
   allMembers: ChitMember[]
   auctions: ChitAuction[]
   collections: Coll[]
@@ -60,7 +65,33 @@ export default function ChitGroupDetail({
     () => new Map(auctions.map(a => [a.month_number, Number(a.dividend_per_member) || 0])),
     [auctions],
   )
+  // The headline figure for a month, the same for everybody.
   const dueForMonth = (m: number) => monthlyDue(installment, dividendByMonth.get(m) ?? 0)
+
+  // What each member is actually asked for, which is NOT the same thing once
+  // anybody has over- or under-paid. Worked out once for the whole group so the
+  // collection screen, the member page and the statement cannot disagree.
+  const gl = useMemo(() => groupLedger({
+    groupId: group.id,
+    installment,
+    memberIds: members.map(m => m.member_id),
+    auctions,
+    collections,
+    creditMoves,
+    asOf: new Date().toISOString().split('T')[0],
+  }), [group.id, installment, members, auctions, collections, creditMoves])
+
+  /**
+   * What to charge THIS member for THIS month.
+   *
+   * Falls back to the group figure for a member with no position yet — a new
+   * member in a month that has already run should be asked for the full
+   * amount, not for nothing.
+   */
+  const payableFor = (memberId: string, m: number): number => {
+    const row = ledgerFor(gl, memberId).months.find(x => x.month === m)
+    return row ? row.payable : dueForMonth(m)
+  }
   const companyName = companies.find(c => c.id === group.company_id)?.name ?? 'the company'
 
   // Which member won each month — used to flag the winner in the collection views.
@@ -69,11 +100,16 @@ export default function ChitGroupDetail({
     [auctions],
   )
 
-  // The company's own bank account is the sensible default for collections. Prefer
-  // a real bank account (checking/savings) tagged to the group's company; fall
-  // back to any of its accounts, then to the first available.
+  // Chit money goes into the chit account. It is named rather than guessed,
+  // because guessing from the company sometimes picked a different account of
+  // the same company and nobody noticed until the statement did not reconcile.
+  //
+  // The old company-based guess stays as the fallback, so a group whose money
+  // genuinely goes somewhere else still behaves, and so does a setup where the
+  // account has not been named that yet.
   const defaultAccountId =
-    accounts.find(a => a.company_id === group.company_id && (a.type === 'checking' || a.type === 'savings'))?.id
+    accounts.find(a => isChitAccount(a.name))?.id
+    ?? accounts.find(a => a.company_id === group.company_id && (a.type === 'checking' || a.type === 'savings'))?.id
     ?? accounts.find(a => a.company_id === group.company_id)?.id
     ?? accounts[0]?.id ?? ''
 
@@ -86,10 +122,9 @@ export default function ChitGroupDetail({
    * still owe for months that have actually been auctioned — an instalment is
    * only due once its month has been held.
    */
-  const pendingCollections = useMemo(() => pendingCollectionCount({
-    memberIds: members.map(gm => gm.member_id),
-    auctions, collections,
-  }), [auctions, collections, members])
+  // Member-months still short. Comes from the same ledger as everything else,
+  // so a member who overpaid last month is not counted as owing this one.
+  const pendingCollections = gl.pendingCount
 
   const TABS: [Tab, string][] = [
     ['members', `Members · ${members.length}`],
@@ -142,24 +177,24 @@ export default function ChitGroupDetail({
 
       {tab === 'members' && (
         <MembersTab group={group} members={members} allMembers={allMembers}
-          auctions={auctions} collections={collections} dueForMonth={dueForMonth}
+          auctions={auctions} collections={collections} dueForMonth={dueForMonth} payableFor={payableFor}
           onChange={setMembers} onRefresh={() => router.refresh()} />
       )}
       {tab === 'auctions' && (
         <AuctionsTab group={group} params={params} months={months} members={members}
           accounts={accounts} defaultAccountId={defaultAccountId} auctions={auctions} onChange={setAuctions}
-          collections={collections} dueForMonth={dueForMonth} onCollected={setCollections}
+          collections={collections} dueForMonth={dueForMonth} payableFor={payableFor} onCollected={setCollections}
           installment={installment} companyName={companyName} />
       )}
       {tab === 'collections' && (
         <CollectionsTab group={group} installment={installment} months={months}
           members={members} accounts={accounts} defaultAccountId={defaultAccountId}
-          dueForMonth={dueForMonth} winnerByMonth={winnerByMonth} collections={collections} onChange={setCollections} />
+          dueForMonth={dueForMonth} payableFor={payableFor} gl={gl} winnerByMonth={winnerByMonth} collections={collections} onChange={setCollections} />
       )}
       {tab === 'receivables' && (
         <ReceivablesTab group={group} installment={installment} months={months} members={members}
           auctions={auctions} accounts={accounts} defaultAccountId={defaultAccountId}
-          dueForMonth={dueForMonth} collections={collections} onChange={setCollections} />
+          dueForMonth={dueForMonth} payableFor={payableFor} collections={collections} onChange={setCollections} />
       )}
     </div>
   )
@@ -292,13 +327,14 @@ function GroupEditForm({ group, companies, locked, onClose, onSaved }: {
 }
 
 // ── Members ──────────────────────────────────────────────────────────────────
-function MembersTab({ group, members, allMembers, auctions, collections, dueForMonth, onChange, onRefresh }: {
+function MembersTab({ group, members, allMembers, auctions, collections, dueForMonth, payableFor, onChange, onRefresh }: {
   group: ChitGroup
   members: ChitGroupMember[]
   allMembers: ChitMember[]
   auctions: ChitAuction[]
   collections: Coll[]
   dueForMonth: (m: number) => number
+  payableFor: (memberId: string, m: number) => number
   onChange: (m: ChitGroupMember[]) => void
   onRefresh: () => void
 }) {
@@ -308,7 +344,7 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
   const winByMember = new Map(auctions.filter(a => a.winner_member_id).map(a => [a.winner_member_id as string, a]))
   const info = (memberId: string) => {
     const paid = new Set(collections.filter(c => c.member_id === memberId).map(c => c.month_number))
-    const pending = dueMonths.filter(m => !paid.has(m)).reduce((t, m) => t + dueForMonth(m), 0)
+    const pending = dueMonths.filter(m => !paid.has(m)).reduce((t, m) => t + payableFor(memberId, m), 0)
     return { pending, win: winByMember.get(memberId) }
   }
   const [picking, setPicking] = useState(false)
@@ -658,7 +694,7 @@ function SlotEditor({ gm, onSaved }: {
 }
 
 // ── Auctions ─────────────────────────────────────────────────────────────────
-function AuctionsTab({ group, params, months, members, accounts, defaultAccountId, auctions, onChange, collections, dueForMonth, onCollected, installment, companyName }: {
+function AuctionsTab({ group, params, months, members, accounts, defaultAccountId, auctions, onChange, collections, dueForMonth, payableFor, onCollected, installment, companyName }: {
   group: ChitGroup
   params: GroupParams
   months: number
@@ -669,6 +705,7 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
   onChange: (a: ChitAuction[]) => void
   collections: Coll[]
   dueForMonth: (m: number) => number
+  payableFor: (memberId: string, m: number) => number
   onCollected: (c: Coll[]) => void
   installment: number
   companyName: string
@@ -699,7 +736,7 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
     const paidMonths = new Set(collections.filter(c => c.member_id === a.winner_member_id).map(c => c.month_number))
     const pending = Array.from({ length: a.month_number }, (_, i) => i + 1)
       .filter(m => auctionMonths.has(m) && !paidMonths.has(m))
-      .reduce((t, m) => t + dueForMonth(m), 0)
+      .reduce((t, m) => t + payableFor(a.winner_member_id as string, m), 0)
     const message = winnerPayout({
       dateText: niceDate(a.auction_date), monthNumber: a.month_number, tenureMonths: months,
       winnerName: gmWinner.member?.name ?? 'Winner', winningAmount: Number(a.net_payout),
@@ -839,7 +876,7 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
         const pendingDue = winnerId
           ? Array.from({ length: payFor.month_number }, (_, i) => i + 1)
               .filter(m => auctionMonths.has(m) && !paidMonths.has(m))
-              .map(m => ({ month: m, amount: dueForMonth(m) }))
+              .map(m => ({ month: m, amount: payableFor(winnerId, m) }))
           : []
         return (
           <PayModal auction={payFor} accounts={accounts} defaultAccountId={defaultAccountId} group={group}
@@ -851,7 +888,7 @@ function AuctionsTab({ group, params, months, members, accounts, defaultAccountI
               if (collectedMonths.length && winnerId) {
                 const added: Coll[] = collectedMonths.map(m => ({
                   id: `tmp-${winnerId}-${m}`, group_id: group.id, member_id: winnerId,
-                  month_number: m, amount: dueForMonth(m), paid_date: new Date().toISOString().split('T')[0],
+                  month_number: m, amount: payableFor(winnerId, m), paid_date: new Date().toISOString().split('T')[0],
                   account_id: null, income_transaction_id: txnId ?? 'posted', notes: null,
                   created_at: new Date().toISOString(), member: { name: members.find(mm => mm.member_id === winnerId)?.member?.name ?? '' },
                 } as Coll))
@@ -1084,7 +1121,8 @@ function PayModal({ auction, accounts, defaultAccountId, group, winnerName, pend
 // Two ways to look at the same money: a MONTH view (one month, all members — the
 // natural place to collect a batch) and a MEMBER view (one member, all their
 // months — the natural place to answer "is so-and-so paid up?").
-function CollectionsTab({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, winnerByMonth, collections, onChange }: {
+function CollectionsTab({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, payableFor, gl, winnerByMonth, collections, onChange }: {
+  gl: ReturnType<typeof groupLedger>
   group: ChitGroup
   installment: number
   months: number
@@ -1092,6 +1130,7 @@ function CollectionsTab({ group, installment, months, members, accounts, default
   accounts: Account[]
   defaultAccountId: string
   dueForMonth: (m: number) => number
+  payableFor: (memberId: string, m: number) => number
   winnerByMonth: Map<number, string>
   collections: Coll[]
   onChange: (c: Coll[]) => void
@@ -1112,15 +1151,15 @@ function CollectionsTab({ group, installment, months, members, accounts, default
 
       {view === 'month'
         ? <MonthView group={group} installment={installment} months={months} members={members}
-            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} winnerByMonth={winnerByMonth} collections={collections} onChange={onChange} />
+            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} payableFor={payableFor} winnerByMonth={winnerByMonth} collections={collections} onChange={onChange} />
         : <MemberView group={group} installment={installment} months={months} members={members}
-            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} winnerByMonth={winnerByMonth} collections={collections} onChange={onChange} />}
+            accounts={accounts} defaultAccountId={defaultAccountId} dueForMonth={dueForMonth} payableFor={payableFor} gl={gl} winnerByMonth={winnerByMonth} collections={collections} onChange={onChange} />}
     </div>
   )
 }
 
 // ── Month view: one month, collect many at once ──────────────────────────────
-function MonthView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, winnerByMonth, collections, onChange }: {
+function MonthView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, payableFor, winnerByMonth, collections, onChange }: {
   group: ChitGroup
   installment: number
   months: number
@@ -1128,6 +1167,7 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
   accounts: Account[]
   defaultAccountId: string
   dueForMonth: (m: number) => number
+  payableFor: (memberId: string, m: number) => number
   winnerByMonth: Map<number, string>
   collections: Coll[]
   onChange: (c: Coll[]) => void
@@ -1307,7 +1347,8 @@ function MonthView({ group, installment, months, members, accounts, defaultAccou
 }
 
 // ── Member view: one member, all their months ────────────────────────────────
-function MemberView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, winnerByMonth, collections, onChange }: {
+function MemberView({ group, installment, months, members, accounts, defaultAccountId, dueForMonth, payableFor, gl, winnerByMonth, collections, onChange }: {
+  gl: ReturnType<typeof groupLedger>
   group: ChitGroup
   installment: number
   months: number
@@ -1315,6 +1356,7 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
   accounts: Account[]
   defaultAccountId: string
   dueForMonth: (m: number) => number
+  payableFor: (memberId: string, m: number) => number
   winnerByMonth: Map<number, string>
   collections: Coll[]
   onChange: (c: Coll[]) => void
@@ -1327,6 +1369,8 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
 
   const gm = members.find(m => m.member_id === memberId)
   const paid = new Map(collections.filter(c => c.member_id === memberId).map(c => [c.month_number, c]))
+  const position = ledgerFor(gl, memberId)
+  const [editing, setEditing] = useState<Coll | null>(null)
 
   // Switching member wipes the month selection — a set from the last person is
   // meaningless for this one.
@@ -1337,7 +1381,7 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
   const allDueSelected = dueMonths.length > 0 && dueMonths.every(m => selected.has(m))
 
   const toggle = (m: number) => setSelected(s => { const n = new Set(s); n.has(m) ? n.delete(m) : n.add(m); return n })
-  const selectedTotal = [...selected].reduce((t, m) => t + dueForMonth(m), 0)
+  const selectedTotal = [...selected].reduce((t, m) => t + payableFor(memberId, m), 0)
 
   // Undo a collected month — deletes the collection AND its income transaction,
   // so a mistake doesn't leave phantom money in your books. Matched by slot, which
@@ -1362,7 +1406,7 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           group_id: group.id, member_id: memberId, paid_date: date, account_id: account,
-          entries: monthsToPost.map(m => ({ month_number: m, amount: dueForMonth(m) })),
+          entries: monthsToPost.map(m => ({ month_number: m, amount: payableFor(memberId, m) })),
         }),
       })
       const json = await res.json()
@@ -1370,7 +1414,7 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
       const txnId = json.transaction_id ?? 'posted'
       const added: Coll[] = monthsToPost.map(m => ({
         id: `tmp-${memberId}-${m}`, group_id: group.id, member_id: memberId,
-        month_number: m, amount: dueForMonth(m), paid_date: date, account_id: account,
+        month_number: m, amount: payableFor(memberId, m), paid_date: date, account_id: account,
         income_transaction_id: txnId, notes: null, created_at: new Date().toISOString(),
         member: { name: gm?.member?.name ?? '' },
       } as Coll))
@@ -1441,7 +1485,7 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
                   {winnerByMonth.get(m) === memberId && <Trophy className="w-3 h-3" style={{ color: '#b7791f' }} />}
                 </p>
                 <p className="text-[13px] font-extrabold" style={{ color: c ? 'var(--income)' : 'var(--text-muted)' }}>
-                  {c ? inr(c.amount) : inr(dueForMonth(m))}
+                  {c ? inr(c.amount) : inr(payableFor(memberId, m))}
                 </p>
                 {/* With several people recording across several groups, "who
                     entered this?" is the first question asked about anything
@@ -1451,12 +1495,43 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
                     by {c.recorded_by_name}
                   </p>
                 )}
+                {!c && payableFor(memberId, m) === 0 && position.months.some(x => x.month === m) && (
+                  <p className="text-[10px]" style={{ color: 'var(--income)' }}>covered by credit</p>
+                )}
               </div>
-              {c && <span className="text-[10px] font-bold shrink-0" style={{ color: 'var(--income)' }}>Paid ✕</span>}
+              {c && (
+                <span className="flex flex-col items-end gap-0.5 shrink-0">
+                  <span className="text-[10px] font-bold" style={{ color: 'var(--income)' }}>Paid ✕</span>
+                  <span
+                    role="button" tabIndex={0}
+                    onClick={e => { e.stopPropagation(); setEditing(c) }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); setEditing(c) } }}
+                    className="text-[10px] font-bold underline"
+                    style={{ color: 'var(--text-faint)' }}>
+                    Fix amount
+                  </span>
+                </span>
+              )}
             </button>
           )
         })}
       </div>
+
+      {/* Where this member stands overall. The figure that explains why their
+          next month is not the same as everybody else's. */}
+      {(position.credit > 0 || position.arrears > 0) && (
+        <div className="rounded-xl px-3 py-2.5 mt-1" style={{ background: 'var(--surface-2)' }}>
+          <p className="text-[12px] font-bold" style={{ color: position.credit > 0 ? 'var(--income)' : 'var(--text)' }}>
+            {balanceWords(position)}
+          </p>
+          {position.credit > 0 && (
+            <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              Already taken off the months below. To use it in one of their other chits
+              instead, open their member page.
+            </p>
+          )}
+        </div>
+      )}
 
       {selected.size > 0 && (
         <button onClick={collectSelected} disabled={busy}
@@ -1464,12 +1539,104 @@ function MemberView({ group, installment, months, members, accounts, defaultAcco
           {busy ? 'Posting…' : `Collect ${selected.size} month${selected.size === 1 ? '' : 's'} · ${inr(selectedTotal)}`}
         </button>
       )}
+
+      {editing && (
+        <FixAmount
+          collection={editing}
+          onClose={() => setEditing(null)}
+          onSaved={updated => {
+            onChange(collections.map(c => (c.id === updated.id ? { ...c, ...updated } : c)))
+            setEditing(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Correcting a figure that was entered wrong.
+ *
+ * Someone hands over ₹20,000 against an ₹18,600 due and it gets typed in as
+ * handed over. Deleting and re-entering loses the bank transaction, who
+ * recorded it and when; this moves the figure and the bank entry together,
+ * because they are one event seen twice.
+ *
+ * The difference does not disappear — it becomes credit, and comes off this
+ * member's next month.
+ */
+function FixAmount({ collection, onClose, onSaved }: {
+  collection: Coll
+  onClose: () => void
+  onSaved: (c: Coll) => void
+}) {
+  const [amount, setAmount] = useState(String(collection.amount))
+  const [busy, setBusy] = useState(false)
+  const was = Number(collection.amount)
+  const now = Number(amount) || 0
+  const diff = Math.round((now - was) * 100) / 100
+
+  async function save() {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/chit/collections', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: collection.id, amount: now }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { notify(json?.error ?? 'Could not change it', 'error'); return }
+      notify('Amount corrected')
+      onSaved(json.collection as Coll)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      style={{ background: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div className="w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        onClick={e => e.stopPropagation()}>
+        <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>
+          Correct month {collection.month_number}
+        </p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
+          Recorded as {inr(was)}. The bank entry moves with it.
+        </p>
+
+        <input
+          value={amount} inputMode="numeric" autoFocus
+          onChange={e => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+          className="w-full mt-3 px-3 py-2.5 rounded-xl border text-sm outline-none"
+          style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+        />
+
+        {diff !== 0 && now > 0 && (
+          <p className="text-[12px] mt-2 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            {diff > 0
+              ? `${inr(diff)} more than recorded. It becomes credit and comes off their next month.`
+              : `${inr(-diff)} less than recorded. The shortfall is added to what they still owe.`}
+          </p>
+        )}
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+            Cancel
+          </button>
+          <button onClick={save} disabled={busy || !(now > 0) || diff === 0}
+            className="flex-1 text-white py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
+            style={{ background: 'var(--brand)' }}>
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
 // ── Single collection (used by the member view) ──// ── Single collection (used by the member view) ──────────────────────────────
-function CollectModal({ group, installment, months, memberId, memberName, accounts, defaultAccountId, fixedMonth, dueForMonth, existing, onClose, onDone }: {
+function CollectModal({ group, installment, months, memberId, memberName, accounts, defaultAccountId, fixedMonth, dueForMonth, payableFor, existing, onClose, onDone }: {
   group: ChitGroup
   installment: number
   months: number
@@ -1479,6 +1646,7 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
   defaultAccountId: string
   fixedMonth?: number
   dueForMonth: (m: number) => number
+  payableFor: (memberId: string, m: number) => number
   existing: Coll[]
   onClose: () => void
   onDone: (c: Coll) => void
@@ -1487,7 +1655,7 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
   const firstUnpaid = useMemo(() => { for (let m = 1; m <= months; m++) if (!paidMonths.has(m)) return m; return 1 }, [paidMonths, months])
   const [month, setMonth] = useState(String(fixedMonth ?? firstUnpaid))
   // Prefill the chosen month's actual due — installment minus that month's dividend.
-  const [amount, setAmount] = useState(String(dueForMonth(fixedMonth ?? firstUnpaid)))
+  const [amount, setAmount] = useState(String(payableFor(memberId, fixedMonth ?? firstUnpaid)))
   const [accountId, setAccountId] = useState(defaultAccountId || accounts[0]?.id || '')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [busy, setBusy] = useState(false)
@@ -1495,7 +1663,7 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
   const fld = 'w-full px-3 py-2.5 rounded-xl border text-sm outline-none'
   const fs = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
 
-  useEffect(() => { setAmount(String(dueForMonth(parseInt(month) || 1))) }, [month]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setAmount(String(payableFor(memberId, parseInt(month) || 1))) }, [month]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     if (!accountId) { notify('Choose the account that received it', 'error'); return }
@@ -1554,7 +1722,7 @@ function CollectModal({ group, installment, months, memberId, memberName, accoun
 }
 
 // ── Receivables ──────────────────────────────────────────────────────────────
-function ReceivablesTab({ group, installment, months, members, auctions, accounts, defaultAccountId, dueForMonth, collections, onChange }: {
+function ReceivablesTab({ group, installment, months, members, auctions, accounts, defaultAccountId, dueForMonth, payableFor, collections, onChange }: {
   group: ChitGroup
   installment: number
   months: number
@@ -1563,6 +1731,7 @@ function ReceivablesTab({ group, installment, months, members, auctions, account
   accounts: Account[]
   defaultAccountId: string
   dueForMonth: (m: number) => number
+  payableFor: (memberId: string, m: number) => number
   collections: Coll[]
   onChange: (c: Coll[]) => void
 }) {
@@ -1590,14 +1759,18 @@ function ReceivablesTab({ group, installment, months, members, auctions, account
   const memberRows = members.map(gm => {
     const paid = paidByMember.get(gm.member_id) ?? new Set<number>()
     const unpaid = dueMonths.filter(m => !paid.has(m))
-    const due = unpaid.reduce((t, m) => t + dueForMonth(m), 0)
+    const due = unpaid.reduce((t, m) => t + payableFor(gm.member_id, m), 0)
     return { gm, name: gm.member?.name ?? 'Member', unpaid, due }
   }).filter(r => r.unpaid.length > 0)
 
   // By month: for each run month, who hasn't paid and how much is outstanding.
   const monthRows = dueMonths.map(m => {
     const nonPayers = members.filter(gm => !(paidByMember.get(gm.member_id)?.has(m)))
-    return { month: m, nonPayers, due: nonPayers.length * dueForMonth(m), each: dueForMonth(m) }
+    return {
+      month: m, nonPayers,
+      due: nonPayers.reduce((t, gm) => t + payableFor(gm.member_id, m), 0),
+      each: dueForMonth(m),
+    }
   }).filter(r => r.nonPayers.length > 0)
 
   const total = memberRows.reduce((s, r) => s + r.due, 0)
@@ -1689,7 +1862,7 @@ function ReceivablesTab({ group, installment, months, members, auctions, account
       {collectFor && (
         <CollectModal group={group} installment={installment} months={months}
           memberId={collectFor.memberId} memberName={collectFor.name} accounts={accounts}
-          defaultAccountId={defaultAccountId} fixedMonth={collectFor.month} dueForMonth={dueForMonth} existing={collections}
+          defaultAccountId={defaultAccountId} fixedMonth={collectFor.month} dueForMonth={dueForMonth} payableFor={payableFor} existing={collections}
           onClose={() => setCollectFor(null)}
           onDone={c => { onChange([c, ...collections]); setCollectFor(null) }} />
       )}

@@ -129,6 +129,91 @@ export async function POST(req: NextRequest) {
 // chit says it was never collected, and the two quietly disagree forever. So the
 // transaction goes first, then the collection row, then the receivable flips back
 // to unpaid.
+// PATCH { id, amount } — correct the figure on a collection already recorded.
+//
+// Somebody hands over the wrong amount and it gets entered as handed over. The
+// only way to fix that used to be deleting the entry and making it again, which
+// also deletes the income transaction and loses who recorded it and when.
+//
+// Correcting the amount here moves the money in the ledger too, because a
+// collection and its transaction are the same event seen twice. Where the
+// transaction is SHARED — a consolidated payment covering several months — only
+// this month's share of it changes.
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const owner = access.ownerId
+  if (!CAN.recordCollection(access.role)) {
+    return NextResponse.json({ error: forbidden('correct collections', access.role) }, { status: 403 })
+  }
+  const ledger = await ledgerClient(access)
+
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+
+  const id = String(body.id ?? '')
+  const amount = Math.round(Number(body.amount) * 100) / 100
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return NextResponse.json({ error: 'Enter an amount greater than zero.' }, { status: 400 })
+  }
+
+  const { data: coll } = await supabase.from('chit_collections')
+    .select('id, group_id, member_id, month_number, amount, income_transaction_id')
+    .eq('id', id).eq('user_id', owner).maybeSingle()
+  if (!coll) return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
+
+  const was = Number(coll.amount)
+  if (was === amount) return NextResponse.json({ ok: true, collection: coll, unchanged: true })
+
+  // Move the transaction by the difference, not to the new figure — a shared
+  // transaction carries other months that must not be disturbed.
+  if (coll.income_transaction_id) {
+    const { data: txn } = await ledger.from('transactions')
+      .select('id, amount').eq('id', coll.income_transaction_id).eq('user_id', owner).maybeSingle()
+    if (txn) {
+      const moved = Math.round((Number(txn.amount) - was + amount) * 100) / 100
+      if (moved <= 0) {
+        return NextResponse.json({
+          error: 'That would leave the bank entry at zero or below. Delete the collection instead.',
+        }, { status: 400 })
+      }
+      const { error: txErr } = await ledger.from('transactions')
+        .update({ amount: moved }).eq('id', txn.id).eq('user_id', owner)
+      if (txErr) {
+        return NextResponse.json({ error: `Could not update the bank entry: ${txErr.message}` }, { status: 500 })
+      }
+    }
+  }
+
+  const { data: updated, error } = await supabase.from('chit_collections')
+    .update({
+      amount,
+      // Whoever corrected it is now the person who stands behind the figure.
+      recorded_by_user_id: access.actorId,
+      recorded_by_name: access.actorName,
+    })
+    .eq('id', coll.id).eq('user_id', owner).select('*').single()
+
+  if (error) {
+    // Put the money back. A transaction that moved without its collection is
+    // worse than a wrong figure, because nothing points at the discrepancy.
+    if (coll.income_transaction_id) {
+      const { data: txn } = await ledger.from('transactions')
+        .select('amount').eq('id', coll.income_transaction_id).eq('user_id', owner).maybeSingle()
+      if (txn) {
+        await ledger.from('transactions')
+          .update({ amount: Math.round((Number(txn.amount) - amount + was) * 100) / 100 })
+          .eq('id', coll.income_transaction_id).eq('user_id', owner)
+      }
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true, collection: updated, was })
+}
+
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   // Whose chit books are we in? The owner, or a staff member they granted

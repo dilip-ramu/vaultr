@@ -6,6 +6,7 @@ import { Coins, Users, Layers, ChevronRight, AlertTriangle } from 'lucide-react'
 import { inr } from '@/lib/assets/valuation'
 import { monthlyInstallment, numberOfMonths } from '@/lib/chit/auction'
 import type { ChitGroup } from '@/lib/chit/types'
+import { groupLedger, type CreditMoveRow, type AuctionRow as AuctionLike, type CollectionRow as CollectionLike } from '@/lib/chit/groupLedger'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Chit funds — Vaultr' }
@@ -29,16 +30,19 @@ export default async function ChitDashboard() {
     { data: allCollections },
     { data: todayCollections },
     { data: allAuctions },
+    { data: creditMoves },
   ] = await Promise.all([
     supabase.from('chit_groups').select('*').eq('user_id', uid),
     supabase.from('chit_members').select('id', { count: 'exact', head: true }).eq('user_id', uid),
     supabase.from('chit_group_members').select('group_id, member_id').eq('user_id', uid),
     supabase.from('chit_collections').select('amount').eq('user_id', uid).gte('paid_date', monthStart),
-    supabase.from('chit_collections').select('group_id, member_id, month_number').eq('user_id', uid),
+    supabase.from('chit_collections').select('group_id, member_id, month_number, amount').eq('user_id', uid),
     supabase.from('chit_collections').select('amount').eq('user_id', uid).eq('paid_date', today),
     // Which months have actually RUN. A month only becomes owed once its auction
     // is conducted — so outstanding is measured against these, not the full plan.
-    supabase.from('chit_auctions').select('group_id, month_number, dividend_per_member').eq('user_id', uid),
+    supabase.from('chit_auctions').select('group_id, month_number, dividend_per_member, auction_date').eq('user_id', uid),
+    supabase.from('chit_credit_moves')
+      .select('member_id, from_group_id, to_group_id, to_month, amount').eq('user_id', uid),
   ])
 
   const groupList = (groups ?? []) as ChitGroup[]
@@ -49,34 +53,29 @@ export default async function ChitDashboard() {
   const monthTotal = sum(monthCollections)
   const todayTotal = sum(todayCollections)
 
-  // Outstanding, done properly: for each group, ONLY the months whose auction has
-  // run are due. For each such month, each member who hasn't paid owes that
-  // month's due (installment minus that month's dividend). Nothing before an
-  // auction counts — a chit that hasn't started owes nothing.
+  // Outstanding, from the same ledger the collection screens and the statement
+  // use. It used to ask "is there a row for this member and month" and charge
+  // the full amount when there was not — which counts a member who overpaid
+  // last month as owing the full figure this month. Three screens, one
+  // calculation, so they cannot disagree about what the chit is owed.
   const membersByGroup: Record<string, string[]> = {}
   for (const row of (gm ?? []) as { group_id: string; member_id: string }[]) {
     (membersByGroup[row.group_id] ??= []).push(row.member_id)
-  }
-  const paidSlots = new Set(
-    ((allCollections ?? []) as { group_id: string; member_id: string; month_number: number }[])
-      .map(c => `${c.group_id}:${c.member_id}:${c.month_number}`),
-  )
-  const auctionsByGroup: Record<string, { month: number; dividend: number }[]> = {}
-  for (const a of (allAuctions ?? []) as { group_id: string; month_number: number; dividend_per_member: number }[]) {
-    (auctionsByGroup[a.group_id] ??= []).push({ month: a.month_number, dividend: Number(a.dividend_per_member) || 0 })
   }
 
   let outstanding = 0
   for (const g of groupList) {
     if (g.status !== 'active') continue
-    const inst = monthlyInstallment({ chitValue: g.chit_value, members: g.members })
-    const memberIds = membersByGroup[g.id] ?? []
-    for (const { month, dividend } of auctionsByGroup[g.id] ?? []) {
-      const due = Math.max(0, inst - dividend)
-      for (const mid of memberIds) {
-        if (!paidSlots.has(`${g.id}:${mid}:${month}`)) outstanding += due
-      }
-    }
+    const gl = groupLedger({
+      groupId: g.id,
+      installment: monthlyInstallment({ chitValue: g.chit_value, members: g.members }),
+      memberIds: membersByGroup[g.id] ?? [],
+      auctions: ((allAuctions ?? []) as AuctionLike[]).filter(a => a.group_id === g.id),
+      collections: ((allCollections ?? []) as CollectionLike[]).filter(c => c.group_id === g.id),
+      creditMoves: (creditMoves ?? []) as CreditMoveRow[],
+      asOf: today,
+    })
+    outstanding += gl.outstanding
   }
   outstanding = Math.round(outstanding * 100) / 100
 

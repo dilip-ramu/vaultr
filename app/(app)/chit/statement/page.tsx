@@ -11,6 +11,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, CAN } from '@/lib/chit/access'
+import { CHIT_ACCOUNT_NAME, isChitAccount } from '@/lib/chit/account'
+import type { CreditMoveRow } from '@/lib/chit/groupLedger'
 import ChitStatementClient from '@/components/chit/ChitStatementClient'
 import {
   buildStatement, monthPeriod, lastCompletedMonth, selectableMonths, customPeriod,
@@ -20,8 +22,8 @@ import {
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Chit statement — Inex' }
 
-/** The one account this statement is about. Named, not guessed. */
-const CHIT_ACCOUNT_NAME = 'Unyra Capital'
+// The one account this statement is about. Shared with the collection screens
+// so the account the statement reads is the account collections post into.
 
 export default async function ChitStatementPage({
   searchParams,
@@ -60,7 +62,7 @@ export default async function ChitStatementPage({
     id: string; name: string; balance: number | null
     initial_balance: number | null; type: string; is_active: boolean
   }[]
-  const account = all.find(a => a.name.trim().toLowerCase() === CHIT_ACCOUNT_NAME.toLowerCase())
+  const account = all.find(a => isChitAccount(a.name))
 
   if (!account) {
     return (
@@ -103,7 +105,7 @@ export default async function ChitStatementPage({
     if (data.length < 1000) break
   }
 
-  const [{ data: groups }, { data: collections }, { data: auctions }, { data: members }, { data: roster }] =
+  const [{ data: groups }, { data: collections }, { data: auctions }, { data: members }, { data: roster }, { data: creditMoves }] =
     await Promise.all([
       supabase.from('chit_groups').select('id, name, chit_value, members, status').eq('user_id', uid).order('name'),
       supabase.from('chit_collections')
@@ -114,6 +116,8 @@ export default async function ChitStatementPage({
         .eq('user_id', uid),
       supabase.from('chit_members').select('id, name, member_code').eq('user_id', uid),
       supabase.from('chit_group_members').select('group_id, member_id').eq('user_id', uid),
+      supabase.from('chit_credit_moves')
+        .select('member_id, from_group_id, to_group_id, to_month, amount').eq('user_id', uid),
     ])
 
   const memberNames: Record<string, { name: string; code: string | null }> = {}
@@ -138,6 +142,7 @@ export default async function ChitStatementPage({
     groups: (groups ?? []) as StatementGroup[],
     memberNames,
     rosterByGroup,
+    creditMoves: (creditMoves ?? []) as CreditMoveRow[],
   })
 
   return (

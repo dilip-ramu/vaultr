@@ -11,6 +11,7 @@ import Link from 'next/link'
 import { ChevronLeft, Phone, MapPin, CreditCard, UserPlus, Users, ShieldCheck } from 'lucide-react'
 import type { ChitMember, ChitContact } from '@/lib/chit/types'
 import type { MemberSummary } from '@/lib/chit/memberSummary'
+import MemberCredit from './MemberCredit'
 
 const inr = (n: number | null | undefined): string =>
   n == null ? '—' : '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN')
@@ -31,6 +32,8 @@ export default function ChitMemberDetail({
         style={{ color: 'var(--text-muted)' }}>
         <ChevronLeft className="w-3.5 h-3.5" /> All members
       </Link>
+
+      <MemberCredit memberId={member.id} />
 
       {/* ── Who they are ─────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
