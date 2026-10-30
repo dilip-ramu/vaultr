@@ -31,7 +31,13 @@ interface TxRaw {
 }
 
 type GroupMode = 'month' | 'billing_category' | 'status'
-type BilledFilter = 'all' | 'billed' | 'queued' | 'unbilled'
+// 'open' is the default: everything NOT yet billed.
+//
+// The list used to open on 'all', so a customer two years into a monthly
+// arrangement showed hundreds of already-billed rows above the handful that
+// still need doing. The work is always the unbilled end; the billed end is
+// history, and history belongs behind a filter rather than in front of it.
+type BilledFilter = 'open' | 'all' | 'billed' | 'queued' | 'unbilled'
 
 interface Props {
   transactions: TxRaw[]
@@ -182,7 +188,7 @@ export default function ReimbursableExpensesClient({
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
-  const [filter, setFilter] = useState<BilledFilter>('all')
+  const [filter, setFilter] = useState<BilledFilter>('open')
   const [groupMode, setGroupMode] = useState<GroupMode>('month')
 
   const months = useMemo(() => {
@@ -196,6 +202,7 @@ export default function ReimbursableExpensesClient({
       const isQueued  = !t.is_contrast_billed && !!t.contrast_billing_category_id
       const isUnqueued = !t.is_contrast_billed && !t.contrast_billing_category_id
       const billedOk =
+        filter === 'open'    ? !t.is_contrast_billed :
         filter === 'all'     ? true :
         filter === 'billed'  ? t.is_contrast_billed :
         filter === 'queued'  ? isQueued :
@@ -203,6 +210,15 @@ export default function ReimbursableExpensesClient({
       return monthOk && billedOk
     })
   }, [transactions, selectedMonth, filter])
+
+  // How many rows the default filter is keeping out of sight. Said out loud:
+  // an expense that silently is not on screen is one somebody will re-enter.
+  const hiddenBilled = useMemo(() => {
+    if (filter !== 'open') return 0
+    return transactions.filter(t =>
+      t.is_contrast_billed && (selectedMonth === 'all' || monthKey(t.date) === selectedMonth),
+    ).length
+  }, [transactions, filter, selectedMonth])
 
   const totalAmount   = useMemo(() => filtered.reduce((s, t) => s + t.amount, 0), [filtered])
   const billedAmount  = useMemo(() => filtered.filter(t => t.is_contrast_billed).reduce((s, t) => s + t.amount, 0), [filtered])
@@ -354,7 +370,17 @@ export default function ReimbursableExpensesClient({
           </div>
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-[var(--text)]">Reimbursables</h1>
-            <p className="text-sm text-[var(--text-muted)]">{filtered.length} transactions · payee: {payeeName}</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              {filtered.length} transactions · payee: {payeeName}
+              {hiddenBilled > 0 && (
+                <>
+                  {' · '}
+                  <button onClick={() => setFilter('all')} className="underline font-medium">
+                    {hiddenBilled} already billed, hidden
+                  </button>
+                </>
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -408,15 +434,16 @@ export default function ReimbursableExpensesClient({
         {/* Billed filter */}
         <div className="flex bg-[var(--surface-2)] rounded-xl p-1 gap-1">
           {([
-            ['all',     'All'],
-            ['queued',  'Queued'],
+            ['open',    'Not billed'],
+            ['unbilled','Needs a category'],
+            ['queued',  'Ready'],
             ['billed',  'Billed'],
-            ['unbilled','Not queued'],
+            ['all',     'All'],
           ] as [BilledFilter, string][]).map(([f, lbl]) => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 filter === f
-                  ? f === 'queued' ? 'bg-[var(--brand)] text-white shadow-sm' : 'bg-[var(--surface)] text-[var(--text)] shadow-sm'
+                  ? (f === 'queued' || f === 'open') ? 'bg-[var(--brand)] text-white shadow-sm' : 'bg-[var(--surface)] text-[var(--text)] shadow-sm'
                   : 'text-[var(--text-muted)] hover:text-[var(--text)]'
               }`}>
               {lbl}
