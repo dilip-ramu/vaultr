@@ -2,18 +2,16 @@ import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-/** Was the Reimbursables Expenses page. Content moved to
- *  /customers/invoices/reimbursables as a tab under the unified Invoices
- *  page (Deploy 4 restructure). Redirect preserves any ?customer= param. */
-export default async function ReimbursableExpensesRedirect({
+/** Older reimbursables address.
+ *  Kept as a redirect so bookmarks and old links still land somewhere useful. */
+export default async function OldReimbursablesRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string }>
+  searchParams: Promise<Record<string, string | undefined>>
 }) {
-  const { customer } = await searchParams
-  redirect(
-    customer
-      ? `/customers/invoices/reimbursables?customer=${customer}`
-      : '/customers/invoices/reimbursables'
-  )
+  const sp = await searchParams
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(sp)) if (v) qs.set(k, v)
+  const extra = qs.toString()
+  redirect(`/customers/invoices/reimbursable${extra ? ('/customers/invoices/reimbursable'.includes('?') ? '&' : '?') + extra : ''}`)
 }

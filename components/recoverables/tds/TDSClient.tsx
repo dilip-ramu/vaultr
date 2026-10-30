@@ -118,7 +118,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
             </p>
           </div>
           <Link
-            href="/recoverables/invoices"
+            href="/customers/invoices"
             className="text-sm font-medium px-3 py-1.5 rounded-lg"
             style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
           >
@@ -254,7 +254,7 @@ export default function TDSClient({ entries: initialEntries }: Props) {
                             <div className="flex items-center gap-2 min-w-0">
                               {entry.invoice_id ? (
                                 <Link
-                                  href={`/recoverables/invoices/${entry.invoice_id}`}
+                                  href={`/customers/invoices/${entry.invoice_id}`}
                                   className="text-sm font-bold hover:underline"
                                   style={{ color: 'var(--brand)' }}
                                 >

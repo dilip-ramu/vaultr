@@ -141,7 +141,7 @@ export default function UnifiedInvoicesClient({ invoices, reimbursableCustomerId
       qs.set('invoice', inv.id)
       return `/customers/invoices/reimbursables/new?${qs.toString()}`
     }
-    return `/recoverables/invoices/${inv.id}`
+    return `/customers/invoices/${inv.id}`
   }
 
   /**

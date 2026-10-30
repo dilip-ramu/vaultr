@@ -2,14 +2,16 @@ import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-/** Was the standalone /recoverables/invoices page. Merged into
- *  /customers/invoices as the Couriers tab (Deploy 4). Preserves
- *  ?customer= for the chip picker. */
+/** Was the standalone invoices page, then the Couriers tab. Now the chooser.
+ *  Kept as a redirect so bookmarks and old links still land somewhere useful. */
 export default async function RecoverablesInvoicesRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string }>
+  searchParams: Promise<Record<string, string | undefined>>
 }) {
-  const { customer } = await searchParams
-  redirect(customer ? `/customers/invoices?customer=${customer}` : '/customers/invoices')
+  const sp = await searchParams
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(sp)) if (v) qs.set(k, v)
+  const extra = qs.toString()
+  redirect(`/customers/invoices${extra ? ('/customers/invoices'.includes('?') ? '&' : '?') + extra : ''}`)
 }

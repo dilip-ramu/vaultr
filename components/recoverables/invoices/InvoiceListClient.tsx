@@ -179,7 +179,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
               {selectMode ? 'Cancel select' : 'Select'}
             </button>
             <button
-              onClick={() => router.push('/recoverables/invoices/new')}
+              onClick={() => router.push('/customers/invoices/courier?step=build')}
               className="px-4 py-2 rounded-lg text-sm font-semibold"
               style={{ background: 'var(--brand)', color: '#fff' }}
             >
@@ -305,7 +305,7 @@ export default function InvoiceListClient({ invoices: initialInvoices, hideHeade
                 <div className="flex-1 min-w-0">
                 {/* Clickable area */}
                 <button
-                  onClick={() => router.push(`/recoverables/invoices/${inv.id}`)}
+                  onClick={() => router.push(`/customers/invoices/${inv.id}`)}
                   className="w-full text-left"
                 >
                   <div className="flex items-start justify-between gap-3">

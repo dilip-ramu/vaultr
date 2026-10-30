@@ -133,7 +133,7 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
       const data = await res.json()
       if (!res.ok) { notify(data.error ?? (isEdit ? 'Could not update invoice' : 'Could not create invoice'), 'error'); return }
       notify(isEdit ? 'Invoice updated' : 'Invoice created', 'success')
-      router.push(`/recoverables/invoices/${isEdit ? invoiceId : data.id}`)
+      router.push(`/customers/invoices/${isEdit ? invoiceId : data.id}`)
     } catch {
       notify('Network error', 'error')
     } finally {

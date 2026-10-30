@@ -126,7 +126,7 @@ export default function SupplierLinksModal({ inv, onClose }: Props) {
                     {/* Row 1: invoice # + status + remove */}
                     <div className="flex items-center justify-between gap-2">
                       <a
-                        href={`/recoverables/invoices/${ri.id}`}
+                        href={`/customers/invoices/${ri.id}`}
                         className="flex items-center gap-1.5 font-mono text-sm font-semibold"
                         style={{ color: 'var(--brand)' }}
                       >

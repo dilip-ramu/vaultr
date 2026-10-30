@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   for (const t of tx.data ?? [])
     hits.push({ type: 'transaction', label: t.name ?? 'Transaction', sub: `${inr(t.amount)} · ${t.date}`, href: '/transactions' })
   for (const i of ci.data ?? [])
-    hits.push({ type: 'customer_invoice', label: `${i.invoice_number} · ${i.customer_name}`, sub: inr(i.total), href: `/recoverables/invoices/${i.id}` })
+    hits.push({ type: 'customer_invoice', label: `${i.invoice_number} · ${i.customer_name}`, sub: inr(i.total), href: `/customers/invoices/${i.id}` })
   for (const i of si.data ?? [])
     hits.push({ type: 'supplier_invoice', label: i.invoice_number ?? i.payee_name ?? 'Supplier invoice', sub: inr(i.amount), href: '/suppliers/invoices' })
   for (const s of sup.data ?? [])

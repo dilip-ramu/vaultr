@@ -2,17 +2,16 @@ import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-/** Old reimbursement-invoice history page. Merged into the unified
- *  /customers/invoices/list (Deploy 4). Redirect preserves ?customer=. */
-export default async function ReimbursementInvoicesRedirect({
+/** Older reimbursement invoice history.
+ *  Kept as a redirect so bookmarks and old links still land somewhere useful. */
+export default async function OldReimbursementHistoryRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string }>
+  searchParams: Promise<Record<string, string | undefined>>
 }) {
-  const { customer } = await searchParams
-  redirect(
-    customer
-      ? `/customers/invoices/list?customer=${customer}`
-      : '/customers/invoices/list'
-  )
+  const sp = await searchParams
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(sp)) if (v) qs.set(k, v)
+  const extra = qs.toString()
+  redirect(`/customers/invoices/list${extra ? ('/customers/invoices/list'.includes('?') ? '&' : '?') + extra : ''}`)
 }

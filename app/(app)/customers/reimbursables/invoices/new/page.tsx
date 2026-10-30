@@ -2,17 +2,16 @@ import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-/** New-reimbursement-invoice builder moved to
- *  /customers/invoices/reimbursables/new under the unified Invoices tabs. */
-export default async function NewReimbursementInvoiceRedirect({
+/** Older reimbursement builder address.
+ *  Kept as a redirect so bookmarks and old links still land somewhere useful. */
+export default async function OldReimbursementBuilderRedirect({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string }>
+  searchParams: Promise<Record<string, string | undefined>>
 }) {
-  const { customer } = await searchParams
-  redirect(
-    customer
-      ? `/customers/invoices/reimbursables/new?customer=${customer}`
-      : '/customers/invoices/reimbursables/new'
-  )
+  const sp = await searchParams
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(sp)) if (v) qs.set(k, v)
+  const extra = qs.toString()
+  redirect(`/customers/invoices/reimbursable?step=build${extra ? ('/customers/invoices/reimbursable?step=build'.includes('?') ? '&' : '?') + extra : ''}`)
 }

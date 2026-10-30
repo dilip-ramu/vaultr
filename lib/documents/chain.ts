@@ -25,7 +25,7 @@ const BUY_STAGES = [
 
 function hrefFor(type: string, id: string): string | null {
   switch (type) {
-    case 'tax_invoice': return `/recoverables/invoices/${id}`
+    case 'tax_invoice': return `/customers/invoices/${id}`
     case 'supplier_bill': return `/suppliers/invoices`
     case 'purchase_order':
     case 'debit_note': return `/suppliers/documents/${type}/${id}/edit`

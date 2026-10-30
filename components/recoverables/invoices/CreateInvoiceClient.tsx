@@ -240,7 +240,7 @@ export default function CreateInvoiceClient({
       const data = await res.json() as { success?: boolean; invoiceId?: string; error?: string }
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Failed to create invoice')
       showToast('Invoice created', 'success')
-      router.push(`/recoverables/invoices/${data.invoiceId}`)
+      router.push(`/customers/invoices/${data.invoiceId}`)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to create invoice', 'error')
       setSubmitting(false)
@@ -278,7 +278,7 @@ export default function CreateInvoiceClient({
             {pendingCustomers.map(c => (
               <button
                 key={c.customerName}
-                onClick={() => router.push(`/recoverables/invoices/new?customer=${encodeURIComponent(c.customerName)}`)}
+                onClick={() => router.push(`/customers/invoices/courier?step=build&customer=${encodeURIComponent(c.customerName)}`)}
                 className="w-full flex items-center justify-between gap-3 py-3.5 px-1 text-left hover:opacity-80 tap-scale"
               >
                 <div className="min-w-0">
@@ -315,7 +315,7 @@ export default function CreateInvoiceClient({
     if (step > 1) {
       setStep((step - 1) as 1 | 2 | 3)
     } else {
-      router.push('/recoverables/invoices/new')
+      router.push('/customers/invoices/courier?step=build')
     }
   }
 

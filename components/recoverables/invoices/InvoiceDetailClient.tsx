@@ -226,7 +226,7 @@ export default function InvoiceDetailClient({ invoice: initialInvoice, lines, cu
         const j = await res.json() as { error?: string }
         throw new Error(j.error ?? 'Failed to delete')
       }
-      router.push('/recoverables/invoices')
+      router.push('/customers/invoices')
       router.refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error')

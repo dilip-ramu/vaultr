@@ -211,7 +211,7 @@ export default function CustomerOverviewClient({ orders, styles, customers, rece
         {[
           { href: '/customers/commission',  label: 'Incoming',           icon: DollarSign, desc: 'Orders & styles' },
           { href: '/customers/directory',   label: 'Customer Directory', icon: BookOpen,   desc: 'Manage customers' },
-          { href: '/recoverables/invoices', label: 'Invoices',           icon: FileText,   desc: 'Customer billing' },
+          { href: '/customers/invoices', label: 'Invoices',           icon: FileText,   desc: 'Customer billing' },
           { href: '/recoverables/tds',      label: 'TDS',                icon: Receipt,    desc: 'Tax deducted' },
         ].map(({ href, label, icon: Icon, desc }) => (
           <Link

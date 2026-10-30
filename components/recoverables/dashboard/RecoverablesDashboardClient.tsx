@@ -58,7 +58,7 @@ export default function RecoverablesDashboardClient({
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Pending by Customer</h2>
           <Link
-            href="/recoverables/invoices"
+            href="/customers/invoices"
             className="text-xs font-semibold"
             style={{ color: 'var(--brand)' }}
           >

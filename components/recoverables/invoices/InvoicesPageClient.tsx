@@ -158,7 +158,7 @@ export default function InvoicesPageClient({
             </button>
           </div>
           <Link
-            href="/recoverables/invoices/new"
+            href="/customers/invoices/courier?step=build"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold"
             style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
           >
@@ -354,7 +354,7 @@ function BatchCard({
                 {/* Straight to the invoice generator — pick the customer, set a
                     markup, review the lines and generate. This is the page the old
                     build had; the earlier hint pointed at a menu that's since gone. */}
-                <Link href="/recoverables/invoices/new"
+                <Link href="/customers/invoices/courier?step=build"
                   className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold text-white"
                   style={{ background: 'var(--brand)' }}>
                   <FileText className="w-4 h-4" /> Create invoice
@@ -440,7 +440,7 @@ function InvoiceRow({
       </a>
       {/* Edit — courier invoices have a full detail/edit page. */}
       <Link
-        href={`/recoverables/invoices/${invoice.id}`}
+        href={`/customers/invoices/${invoice.id}`}
         title="Edit invoice"
         className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--surface)] shrink-0 transition-colors"
       >

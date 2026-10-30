@@ -166,7 +166,7 @@ export default function CustomerLedgerClient({
             Invoices ({invoices.length})
           </h2>
           <Link
-            href={`/recoverables/invoices/new?customer=${encodeURIComponent(customerName)}`}
+            href={`/customers/invoices/courier?step=build&customer=${encodeURIComponent(customerName)}`}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg"
             style={{ background: 'var(--brand)', color: '#fff' }}
           >
@@ -204,7 +204,7 @@ export default function CustomerLedgerClient({
                     <tr key={inv.id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td className="py-3 px-3">
                         <Link
-                          href={`/recoverables/invoices/${inv.id}`}
+                          href={`/customers/invoices/${inv.id}`}
                           className="font-semibold text-xs hover:underline"
                           style={{ color: 'var(--brand)' }}
                         >
@@ -245,7 +245,7 @@ export default function CustomerLedgerClient({
                 return (
                   <Link
                     key={inv.id}
-                    href={`/recoverables/invoices/${inv.id}`}
+                    href={`/customers/invoices/${inv.id}`}
                     className="flex items-center justify-between gap-3 px-4 py-3"
                   >
                     <div>
@@ -283,7 +283,7 @@ export default function CustomerLedgerClient({
           </h2>
           {pendingAllocations.length > 0 && (
             <Link
-              href={`/recoverables/invoices/new?customer=${encodeURIComponent(customerName)}`}
+              href={`/customers/invoices/courier?step=build&customer=${encodeURIComponent(customerName)}`}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg"
               style={{ background: 'var(--surface-2)', color: 'var(--brand)', border: '1px solid var(--brand)' }}
             >
