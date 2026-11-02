@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import SignatorySelect from '@/components/company-details/SignatorySelect'
 import { buildDocNumber, docNumberHead, docConfigFor, type DocSide } from '@/lib/documents/config'
+import { extraDateFields, extraDatesToForm, extraDatesToSave } from '@/lib/documents/extraDates'
 import type { LinkKind } from '@/lib/documents/links'
 
 interface CompanyOpt { id: string; name: string; prefix: string }
@@ -17,6 +18,8 @@ export interface DocInitial {
   companyId: string; partyId: string; date: string; reference: string; notes: string
   bankAccountId?: string | null
   signatoryId: string | null; number: string
+  /** Dates only some types carry — a PO's cut-off date and ETD. */
+  extraDates?: Record<string, string>
   lines: { item: string; hsn: string; qty: string; rate: string; gst: string }[]
 }
 interface Props {
@@ -56,6 +59,11 @@ export default function DocumentForm({ side, docType, companies, parties, existi
   const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState(initial?.reference ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  // Cut-off date / ETD on a purchase order. Driven by lib/documents/extraDates
+  // so a type that carries none shows none.
+  const extras = extraDateFields(docType)
+  const [extraDates, setExtraDates] = useState<Record<string, string>>(
+    () => ({ ...extraDatesToForm(docType, null), ...(initial?.extraDates ?? {}) }))
   const [numberStr, setNumberStr] = useState(() => initial?.number ?? nextNumber(companies[0]?.id ?? ''))
   const [lines, setLines] = useState<Line[]>(() =>
     initial?.lines?.length ? initial.lines.map(l => ({ id: ++seq, ...l })) : [{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
@@ -113,6 +121,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
         party_kind: side, party_id: party.id, party_name: party.name,
         party_address: party.address, party_gstin: party.gstin, party_state: party.state,
         number: finalNumber, date, reference: reference.trim() || null, notes: notes.trim() || null,
+        ...extraDatesToSave(docType, extraDates),
         signatory_id: signatoryId || null,
         bank_account_id: bankAccountId,
         subtotal: totals.subtotal, cgst_amount: totals.cgst, sgst_amount: totals.sgst, total: totals.total,
@@ -199,6 +208,12 @@ export default function DocumentForm({ side, docType, companies, parties, existi
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{cfg.referenceLabel ?? 'Reference'}
             <input value={reference} onChange={e => setReference(e.target.value)} className={iCls} style={iStyle} />
           </label>
+          {extras.map(f => (
+            <label key={f.key} className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{f.label} <span style={{ color: 'var(--text-faint)' }}>(optional)</span>
+              <input type="date" value={extraDates[f.key] ?? ''} onChange={e => setExtraDates(prev => ({ ...prev, [f.key]: e.target.value }))} className={iCls} style={iStyle} />
+              <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>{f.hint}</span>
+            </label>
+          ))}
         </div>
 
         {/* Line items.

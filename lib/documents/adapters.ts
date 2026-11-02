@@ -4,6 +4,7 @@
 import type { DocModel, DocRow, DocColumn } from './model'
 import { invoiceStatusBand } from './model'
 import { amountToWords } from '@/lib/recoverables/invoices/words'
+import { extraDateChips, extraDateFieldValues, type ExtraDateKey } from './extraDates'
 
 const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
 const plain = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
@@ -199,7 +200,9 @@ interface DocLine {
   item?: string | null; hsn_sac?: string | null; qty?: number | null; rate?: number | null
   amount?: number | null; gst_rate?: number | null; cgst_amount?: number | null; sgst_amount?: number | null
 }
-interface DocRecord {
+interface DocRecord extends Partial<Record<ExtraDateKey, string | null>> {
+  /** The document type id — decides which extra dates (cut-off, ETD) print. */
+  doc_type?: string | null
   number?: string | null; date?: string | null; reference?: string | null; notes?: string | null
   party_name?: string | null; party_address?: string | null; party_gstin?: string | null; party_state?: string | null
   subtotal?: number | null; cgst_amount?: number | null; sgst_amount?: number | null; total?: number | null
@@ -243,8 +246,12 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
   if (compact(doc.party_state)) p2.push(String(doc.party_state))
   if (p2.length) pLines.push(p2.join(' · '))
 
+  // Header chips: the document's own date, then the extra dates its type
+  // carries (a purchase order's cut-off date and ETD), then the reference.
+  const docType = String(doc.doc_type ?? '')
   const metaChips = [
-    ...(compact(doc.date) ? [{ label: 'Date', value: String(doc.date) }] : []),
+    ...(compact(doc.date) ? [{ label: 'Date', value: docDate(doc.date) }] : []),
+    ...extraDateChips(docType, doc, docDate),
     ...(compact(doc.reference) ? [{ label: meta.referenceLabel ?? 'Reference', value: String(doc.reference) }] : []),
   ]
 
@@ -273,7 +280,8 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
     fields: {
       'doc.title': meta.title.toUpperCase(),
       'doc.number': String(doc.number ?? ''),
-      'doc.date': String(doc.date ?? ''),
+      'doc.date': docDate(doc.date),
+      ...extraDateFieldValues(docType, doc, docDate),
       'doc.reference': compact(doc.reference) ?? '',
       'company.name': settings?.company_name ?? '',
       'company.address': compact(settings?.company_address) ?? '',

@@ -3,6 +3,12 @@
 // one-tap to download, and paginates by content (no rasterised A4 with empty
 // bands). Every string that shows on the invoice is real text in the PDF.
 //
+// Overlap rule: NOTHING is drawn with a hand-rolled `y += 4`. Every block of
+// text goes through `block()` below, which wraps to a width and returns the y
+// underneath every line it drew. A block that wraps to three lines therefore
+// pushes the next block down by three lines, which is the whole reason the
+// company address and the GSTIN line used to be printed on top of each other.
+//
 // Pagination rule: the line-item table flows down the page; when it runs out of
 // room a new page starts and ONLY the column header repeats (never the whole
 // letterhead). The totals / bank / terms / signature block follows the table
@@ -11,6 +17,7 @@
 
 import type { DocModel, DocColumn } from '@/lib/documents/model'
 import { PDF_FONT, registerPdfFont } from './pdfFont'
+import { layoutTextBlock, sideBySideHeight, type WrapFn } from './textBlock'
 
 const A4 = { w: 210, h: 297 }
 const M = 14                     // page margin (mm)
@@ -68,6 +75,32 @@ async function buildDocModelPdf(model: DocModel) {
   const cellX = (i: number, align: DocColumn['align']) =>
     align === 'right' ? colX[i] + colW[i] - PAD : align === 'center' ? colX[i] + colW[i] / 2 : colX[i] + PAD
 
+  // ── Text blocks ────────────────────────────────────────────────────────────
+  // Each line is drawn at its own y so the spacing is exactly `lineH` and can
+  // never disagree with the height we advance by (jsPDF's own multi-line
+  // spacing comes from the font, not from us).
+  const wrap: WrapFn = (t, w) => {
+    const r = doc.splitTextToSize(t, w) as unknown as string | string[]
+    return Array.isArray(r) ? r : [r]
+  }
+  function block(
+    texts: readonly (string | null | undefined)[],
+    x: number,
+    top: number,
+    width: number,
+    lineH: number,
+    align: 'left' | 'right' = 'left',
+  ): number {
+    const b = layoutTextBlock(texts, width, lineH, wrap)
+    b.lines.forEach((l, i) => doc.text(l, x, top + i * lineH, align === 'right' ? { align: 'right' } : undefined))
+    return top + b.height
+  }
+
+  // The header and the footer each put a block on the left and something on
+  // the right, so the left block must stop before the right one starts.
+  const HEAD_L_W = CONTENT_W * 0.58
+  const FOOT_L_W = CONTENT_W - 48
+
   let y = M
 
   // ── Accent strip ───────────────────────────────────────────────────────────
@@ -82,10 +115,9 @@ async function buildDocModelPdf(model: DocModel) {
     y += lh + 3
   }
   doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(14); doc.setTextColor(...DARK)
-  doc.text(model.companyName || '', M, y + 4)
-  y += 6
+  y = block([model.companyName], M, y + 4, HEAD_L_W, 5.5)
   doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
-  for (const line of model.companyLines ?? []) { doc.text(line, M, y); y += 4 }
+  y = block(model.companyLines ?? [], M, y, HEAD_L_W, 4)
 
   // Right column: title, number, date
   let ry = headTop + 2
@@ -106,9 +138,9 @@ async function buildDocModelPdf(model: DocModel) {
     doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
     doc.text(p.label.toUpperCase(), M, y); y += 4
     doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(11); doc.setTextColor(...DARK)
-    doc.text(p.name || '', M, y); y += 5
+    y = block([p.name], M, y, CONTENT_W * 0.62, 5)
     doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
-    for (const l of p.lines ?? []) { doc.text(doc.splitTextToSize(l, CONTENT_W), M, y); y += 4 }
+    y = block(p.lines ?? [], M, y, CONTENT_W * 0.62, 4)
     y += 2
   }
   y += 2
@@ -135,7 +167,8 @@ async function buildDocModelPdf(model: DocModel) {
     if (r.strong) { doc.setFillColor(250,250,250); doc.rect(M, y, CONTENT_W, rowH, 'F'); doc.setFont(PDF_FONT, 'bold') }
     doc.setTextColor(r.danger ? 192 : (r.strong ? 17 : 51), r.danger ? 57 : (r.strong ? 17 : 51), r.danger ? 43 : (r.strong ? 17 : 51))
     cols.forEach((c, i) => {
-      doc.text(wrapped[i], cellX(i, c.align), y + 4, { align: c.align === 'right' ? 'right' : c.align === 'center' ? 'center' : 'left' })
+      const align = c.align === 'right' ? 'right' : c.align === 'center' ? 'center' : 'left'
+      ;(wrapped[i] as string[]).forEach((l, j) => doc.text(l, cellX(i, c.align), y + 4 + j * LINE, { align }))
     })
     if (r.strong) doc.setFont(PDF_FONT, 'normal')
     doc.setDrawColor(238,238,238); doc.line(M, y + rowH, A4.w - M, y + rowH)
@@ -149,11 +182,15 @@ async function buildDocModelPdf(model: DocModel) {
 
   const rightX = A4.w - M
   const labelX = A4.w - M - 60
+  // "In words" on the left and the amounts on the right start at the same y,
+  // so whatever comes next has to clear both of them.
+  const sumTop = y
+  let wordsBottom = y
   if (model.inWords) {
     doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(8); doc.setTextColor(...GREY)
     doc.text('In words:', M, y)
     doc.setFont(PDF_FONT, 'normal')
-    doc.text(doc.splitTextToSize(model.inWords, 95), M + 16, y)
+    wordsBottom = block([model.inWords], M + 16, y, Math.max(40, labelX - (M + 16) - 4), 3.6)
   }
   doc.setFontSize(9); doc.setTextColor(90,90,90)
   for (const t of model.totals ?? []) {
@@ -170,20 +207,20 @@ async function buildDocModelPdf(model: DocModel) {
     doc.text(model.grandValue, rightX, y, { align: 'right' })
     y += 8
   }
+  y = sumTop + sideBySideHeight(wordsBottom - sumTop, y - sumTop)
 
   // ── Footer: bank + terms (left), signature (right) ─────────────────────────
   y += 4
   if (y + 30 > BOTTOM) { doc.addPage(); y = M }
   const footTop = y
   doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...GREY)
-  for (const l of model.bankLines ?? []) { doc.text(l, M, y); y += 4 }
+  y = block(model.bankLines ?? [], M, y, FOOT_L_W, 4)
   if (model.terms) {
     y += 2
     doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
     doc.text('TERMS & CONDITIONS', M, y); y += 4
     doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GREY)
-    const tl = doc.splitTextToSize(model.terms, CONTENT_W * 0.55)
-    doc.text(tl, M, y); y += tl.length * 3.4
+    y = block([model.terms], M, y, CONTENT_W * 0.55, 3.4)
   }
   // Signature, right side, aligned to the footer's top.
   let sy = footTop

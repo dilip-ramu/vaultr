@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import DocumentForm, { type DocInitial } from '@/components/documents/DocumentForm'
+import { extraDatesToForm } from '@/lib/documents/extraDates'
 import DocChainFlow from '@/components/documents/DocChainFlow'
 import { docConfigFor } from '@/lib/documents/config'
 import { resolveBuyChain } from '@/lib/documents/chain'
@@ -38,6 +39,7 @@ export default async function EditSupplierDocumentPage({ params }: { params: Pro
     notes: (doc.notes as string | null) ?? '',
     signatoryId: (doc.signatory_id as string | null) ?? null,
     number: String(doc.number ?? ''),
+    extraDates: extraDatesToForm(type, doc as Record<string, string | null>),
     lines: (lines ?? []).map((l: Record<string, unknown>) => ({ item: String(l.item ?? ''), hsn: String(l.hsn_sac ?? ''), qty: String(l.qty ?? '1'), rate: String(l.rate ?? ''), gst: String(l.gst_rate ?? 18) })),
   }
 

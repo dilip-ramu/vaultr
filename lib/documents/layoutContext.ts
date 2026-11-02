@@ -88,6 +88,7 @@ export function sampleContext(format: string, accent: string): LayoutContext {
     accent,
     fields: {
       'doc.title': title, 'doc.number': 'C-XX260001', 'doc.date': '11 Jul 2026', 'doc.reference': 'REF-001',
+      'doc.cutoff_date': '18 Jul 2026', 'doc.etd': '25 Jul 2026',
       'company.name': 'Your Company Pvt Ltd', 'company.address': '2/1010F, Road, City 641605',
       'company.gstin': '33ABCDE1234F1Z5', 'company.phone': '+91 90000 00000', 'company.email': 'hello@company.com',
       'party.label': 'BILL TO', 'party.name': 'Acme Corp', 'party.address': 'Mumbai 400050', 'party.gstin': '27AABCA5678K1Z2',

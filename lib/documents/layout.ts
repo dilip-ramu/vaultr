@@ -131,8 +131,15 @@ const REIMB_EXTRA: FieldDef[] = [
   { key: 'doc.month', label: 'For the month' },
 ]
 
+// A purchase order's own two dates, placeable on a designed template.
+const PO_EXTRA: FieldDef[] = [
+  { key: 'doc.cutoff_date', label: 'Cut-off date' },
+  { key: 'doc.etd', label: 'ETD' },
+]
+
 export function fieldsForFormat(format: string): FieldDef[] {
   if (format === 'salary_slip') return SLIP_FIELDS
+  if (format === 'purchase_order') return [...COMMON_FIELDS, ...PO_EXTRA]
   if (format === 'reimbursable') return [...COMMON_FIELDS, ...REIMB_EXTRA]
   return COMMON_FIELDS
 }
