@@ -419,63 +419,71 @@ export default function OrderSheet(p: Props) {
         </table>
       </div>
 
-      {/* ── What really happened ────────────────────────────────────────── */}
-      {isExport && !locked && (
+      {/* ── What really happened ────────────────────────────────────────
+          This card is NOT gated on the order being an export. It was, and
+          the whole thing — drawback included — vanished on a rupee order,
+          which is how you end up unable to type a number the app is asking
+          you for. Nothing here hides; things that do not apply say so. */}
+      {!locked && (
         <div className="rounded-2xl border p-5 space-y-4" style={card}>
           <div>
             <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>What really happened</h2>
             <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Fill these in as they land. Until then the sheet stands in the figures you costed at.</p>
           </div>
 
-          <label className="block text-[11px] font-semibold max-w-xs" style={{ color: 'var(--text-muted)' }}>Rate the bank actually gave <span style={{ color: 'var(--text-faint)' }}>(₹ per 1 {order.currency})</span>
-            <input value={realisedRate} inputMode="decimal" placeholder={String(order.booked_rate)}
-              onChange={e => setRealisedRate(e.target.value)}
-              onBlur={() => patch({ realised_rate: realisedRate === '' ? null : num(realisedRate) })}
-              className={iCls} style={iStyle} />
-          </label>
+          {isExport && (
+            <label className="block text-[11px] font-semibold max-w-xs" style={{ color: 'var(--text-muted)' }}>Rate the bank actually gave <span style={{ color: 'var(--text-faint)' }}>(₹ per 1 {order.currency})</span>
+              <input value={realisedRate} inputMode="decimal" placeholder={String(order.booked_rate)}
+                onChange={e => setRealisedRate(e.target.value)}
+                onBlur={() => patch({ realised_rate: realisedRate === '' ? null : num(realisedRate) })}
+                className={iCls} style={iStyle} />
+            </label>
+          )}
 
-          {/* Duty drawback appears once the goods have gone. Asked for any
-              earlier it is a guess, and a guess on this sheet becomes a
-              number somebody plans against. */}
+          {/* Duty drawback. You said you fill this in once the goods have
+              shipped — so the page SAYS that, and leaves the fields open.
+              A habit is not a rule for the app to enforce. */}
           <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }}>
-            <h3 className="text-[13px] font-extrabold mt-3" style={{ color: 'var(--text)' }}>Duty drawback</h3>
-            {!shipped ? (
-              <p className="text-[12px] mt-1" style={{ color: 'var(--text-faint)' }}>
-                Set this once the goods have shipped. Enter what has gone out in the lines above and it appears here.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
-                <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Basis
-                  <select value={dbBasis} className={iCls} style={iStyle}
-                    onChange={e => { const v = e.target.value as '' | 'percent' | 'amount'; setDbBasis(v); patch({ drawback_basis: v || null, drawback_value: v ? num(dbValue) : 0 }) }}>
-                    <option value="">None on this order</option>
-                    <option value="percent">Percentage of FOB</option>
-                    <option value="amount">Fixed amount</option>
-                  </select>
-                </label>
-                {dbBasis && (
-                  <>
-                    <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{dbBasis === 'percent' ? 'Rate (%)' : 'Amount (₹)'}
-                      <input value={dbValue} inputMode="decimal" placeholder={dbBasis === 'percent' ? '1.8' : '76464'}
-                        onChange={e => setDbValue(e.target.value)}
-                        onBlur={() => patch({ drawback_value: num(dbValue) })}
-                        className={iCls} style={iStyle} />
-                    </label>
-                    <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Actually received (₹)
-                      <input value={drawbackActual} inputMode="decimal" placeholder={String(Math.round(margin.planned.drawback))}
-                        onChange={e => setDrawbackActual(e.target.value)}
-                        onBlur={() => patch({ drawback_actual: drawbackActual === '' ? null : num(drawbackActual) })}
-                        className={iCls} style={iStyle} />
-                    </label>
-                    <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Received on
-                      <input type="date" value={dbReceived}
-                        onChange={e => { setDbReceived(e.target.value); patch({ drawback_received_date: e.target.value || null }) }}
-                        className={iCls} style={iStyle} />
-                    </label>
-                  </>
-                )}
-              </div>
-            )}
+            <div className="flex flex-wrap items-baseline gap-x-3 mt-3">
+              <h3 className="text-[13px] font-extrabold" style={{ color: 'var(--text)' }}>Duty drawback</h3>
+              <span className="text-[12px]" style={{ color: 'var(--text-faint)' }}>
+                {!isExport
+                  ? 'Applies to exports — this order is in rupees.'
+                  : shipped ? 'Goods have gone, so this can be claimed.' : 'Usually set once the goods have shipped.'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+              <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Basis
+                <select value={dbBasis} className={iCls} style={iStyle}
+                  onChange={e => { const v = e.target.value as '' | 'percent' | 'amount'; setDbBasis(v); patch({ drawback_basis: v || null, drawback_value: v ? num(dbValue) : 0 }) }}>
+                  <option value="">None on this order</option>
+                  <option value="percent">Percentage of FOB</option>
+                  <option value="amount">Fixed amount</option>
+                </select>
+              </label>
+              {dbBasis && (
+                <>
+                  <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{dbBasis === 'percent' ? 'Rate (%)' : 'Amount (₹)'}
+                    <input value={dbValue} inputMode="decimal" placeholder={dbBasis === 'percent' ? '1.8' : '76464'}
+                      onChange={e => setDbValue(e.target.value)}
+                      onBlur={() => patch({ drawback_value: num(dbValue) })}
+                      className={iCls} style={iStyle} />
+                  </label>
+                  <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Actually received (₹)
+                    <input value={drawbackActual} inputMode="decimal" placeholder={String(Math.round(margin.planned.drawback))}
+                      onChange={e => setDrawbackActual(e.target.value)}
+                      onBlur={() => patch({ drawback_actual: drawbackActual === '' ? null : num(drawbackActual) })}
+                      className={iCls} style={iStyle} />
+                  </label>
+                  <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Received on
+                    <input type="date" value={dbReceived}
+                      onChange={e => { setDbReceived(e.target.value); patch({ drawback_received_date: e.target.value || null }) }}
+                      className={iCls} style={iStyle} />
+                  </label>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
