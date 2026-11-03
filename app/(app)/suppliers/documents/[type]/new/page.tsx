@@ -2,14 +2,15 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import DocumentForm, { type DocInitial } from '@/components/documents/DocumentForm'
 import { docConfigFor } from '@/lib/documents/config'
+import { orderDocLines } from '@/lib/orders/toDocument'
 
 export const dynamic = 'force-dynamic'
 
 export default async function NewSupplierDocumentPage({
   params, searchParams,
-}: { params: Promise<{ type: string }>; searchParams: Promise<{ from?: string; against?: string }> }) {
+}: { params: Promise<{ type: string }>; searchParams: Promise<{ from?: string; against?: string; fromOrder?: string }> }) {
   const { type } = await params
-  const { from, against } = await searchParams
+  const { from, against, fromOrder } = await searchParams
   const cfg = docConfigFor(type, 'supplier')
   if (!cfg || cfg.side !== 'supplier') notFound()
 
@@ -62,9 +63,55 @@ export default async function NewSupplierDocumentPage({
     }
   }
 
+  // ── Raised from an order ──────────────────────────────────────────────────
+  // The styles, the spec, the size breakdown and the rate you agreed are
+  // already on the order. Retyping them is how the supplier ends up being
+  // told something different from what the customer agreed. The supplier
+  // itself is NOT guessed — an order can be bought from more than one.
+  let orderId: string | null = null
+  if (fromOrder) {
+    const [{ data: ord }, { data: ol }] = await Promise.all([
+      supabase.from('orders').select('*').eq('id', fromOrder).eq('user_id', uid).maybeSingle(),
+      supabase.from('order_lines').select('*').eq('order_id', fromOrder).order('line_number', { ascending: true }),
+    ])
+    if (ord) {
+      orderId = fromOrder
+      const ids = (ol ?? []).map((l: Record<string, unknown>) => String(l.id))
+      const { data: sizes } = ids.length
+        ? await supabase.from('order_line_sizes').select('*').in('line_id', ids).order('sort', { ascending: true })
+        : { data: [] as Record<string, unknown>[] }
+      const sizesByLine = new Map<string, { label: string; qty: number }[]>()
+      for (const s of sizes ?? []) {
+        const row = s as Record<string, unknown>
+        const k = String(row.line_id)
+        const list = sizesByLine.get(k) ?? []
+        list.push({ label: String(row.label ?? ''), qty: Number(row.qty) || 0 })
+        sizesByLine.set(k, list)
+      }
+      initial = {
+        companyId: (ord.company_id as string | null) ?? '',
+        partyId: '',
+        date: today,
+        reference: (ord.customer_po_no as string | null) ?? String(ord.number ?? ''),
+        notes: '',
+        signatoryId: null,
+        number: '',
+        lines: orderDocLines((ol ?? []).map((l: Record<string, unknown>) => ({
+          item: String(l.item ?? ''),
+          description: (l.description as string | null) ?? null,
+          hsn: (l.hsn_sac as string | null) ?? null,
+          qty: Number(l.qty) || 0,
+          sellRate: Number(l.sell_rate) || 0,
+          costRate: Number(l.cost_rate) || 0,
+          sizes: sizesByLine.get(String(l.id)) ?? [],
+        })), 'cost'),
+      }
+    }
+  }
+
   return (
     <DocumentForm side="supplier" docType={type} companies={companyOpts} parties={parties}
       existing={(existing ?? []) as { company_id: string | null; number: string }[]}
-      initial={initial} sourceId={sourceId} sourceKind="document" against={againstProp} />
+      initial={initial} sourceId={sourceId} sourceKind="document" against={againstProp} orderId={orderId} />
   )
 }

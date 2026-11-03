@@ -35,13 +35,15 @@ interface Props {
   sourceKind?: LinkKind
   /** When this is a credit/debit note raised against an invoice. */
   against?: { id: string; kind: LinkKind; number: string } | null
+  /** Raised from an order — the saved document is filed against it. */
+  orderId?: string | null
 }
 
 interface Line { id: number; item: string; hsn: string; qty: string; rate: string; gst: string }
 let seq = 0
 const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n)
 
-export default function DocumentForm({ side, docType, companies, parties, existing, docId = null, initial, sourceId = null, sourceKind = 'document', against = null }: Props) {
+export default function DocumentForm({ side, docType, companies, parties, existing, docId = null, initial, sourceId = null, sourceKind = 'document', against = null, orderId = null }: Props) {
   const router = useRouter()
   const isEdit = !!docId
   const cfg = docConfigFor(docType, side)!
@@ -124,6 +126,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
         ...extraDatesToSave(docType, extraDates),
         signatory_id: signatoryId || null,
         bank_account_id: bankAccountId,
+        ...(orderId ? { order_id: orderId } : {}),
         subtotal: totals.subtotal, cgst_amount: totals.cgst, sgst_amount: totals.sgst, total: totals.total,
       }
       let savedId = docId
@@ -158,7 +161,9 @@ export default function DocumentForm({ side, docType, companies, parties, existi
       }
 
       notify(`${cfg.label} ${finalNumber} ${isEdit ? 'updated' : 'saved'} ✓`, 'success')
-      router.push(listHref)
+      // Raised from an order? Go back to it — that page is the thread of the
+      // job, and the document list is not where you were.
+      router.push(orderId ? `/orders/${orderId}` : listHref)
       router.refresh()
     } finally { setSaving(false) }
   }

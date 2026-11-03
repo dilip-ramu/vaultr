@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Plus, PackageSearch } from 'lucide-react'
 import { stageMeta, isOpen, type OrderStage } from '@/lib/orders/stage'
+import type { OrdersSummary } from '@/lib/orders/summary'
 
 const BADGE: Record<string, { bg: string; fg: string }> = {
   grey:   { bg: '#EEF0F2', fg: '#4B5563' },
@@ -51,7 +52,23 @@ function Profit({ net, pct, estimated }: { net: number; pct: number; estimated: 
   )
 }
 
-export default function OrdersClient({ rows }: { rows: OrderListRow[] }) {
+/** One figure, said plainly. The strip is read at a glance, so no figure on
+ *  it is allowed to need a second look to know whether it is good news. */
+function Tile({ label, value, sub, tone }: {
+  label: string; value: string; sub?: string
+  tone?: 'plain' | 'good' | 'bad' | 'brand'
+}) {
+  const color = tone === 'good' ? 'var(--income)' : tone === 'bad' ? 'var(--expense)' : tone === 'brand' ? 'var(--brand)' : 'var(--text)'
+  return (
+    <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</div>
+      <div className="text-[19px] md:text-[21px] font-extrabold tabular-nums mt-1 leading-tight" style={{ color }}>{value}</div>
+      {sub && <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{sub}</div>}
+    </div>
+  )
+}
+
+export default function OrdersClient({ rows, summary }: { rows: OrderListRow[]; summary: OrdersSummary }) {
   const [show, setShow] = useState<'open' | 'all'>('open')
   const list = useMemo(() => (show === 'open' ? rows.filter(r => isOpen(r.stage)) : rows), [rows, show])
   const openCount = useMemo(() => rows.filter(r => isOpen(r.stage)).length, [rows])
@@ -68,6 +85,40 @@ export default function OrdersClient({ rows }: { rows: OrderListRow[] }) {
         <Link href="/orders/new" className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl" style={{ background: 'var(--brand)' }}>
           <Plus className="w-4 h-4" /> New order
         </Link>
+      </div>
+
+      {/* ── The numbers you want walking in ──────────────────────────────
+          Pending profit is a forecast and realised profit happened. They are
+          never added together: doing that would flatter every month. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Tile
+          label="Open orders"
+          value={String(summary.openCount)}
+          sub={summary.openValue ? `${inr(summary.openValue)} on the books` : 'nothing running'}
+          tone="brand" />
+        <Tile
+          label="Profit pending"
+          value={inr(summary.pendingProfit)}
+          sub={summary.openValue ? `${summary.openMarginPct.toFixed(1)}% on open orders` : 'on open orders'}
+          tone={summary.pendingProfit < 0 ? 'bad' : 'plain'} />
+        <Tile
+          label="Profit realised"
+          value={inr(summary.realisedProfit)}
+          sub={`${summary.closedCount} order${summary.closedCount === 1 ? '' : 's'} closed`}
+          tone={summary.realisedProfit < 0 ? 'bad' : 'good'} />
+        <Tile
+          label="Expected in the bank"
+          value={inr(summary.netExpected)}
+          sub="to come in, less what is owed"
+          tone={summary.netExpected < 0 ? 'bad' : 'plain'} />
+      </div>
+
+      <div className="rounded-2xl border px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text-muted)' }}>
+        <span>To collect <b className="tabular-nums" style={{ color: 'var(--income)' }}>{inr(summary.receivable)}</b></span>
+        <span>To pay <b className="tabular-nums" style={{ color: 'var(--expense)' }}>{inr(summary.payable)}</b></span>
+        {summary.drawbackDue > 0 && <span>Drawback awaited <b className="tabular-nums" style={{ color: 'var(--text)' }}>{inr(summary.drawbackDue)}</b></span>}
+        {summary.toShip > 0 && <span>Still to ship <b className="tabular-nums" style={{ color: 'var(--text)' }}>{summary.toShip.toLocaleString('en-IN')} pcs</b></span>}
       </div>
 
       <div className="flex gap-1.5">

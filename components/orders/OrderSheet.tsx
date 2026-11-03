@@ -12,6 +12,12 @@ import {
   type CostLine,
 } from '@/lib/orders/margin'
 import { stageMeta, allowedStages, suggestedStage, OPEN_STAGES, stageIndex } from '@/lib/orders/stage'
+import { formatSizes, lineShipped, type SizeRow } from '@/lib/orders/sizes'
+import type { OrderFacts, StepKey } from '@/lib/orders/flow'
+import type { SummaryInput } from '@/lib/orders/summaryDoc'
+import OrderStepRail from './OrderStepRail'
+import OrderFilesPanel, { type OrderFileRow } from './OrderFilesPanel'
+import SupplierPackButton from './SupplierPackButton'
 
 // ── Shapes the page hands down ──────────────────────────────────────────────
 
@@ -24,7 +30,11 @@ export interface OrderRow {
   drawback_actual: number | null; drawback_expected_date: string | null; drawback_received_date: string | null
   notes: string | null; closed_at: string | null
 }
-export interface LineRow { id: string; item: string; qty: number; sell_rate: number; cost_rate: number; shipped_qty: number }
+export interface LineRow {
+  id: string; item: string; description: string | null
+  qty: number; sell_rate: number; cost_rate: number; shipped_qty: number
+  sizes: SizeRow[]
+}
 export interface CostRow { id: string; name: string; sign: number; basis: CostLine['basis']; planned: number; actual: number | null }
 export interface DocRow { id: string; doc_type: string; number: string; date: string; total: number }
 export interface CustInvRow { id: string; invoice_number: string; invoice_date: string; total: number; currency: string; status: string }
@@ -41,6 +51,11 @@ interface Props {
   freeBuyDocs: DocRow[]
   freeCustInvoices: CustInvRow[]
   freeBills: BillRow[]
+  files: OrderFileRow[]
+  /** Everything the supplier-pack summary page needs, built server-side. */
+  summary: SummaryInput
+  /** The purchase order raised for this order, if there is one. */
+  po: { id: string; number: string; supplierName: string | null } | null
 }
 
 const DOC_LABEL: Record<string, string> = {
@@ -107,7 +122,10 @@ export default function OrderSheet(p: Props) {
     costs: costs.map(c => ({ name: c.name, sign: c.sign === 1 ? 1 : -1, basis: c.basis, planned: Number(c.planned) || 0, actual: c.actual })),
   }), [planned, actualCustomerValue, actualSupplierCost, order, realisedRate, drawbackActual, costs])
 
-  const ship = useMemo(() => shipmentProgress(lines.map(l => ({ qty: l.qty, sellRate: l.sell_rate, costRate: l.cost_rate, shippedQty: l.shipped_qty }))), [lines])
+  const ship = useMemo(() => shipmentProgress(lines.map(l => ({
+    qty: l.qty, sellRate: l.sell_rate, costRate: l.cost_rate,
+    shippedQty: lineShipped(l.shipped_qty, l.sizes),
+  }))), [lines])
 
   const suggestion = suggestedStage(stage, {
     hasSalesOrder: p.docs.some(d => d.doc_type === 'sales_order'),
@@ -115,6 +133,32 @@ export default function OrderSheet(p: Props) {
     hasShipped: ship.shipped > 0 || p.docs.some(d => d.doc_type === 'delivery_challan'),
     hasCustomerInvoice: p.custInvoices.length > 0,
   })
+
+  // ── The flow ──────────────────────────────────────────────────────────────
+  const customerFiles = p.files.filter(f => f.side === 'customer')
+  const supplierFiles = p.files.filter(f => f.side === 'supplier')
+  const facts: OrderFacts = {
+    customerFiles: customerFiles.length,
+    supplierFiles: supplierFiles.length,
+    hasSalesOrder: p.docs.some(d => d.doc_type === 'sales_order'),
+    hasPurchaseOrder: p.docs.some(d => d.doc_type === 'purchase_order'),
+    costAgreed: planned.supplierCost > 0,
+    costsEntered: costs.length > 0,
+    hasCustomerInvoice: p.custInvoices.length > 0,
+    closed: locked,
+  }
+  const hrefs: Partial<Record<StepKey, string>> = locked ? {} : {
+    sales_order: `/customers/documents/sales_order/new?fromOrder=${order.id}`,
+    purchase_order: `/suppliers/documents/purchase_order/new?fromOrder=${order.id}`,
+    // The invoice builder has its own line model and is not prefilled from an
+    // order yet, so this takes you there and you attach it back below. Saying
+    // so on the step is better than a parameter that silently does nothing.
+    invoice: '/customers/invoices/direct',
+  }
+  function onStep(key: StepKey) {
+    const id = key === 'files' ? 'order-files' : key === 'pl' ? 'order-pl' : null
+    if (id) document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   // ── Writes ────────────────────────────────────────────────────────────────
   async function patch(fields: Record<string, unknown>) {
@@ -207,6 +251,8 @@ export default function OrderSheet(p: Props) {
         </div>
       )}
 
+      <OrderStepRail facts={facts} hrefs={hrefs} onAction={onStep} />
+
       {locked && (
         <div className="rounded-xl px-4 py-3 text-[13px]" style={{ background: '#DCFCE7', color: '#14532D' }}>
           This order is closed and the sheet is locked{order.closed_at ? ` (${order.closed_at.slice(0, 10)})` : ''}.
@@ -251,10 +297,15 @@ export default function OrderSheet(p: Props) {
           <tbody>
             {lines.map(l => {
               const lineMargin = l.qty * (l.sell_rate * (Number(order.booked_rate) || 1) - l.cost_rate)
-              const balance = Math.max(0, l.qty - Math.min(l.shipped_qty, l.qty))
+              const shipped = lineShipped(l.shipped_qty, l.sizes)
+              const balance = Math.max(0, l.qty - Math.min(shipped, l.qty))
               return (
                 <tr key={l.id} style={{ borderTop: '1px solid var(--border)' }}>
-                  <td className="px-4 py-2 font-semibold" style={{ color: 'var(--text)' }}>{l.item}</td>
+                  <td className="px-4 py-2" style={{ color: 'var(--text)' }}>
+                    <div className="font-semibold">{l.item}</div>
+                    {l.description && <div className="text-[12px] mt-0.5 whitespace-pre-wrap" style={{ color: 'var(--text-muted)' }}>{l.description}</div>}
+                    {l.sizes.length > 0 && <div className="text-[12px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{formatSizes(l.sizes)}</div>}
+                  </td>
                   <td className="px-4 py-2 text-right tabular-nums" style={{ color: 'var(--text)' }}>{l.qty.toLocaleString('en-IN')}</td>
                   <td className="px-4 py-2 text-right">
                     <input defaultValue={l.shipped_qty || ''} disabled={locked} inputMode="decimal" placeholder="0"
@@ -275,7 +326,7 @@ export default function OrderSheet(p: Props) {
       </div>
 
       {/* ── The P/L ─────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border overflow-hidden" style={card}>
+      <div id="order-pl" className="rounded-2xl border overflow-hidden scroll-mt-4" style={card}>
         <div className="px-5 pt-4 pb-3 flex flex-wrap items-end justify-between gap-2">
           <div>
             <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>Profit and loss</h2>
@@ -405,6 +456,29 @@ export default function OrderSheet(p: Props) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* ── Files ───────────────────────────────────────────────────────── */}
+      <div id="order-files" className="grid grid-cols-1 lg:grid-cols-2 gap-4 scroll-mt-4">
+        <OrderFilesPanel
+          orderId={order.id} side="customer" locked={locked} files={customerFiles}
+          title="From the customer"
+          blurb="Their PO, the tech pack, anything they sent. Kept with the job instead of in your inbox."
+        />
+        <OrderFilesPanel
+          orderId={order.id} side="supplier" locked={locked} files={supplierFiles}
+          title="For the supplier"
+          blurb="Everything the supplier needs. These go in the pack you send them."
+        >
+          <SupplierPackButton
+            orderNumber={order.number}
+            poDocId={p.po?.id ?? null}
+            poNumber={p.po?.number ?? null}
+            supplierName={p.po?.supplierName ?? null}
+            files={supplierFiles.map(f => ({ name: f.name, path: f.path }))}
+            summary={p.summary}
+          />
+        </OrderFilesPanel>
       </div>
 
       {/* ── Paperwork ───────────────────────────────────────────────────── */}
