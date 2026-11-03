@@ -72,6 +72,7 @@ export interface DocumentRow {
   party_gstin: string | null
   number: string
   date: string
+  currency: string
   reference: string | null
   subtotal: number
   cgst_amount: number

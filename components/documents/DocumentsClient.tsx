@@ -9,6 +9,7 @@ import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { docConfigFor, type DocSide, type DocumentRow } from '@/lib/documents/config'
 import { convertTargets, statusMeta } from '@/lib/documents/links'
+import { money } from '@/lib/documents/money'
 
 const BADGE: Record<string, { bg: string; fg: string }> = {
   grey: { bg: '#EEF0F2', fg: '#4B5563' }, amber: { bg: '#FEF3C7', fg: '#92400E' },
@@ -17,7 +18,6 @@ const BADGE: Record<string, { bg: string; fg: string }> = {
 
 interface Props { side: DocSide; lockedType: string; initialDocs: DocumentRow[] }
 
-const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n)
 
 /** List of one document type for a side. Creation happens on a full page
  *  (DocumentForm), not a popup. */
@@ -88,7 +88,7 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
                     <div className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{d.date}</div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{money(d.total)}</div>
+                    <div className="font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{money(d.total, d.currency)}</div>
                   </div>
                 </div>
 
@@ -121,7 +121,7 @@ export default function DocumentsClient({ side, lockedType, initialDocs }: Props
                   </td>
                   <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{d.date}</td>
                   <td className="px-4 py-2.5" style={{ color: 'var(--text)' }}>{d.party_name}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: 'var(--text)' }}>{money(d.total)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold" style={{ color: 'var(--text)' }}>{money(d.total, d.currency)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="inline-flex items-center gap-1.5">
                       {convertTargets(lockedType).length > 0 && (

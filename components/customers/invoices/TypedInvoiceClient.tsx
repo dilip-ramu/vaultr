@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { ChevronLeft, Plus, Trash2, Loader2 } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import SignatorySelect from '@/components/company-details/SignatorySelect'
+import { moneyExact, defaultGstFor } from '@/lib/documents/money'
+import { CURRENCIES } from '@/lib/currencies'
 
 interface CustomerOption { id: string; name: string }
 interface CompanyOption {
@@ -19,6 +21,8 @@ export interface InitialInvoice {
   paymentTerms: string
   notes: string
   signatoryId?: string | null
+  /** The currency the invoice is raised in. Defaults to INR. */
+  currency?: string
   lines: { description: string; hsn: string; qty: string; rate: string; cgst: string; sgst: string }[]
 }
 interface Props {
@@ -30,6 +34,8 @@ interface Props {
   initial?: InitialInvoice
   /** When creating from a document (convert), the source document id — linked on save. */
   sourceDocId?: string | null
+  /** Raised from an order — the invoice is filed against it. */
+  orderId?: string | null
 }
 
 interface LineDraft {
@@ -52,11 +58,13 @@ const PAYMENT_TERMS: { value: string; label: string }[] = [
 ]
 
 const r2 = (n: number) => Math.round(n * 100) / 100
-const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// The invoice is shown in the currency it is raised in — the customer's, for
+// an export. See lib/documents/money.ts for the rule.
+const fmt = moneyExact
 let seq = 0
 const newKey = () => `l${++seq}`
 
-export default function TypedInvoiceClient({ customers, companies, initialCustomerId, invoiceId = null, initial, sourceDocId = null }: Props) {
+export default function TypedInvoiceClient({ customers, companies, initialCustomerId, invoiceId = null, initial, sourceDocId = null, orderId = null }: Props) {
   const router = useRouter()
   const isEdit = !!invoiceId
   const defaultCompany = companies.find(c => c.is_default) ?? companies[0] ?? null
@@ -67,6 +75,7 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
   const [paymentTerms, setPaymentTerms] = useState(initial?.paymentTerms || 'due_on_receipt')
   const [notes, setNotes] = useState(initial?.notes || '')
   const [signatoryId, setSignatoryId] = useState<string | null>(initial?.signatoryId ?? null)
+  const [currency, setCurrency] = useState(initial?.currency ?? 'INR')
   const [saving, setSaving] = useState(false)
 
   const company = companies.find(c => c.id === companyId) ?? defaultCompany
@@ -128,12 +137,13 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
       const res = await fetch(isEdit ? `/api/recoverables/invoices/typed/${invoiceId}` : '/api/recoverables/invoices/typed', {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, companyId, invoiceDate, paymentTerms, notes, signatoryId, sourceDocId, lines: payloadLines }),
+        body: JSON.stringify({ customerId, companyId, invoiceDate, paymentTerms, notes, signatoryId, sourceDocId, orderId, currency, lines: payloadLines }),
       })
       const data = await res.json()
       if (!res.ok) { notify(data.error ?? (isEdit ? 'Could not update invoice' : 'Could not create invoice'), 'error'); return }
       notify(isEdit ? 'Invoice updated' : 'Invoice created', 'success')
-      router.push(`/customers/invoices/${isEdit ? invoiceId : data.id}`)
+      // Raised from an order? Go back to it — that page is the thread of the job.
+      router.push(orderId && !isEdit ? `/orders/${orderId}` : `/customers/invoices/${isEdit ? invoiceId : data.id}`)
     } catch {
       notify('Network error', 'error')
     } finally {
@@ -183,6 +193,22 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
           <input type="date" className={inputCls} style={inputStyle} value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} />
         </label>
         <label className="block">
+          <span className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Currency</span>
+          <select className={inputCls} style={inputStyle} value={currency}
+            onChange={e => {
+              const next = e.target.value
+              setCurrency(next)
+              // An export invoice is zero-rated: leaving 9% + 9% on a USD
+              // invoice would put a tax line on a document that must not
+              // carry one. Still editable per line.
+              const half = String(Number(defaultGstFor(next)) / 2)
+              setLines(prev => prev.map(l => ({ ...l, cgst: half, sgst: half })))
+            }}>
+            <option value="INR">INR — Indian Rupee</option>
+            {CURRENCIES.filter(c => c.code !== 'INR').map(c => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+          </select>
+        </label>
+        <label className="block">
           <span className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Payment terms</span>
           <select className={inputCls} style={inputStyle} value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}>
             {PAYMENT_TERMS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -228,7 +254,7 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
                     <input type="number" min="0" step="0.01" className="w-full px-2 py-1.5 rounded-md text-sm text-right" style={inputStyle} value={l.sgst} onChange={e => updateLine(l.key, { sgst: e.target.value })} />
                   </td>
                   <td className="px-3 py-1.5 text-right font-semibold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-                    {fmt(computed.rows[i]?.amount ?? 0)}
+                    {fmt(computed.rows[i]?.amount ?? 0, currency)}
                   </td>
                   <td className="px-2 py-1.5 text-center">
                     <button onClick={() => removeLine(l.key)} disabled={lines.length === 1} className="w-7 h-7 rounded-md inline-flex items-center justify-center disabled:opacity-30" style={{ color: 'var(--expense)' }} title="Remove line">
@@ -254,11 +280,11 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
           <textarea rows={4} className="w-full px-3 py-2 rounded-lg text-sm" style={inputStyle} placeholder="Notes shown on the invoice…" value={notes} onChange={e => setNotes(e.target.value)} />
         </label>
         <div className="rounded-2xl p-4 space-y-2 text-sm" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <Row label="Subtotal" value={fmt(computed.subtotal)} />
-          <Row label="CGST" value={fmt(computed.cgstTotal)} />
-          <Row label="SGST" value={fmt(computed.sgstTotal)} />
+          <Row label="Subtotal" value={fmt(computed.subtotal, currency)} />
+          <Row label="CGST" value={fmt(computed.cgstTotal, currency)} />
+          <Row label="SGST" value={fmt(computed.sgstTotal, currency)} />
           <div style={{ borderTop: '1px solid var(--border)' }} className="pt-2 mt-1">
-            <Row label="Total" value={fmt(computed.total)} bold />
+            <Row label="Total" value={fmt(computed.total, currency)} bold />
           </div>
         </div>
       </div>

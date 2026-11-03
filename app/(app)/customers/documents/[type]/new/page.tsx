@@ -98,6 +98,10 @@ export default async function NewCustomerDocumentPage({
         notes: '',
         signatoryId: null,
         number: '',
+        // The customer agreed a price in THEIR currency, so that is what the
+        // sales order and the proforma are written in. Rupees appear only on
+        // the purchase order and on the P/L.
+        currency: String(ord.currency ?? 'INR'),
         lines: orderDocLines((ol ?? []).map((l: Record<string, unknown>) => ({
           item: String(l.item ?? ''),
           description: (l.description as string | null) ?? null,

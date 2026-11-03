@@ -5,9 +5,12 @@ import type { DocModel, DocRow, DocColumn } from './model'
 import { invoiceStatusBand } from './model'
 import { amountToWords } from '@/lib/recoverables/invoices/words'
 import { extraDateChips, extraDateFieldValues, type ExtraDateKey } from './extraDates'
+import { money, plainAmount } from './money'
 
-const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
-const plain = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
+// Both take the document's own currency. A sales order to a buyer in USD
+// must not print rupee symbols against dollar figures — see ./money.ts.
+const inr = (n: number, cur = 'INR') => money(n, cur)
+const plain = (n: number, cur = 'INR') => plainAmount(n, cur)
 const compact = (v: string | null | undefined) => (v && String(v).trim()) || null
 
 /** A human date for documents. Formats ISO to "27 Jul 2026"; if the value won't
@@ -82,9 +85,13 @@ interface TaxInvoice {
   subtotal?: number | null; cgst_rate?: number | null; sgst_rate?: number | null
   cgst_amount?: number | null; sgst_amount?: number | null; total?: number | null
   status?: string | null; notes?: string | null; payment_terms?: string | null
+  currency?: string | null
 }
 
 export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: InvoiceSettings | null, refs: BrandRefs): DocModel {
+  // The invoice is in the currency it was raised in — the customer's, for an
+  // export. Everything printed on it follows that, including the words.
+  const cur = compact(inv.currency) ?? 'INR'
   // Courier details (AWB / client) are folded into the description text. A DATE
   // column is added only when the lines actually carry shipment dates (courier
   // invoices) — a plain services invoice keeps the tighter layout.
@@ -110,9 +117,9 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
       ...(hasDates ? { date: rawDate(l.shipment_date) } : {}),
       desc: buildDesc(l),
       hsn: String(l.hsn_sac ?? ''),
-      qty: plain(Number(l.qty) || 0),
-      rate: plain(Number(l.rate) || 0),
-      amt: plain(Number(l.amount) || 0),
+      qty: plain(Number(l.qty) || 0, cur),
+      rate: plain(Number(l.rate) || 0, cur),
+      amt: plain(Number(l.amount) || 0, cur),
     },
   }))
 
@@ -122,18 +129,21 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
   const total = Number(inv.total) || 0
   const interState = cgst === 0 && sgst === 0 && total > taxable
 
-  const totals = [{ label: 'Taxable value', value: inr(taxable) }]
+  const totals = [{ label: 'Taxable value', value: inr(taxable, cur) }]
   const summaryCols: string[] = ['TAXABLE']
-  const summaryRow: string[] = [plain(taxable)]
+  const summaryRow: string[] = [plain(taxable, cur)]
+  const noTax = cgst === 0 && sgst === 0 && total <= taxable
   if (interState) {
     const igst = total - taxable
-    totals.push({ label: 'IGST', value: inr(igst) })
-    summaryCols.push('IGST'); summaryRow.push(plain(igst))
+    totals.push({ label: 'IGST', value: inr(igst, cur) })
+    summaryCols.push('IGST'); summaryRow.push(plain(igst, cur))
+  } else if (noTax) {
+    // Zero-rated — an export under LUT. A tax line reading zero looks wrong.
   } else {
-    totals.push({ label: `CGST ${Number(inv.cgst_rate) || 9}%`, value: inr(cgst) })
-    totals.push({ label: `SGST ${Number(inv.sgst_rate) || 9}%`, value: inr(sgst) })
+    totals.push({ label: `CGST ${Number(inv.cgst_rate) || 9}%`, value: inr(cgst, cur) })
+    totals.push({ label: `SGST ${Number(inv.sgst_rate) || 9}%`, value: inr(sgst, cur) })
     summaryCols.push(`CGST ${Number(inv.cgst_rate) || 9}%`, `SGST ${Number(inv.sgst_rate) || 9}%`)
-    summaryRow.push(plain(cgst), plain(sgst))
+    summaryRow.push(plain(cgst, cur), plain(sgst, cur))
   }
 
   const custLines: string[] = []
@@ -167,8 +177,8 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
     taxSummary: { title: 'TAX SUMMARY', columns: summaryCols, rows: [summaryRow] },
     totals,
     grandLabel: 'TOTAL',
-    grandValue: inr(total),
-    inWords: amountToWords(total, 'INR'),
+    grandValue: inr(total, cur),
+    inWords: amountToWords(total, cur),
     bankLines: bankLines(settings),
     terms: compact(settings?.terms_conditions) ?? undefined,
     signatureUrl: refs.signatureUrl,
@@ -188,8 +198,8 @@ export function taxInvoiceToModel(inv: TaxInvoice, lines: TaxLine[], settings: I
       'party.address': compact(inv.customer_address) ?? '',
       'party.gstin': compact(inv.customer_gstin) ?? '',
       'totals.grandLabel': 'TOTAL',
-      'totals.grand': inr(total),
-      'totals.inWords': amountToWords(total, 'INR'),
+      'totals.grand': inr(total, cur),
+      'totals.inWords': amountToWords(total, cur),
     },
   }
 }
@@ -204,6 +214,7 @@ interface DocRecord extends Partial<Record<ExtraDateKey, string | null>> {
   /** The document type id — decides which extra dates (cut-off, ETD) print. */
   doc_type?: string | null
   number?: string | null; date?: string | null; reference?: string | null; notes?: string | null
+  currency?: string | null
   party_name?: string | null; party_address?: string | null; party_gstin?: string | null; party_state?: string | null
   subtotal?: number | null; cgst_amount?: number | null; sgst_amount?: number | null; total?: number | null
 }
@@ -214,6 +225,9 @@ interface DocMeta2 {
 }
 
 export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: InvoiceSettings | null, meta: DocMeta2, refs: BrandRefs): DocModel {
+  // A sales order or proforma goes to the customer in THEIR currency; a
+  // purchase order goes to the supplier in rupees. Both are just this field.
+  const docCurrency = compact(doc.currency) ?? 'INR'
   const cols: DocColumn[] = [
     { key: 'desc', label: 'DESCRIPTION', flex: 2 },
     { key: 'hsn', label: 'HSN', align: 'center', flex: 0.7 },
@@ -224,7 +238,7 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
   const rows: DocRow[] = lines.map(l => ({
     cells: {
       desc: String(l.item ?? ''), hsn: String(l.hsn_sac ?? ''),
-      qty: plain(Number(l.qty) || 0), rate: plain(Number(l.rate) || 0), amt: plain(Number(l.amount) || 0),
+      qty: plain(Number(l.qty) || 0, docCurrency), rate: plain(Number(l.rate) || 0, docCurrency), amt: plain(Number(l.amount) || 0, docCurrency),
     },
   }))
 
@@ -233,10 +247,17 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
   const sgst = Number(doc.sgst_amount) || 0
   const total = Number(doc.total) || 0
 
-  const totals = [{ label: meta.tax ? 'Taxable value' : 'Subtotal', value: inr(taxable) }]
+  const totals = [{ label: meta.tax ? 'Taxable value' : 'Subtotal', value: inr(taxable, docCurrency) }]
   if (meta.tax) {
-    if (cgst === 0 && sgst === 0 && total > taxable) totals.push({ label: 'IGST', value: inr(total - taxable) })
-    else { totals.push({ label: 'CGST', value: inr(cgst) }); totals.push({ label: 'SGST', value: inr(sgst) }) }
+    if (cgst === 0 && sgst === 0 && total > taxable) {
+      totals.push({ label: 'IGST', value: inr(total - taxable, docCurrency) })
+    } else if (cgst !== 0 || sgst !== 0) {
+      totals.push({ label: 'CGST', value: inr(cgst, docCurrency) })
+      totals.push({ label: 'SGST', value: inr(sgst, docCurrency) })
+    }
+    // No tax at all — an export under LUT, or a zero-rated line. Printing
+    // "CGST ₹0 / SGST ₹0" on it reads as a mistake and invites the buyer to
+    // ask why there is a tax line on a zero-rated document.
   }
 
   const pLines: string[] = []
@@ -270,8 +291,8 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
     rows,
     totals,
     grandLabel: meta.tax ? 'TOTAL' : 'TOTAL VALUE',
-    grandValue: inr(total),
-    inWords: meta.tax ? amountToWords(total, 'INR') : undefined,
+    grandValue: inr(total, docCurrency),
+    inWords: meta.tax ? amountToWords(total, docCurrency) : undefined,
     bankLines: meta.tax ? bankLines(settings) : [],
     terms: compact(settings?.terms_conditions) ?? undefined,
     note: compact(doc.notes) ?? meta.noteFallback,
@@ -293,8 +314,8 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
       'party.address': compact(doc.party_address) ?? '',
       'party.gstin': compact(doc.party_gstin) ?? '',
       'totals.grandLabel': meta.tax ? 'TOTAL' : 'TOTAL VALUE',
-      'totals.grand': inr(total),
-      'totals.inWords': meta.tax ? amountToWords(total, 'INR') : '',
+      'totals.grand': inr(total, docCurrency),
+      'totals.inWords': meta.tax ? amountToWords(total, docCurrency) : '',
     },
   }
 }

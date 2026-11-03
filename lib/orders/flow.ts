@@ -78,7 +78,7 @@ export function orderFlow(f: OrderFacts): FlowStep[] {
     {
       key: 'invoice',
       label: 'Invoice',
-      hint: 'Bill the customer for what has shipped, then attach it back here.',
+      hint: 'Bill the customer for what has shipped, in their currency.',
       action: 'Create customer invoice',
       done: f.hasCustomerInvoice,
       doneNote: 'Customer invoiced',

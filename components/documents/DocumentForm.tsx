@@ -10,12 +10,16 @@ import { notify } from '@/components/shared/Toast'
 import SignatorySelect from '@/components/company-details/SignatorySelect'
 import { buildDocNumber, docNumberHead, docConfigFor, type DocSide } from '@/lib/documents/config'
 import { extraDateFields, extraDatesToForm, extraDatesToSave } from '@/lib/documents/extraDates'
+import { money, defaultGstFor } from '@/lib/documents/money'
+import { CURRENCIES } from '@/lib/currencies'
 import type { LinkKind } from '@/lib/documents/links'
 
 interface CompanyOpt { id: string; name: string; prefix: string }
 interface PartyOpt { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
 export interface DocInitial {
   companyId: string; partyId: string; date: string; reference: string; notes: string
+  /** The currency this document is raised in. Defaults to INR. */
+  currency?: string
   bankAccountId?: string | null
   signatoryId: string | null; number: string
   /** Dates only some types carry — a PO's cut-off date and ETD. */
@@ -41,7 +45,6 @@ interface Props {
 
 interface Line { id: number; item: string; hsn: string; qty: string; rate: string; gst: string }
 let seq = 0
-const money = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n)
 
 export default function DocumentForm({ side, docType, companies, parties, existing, docId = null, initial, sourceId = null, sourceKind = 'document', against = null, orderId = null }: Props) {
   const router = useRouter()
@@ -61,6 +64,10 @@ export default function DocumentForm({ side, docType, companies, parties, existi
   const [date, setDate] = useState(initial?.date ?? new Date().toISOString().slice(0, 10))
   const [reference, setReference] = useState(initial?.reference ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  // What the document is priced in. A sales order to an export buyer is in
+  // THEIR currency; a purchase order to the supplier is in rupees. Raised
+  // from an order, this arrives already set — see the new-document pages.
+  const [currency, setCurrency] = useState(initial?.currency ?? 'INR')
   // Cut-off date / ETD on a purchase order. Driven by lib/documents/extraDates
   // so a type that carries none shows none.
   const extras = extraDateFields(docType)
@@ -123,6 +130,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
         party_kind: side, party_id: party.id, party_name: party.name,
         party_address: party.address, party_gstin: party.gstin, party_state: party.state,
         number: finalNumber, date, reference: reference.trim() || null, notes: notes.trim() || null,
+        currency,
         ...extraDatesToSave(docType, extraDates),
         signatory_id: signatoryId || null,
         bank_account_id: bankAccountId,
@@ -213,6 +221,20 @@ export default function DocumentForm({ side, docType, companies, parties, existi
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{cfg.referenceLabel ?? 'Reference'}
             <input value={reference} onChange={e => setReference(e.target.value)} className={iCls} style={iStyle} />
           </label>
+          <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Currency
+            <select value={currency} className={iCls} style={iStyle}
+              onChange={e => {
+                const next = e.target.value
+                setCurrency(next)
+                // An export document is zero-rated by default: leaving 18%
+                // on a USD invoice would put a tax line on a document that
+                // must not carry one. Still editable per line.
+                setLines(prev => prev.map(l => ({ ...l, gst: defaultGstFor(next) })))
+              }}>
+              <option value="INR">INR — Indian Rupee</option>
+              {CURRENCIES.filter(c => c.code !== 'INR').map(c => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+            </select>
+          </label>
           {extras.map(f => (
             <label key={f.key} className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{f.label} <span style={{ color: 'var(--text-faint)' }}>(optional)</span>
               <input type="date" value={extraDates[f.key] ?? ''} onChange={e => setExtraDates(prev => ({ ...prev, [f.key]: e.target.value }))} className={iCls} style={iStyle} />
@@ -266,7 +288,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
 
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>Amount</span>
-                      <span className="text-[15px] font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{money(amt)}</span>
+                      <span className="text-[15px] font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{money(amt, currency)}</span>
                     </div>
                   </div>
 
@@ -277,7 +299,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
                     <input value={l.qty} onChange={e => setLine(l.id, { qty: e.target.value })} inputMode="decimal" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />
                     <input value={l.rate} onChange={e => setLine(l.id, { rate: e.target.value })} inputMode="decimal" placeholder="0.00" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />
                     {cfg.tax && <input value={l.gst} onChange={e => setLine(l.id, { gst: e.target.value })} inputMode="decimal" className="px-2 py-1.5 rounded-lg border text-sm text-right" style={iStyle} />}
-                    <span className="text-right text-[13px] tabular-nums" style={{ color: 'var(--text)' }}>{money(amt)}</span>
+                    <span className="text-right text-[13px] tabular-nums" style={{ color: 'var(--text)' }}>{money(amt, currency)}</span>
                     <button onClick={del} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface-2)' }}><Trash2 className="w-3.5 h-3.5 text-[var(--expense)]" /></button>
                   </div>
                 </div>
@@ -285,17 +307,17 @@ export default function DocumentForm({ side, docType, companies, parties, existi
             })}
           </div>
 
-          <button onClick={() => setLines(prev => [...prev, { id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])} className="mt-3 md:mt-2 flex items-center justify-center md:justify-start gap-1.5 w-full md:w-auto py-2.5 md:py-0 rounded-xl md:rounded-none text-[13px] md:text-[12px] font-bold" style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}><Plus className="w-4 h-4 md:w-3.5 md:h-3.5" /> Add line</button>
+          <button onClick={() => setLines(prev => [...prev, { id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: defaultGstFor(currency) }])} className="mt-3 md:mt-2 flex items-center justify-center md:justify-start gap-1.5 w-full md:w-auto py-2.5 md:py-0 rounded-xl md:rounded-none text-[13px] md:text-[12px] font-bold" style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}><Plus className="w-4 h-4 md:w-3.5 md:h-3.5" /> Add line</button>
         </div>
 
         <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes / terms" rows={2} className="w-full px-3 py-2 rounded-lg border text-sm resize-none" style={iStyle} />
 
         {/* Totals: a right-aligned row of four on desktop; a readable stack on a phone. */}
         <div className="rounded-xl md:rounded-none border md:border-0 p-3 md:p-0 space-y-1.5 md:space-y-0 md:flex md:items-center md:justify-end md:gap-6 text-[13px]" style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}>
-          <div className="flex justify-between md:block"><span>Subtotal</span> <b style={{ color: 'var(--text)' }}>{money(totals.subtotal)}</b></div>
-          {cfg.tax && <div className="flex justify-between md:block"><span>CGST</span> <b style={{ color: 'var(--text)' }}>{money(totals.cgst)}</b></div>}
-          {cfg.tax && <div className="flex justify-between md:block"><span>SGST</span> <b style={{ color: 'var(--text)' }}>{money(totals.sgst)}</b></div>}
-          <div className="flex justify-between md:block text-[15px] pt-1.5 md:pt-0" style={{ borderTop: '1px solid var(--border)' }}><span>Total</span> <b style={{ color: 'var(--text)' }}>{money(totals.total)}</b></div>
+          <div className="flex justify-between md:block"><span>Subtotal</span> <b style={{ color: 'var(--text)' }}>{money(totals.subtotal, currency)}</b></div>
+          {cfg.tax && <div className="flex justify-between md:block"><span>CGST</span> <b style={{ color: 'var(--text)' }}>{money(totals.cgst, currency)}</b></div>}
+          {cfg.tax && <div className="flex justify-between md:block"><span>SGST</span> <b style={{ color: 'var(--text)' }}>{money(totals.sgst, currency)}</b></div>}
+          <div className="flex justify-between md:block text-[15px] pt-1.5 md:pt-0" style={{ borderTop: '1px solid var(--border)' }}><span>Total</span> <b style={{ color: 'var(--text)' }}>{money(totals.total, currency)}</b></div>
         </div>
       </div>
     </div>

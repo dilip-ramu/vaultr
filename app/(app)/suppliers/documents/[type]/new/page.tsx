@@ -96,6 +96,9 @@ export default async function NewSupplierDocumentPage({
         notes: '',
         signatoryId: null,
         number: '',
+        // The supplier is paid in rupees whatever the customer pays in: the
+        // cost rate on an order line is already INR.
+        currency: 'INR',
         // The order decides these two; the purchase order gets a copy. Once
         // it is saved the copy stands on its own — moving a date on the
         // order later must not silently change a PO already sent out.

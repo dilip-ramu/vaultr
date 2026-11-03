@@ -165,10 +165,7 @@ export default function OrderSheet(p: Props) {
   const hrefs: Partial<Record<StepKey, string>> = locked ? {} : {
     sales_order: `/customers/documents/sales_order/new?fromOrder=${order.id}`,
     purchase_order: `/suppliers/documents/purchase_order/new?fromOrder=${order.id}`,
-    // The invoice builder has its own line model and is not prefilled from an
-    // order yet, so this takes you there and you attach it back below. Saying
-    // so on the step is better than a parameter that silently does nothing.
-    invoice: '/customers/invoices/direct',
+    invoice: `/customers/invoices/direct?fromOrder=${order.id}`,
   }
   function onStep(key: StepKey) {
     const id = key === 'files' ? 'order-files' : key === 'pl' ? 'order-pl' : null

@@ -48,6 +48,11 @@ export async function POST(req: NextRequest) {
     notes?: string | null
     signatoryId?: string | null
     sourceDocId?: string | null
+    /** Raised from an order — filed against it so the P/L can see it. */
+    orderId?: string | null
+    /** What the invoice is priced in. An export invoice is the customer's
+     *  currency; see lib/documents/money.ts. */
+    currency?: string | null
     lines?: TypedLineInput[]
   }
   try {
@@ -60,8 +65,15 @@ export async function POST(req: NextRequest) {
     customerId, companyId,
     invoiceDate = new Date().toISOString().slice(0, 10),
     paymentTerms = 'due_on_receipt',
-    notes, signatoryId, sourceDocId, lines: rawLines,
+    notes, signatoryId, sourceDocId, orderId, lines: rawLines,
+    currency: rawCurrency,
   } = body
+
+  // Only a three-letter code gets through — this ends up as the symbol on a
+  // document, so anything odd becomes rupees rather than being printed.
+  const currency = /^[A-Z]{3}$/.test(String(rawCurrency ?? '').toUpperCase())
+    ? String(rawCurrency).toUpperCase()
+    : 'INR'
 
   if (!customerId) return NextResponse.json({ error: 'customerId is required' }, { status: 400 })
 
@@ -158,6 +170,8 @@ export async function POST(req: NextRequest) {
       customer_gstin:   (customer as { gst_number: string | null }).gst_number,
       customer_state:   (customer as { state: string | null }).state,
       invoice_date:     invoiceDate,
+      currency,
+      order_id:         orderId ?? null,
       due_date:         calcDueDate(invoiceDate, paymentTerms),
       payment_terms:    paymentTerms,
       markup_type:      'none',
@@ -175,7 +189,6 @@ export async function POST(req: NextRequest) {
       status:           'sent',
       notes:            notes ?? null,
       signatory_id:     signatoryId ?? null,
-      currency:         'INR',
       design_version:   'claude',
     })
     .select('id')

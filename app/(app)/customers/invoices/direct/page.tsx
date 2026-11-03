@@ -14,9 +14,9 @@ export const dynamic = 'force-dynamic'
 export default async function DirectInvoiceFlowPage({
   searchParams,
 }: {
-  searchParams: Promise<{ customer?: string }>
+  searchParams: Promise<{ customer?: string; fromOrder?: string }>
 }) {
-  const { customer } = await searchParams
+  const { customer, fromOrder } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -27,6 +27,30 @@ export default async function DirectInvoiceFlowPage({
       .order('is_default', { ascending: false }).order('created_at', { ascending: true }),
   ])
 
+  // Raised from an order: the customer, the company and above all the
+  // CURRENCY come from it. The customer agreed a price in their currency, so
+  // that is what they are invoiced in — rupees appear only on the purchase
+  // order and on the P/L.
+  let orderInitial: { customerId: string; companyId: string; invoiceDate: string; paymentTerms: string; notes: string; currency: string; lines: never[] } | undefined
+  let orderCustomer: string | null = null
+  if (fromOrder) {
+    const { data: ord } = await supabase.from('orders')
+      .select('customer_id, company_id, currency, customer_po_no, number')
+      .eq('id', fromOrder).eq('user_id', user.id).maybeSingle()
+    if (ord) {
+      orderCustomer = (ord.customer_id as string | null) ?? null
+      orderInitial = {
+        customerId: orderCustomer ?? '',
+        companyId: (ord.company_id as string | null) ?? '',
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        paymentTerms: 'due_on_receipt',
+        notes: '',
+        currency: String(ord.currency ?? 'INR'),
+        lines: [],
+      }
+    }
+  }
+
   const query: Record<string, string> = customer ? { customer } : {}
 
   return (
@@ -34,7 +58,9 @@ export default async function DirectInvoiceFlowPage({
       <TypedInvoiceClient
         customers={(customers ?? []) as never}
         companies={(companies ?? []) as never}
-        initialCustomerId={customer ?? null}
+        initialCustomerId={orderCustomer ?? customer ?? null}
+        initial={orderInitial as never}
+        orderId={fromOrder ?? null}
       />
     </FlowShell>
   )
