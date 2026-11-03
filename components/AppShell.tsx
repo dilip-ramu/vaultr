@@ -14,7 +14,7 @@ import {
   Banknote, UserSquare, CalendarClock, History,
   Building2, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
-  CalendarRange, CreditCard, Gem, BarChart3, Coins, LineChart, FlaskConical , ShieldCheck } from 'lucide-react'
+  CalendarRange, CreditCard, Gem, BarChart3, Coins, LineChart, FlaskConical , ShieldCheck, Package } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
@@ -86,6 +86,10 @@ const navSections: NavSection[] = [
     id: 'sales',
     label: 'Sales & Purchases',
     items: [
+      // Orders sits above both sides because it spans them: one customer PO,
+      // bought on one side and sold on the other. Filing it under either one
+      // would make the other half look like an afterthought.
+      { href: '/orders', label: 'Orders', icon: Package },
       {
         href: '/customers', label: 'Customers', icon: Users,
         subItems: [
