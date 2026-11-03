@@ -96,6 +96,13 @@ export default async function NewSupplierDocumentPage({
         notes: '',
         signatoryId: null,
         number: '',
+        // The order decides these two; the purchase order gets a copy. Once
+        // it is saved the copy stands on its own — moving a date on the
+        // order later must not silently change a PO already sent out.
+        extraDates: {
+          cutoff_date: String(ord.cutoff_date ?? '').slice(0, 10),
+          etd: String(ord.etd ?? '').slice(0, 10),
+        },
         lines: orderDocLines((ol ?? []).map((l: Record<string, unknown>) => ({
           item: String(l.item ?? ''),
           description: (l.description as string | null) ?? null,

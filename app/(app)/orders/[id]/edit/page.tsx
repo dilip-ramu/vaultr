@@ -29,8 +29,8 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     orderDate: String(order.order_date ?? '').slice(0, 10),
     currency: String(order.currency ?? 'INR'),
     bookedRate: String(order.booked_rate ?? 1),
-    drawbackBasis: (order.drawback_basis as '' | 'percent' | 'amount' | null) ?? '',
-    drawbackValue: order.drawback_value ? String(order.drawback_value) : '',
+    cutoffDate: String(order.cutoff_date ?? '').slice(0, 10),
+    etd: String(order.etd ?? '').slice(0, 10),
     notes: (order.notes as string | null) ?? '',
     lines: (lines ?? []).map((l: Record<string, unknown>) => ({
       lineId: String(l.id),

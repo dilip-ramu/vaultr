@@ -24,7 +24,7 @@ export interface OrderInitial {
   companyId: string; customerId: string; number: string
   customerPoNo: string; customerPoDate: string; orderDate: string
   currency: string; bookedRate: string
-  drawbackBasis: '' | 'percent' | 'amount'; drawbackValue: string
+  cutoffDate: string; etd: string
   notes: string
   lines: OrderInitialLine[]
 }
@@ -68,8 +68,8 @@ export default function OrderForm({ companies, customers, existingNumbers, order
   const [orderDate, setOrderDate] = useState(initial?.orderDate ?? new Date().toISOString().slice(0, 10))
   const [currency, setCurrency] = useState(initial?.currency ?? 'INR')
   const [bookedRate, setBookedRate] = useState(initial?.bookedRate ?? '1')
-  const [drawbackBasis, setDrawbackBasis] = useState<'' | 'percent' | 'amount'>(initial?.drawbackBasis ?? '')
-  const [drawbackValue, setDrawbackValue] = useState(initial?.drawbackValue ?? '')
+  const [cutoffDate, setCutoffDate] = useState(initial?.cutoffDate ?? '')
+  const [etd, setEtd] = useState(initial?.etd ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [lines, setLines] = useState<Line[]>(() =>
     initial?.lines?.length
@@ -117,8 +117,8 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         order_date: orderDate,
         currency,
         booked_rate: isExport ? (num(bookedRate) || 1) : 1,
-        drawback_basis: drawbackBasis || null,
-        drawback_value: drawbackBasis ? num(drawbackValue) : 0,
+        cutoff_date: cutoffDate || null,
+        etd: etd || null,
         notes: notes.trim() || null,
       }
 
@@ -239,6 +239,14 @@ export default function OrderForm({ companies, customers, existingNumbers, order
           <label className={lab} style={labStyle}>Their PO date
             <input type="date" value={customerPoDate} onChange={e => setCustomerPoDate(e.target.value)} className={iCls} style={iStyle} />
           </label>
+          <label className={lab} style={labStyle}>Cut-off date <span style={{ color: 'var(--text-faint)' }}>(optional)</span>
+            <input type="date" value={cutoffDate} onChange={e => setCutoffDate(e.target.value)} className={iCls} style={iStyle} />
+            <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>Last date this order can be accepted or changed</span>
+          </label>
+          <label className={lab} style={labStyle}>ETD <span style={{ color: 'var(--text-faint)' }}>(optional)</span>
+            <input type="date" value={etd} onChange={e => setEtd(e.target.value)} className={iCls} style={iStyle} />
+            <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>Estimated date of despatch. Copied onto the purchase order.</span>
+          </label>
           <label className={lab} style={labStyle}>Currency
             <select value={currency} onChange={e => { setCurrency(e.target.value); if (e.target.value === 'INR') setBookedRate('1') }} className={iCls} style={iStyle}>
               <option value="INR">INR — Indian Rupee</option>
@@ -253,20 +261,13 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         </div>
 
         {isExport && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <label className={lab} style={labStyle}>Duty drawback
-              <select value={drawbackBasis} onChange={e => setDrawbackBasis(e.target.value as '' | 'percent' | 'amount')} className={iCls} style={iStyle}>
-                <option value="">None on this order</option>
-                <option value="percent">Percentage of FOB</option>
-                <option value="amount">Fixed amount</option>
-              </select>
-            </label>
-            {drawbackBasis && (
-              <label className={lab} style={labStyle}>{drawbackBasis === 'percent' ? 'Drawback rate (%)' : 'Drawback amount (₹)'}
-                <input value={drawbackValue} onChange={e => setDrawbackValue(e.target.value)} inputMode="decimal" placeholder={drawbackBasis === 'percent' ? '1.8' : '76464'} className={iCls} style={iStyle} />
-              </label>
-            )}
-          </div>
+          // Duty drawback is NOT asked for here. It is set when the goods
+          // ship, on the order page — before then there is nothing to claim
+          // it against, and a rate typed in now is a guess that quietly
+          // becomes a number on the P/L.
+          <p className="text-[12px] pt-1" style={{ color: 'var(--text-faint)' }}>
+            Duty drawback is set on the order page once the goods have shipped.
+          </p>
         )}
       </div>
 

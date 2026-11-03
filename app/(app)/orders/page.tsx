@@ -3,6 +3,7 @@ import OrdersClient, { type OrderListRow } from '@/components/orders/OrdersClien
 import { computeMargin, plannedFromLines } from '@/lib/orders/margin'
 import { lineQty, lineShipped } from '@/lib/orders/sizes'
 import { summariseOrders, type OrderSummaryRow } from '@/lib/orders/summary'
+import { orderDateFlags } from '@/lib/orders/dates'
 import type { OrderStage } from '@/lib/orders/stage'
 
 export const dynamic = 'force-dynamic'
@@ -49,6 +50,9 @@ export default async function OrdersPage() {
   }
 
   const summaryRows: OrderSummaryRow[] = []
+  // One "today" for the whole page, from the server — otherwise two rows
+  // rendered either side of midnight could disagree about what is late.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
   const rows: OrderListRow[] = (orders ?? []).map(o => {
     const myLines = (linesBy.get(o.id) ?? []).map(l => {
@@ -91,6 +95,10 @@ export default async function OrdersPage() {
       value: col.customerValueFx,
       net: col.net, marginPct: col.marginPct,
       estimated: !m.actualIsComplete,
+      flags: orderDateFlags({
+        cutoffDate: o.cutoff_date, etd: o.etd, stage: o.stage,
+        fullyShipped: myLines.length > 0 && shipBalance === 0,
+      }, today),
     }
   })
 

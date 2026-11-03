@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Plus, PackageSearch } from 'lucide-react'
 import { stageMeta, isOpen, type OrderStage } from '@/lib/orders/stage'
 import type { OrdersSummary } from '@/lib/orders/summary'
+import { whenWords, countLate, type DateFlag } from '@/lib/orders/dates'
 
 const BADGE: Record<string, { bg: string; fg: string }> = {
   grey:   { bg: '#EEF0F2', fg: '#4B5563' },
@@ -29,11 +30,37 @@ export interface OrderListRow {
   marginPct: number
   /** True while any figure behind that profit is still an estimate. */
   estimated: boolean
+  /** Cut-off / ETD worth saying something about. */
+  flags: DateFlag[]
 }
 
 const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0)
 const fx = (n: number, c: string) =>
   c === 'INR' ? inr(n) : `${c} ${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0)}`
+
+const FLAG_TONE: Record<string, { bg: string; fg: string }> = {
+  passed: { bg: '#FEE2E2', fg: '#991B1B' },
+  soon:   { bg: '#FEF3C7', fg: '#92400E' },
+  ok:     { bg: '#EEF0F2', fg: '#4B5563' },
+}
+
+/** Only the ones worth looking at. An ETD three weeks out is not news. */
+function Flags({ flags, all = false }: { flags: DateFlag[]; all?: boolean }) {
+  const show = all ? flags : flags.filter(f => f.state !== 'ok')
+  if (!show.length) return null
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      {show.map(f => {
+        const c = FLAG_TONE[f.state]
+        return (
+          <span key={f.kind} className="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap" style={{ background: c.bg, color: c.fg }}>
+            {f.label} {whenWords(f.daysAway)}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
 
 function Badge({ stage }: { stage: string }) {
   const m = stageMeta(stage)
@@ -72,6 +99,7 @@ export default function OrdersClient({ rows, summary }: { rows: OrderListRow[]; 
   const [show, setShow] = useState<'open' | 'all'>('open')
   const list = useMemo(() => (show === 'open' ? rows.filter(r => isOpen(r.stage)) : rows), [rows, show])
   const openCount = useMemo(() => rows.filter(r => isOpen(r.stage)).length, [rows])
+  const late = useMemo(() => countLate(rows.map(r => r.flags)), [rows])
 
   return (
     <div className="space-y-5">
@@ -119,6 +147,8 @@ export default function OrdersClient({ rows, summary }: { rows: OrderListRow[]; 
         <span>To pay <b className="tabular-nums" style={{ color: 'var(--expense)' }}>{inr(summary.payable)}</b></span>
         {summary.drawbackDue > 0 && <span>Drawback awaited <b className="tabular-nums" style={{ color: 'var(--text)' }}>{inr(summary.drawbackDue)}</b></span>}
         {summary.toShip > 0 && <span>Still to ship <b className="tabular-nums" style={{ color: 'var(--text)' }}>{summary.toShip.toLocaleString('en-IN')} pcs</b></span>}
+        {late.passed > 0 && <span style={{ color: 'var(--expense)' }}><b>{late.passed}</b> past a date</span>}
+        {late.soon > 0 && <span style={{ color: '#92400E' }}><b>{late.soon}</b> due within a week</span>}
       </div>
 
       <div className="flex gap-1.5">
@@ -161,6 +191,7 @@ export default function OrdersClient({ rows, summary }: { rows: OrderListRow[]; 
                     <div className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       {o.customer_po_no ? `Their PO ${o.customer_po_no} · ` : ''}{o.order_date}
                     </div>
+                    <div className="mt-1"><Flags flags={o.flags} /></div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="font-extrabold tabular-nums" style={{ color: 'var(--text)' }}>{fx(o.value, o.currency)}</div>
@@ -174,7 +205,7 @@ export default function OrdersClient({ rows, summary }: { rows: OrderListRow[]; 
           <div className="hidden md:block rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
             <table className="w-full text-sm">
               <thead><tr style={{ background: 'var(--surface-2)' }}>
-                {['Order', 'Customer', 'Their PO', 'Date', 'Value', 'Profit'].map((h, i) => (
+                {['Order', 'Customer', 'Their PO', 'Dates', 'Value', 'Profit'].map((h, i) => (
                   <th key={h} className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-wide ${i >= 4 ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr></thead>
@@ -188,7 +219,9 @@ export default function OrdersClient({ rows, summary }: { rows: OrderListRow[]; 
                     </td>
                     <td className="px-4 py-2.5" style={{ color: 'var(--text)' }}>{o.customer_name}</td>
                     <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{o.customer_po_no || '—'}</td>
-                    <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{o.order_date}</td>
+                    <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>
+                      {o.flags.length ? <Flags flags={o.flags} all /> : o.order_date}
+                    </td>
                     <td className="px-4 py-2.5 text-right tabular-nums" style={{ color: 'var(--text)' }}>{fx(o.value, o.currency)}</td>
                     <td className="px-4 py-2.5 text-right"><Profit net={o.net} pct={o.marginPct} estimated={o.estimated} /></td>
                   </tr>

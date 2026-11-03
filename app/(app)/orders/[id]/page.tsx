@@ -76,14 +76,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   // the zip and names the zip after it.
   const poDoc = (docs ?? []).find(d => d.doc_type === 'purchase_order') ?? null
   let po: { id: string; number: string; supplierName: string | null } | null = null
-  let poCutoff: string | null = null
-  let poEtd: string | null = null
   if (poDoc) {
     const { data: full } = await supabase.from('documents')
-      .select('party_name, cutoff_date, etd').eq('id', poDoc.id).maybeSingle()
+      .select('party_name').eq('id', poDoc.id).maybeSingle()
     po = { id: String(poDoc.id), number: String(poDoc.number), supplierName: (full?.party_name as string | null) ?? null }
-    poCutoff = (full?.cutoff_date as string | null) ?? null
-    poEtd = (full?.etd as string | null) ?? null
   }
 
   // Branding for the one-page summary in the supplier pack — the same
@@ -109,8 +105,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     orderDate: String(order.order_date ?? '').slice(0, 10),
     customerPoNo: (order.customer_po_no as string | null) ?? null,
     poNumber: po?.number ?? null,
-    cutoffDate: poCutoff,
-    etd: poEtd,
+    // The order holds the dates now; the purchase order is a copy of them.
+    cutoffDate: (order.cutoff_date as string | null) ?? null,
+    etd: (order.etd as string | null) ?? null,
     supplierName: po?.supplierName ?? null,
     companyName: (company?.name as string | null) ?? 'Company',
     companyLines,
@@ -122,8 +119,12 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     notes: (order.notes as string | null) ?? null,
   }
 
+  // Today from the server, so the sheet and the list agree on what is late.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
   return (
     <OrderSheet
+      today={today}
       order={order as OrderRow}
       lines={lineRows}
       costs={(costs ?? []) as CostRow[]}

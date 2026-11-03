@@ -13,6 +13,7 @@ import {
 } from '@/lib/orders/margin'
 import { stageMeta, allowedStages, suggestedStage, OPEN_STAGES, stageIndex } from '@/lib/orders/stage'
 import { formatSizes, lineShipped, type SizeRow } from '@/lib/orders/sizes'
+import { orderDateFlags, whenWords, type DateFlag } from '@/lib/orders/dates'
 import type { OrderFacts, StepKey } from '@/lib/orders/flow'
 import type { SummaryInput } from '@/lib/orders/summaryDoc'
 import OrderStepRail from './OrderStepRail'
@@ -26,6 +27,7 @@ export interface OrderRow {
   customer_po_no: string | null; customer_po_date: string | null
   order_date: string; stage: string
   currency: string; booked_rate: number; realised_rate: number | null
+  cutoff_date: string | null; etd: string | null
   drawback_basis: 'percent' | 'amount' | null; drawback_value: number
   drawback_actual: number | null; drawback_expected_date: string | null; drawback_received_date: string | null
   notes: string | null; closed_at: string | null
@@ -41,6 +43,8 @@ export interface CustInvRow { id: string; invoice_number: string; invoice_date: 
 export interface BillRow { id: string; invoice_number: string | null; invoice_date: string; amount: number; currency: string; is_paid: boolean }
 
 interface Props {
+  /** Today, from the server, so the page and the list agree on what is late. */
+  today: string
   order: OrderRow
   lines: LineRow[]
   costs: CostRow[]
@@ -89,7 +93,12 @@ export default function OrderSheet(p: Props) {
 
   const [stage, setStage] = useState(order.stage)
   const [realisedRate, setRealisedRate] = useState(order.realised_rate == null ? '' : String(order.realised_rate))
+  const [cutoffDate, setCutoffDate] = useState(order.cutoff_date ?? '')
+  const [etd, setEtd] = useState(order.etd ?? '')
+  const [dbBasis, setDbBasis] = useState<'' | 'percent' | 'amount'>(order.drawback_basis ?? '')
+  const [dbValue, setDbValue] = useState(order.drawback_value ? String(order.drawback_value) : '')
   const [drawbackActual, setDrawbackActual] = useState(order.drawback_actual == null ? '' : String(order.drawback_actual))
+  const [dbReceived, setDbReceived] = useState(order.drawback_received_date ?? '')
   const [costs, setCosts] = useState<CostRow[]>(p.costs)
   const [lines, setLines] = useState<LineRow[]>(p.lines)
   const [busy, setBusy] = useState(false)
@@ -116,16 +125,22 @@ export default function OrderSheet(p: Props) {
     realisedRate: realisedRate === '' ? null : num(realisedRate),
     supplierCostPlanned: planned.supplierCost,
     supplierCostActual: actualSupplierCost,
-    drawback: order.drawback_basis
-      ? { basis: order.drawback_basis, value: Number(order.drawback_value) || 0, actual: drawbackActual === '' ? null : num(drawbackActual) }
+    drawback: dbBasis
+      ? { basis: dbBasis, value: num(dbValue), actual: drawbackActual === '' ? null : num(drawbackActual) }
       : null,
     costs: costs.map(c => ({ name: c.name, sign: c.sign === 1 ? 1 : -1, basis: c.basis, planned: Number(c.planned) || 0, actual: c.actual })),
-  }), [planned, actualCustomerValue, actualSupplierCost, order, realisedRate, drawbackActual, costs])
+  }), [planned, actualCustomerValue, actualSupplierCost, order, realisedRate, dbBasis, dbValue, drawbackActual, costs])
 
   const ship = useMemo(() => shipmentProgress(lines.map(l => ({
     qty: l.qty, sellRate: l.sell_rate, costRate: l.cost_rate,
     shippedQty: lineShipped(l.shipped_qty, l.sizes),
   }))), [lines])
+
+  const fullyShipped = ship.ordered > 0 && ship.balance === 0
+  const dateFlags = orderDateFlags({ cutoffDate, etd, stage, fullyShipped }, p.today)
+  // Drawback only once something has actually left — before then there is
+  // nothing to claim it against.
+  const shipped = ship.shipped > 0 || ['shipped', 'invoiced', 'closed'].includes(stage)
 
   const suggestion = suggestedStage(stage, {
     hasSalesOrder: p.docs.some(d => d.doc_type === 'sales_order'),
@@ -253,6 +268,27 @@ export default function OrderSheet(p: Props) {
 
       <OrderStepRail facts={facts} hrefs={hrefs} onAction={onStep} />
 
+      {/* ── The two dates the order is chased against ───────────────────── */}
+      <div className="rounded-2xl border p-4 flex flex-wrap items-end gap-x-6 gap-y-3" style={card}>
+        <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Cut-off date
+          <input type="date" value={cutoffDate} disabled={locked}
+            onChange={e => { setCutoffDate(e.target.value); patch({ cutoff_date: e.target.value || null }) }}
+            className="block px-3 py-2 rounded-lg border text-sm mt-1" style={iStyle} />
+        </label>
+        <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>ETD
+          <input type="date" value={etd} disabled={locked}
+            onChange={e => { setEtd(e.target.value); patch({ etd: e.target.value || null }) }}
+            className="block px-3 py-2 rounded-lg border text-sm mt-1" style={iStyle} />
+        </label>
+        <div className="flex flex-wrap items-center gap-2 pb-1">
+          {dateFlags.length === 0
+            ? <span className="text-[12px]" style={{ color: 'var(--text-faint)' }}>
+                {cutoffDate || etd ? 'Nothing due.' : 'Set these and the order gets chased against them.'}
+              </span>
+            : dateFlags.map(f => <DatePill key={f.kind} flag={f} />)}
+        </div>
+      </div>
+
       {locked && (
         <div className="rounded-xl px-4 py-3 text-[13px]" style={{ background: '#DCFCE7', color: '#14532D' }}>
           This order is closed and the sheet is locked{order.closed_at ? ` (${order.closed_at.slice(0, 10)})` : ''}.
@@ -359,9 +395,9 @@ export default function OrderSheet(p: Props) {
             <Row label="Customer value" a={inr(margin.planned.customerValueInr)} b={inr(margin.actual.customerValueInr)} />
             <Row label="Supplier cost" a={sInr(-margin.planned.supplierCost)} b={sInr(-margin.actual.supplierCost)} negative />
             <Row label="Gross margin" a={sInr(margin.planned.gross)} b={sInr(margin.actual.gross)} strong />
-            {order.drawback_basis && (
+            {dbBasis && (
               <Row
-                label={`Duty drawback${order.drawback_basis === 'percent' ? ` (${order.drawback_value}% of FOB)` : ''}`}
+                label={`Duty drawback${dbBasis === 'percent' ? ` (${dbValue || 0}% of FOB)` : ''}`}
                 a={inr(margin.planned.drawback)} b={inr(margin.actual.drawback)} />
             )}
             {margin.planned.costs.map((c, i) => (
@@ -387,26 +423,61 @@ export default function OrderSheet(p: Props) {
       </div>
 
       {/* ── What really happened ────────────────────────────────────────── */}
-      {(isExport || order.drawback_basis) && !locked && (
-        <div className="rounded-2xl border p-5" style={card}>
-          <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>What really happened</h2>
-          <p className="text-[12px] mt-0.5 mb-3" style={{ color: 'var(--text-muted)' }}>Fill these in as they land. Until then the sheet stands in the figures you costed at.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {isExport && (
-              <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Rate the bank actually gave <span style={{ color: 'var(--text-faint)' }}>(₹ per 1 {order.currency})</span>
-                <input value={realisedRate} inputMode="decimal" placeholder={String(order.booked_rate)}
-                  onChange={e => setRealisedRate(e.target.value)}
-                  onBlur={() => patch({ realised_rate: realisedRate === '' ? null : num(realisedRate) })}
-                  className={iCls} style={iStyle} />
-              </label>
-            )}
-            {order.drawback_basis && (
-              <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Drawback actually received (₹)
-                <input value={drawbackActual} inputMode="decimal" placeholder={String(Math.round(margin.planned.drawback))}
-                  onChange={e => setDrawbackActual(e.target.value)}
-                  onBlur={() => patch({ drawback_actual: drawbackActual === '' ? null : num(drawbackActual) })}
-                  className={iCls} style={iStyle} />
-              </label>
+      {isExport && !locked && (
+        <div className="rounded-2xl border p-5 space-y-4" style={card}>
+          <div>
+            <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>What really happened</h2>
+            <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Fill these in as they land. Until then the sheet stands in the figures you costed at.</p>
+          </div>
+
+          <label className="block text-[11px] font-semibold max-w-xs" style={{ color: 'var(--text-muted)' }}>Rate the bank actually gave <span style={{ color: 'var(--text-faint)' }}>(₹ per 1 {order.currency})</span>
+            <input value={realisedRate} inputMode="decimal" placeholder={String(order.booked_rate)}
+              onChange={e => setRealisedRate(e.target.value)}
+              onBlur={() => patch({ realised_rate: realisedRate === '' ? null : num(realisedRate) })}
+              className={iCls} style={iStyle} />
+          </label>
+
+          {/* Duty drawback appears once the goods have gone. Asked for any
+              earlier it is a guess, and a guess on this sheet becomes a
+              number somebody plans against. */}
+          <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+            <h3 className="text-[13px] font-extrabold mt-3" style={{ color: 'var(--text)' }}>Duty drawback</h3>
+            {!shipped ? (
+              <p className="text-[12px] mt-1" style={{ color: 'var(--text-faint)' }}>
+                Set this once the goods have shipped. Enter what has gone out in the lines above and it appears here.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+                <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Basis
+                  <select value={dbBasis} className={iCls} style={iStyle}
+                    onChange={e => { const v = e.target.value as '' | 'percent' | 'amount'; setDbBasis(v); patch({ drawback_basis: v || null, drawback_value: v ? num(dbValue) : 0 }) }}>
+                    <option value="">None on this order</option>
+                    <option value="percent">Percentage of FOB</option>
+                    <option value="amount">Fixed amount</option>
+                  </select>
+                </label>
+                {dbBasis && (
+                  <>
+                    <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>{dbBasis === 'percent' ? 'Rate (%)' : 'Amount (₹)'}
+                      <input value={dbValue} inputMode="decimal" placeholder={dbBasis === 'percent' ? '1.8' : '76464'}
+                        onChange={e => setDbValue(e.target.value)}
+                        onBlur={() => patch({ drawback_value: num(dbValue) })}
+                        className={iCls} style={iStyle} />
+                    </label>
+                    <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Actually received (₹)
+                      <input value={drawbackActual} inputMode="decimal" placeholder={String(Math.round(margin.planned.drawback))}
+                        onChange={e => setDrawbackActual(e.target.value)}
+                        onBlur={() => patch({ drawback_actual: drawbackActual === '' ? null : num(drawbackActual) })}
+                        className={iCls} style={iStyle} />
+                    </label>
+                    <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Received on
+                      <input type="date" value={dbReceived}
+                        onChange={e => { setDbReceived(e.target.value); patch({ drawback_received_date: e.target.value || null }) }}
+                        className={iCls} style={iStyle} />
+                    </label>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -530,6 +601,21 @@ export default function OrderSheet(p: Props) {
 }
 
 // ── Pieces ──────────────────────────────────────────────────────────────────
+
+const FLAG_TONE: Record<string, { bg: string; fg: string }> = {
+  passed: { bg: '#FEE2E2', fg: '#991B1B' },
+  soon:   { bg: '#FEF3C7', fg: '#92400E' },
+  ok:     { bg: '#EEF0F2', fg: '#4B5563' },
+}
+
+export function DatePill({ flag }: { flag: DateFlag }) {
+  const c = FLAG_TONE[flag.state]
+  return (
+    <span className="text-[11px] font-bold px-2 py-1 rounded whitespace-nowrap" style={{ background: c.bg, color: c.fg }}>
+      {flag.label} {flag.date} · {whenWords(flag.daysAway)}
+    </span>
+  )
+}
 
 function Row({ label, a, b, strong, big, muted, negative, bEstimated }: {
   label: string; a: string; b: string
