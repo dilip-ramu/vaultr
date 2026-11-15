@@ -85,7 +85,8 @@ export default function DeleteOrderButton({ orderId, orderNumber }: { orderId: s
                   ))}
                 </ul>
                 <p className="text-[12px] mt-3" style={{ color: 'var(--text-muted)' }}>
-                  Take these off the order, or undo the payments, and then it will delete.
+                  Advances and payments can be removed under <b>Money on this order</b>, which takes their bank
+                  entries with them. Invoices and bills are unlinked from the order instead.
                 </p>
                 <div className="flex justify-end mt-4">
                   <button onClick={() => setOpen(false)} className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>Close</button>

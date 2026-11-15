@@ -21,6 +21,11 @@ export const DOC_CONFIGS: DocConfig[] = [
   { id: 'delivery_challan', label: 'Delivery Challan', side: 'customer', code: 'DC',  tax: false, partyLabel: 'Consignee', referenceLabel: 'Reason for transport' },
   { id: 'purchase_order',   label: 'Purchase Order',   side: 'supplier', code: 'PO',  tax: true,  partyLabel: 'Vendor', referenceLabel: 'Reference' },
   { id: 'debit_note',       label: 'Debit Note',       side: 'supplier', code: 'DN',  tax: true,  partyLabel: 'Supplier', referenceLabel: 'Against invoice no.' },
+  // The other direction. A debit note says the supplier owes us; this says we
+  // owe them — a price revision agreed after the bill, a shortfall we accept.
+  // Shares the credit_note doc_type with the customer side and is kept apart
+  // by party_kind and its own number series, exactly like delivery_challan.
+  { id: 'credit_note',      label: 'Credit Note',      side: 'supplier', code: 'SCN', tax: true,  partyLabel: 'Supplier', referenceLabel: 'Against bill no.' },
   // Supplier-side delivery challan — same doc_type as the customer one but a
   // distinct party side + number series (SDC), kept separate via party_kind.
   { id: 'delivery_challan', label: 'Delivery Challan', side: 'supplier', code: 'SDC', tax: false, partyLabel: 'Supplier', referenceLabel: 'Reason for transport' },

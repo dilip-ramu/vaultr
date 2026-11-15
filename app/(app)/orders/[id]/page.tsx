@@ -4,6 +4,7 @@ import OrderSheet, {
   type OrderRow, type CostRow, type DocRow, type CustInvRow, type BillRow,
 } from '@/components/orders/OrderSheet'
 import type { OrderFileRow } from '@/components/orders/OrderFilesPanel'
+import type { OrderPaymentRow } from '@/components/orders/OrderPayments'
 import type { SummaryInput } from '@/lib/orders/summaryDoc'
 import { normalizeAccent } from '@/lib/companies/templates'
 import {
@@ -34,6 +35,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     { data: docs }, { data: custInvoices }, { data: bills },
     { data: freeSellDocs }, { data: freeBuyDocs }, { data: freeCustInvoices }, { data: freeBills },
     { data: files }, { data: sizes }, { data: packRows },
+    { data: paymentRows }, { data: accounts }, { data: suppliers },
   ] = await Promise.all([
     supabase.from('order_lines').select('*').eq('order_id', id).order('line_number'),
     supabase.from('order_costs').select('*').eq('order_id', id).order('line_number'),
@@ -55,6 +57,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     supabase.from('order_files').select('id, side, name, path, size').eq('order_id', id).order('created_at'),
     supabase.from('order_line_sizes').select('*').eq('order_id', id).order('sort'),
     supabase.from('order_packs').select('*').eq('order_id', id).order('sort'),
+    supabase.from('order_payments').select('*').eq('order_id', id).order('paid_date', { ascending: false }),
+    supabase.from('accounts').select('id, name').eq('user_id', uid).eq('is_active', true).order('name'),
+    supabase.from('suppliers').select('id, name').eq('user_id', uid).eq('is_active', true).order('name'),
   ])
 
   // Sizes belong to their line; the quantity on screen comes from them.
@@ -164,6 +169,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     notes: (order.notes as string | null) ?? null,
   }
 
+  // What the supplier has actually billed. The money card measures against
+  // this and not against the agreed cost: until they invoice, nothing is
+  // owed however much the order says it will come to.
+  const billedTotal = (bills ?? []).reduce((t, b) => t + (Number(b.amount) || 0), 0)
+
   // Today from the server, so the sheet and the list agree on what is late.
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
@@ -182,6 +192,18 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       freeBills={(freeBills ?? []) as BillRow[]}
       files={(files ?? []) as OrderFileRow[]}
       packing={packing}
+      payments={(paymentRows ?? []) as OrderPaymentRow[]}
+      accounts={(accounts ?? []) as { id: string; name: string }[]}
+      suppliers={(suppliers ?? []) as { id: string; name: string }[]}
+      billedTotal={billedTotal}
+      brand={{
+        partyLines: [],
+        companyName: summary.companyName,
+        companyLines: summary.companyLines,
+        accent: summary.accent,
+        logoUrl: summary.logoUrl,
+        signatureLabel: `For ${summary.companyName}`,
+      }}
       summary={summary}
       po={po}
     />

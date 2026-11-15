@@ -70,6 +70,7 @@ export default async function NewSupplierDocumentPage({
   // told something different from what the customer agreed. The supplier
   // itself is NOT guessed — an order can be bought from more than one.
   let orderId: string | null = null
+  const isNote = type === 'debit_note' || type === 'credit_note'
   if (fromOrder) {
     const [{ data: ord }, { data: ol }] = await Promise.all([
       supabase.from('orders').select('*').eq('id', fromOrder).eq('user_id', uid).maybeSingle(),
@@ -123,8 +124,9 @@ export default async function NewSupplierDocumentPage({
         date: today,
         reference: (ord.customer_po_no as string | null) ?? String(ord.number ?? ''),
         notes: '',
-        packing: rows,
-        packingNote,
+        // Packing and the cut-off dates belong on the purchase order, not
+        // on a note adjusting it.
+        ...(isNote ? {} : { packing: rows, packingNote }),
         signatoryId: null,
         number: '',
         // The supplier is paid in rupees whatever the customer pays in: the
@@ -133,11 +135,19 @@ export default async function NewSupplierDocumentPage({
         // The order decides these two; the purchase order gets a copy. Once
         // it is saved the copy stands on its own — moving a date on the
         // order later must not silently change a PO already sent out.
-        extraDates: {
-          cutoff_date: String(ord.cutoff_date ?? '').slice(0, 10),
-          etd: String(ord.etd ?? '').slice(0, 10),
-        },
-        lines: orderDocLines((ol ?? []).map((l: Record<string, unknown>) => ({
+        ...(isNote ? {} : {
+          extraDates: {
+            cutoff_date: String(ord.cutoff_date ?? '').slice(0, 10),
+            etd: String(ord.etd ?? '').slice(0, 10),
+          },
+        }),
+        // A credit or debit note is ONE adjustment, not a reprint of the
+        // whole order. Listing every style on it and leaving the rates blank
+        // is a form somebody has to delete their way out of.
+        lines: isNote ? [{
+          item: `Adjustment against order ${String(ord.number ?? '')}`.trim(),
+          hsn: '', qty: '1', rate: '', gst: '0',
+        }] : orderDocLines((ol ?? []).map((l: Record<string, unknown>) => ({
           item: String(l.item ?? ''),
           description: (l.description as string | null) ?? null,
           hsn: (l.hsn_sac as string | null) ?? null,

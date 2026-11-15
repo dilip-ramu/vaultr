@@ -62,6 +62,7 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/suppliers/invoices', label: 'Invoices' },
     { href: '/suppliers/documents/purchase_order', label: 'Purchase Orders' },
     { href: '/suppliers/documents/debit_note', label: 'Debit Notes' },
+    { href: '/suppliers/documents/credit_note', label: 'Credit Notes' },
     { href: '/suppliers/documents/delivery_challan', label: 'Challans' },
     { href: '/suppliers/invoices/fetch', label: 'Fetch' },
   ] },

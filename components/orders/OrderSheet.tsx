@@ -19,6 +19,8 @@ import type { SummaryInput } from '@/lib/orders/summaryDoc'
 import OrderStepRail from './OrderStepRail'
 import OrderFilesPanel, { type OrderFileRow } from './OrderFilesPanel'
 import SupplierPackButton from './SupplierPackButton'
+import OrderPayments, { type OrderPaymentRow } from './OrderPayments'
+import type { PaymentSlipInput } from '@/lib/orders/paymentSlip'
 import DeleteOrderButton from './DeleteOrderButton'
 
 // ── Shapes the page hands down ──────────────────────────────────────────────
@@ -69,6 +71,11 @@ interface Props {
     overWithin: string[]
     overBeyond: string[]
   }
+  payments: OrderPaymentRow[]
+  accounts: { id: string; name: string }[]
+  suppliers: { id: string; name: string }[]
+  billedTotal: number
+  brand: Omit<PaymentSlipInput, 'number' | 'kind' | 'amount' | 'date' | 'orderNumber'>
   /** Everything the supplier-pack summary page needs, built server-side. */
   summary: SummaryInput
   /** The purchase order raised for this order, if there is one. */
@@ -561,6 +568,19 @@ export default function OrderSheet(p: Props) {
           </div>
         </div>
       )}
+
+      <OrderPayments
+        orderId={order.id}
+        orderNumber={order.number}
+        customerPoNo={order.customer_po_no}
+        locked={locked}
+        payments={p.payments}
+        accounts={p.accounts}
+        suppliers={p.suppliers}
+        billedTotal={p.billedTotal}
+        defaultParty={p.po?.supplierName ?? null}
+        brand={p.brand}
+      />
 
       {/* ── Costs ───────────────────────────────────────────────────────── */}
       <div className="rounded-2xl border p-5 space-y-3" style={card}>
