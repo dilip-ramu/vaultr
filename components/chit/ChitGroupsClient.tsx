@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, X, Users, ChevronRight, Trash2, CalendarRange, Clock, Archive } from 'lucide-react'
+import { Plus, X, Users, ChevronRight, Trash2, CalendarRange, Clock, Archive, CheckCircle2 } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { inr } from '@/lib/assets/valuation'
@@ -15,11 +15,14 @@ import type { ChitGroup } from '@/lib/chit/types'
 import { groupSchedule, isPast, type GroupPhase } from '@/lib/chit/groupSchedule'
 import { formatAuctionTime } from '@/lib/chit/auctionTime'
 import { niceDate } from '@/lib/chit/messages'
+import { pendingDetail, NO_PENDING, type PendingSummary } from '@/lib/chit/pending'
 
-export default function ChitGroupsClient({ initialGroups, companies, memberCounts }: {
+export default function ChitGroupsClient({ initialGroups, companies, memberCounts, pending }: {
   initialGroups: ChitGroup[]
   companies: { id: string; name: string }[]
   memberCounts: Record<string, number>
+  /** What each group is still waiting to collect. */
+  pending: Record<string, PendingSummary>
 }) {
   const router = useRouter()
   const [groups, setGroups] = useState(initialGroups)
@@ -65,6 +68,7 @@ export default function ChitGroupsClient({ initialGroups, companies, memberCount
         {live.map(({ g, s: sched }) => (
           <GroupCard key={g.id} g={g} sched={sched}
             inGroup={memberCounts[g.id] ?? 0}
+            pending={pending[g.id] ?? NO_PENDING}
             company={companyName(g.company_id)}
             onRemove={() => remove(g.id)} />
         ))}
@@ -86,6 +90,7 @@ export default function ChitGroupsClient({ initialGroups, companies, memberCount
               {past.map(({ g, s: sched }) => (
                 <GroupCard key={g.id} g={g} sched={sched}
                   inGroup={memberCounts[g.id] ?? 0}
+                  pending={pending[g.id] ?? NO_PENDING}
                   company={companyName(g.company_id)}
                   onRemove={() => remove(g.id)} past />
               ))}
@@ -110,10 +115,11 @@ const PHASE_WORD: Record<GroupPhase, string> = {
   undated: 'No start date',
 }
 
-function GroupCard({ g, sched, inGroup, company, onRemove, past }: {
+function GroupCard({ g, sched, inGroup, pending, company, onRemove, past }: {
   g: ChitGroup
   sched: ReturnType<typeof groupSchedule>
   inGroup: number
+  pending: PendingSummary
   company?: string
   onRemove: () => void
   past?: boolean
@@ -169,11 +175,52 @@ function GroupCard({ g, sched, inGroup, company, onRemove, past }: {
         <Stat label="Members" value={`${inGroup} / ${g.members}`} />
       </div>
 
+      <PendingBadges p={pending} />
+
       <Link href={`/chit/groups/${g.id}`}
         className="flex items-center justify-center gap-1 mt-3 py-2 rounded-xl text-[12.5px] font-bold"
         style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>
         Open <ChevronRight className="w-3.5 h-3.5" />
       </Link>
+    </div>
+  )
+}
+
+/**
+ * What this chit is still waiting on.
+ *
+ * Two counts, never added together: a collection missed this month is a
+ * reminder, one missed since June is a problem, and one number in one colour
+ * would hide the difference. Each unpaid month is counted separately and
+ * coloured by its own age, so a member four months behind shows as four.
+ */
+function PendingBadges({ p }: { p: PendingSummary }) {
+  if (p.total === 0) return null
+
+  if (p.pending === 0) {
+    return (
+      <p className="mt-3 text-[12px] font-bold inline-flex items-center gap-1.5" style={{ color: 'var(--income)' }}>
+        <CheckCircle2 className="w-3.5 h-3.5" /> All collected
+      </p>
+    )
+  }
+
+  const detail = pendingDetail(p)
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap gap-1.5">
+        {p.overdue > 0 && (
+          <span className="text-[12px] font-bold px-2 py-1 rounded-lg" style={{ background: '#FEE2E2', color: '#991B1B' }}>
+            {p.overdue} out of {p.total} pending
+          </span>
+        )}
+        {p.recent > 0 && (
+          <span className="text-[12px] font-bold px-2 py-1 rounded-lg" style={{ background: '#FEF3C7', color: '#92400E' }}>
+            {p.recent} out of {p.total} pending
+          </span>
+        )}
+      </div>
+      {detail && <p className="text-[11px] mt-1" style={{ color: 'var(--text-faint)' }}>{detail}</p>}
     </div>
   )
 }
