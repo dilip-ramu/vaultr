@@ -4,12 +4,13 @@ import LiveBiddingPanel from './LiveBiddingPanel'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ChevronDown, ChevronRight, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy, Upload, Download } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronRight, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy, Upload } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import {
-  sampleMemberCsv, parseMemberCsv, buildMemberIndex, planGroupImport, type KnownMember,
+  buildMemberIndex, planGroupImport, type KnownMember, type ParsedMemberRow,
 } from '@/lib/chit/memberCsv'
+import SheetImport, { type ImportOutcome } from './SheetImport'
 import { codeSequence } from '@/lib/chit/memberCode'
 import { pendingCollectionCount } from '@/lib/chit/memberSummary'
 import { inr } from '@/lib/assets/valuation'
@@ -403,7 +404,7 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
             <button onClick={() => setImporting(true)}
               className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-xl"
               style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              <Upload className="w-4 h-4" /> Import CSV
+              <Upload className="w-4 h-4" /> Import
             </button>
             <button onClick={() => setPicking(true)}
               className="flex items-center gap-1.5 text-sm font-bold px-3.5 py-2 rounded-xl text-white" style={{ background: 'var(--brand)' }}>
@@ -524,6 +525,14 @@ function MembersTab({ group, members, allMembers, auctions, collections, dueForM
 // The list someone hands you is mostly people already on the register, plus a
 // few who are not. Making them add the new ones elsewhere first and come back
 // is work the app can do itself.
+/**
+ * Importing straight into a chit.
+ *
+ * Same wizard as the member register — Excel or CSV, you see and correct the
+ * column matching before anything is written. What happens to the rows is the
+ * part that is specific to a group, so it stays here: match against the
+ * register, create whoever is new, then seat them without overfilling.
+ */
 function GroupImportSheet({
   groupId, room, existing, alreadyIn, onClose, onDone,
 }: {
@@ -534,120 +543,68 @@ function GroupImportSheet({
   onClose: () => void
   onDone: () => void
 }) {
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<string | null>(null)
-  const [notes, setNotes] = useState<string[]>([])
+  async function importRows(rows: ParsedMemberRow[]): Promise<ImportOutcome> {
+    const known: KnownMember[] = existing.map(m => ({ id: m.id, name: m.name, member_code: m.member_code }))
+    const plan = planGroupImport(rows, buildMemberIndex(known))
 
-  function downloadSample() {
-    const blob = new Blob([sampleMemberCsv()], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'chit-group-members-example.csv'
-    document.body.appendChild(a); a.click(); a.remove()
-    URL.revokeObjectURL(url)
-  }
+    const problems: string[] = []
+    const ids: string[] = []
+    let created = 0
 
-  async function handleFile(file: File) {
-    setBusy(true); setResult(null); setNotes([])
-    try {
-      const { rows, headers } = parseMemberCsv(await file.text())
-      if (!('name' in headers)) { notify('That file has no Name column.', 'error'); return }
-      if (!rows.length) { notify('No rows found in that file', 'error'); return }
+    for (const p of plan) {
+      if (p.kind === 'problem') { problems.push(`${p.label}: ${p.reason}`); continue }
+      if (p.kind === 'existing') { ids.push(p.memberId); continue }
 
-      const known: KnownMember[] = existing.map(m => ({ id: m.id, name: m.name, member_code: m.member_code }))
-      const plan = planGroupImport(rows, buildMemberIndex(known))
+      const res = await fetch('/api/chit/members', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...p.values, force: true }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json.member) { problems.push(`${p.label}: ${json?.error ?? 'could not be added'}`); continue }
+      created++
+      ids.push(json.member.id)
+    }
 
-      const problems: string[] = []
-      const ids: string[] = []
-      let created = 0
+    // Anyone already seated is not an error — a list is often re-sent with a
+    // few names appended.
+    const fresh = ids.filter(id => !alreadyIn.has(id))
+    const dropped = ids.length - fresh.length
+    if (dropped) problems.push(`${dropped} already in this group — left as they were`)
 
-      for (const p of plan) {
-        if (p.kind === 'problem') { problems.push(`${p.label}: ${p.reason}`); continue }
-        if (p.kind === 'existing') { ids.push(p.memberId); continue }
+    // The seat count is the group's own rule; refuse rather than overfill it.
+    const toAdd = fresh.slice(0, Math.max(0, room))
+    if (fresh.length > room) {
+      problems.push(`Only ${room} seat${room === 1 ? '' : 's'} left — ${fresh.length - room} not added`)
+    }
 
-        const res = await fetch('/api/chit/members', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...p.values, force: true }),
-        })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok || !json.member) { problems.push(`${p.label}: ${json?.error ?? 'could not be added'}`); continue }
-        created++
-        ids.push(json.member.id)
-      }
+    let added = 0
+    if (toAdd.length) {
+      const res = await fetch('/api/chit/group-members', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_id: groupId, member_ids: toAdd }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error ?? 'Could not add to the group')
+      added = json.added ?? toAdd.length
+    }
 
-      // Anyone already seated is not an error — a list is often re-sent with a
-      // few names appended.
-      const fresh = ids.filter(id => !alreadyIn.has(id))
-      const dropped = ids.length - fresh.length
-      if (dropped) problems.push(`${dropped} already in this group — left as they were`)
-
-      // The seat count is the group's own rule; refuse rather than overfill it.
-      const toAdd = fresh.slice(0, Math.max(0, room))
-      if (fresh.length > room) {
-        problems.push(`Only ${room} seat${room === 1 ? '' : 's'} left — ${fresh.length - room} not added`)
-      }
-
-      let added = 0
-      if (toAdd.length) {
-        const res = await fetch('/api/chit/group-members', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ group_id: groupId, member_ids: toAdd }),
-        })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) { notify(json?.error ?? 'Could not add to the group', 'error'); return }
-        added = json.added ?? toAdd.length
-      }
-
-      setResult(`Added ${added} to the group${created ? `, ${created} newly created` : ''}.`)
-      setNotes(problems.slice(0, 10))
-      if (added > 0) setTimeout(onDone, problems.length ? 5000 : 1200)
-    } finally { setBusy(false) }
+    return {
+      summary: `Added ${added} to the group${created ? `, ${created} newly created` : ''}.`,
+      notes: problems,
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center">
-      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up" style={{ background: 'var(--surface)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Import members into this chit</p>
-          <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
-        </div>
-
-        <p className="text-[12.5px] mb-3" style={{ color: 'var(--text-muted)' }}>
-          Anyone already on the register is matched and seated. Anyone new is added to the
-          register first, then seated. Only <b>Name</b> is required.
-        </p>
-
-        <button onClick={downloadSample}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold mb-3"
-          style={{ border: '1px solid var(--border)', color: 'var(--brand)' }}>
-          <Download className="w-4 h-4" /> Download example CSV
-        </button>
-
-        <label className="block w-full text-center py-8 rounded-xl cursor-pointer"
-          style={{ border: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
-          {busy ? 'Importing…' : `Choose CSV file · ${room} seat${room === 1 ? '' : 's'} left`}
-          <input type="file" accept=".csv,text/csv" className="hidden" disabled={busy}
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
-        </label>
-
-        {result && <p className="text-sm mt-3 font-semibold" style={{ color: 'var(--brand)' }}>{result}</p>}
-        {notes.length > 0 && (
-          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
-            {notes.map((n, i) => (
-              <p key={i} className="text-[11.5px]"
-                style={{ color: n.includes('already in this group') ? 'var(--text-muted)' : 'var(--expense)' }}>{n}</p>
-            ))}
-          </div>
-        )}
-
-        <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
-          Matching uses the member number when the file has one, otherwise the name. A name
-          shared by two members is reported rather than guessed at — seating the wrong
-          person means billing them for this chit.
-        </p>
-      </div>
-    </div>
+    <SheetImport
+      title="Import members into this chit"
+      intro="Anyone already on the register is matched and seated. Anyone new is added to the register first."
+      reviewNote={rows => room <= 0
+        ? 'This chit is full — nobody can be seated.'
+        : `${room} seat${room === 1 ? '' : 's'} left${rows.length > room ? ` · ${rows.length - room} of these will not fit` : ''}. Matching uses the member number when the file has one, otherwise the name; a name shared by two members is reported rather than guessed at.`}
+      onConfirm={importRows}
+      onClose={onClose}
+      onDone={onDone}
+    />
   )
 }
 

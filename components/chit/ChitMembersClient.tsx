@@ -1,14 +1,15 @@
 'use client'
 
 import {
-  sampleMemberCsv, parseMemberCsv, buildMemberIndex, existingCodeOwner, resolveReference,
-  type KnownMember,
+  buildMemberIndex, existingCodeOwner, resolveReference,
+  type KnownMember, type ParsedMemberRow,
 } from '@/lib/chit/memberCsv'
+import SheetImport, { type ImportOutcome } from './SheetImport'
 import { nextMemberCode, codeSequence } from '@/lib/chit/memberCode'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut, Download } from 'lucide-react'
+import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { ChitMember } from '@/lib/chit/types'
@@ -131,7 +132,7 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
           <button onClick={() => setImporting(true)}
             className="flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl"
             style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-            <Upload className="w-4 h-4" /> Import CSV
+            <Upload className="w-4 h-4" /> Import
           </button>
           <button onClick={() => setAdding(true)}
             className="flex items-center gap-2 text-white text-sm font-bold px-4 py-2 rounded-xl" style={{ background: 'var(--brand)' }}>
@@ -381,154 +382,92 @@ function MemberForm({ member, members, nextCode, onClose, onSaved }: {
   )
 }
 
+/**
+ * Importing members.
+ *
+ * The old version read a CSV, matched the headers against a list of aliases in
+ * secret, and imported. When the match failed it either dropped the column
+ * without saying so or refused the whole file. This one reads Excel as well as
+ * CSV, shows you what it thinks each column is, and lets you change it before
+ * anything is written.
+ *
+ * What happens to the rows is unchanged, and still lives here rather than in
+ * the wizard: skip anyone whose member number is already on file, create the
+ * rest, then link "Introduced By" in a second pass so a file can reference
+ * somebody it creates further down.
+ */
 function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
-  const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<string | null>(null)
-  const [problems, setProblems] = useState<string[]>([])
-  const [skipped, setSkipped] = useState(0)
+  async function importRows(rows: ParsedMemberRow[]): Promise<ImportOutcome> {
+    const existing = await (await fetch('/api/chit/members')).json().catch(() => ({ members: [] }))
+    const known: KnownMember[] = (existing.members ?? []) as KnownMember[]
+    let index = buildMemberIndex(known)
 
-  /** The sample is generated from the SAME column list the parser reads, so a
-   *  column in the file is always a column that gets imported. */
-  function downloadSample() {
-    const blob = new Blob([sampleMemberCsv()], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'chit-members-example.csv'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  }
+    const notes: string[] = []
+    const pending: { selfId: string; raw: string; label: string }[] = []
+    let added = 0
+    let skipped = 0
 
-  async function handleFile(file: File) {
-    setBusy(true); setResult(null); setProblems([]); setSkipped(0)
-    try {
-      const { rows, headers } = parseMemberCsv(await file.text())
-      if (!('name' in headers)) {
-        notify('That file has no Name column. Download the example to see the format.', 'error')
-        return
+    for (const r of rows) {
+      // Already imported. Not a failure — say so and move on, so last
+      // month's sheet can be re-imported after a few names are added to it.
+      if (existingCodeOwner(r.values, index)) {
+        skipped++
+        notes.push(`Row ${r.row}: ${r.values.member_code} already exists — skipped`)
+        continue
       }
-      if (!rows.length) { notify('No rows found in that file', 'error'); return }
 
-      // Who already exists. Re-importing last month's sheet should add the new
-      // people and leave the rest alone, so this is the list we skip against.
-      const existing = await (await fetch('/api/chit/members')).json().catch(() => ({ members: [] }))
-      const known: KnownMember[] = (existing.members ?? []) as KnownMember[]
-      let index = buildMemberIndex(known)
+      const { referred_by_code, ...fields } = r.values
+      const res = await fetch('/api/chit/members', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fields, force: true }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { notes.push(`Row ${r.row} (${fields.name}): ${json?.error ?? 'could not be added'}`); continue }
+      added++
 
-      const notes: string[] = []
-      const pending: { selfId: string; raw: string; label: string }[] = []
-      let added = 0
-      let skippedRows = 0
-
-      for (const r of rows) {
-        if (r.error) { notes.push(`Row ${r.row}: ${r.error}`); continue }
-
-        // Already imported. Not a failure — say so and move on.
-        const owner = existingCodeOwner(r.values, index)
-        if (owner) {
-          skippedRows++
-          notes.push(`Row ${r.row}: ${r.values.member_code} already exists — skipped`)
-          continue
+      // The new member joins the index immediately, so a later row may be
+      // introduced by someone this same file created.
+      if (json.member) {
+        known.push(json.member as KnownMember)
+        index = buildMemberIndex(known)
+        if (referred_by_code) {
+          pending.push({ selfId: json.member.id, raw: referred_by_code, label: `Row ${r.row} (${fields.name})` })
         }
+      }
+    }
 
-        const { referred_by_code, ...fields } = r.values
-        const res = await fetch('/api/chit/members', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...fields, force: true }),
+    // Second pass, once every row exists: a sheet listing people in any order
+    // still links up.
+    for (const link of pending) {
+      const hit = resolveReference(link.raw, index, link.selfId)
+      if (hit.kind === 'matched') {
+        await fetch('/api/chit/members', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: link.selfId, referred_by_member_id: hit.memberId }),
         })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) { notes.push(`Row ${r.row} (${fields.name}): ${json?.error ?? 'could not be added'}`); continue }
-        added++
-
-        // The new member joins the index immediately, so a later row may be
-        // introduced by someone this same file created.
-        if (json.member) {
-          known.push(json.member as KnownMember)
-          index = buildMemberIndex(known)
-          if (referred_by_code) {
-            pending.push({ selfId: json.member.id, raw: referred_by_code, label: `Row ${r.row} (${fields.name})` })
-          }
-        }
+      } else if (hit.kind !== 'none') {
+        // The member is created either way; only the introduction is missing,
+        // and it is named so it can be set by hand.
+        notes.push(`${link.label}: introduced-by not linked — ${hit.reason}`)
       }
+    }
 
-      // Second pass, once every row exists: a sheet listing people in any order
-      // still links up.
-      for (const link of pending) {
-        const hit = resolveReference(link.raw, index, link.selfId)
-        if (hit.kind === 'matched') {
-          await fetch('/api/chit/members', {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: link.selfId, referred_by_member_id: hit.memberId }),
-          })
-        } else if (hit.kind !== 'none') {
-          // The member is created either way; only the introduction is missing,
-          // and it is named so it can be set by hand.
-          notes.push(`${link.label}: introduced-by not linked — ${hit.reason}`)
-        }
-      }
-
-      setSkipped(skippedRows)
-      setResult(
-        `Added ${added}`
-        + (skippedRows ? `, skipped ${skippedRows} already on file` : '')
+    return {
+      summary: `Added ${added}`
+        + (skipped ? `, skipped ${skipped} already on file` : '')
         + ` of ${rows.length} row${rows.length === 1 ? '' : 's'}.`,
-      )
-      setProblems(notes.slice(0, 10))
-      if (added > 0 && !notes.length) setTimeout(onDone, 1200)
-      else if (added > 0) setTimeout(onDone, 5000)
-    } finally { setBusy(false) }
+      notes,
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center">
-      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 shadow-xl slide-up" style={{ background: 'var(--surface)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-base font-extrabold" style={{ color: 'var(--text)' }}>Import members</p>
-          <button onClick={onClose} style={{ color: 'var(--text-faint)' }}><X className="w-4 h-4" /></button>
-        </div>
-
-        <p className="text-[12.5px] mb-3" style={{ color: 'var(--text-muted)' }}>
-          Only <b>Name</b> is required. Everything else is optional, and any column the
-          file does not have is simply left blank.
-        </p>
-
-        <button onClick={downloadSample}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold mb-3"
-          style={{ border: '1px solid var(--border)', color: 'var(--brand)' }}>
-          <Download className="w-4 h-4" /> Download example CSV
-        </button>
-
-        <label className="block w-full text-center py-8 rounded-xl cursor-pointer" style={{ border: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
-          {busy ? 'Importing…' : 'Choose CSV file'}
-          <input type="file" accept=".csv,text/csv" className="hidden" disabled={busy}
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
-        </label>
-
-        {result && <p className="text-sm mt-3 font-semibold" style={{ color: 'var(--brand)' }}>{result}</p>}
-        {problems.length > 0 && (
-          <div className="mt-2 space-y-0.5 max-h-40 overflow-y-auto">
-            {problems.map((p, i) => (
-              <p key={i} className="text-[11.5px]"
-                style={{ color: p.includes('already exists') ? 'var(--text-muted)' : 'var(--expense)' }}>
-                {p}
-              </p>
-            ))}
-          </div>
-        )}
-
-        <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
-          A row whose member number already exists is skipped, so you can re-import the
-          same sheet after adding a few names to it. Members without a number get the next
-          one automatically. &ldquo;Introduced By&rdquo; accepts either a member number or an
-          existing member&rsquo;s name, and is linked after every row is added — so a file can
-          reference someone it creates further down. A name shared by two members is left
-          unlinked and reported, rather than guessed at.
-        </p>
-      </div>
-    </div>
+    <SheetImport
+      title="Import members"
+      intro="Excel or CSV, with whatever column names your file already uses."
+      onConfirm={importRows}
+      onClose={onClose}
+      onDone={onDone}
+    />
   )
 }
 
