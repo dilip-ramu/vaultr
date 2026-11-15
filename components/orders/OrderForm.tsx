@@ -163,7 +163,6 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         booked_rate: isExport ? (num(bookedRate) || 1) : 1,
         cutoff_date: cutoffDate || null,
         etd: etd || null,
-        overship_tolerance_pct: num(overshipPct),
         notes: notes.trim() || null,
       }
 
@@ -265,6 +264,14 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         .filter((x): x is string => !!x && !keptPacks.includes(x))
       if (gonePacks.length) await sb.from('order_packs').delete().in('id', gonePacks).eq('user_id', user.id)
 
+      // The over-shipment allowance is part of the packing conversation, not
+      // part of raising the order, so it is saved here and only when there
+      // is packing to measure it against.
+      if (packRows.length || num(overshipPct) > 0 || initial?.overshipPct) {
+        await sb.from('orders').update({ overship_tolerance_pct: num(overshipPct) })
+          .eq('id', savedId).eq('user_id', user.id)
+      }
+
       notify(`Order ${numberStr} ${isEdit ? 'updated' : 'created'} ✓`, 'success')
       router.push(`/orders/${savedId}`)
       router.refresh()
@@ -322,12 +329,6 @@ export default function OrderForm({ companies, customers, existingNumbers, order
           <label className={lab} style={labStyle}>ETD <span style={{ color: 'var(--text-faint)' }}>(optional)</span>
             <input type="date" value={etd} onChange={e => setEtd(e.target.value)} className={iCls} style={iStyle} />
             <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>Estimated date of despatch. Copied onto the purchase order.</span>
-          </label>
-          <label className={lab} style={labStyle}>Over-shipment allowed (%)
-            <input value={overshipPct} onChange={e => setOvershipPct(e.target.value)} inputMode="decimal" placeholder="0" className={iCls} style={iStyle} />
-            <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>
-              Whatever you agreed with the supplier. Leave blank if none was.
-            </span>
           </label>
           <label className={lab} style={labStyle}>Currency
             <select value={currency} onChange={e => { setCurrency(e.target.value); if (e.target.value === 'INR') setBookedRate('1') }} className={iCls} style={iStyle}>
@@ -492,7 +493,10 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         </div>
       </div>
 
-      <PackingSection lines={packLines} packs={packs} onChange={setPacks} nextKey={() => ++seq} tolerancePct={num(overshipPct)} />
+      <PackingSection
+        lines={packLines} packs={packs} onChange={setPacks} nextKey={() => ++seq}
+        tolerancePct={overshipPct} onTolerance={setOvershipPct}
+      />
 
       <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <label className="text-[11px] font-semibold" style={labStyle}>Notes on this order

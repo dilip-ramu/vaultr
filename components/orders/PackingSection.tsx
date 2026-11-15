@@ -33,8 +33,9 @@ interface Props {
   packs: PackDraft[]
   onChange: (packs: PackDraft[]) => void
   nextKey: () => number
-  /** Over-shipment agreed on this order. 0 = none. */
-  tolerancePct: number
+  /** Over-shipment agreed on this order, as typed. '' or '0' = none. */
+  tolerancePct: string
+  onTolerance: (v: string) => void
 }
 
 const n = (v: string) => parseFloat(v) || 0
@@ -51,7 +52,8 @@ const toPack = (d: PackDraft): Pack => ({
     .map(c => ({ lineId: String(c.lineKey), size: c.size, qty: n(c.qty) })),
 })
 
-export default function PackingSection({ lines, packs, onChange, nextKey, tolerancePct }: Props) {
+export default function PackingSection({ lines, packs, onChange, nextKey, tolerancePct, onTolerance }: Props) {
+  const tol = n(tolerancePct)
   const nameOf = (lineId: string) => lines.find(l => String(l.key) === lineId)?.name || 'Untitled style'
 
   const ordered: OrderedPiece[] = []
@@ -61,7 +63,7 @@ export default function PackingSection({ lines, packs, onChange, nextKey, tolera
   }
 
   const asPacks = packs.map(toPack)
-  const r = reconcilePacking(ordered, asPacks, tolerancePct)
+  const r = reconcilePacking(ordered, asPacks, tol)
   const rows = packingRows(asPacks, nameOf)
 
   /** Everything except the pack being edited — see maxCartons. */
@@ -105,7 +107,15 @@ export default function PackingSection({ lines, packs, onChange, nextKey, tolera
             and the mix can span two styles. Add as many as the order needs — part solid and part assorted is normal.
           </p>
         </div>
-        <div className="flex gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-end gap-3 shrink-0">
+          {/* Asked here and not on the order header: how much over is
+              allowed is settled when the shipment is being packed, not when
+              the order is raised. */}
+          <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+            Over-shipment allowed (%)
+            <input value={tolerancePct} onChange={e => onTolerance(e.target.value)} inputMode="decimal" placeholder="0"
+              className={`${sel} block mt-1 w-28`} style={iStyle} />
+          </label>
           <button onClick={() => addPack('solid')} className="flex items-center gap-1.5 text-[12px] font-bold px-2.5 py-1.5 rounded-lg" style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>
             <Plus className="w-3.5 h-3.5" /> Solid
           </button>
