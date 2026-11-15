@@ -79,27 +79,42 @@ describe('building the summary', () => {
 })
 
 describe('the packing on the summary sheet', () => {
-  it('puts each pack on its own line under a PACKING heading', () => {
+  const row = (label: string, boxes: string, contents: string, style = '') =>
+    ({ label, boxes, lines: [{ contents, style }], note: '4 pcs/box · 80 pcs' })
+
+  it('carries the packing rows through as a table of their own', () => {
     const m = orderSummaryDocModel(base({
-      packing: ['5 ctn × 20 × M — Polo · 20 pcs/ctn · 100 pcs', '100 ctn × (Polo / M + Tee / M) · 2 pcs/ctn · 200 pcs'],
-      cartons: 105,
+      packing: [row('Box 1', '20 boxes', 'S-1, M-2, L-2, XL-1')],
+      cartons: 20,
     }))
-    expect(m.note).toBe(
-      'PACKING\n5 ctn × 20 × M — Polo · 20 pcs/ctn · 100 pcs\n100 ctn × (Polo / M + Tee / M) · 2 pcs/ctn · 200 pcs\nTotal 105 cartons.')
+    expect(m.packing).toHaveLength(1)
+    expect(m.packing?.[0].lines[0].contents).toBe('S-1, M-2, L-2, XL-1')
   })
 
-  it('shows the carton total beside the piece total', () => {
-    const m = orderSummaryDocModel(base({ packing: ['x'], cartons: 1 }))
+  it('says the box total under it', () => {
+    const m = orderSummaryDocModel(base({ packing: [row('Box 1', '1 box', 'S-1')], cartons: 1 }))
+    expect(m.packingNote).toBe('Total 1 box.')
+  })
+
+  it('states the over-shipment only when one was agreed', () => {
+    const agreed = orderSummaryDocModel(base({ packing: [row('Box 1', '20 boxes', 'S-1')], cartons: 20, tolerancePct: 5 }))
+    expect(agreed.packingNote).toBe('Total 20 boxes. Over-shipment allowed: 5% as agreed.')
+
+    // Printing "0% allowed" invites an argument about whether that was
+    // the agreement.
+    const none = orderSummaryDocModel(base({ packing: [row('Box 1', '20 boxes', 'S-1')], cartons: 20, tolerancePct: 0 }))
+    expect(none.packingNote).toBe('Total 20 boxes.')
+  })
+
+  it('shows the box total beside the piece total', () => {
+    const m = orderSummaryDocModel(base({ packing: [row('Box 1', '1 box', 'S-1')], cartons: 1 }))
     expect(m.totals?.map(t => t.label)).toEqual(['Total pieces', 'Total cartons'])
   })
 
   it('says nothing about packing when none has been set', () => {
     const m = orderSummaryDocModel(base())
-    expect(m.note).toBeUndefined()
+    expect(m.packing).toBeUndefined()
+    expect(m.packingNote).toBeUndefined()
     expect(m.totals?.map(t => t.label)).toEqual(['Total pieces'])
-  })
-
-  it('ignores blank pack lines rather than printing an empty heading', () => {
-    expect(orderSummaryDocModel(base({ packing: ['', '   '] })).note).toBeUndefined()
   })
 })

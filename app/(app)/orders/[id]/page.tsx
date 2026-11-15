@@ -7,7 +7,7 @@ import type { OrderFileRow } from '@/components/orders/OrderFilesPanel'
 import type { SummaryInput } from '@/lib/orders/summaryDoc'
 import { normalizeAccent } from '@/lib/companies/templates'
 import {
-  describePack, totalCartons, reconcilePacking,
+  packingRows, totalCartons, reconcilePacking,
   type Pack, type OrderedPiece,
 } from '@/lib/orders/packing'
 
@@ -88,8 +88,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     })),
   }))
   const styleName = (lineId: string) => lineRows.find(l => l.id === lineId)?.item ?? 'Style'
-  const packingLines = packs.map(p => describePack(p, styleName)).filter(Boolean)
+  const rows = packingRows(packs, styleName)
   const cartons = totalCartons(packs)
+  const tolerancePct = Number(order.overship_tolerance_pct) || 0
 
   // Does the packing add up? Worked out here so the order page says it
   // without anybody opening the edit form.
@@ -98,15 +99,19 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     if (l.sizes.length) for (const s of l.sizes) orderedPieces.push({ lineId: l.id, size: s.label, qty: s.qty })
     else orderedPieces.push({ lineId: l.id, size: '', qty: l.qty })
   }
-  const packCheck = reconcilePacking(orderedPieces, packs)
+  const packCheck = reconcilePacking(orderedPieces, packs, tolerancePct)
+  const label = (d: { lineId: string; size: string; difference: number }) =>
+    `${styleName(d.lineId)}${d.size ? ` ${d.size}` : ''} ${d.difference > 0 ? d.difference : `+${-d.difference}`}`
   const packing = {
-    lines: packingLines,
+    rows,
     cartons,
+    tolerancePct,
     packed: packCheck.packedTotal,
     ordered: packCheck.orderedTotal,
     balanced: packCheck.balanced,
-    short: packCheck.short.map(d => `${styleName(d.lineId)}${d.size ? ` ${d.size}` : ''} ${d.difference}`),
-    over: packCheck.over.map(d => `${styleName(d.lineId)}${d.size ? ` ${d.size}` : ''} +${-d.difference}`),
+    short: packCheck.short.map(label),
+    overWithin: packCheck.overWithinTolerance.map(label),
+    overBeyond: packCheck.overBeyondTolerance.map(label),
   }
 
   // The purchase order already raised, if any — the supplier pack puts it in
@@ -153,8 +158,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     lines: lineRows.map(l => ({
       item: l.item, description: l.description, qty: l.qty, costRate: l.cost_rate, sizes: l.sizes,
     })),
-    packing: packingLines,
+    packing: rows,
     cartons,
+    tolerancePct,
     notes: (order.notes as string | null) ?? null,
   }
 

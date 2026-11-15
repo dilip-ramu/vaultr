@@ -35,6 +35,8 @@ export interface OrderInitial {
   customerPoNo: string; customerPoDate: string; orderDate: string
   currency: string; bookedRate: string
   cutoffDate: string; etd: string
+  /** Over-shipment allowed, as negotiated. '' or '0' = none. */
+  overshipPct: string
   notes: string
   lines: OrderInitialLine[]
   /** Packing belongs to the ORDER: a carton can hold two styles. */
@@ -83,6 +85,7 @@ export default function OrderForm({ companies, customers, existingNumbers, order
   const [bookedRate, setBookedRate] = useState(initial?.bookedRate ?? '1')
   const [cutoffDate, setCutoffDate] = useState(initial?.cutoffDate ?? '')
   const [etd, setEtd] = useState(initial?.etd ?? '')
+  const [overshipPct, setOvershipPct] = useState(initial?.overshipPct ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
   const [lines, setLines] = useState<Line[]>(() =>
     initial?.lines?.length
@@ -160,6 +163,7 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         booked_rate: isExport ? (num(bookedRate) || 1) : 1,
         cutoff_date: cutoffDate || null,
         etd: etd || null,
+        overship_tolerance_pct: num(overshipPct),
         notes: notes.trim() || null,
       }
 
@@ -318,6 +322,12 @@ export default function OrderForm({ companies, customers, existingNumbers, order
           <label className={lab} style={labStyle}>ETD <span style={{ color: 'var(--text-faint)' }}>(optional)</span>
             <input type="date" value={etd} onChange={e => setEtd(e.target.value)} className={iCls} style={iStyle} />
             <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>Estimated date of despatch. Copied onto the purchase order.</span>
+          </label>
+          <label className={lab} style={labStyle}>Over-shipment allowed (%)
+            <input value={overshipPct} onChange={e => setOvershipPct(e.target.value)} inputMode="decimal" placeholder="0" className={iCls} style={iStyle} />
+            <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>
+              Whatever you agreed with the supplier. Leave blank if none was.
+            </span>
           </label>
           <label className={lab} style={labStyle}>Currency
             <select value={currency} onChange={e => { setCurrency(e.target.value); if (e.target.value === 'INR') setBookedRate('1') }} className={iCls} style={iStyle}>
@@ -482,7 +492,7 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         </div>
       </div>
 
-      <PackingSection lines={packLines} packs={packs} onChange={setPacks} nextKey={() => ++seq} />
+      <PackingSection lines={packLines} packs={packs} onChange={setPacks} nextKey={() => ++seq} tolerancePct={num(overshipPct)} />
 
       <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <label className="text-[11px] font-semibold" style={labStyle}>Notes on this order

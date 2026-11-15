@@ -152,6 +152,15 @@ export interface PieceDiff {
   difference: number
 }
 
+/**
+ * HOW MUCH OVER IS ALLOWED IS NEGOTIATED, NOT A RULE.
+ *
+ * A supplier may be permitted to ship a few per cent extra, and on another
+ * order none at all. So the figure lives on the order, is passed in here,
+ * and defaults to zero — because an allowance nobody agreed is an allowance
+ * that does not exist, and defaulting to a number somebody once mentioned
+ * would quietly excuse an overshipment on an order that never allowed one.
+ */
 export interface PackReconcile {
   perPiece: PieceDiff[]
   orderedTotal: number
@@ -159,7 +168,14 @@ export interface PackReconcile {
   cartons: number
   balanced: boolean
   short: PieceDiff[]
+  /** Everything packed beyond what was ordered. */
   over: PieceDiff[]
+  /** Over, but inside the tolerance agreed on this order. */
+  overWithinTolerance: PieceDiff[]
+  /** Over by more than this order allows. */
+  overBeyondTolerance: PieceDiff[]
+  /** What was agreed on this order. 0 means none was. */
+  tolerancePct: number
   problems: string[]
 }
 
@@ -171,6 +187,7 @@ export interface PackReconcile {
 export function reconcilePacking(
   ordered: readonly OrderedPiece[],
   packs: readonly Pack[],
+  tolerancePct = 0,
 ): PackReconcile {
   const packed = packedByKey(packs)
   const orderedByKey = new Map<string, OrderedPiece>()
@@ -199,6 +216,11 @@ export function reconcilePacking(
 
   const short = perPiece.filter(d => d.difference > 0)
   const over = perPiece.filter(d => d.difference < 0)
+  // A size never ordered has no tolerance to be inside of: anything packed
+  // against it is beyond, whatever the percentage says. And with no
+  // tolerance agreed, one piece over is over.
+  const pct = Math.max(0, Number(tolerancePct) || 0)
+  const allowed = (d: PieceDiff) => d.ordered > 0 ? Math.floor(d.ordered * (1 + pct / 100)) : 0
 
   return {
     perPiece,
@@ -208,6 +230,9 @@ export function reconcilePacking(
     balanced: perPiece.length > 0 && short.length === 0 && over.length === 0,
     short,
     over,
+    overWithinTolerance: over.filter(d => d.packed <= allowed(d)),
+    overBeyondTolerance: over.filter(d => d.packed > allowed(d)),
+    tolerancePct: pct,
     problems,
   }
 }
@@ -245,68 +270,117 @@ export function suggestCartons(pack: Pack, remaining: Record<string, number>): n
   return Number.isFinite(best) ? Math.max(0, best) : 0
 }
 
+/**
+ * The cartons of THIS pack that fit in what is left.
+ *
+ * A SUGGESTION, not a limit. A supplier may ship a few per cent over when
+ * it has been agreed, so the carton box is not capped — typing more than
+ * this is allowed and gets a warning instead. What is not allowed is doing
+ * it without noticing.
+ *
+ * `otherPacks` is every pack EXCEPT this one, so editing a pack is measured
+ * against what the rest of the packing has claimed and not against its own
+ * contribution.
+ */
+export function maxCartons(
+  pack: Pack,
+  ordered: readonly OrderedPiece[],
+  otherPacks: readonly Pack[],
+): number {
+  return suggestCartons(pack, remainingByKey(ordered, otherPacks))
+}
+
 // ── What the supplier reads ─────────────────────────────────────────────────
 
 export type StyleName = (lineId: string) => string
 
-/** "Polo navy / M" — one content line, said plainly. */
-function contentWords(c: PackContent, styleName: StyleName, withStyle: boolean): string {
-  const style = withStyle ? styleName(c.lineId) : ''
-  const size = c.size ? ` ${c.size}` : ''
-  const label = `${style}${style && size ? ' /' : ''}${size}`.trim()
-  return c.qty > 1 ? `${c.qty} × ${label}` : label
+/** "S-1, M-2, L-2, XL-1", or "12 pcs" for a style with no size breakdown. */
+function sizeWords(contents: readonly PackContent[]): string {
+  return contents
+    .map(c => (c.size ? `${c.size}-${c.qty}` : `${c.qty} pcs`))
+    .join(', ')
 }
 
 /**
- * One pack, in a sentence a packer can follow.
+ * One row per pack, laid out as a table without rules.
  *
- * The style name is repeated on every content line ONLY when the carton
- * mixes styles — on a single-style carton it would be said four times for
- * no reason, and the thing that matters, the sizes, would be buried.
+ *   Box 1   20 boxes   S-1, M-2, L-2, XL-1
+ *   Box 2   10 boxes   S-20
+ *   Box 3   20 boxes   S-1, M-2, L-2, XL-1   (Polo navy)
+ *                      S-1, M-2, L-2, XL-1   (Crew tee)
+ *
+ * A carton that mixes styles gets one line PER STYLE rather than one long
+ * run of sizes: the packer is filling the box style by style, and
+ * "S-1, M-2, S-1, M-2" with the styles buried in it is how the wrong
+ * garment ends up in the box.
+ *
+ * The style is named only when the packing involves more than one. On a
+ * single-style order it would be repeated on every row and bury the sizes,
+ * which are the thing being read.
  */
-export function describePack(pack: Pack, styleName: StyleName): string {
-  const contents = cleanContents(pack.contents)
-  if (!contents.length) return ''
-  const cartons = int(pack.cartons)
-  const sets = setsPerCarton(pack)
-  const styles = new Set(contents.map(c => c.lineId))
-  const mixed = styles.size > 1
-
-  const inner = contents.map(c => contentWords(c, styleName, mixed)).join(' + ')
-  const set = sets > 1 ? `${sets} sets of (${inner})` : (mixed || contents.length > 1 ? `(${inner})` : inner)
-  const head = cartons ? `${cartons} ctn × ` : ''
-  const only = !mixed ? ` — ${styleName(contents[0].lineId)}` : ''
-  const per = piecesPerCarton(pack)
-  return `${head}${set}${only} · ${per} pcs/ctn${cartons ? ` · ${per * cartons} pcs` : ''}`
+export interface PackingRow {
+  /** "Box 1". The packer's name for this instruction, not a carton serial. */
+  label: string
+  /** "20 boxes". */
+  boxes: string
+  /** One per style in the carton. */
+  lines: { contents: string; style: string }[]
+  /** Said once at the end of the row, so nobody multiplies by hand. */
+  note: string
 }
 
+export function packingRows(packs: readonly Pack[], styleName: StyleName): PackingRow[] {
+  const usable = packs.filter(p => cleanContents(p.contents).length > 0)
+  const everyStyle = new Set<string>()
+  for (const p of usable) for (const c of cleanContents(p.contents)) everyStyle.add(c.lineId)
+  const showStyle = everyStyle.size > 1
+
+  return usable.map((p, i) => {
+    const contents = cleanContents(p.contents)
+    const cartons = int(p.cartons)
+    const sets = setsPerCarton(p)
+
+    // Group by style, keeping the order the contents were entered in.
+    const order: string[] = []
+    const byStyle = new Map<string, PackContent[]>()
+    for (const c of contents) {
+      if (!byStyle.has(c.lineId)) { byStyle.set(c.lineId, []); order.push(c.lineId) }
+      byStyle.get(c.lineId)!.push(c)
+    }
+
+    const lines = order.map(lineId => ({
+      contents: (sets > 1 ? `${sets} sets of ` : '') + sizeWords(byStyle.get(lineId)!),
+      style: showStyle ? `(${styleName(lineId)})` : '',
+    }))
+
+    const per = piecesPerCarton(p)
+    return {
+      label: `Box ${i + 1}`,
+      boxes: `${cartons} box${cartons === 1 ? '' : 'es'}`,
+      lines,
+      note: `${per} pcs/box${cartons ? ` · ${per * cartons} pcs` : ''}`,
+    }
+  })
+}
+
+/** The same rows as plain text, for anywhere that cannot lay out columns. */
 export function describePacking(packs: readonly Pack[], styleName: StyleName): string {
-  return packs.map(p => describePack(p, styleName)).filter(Boolean).join('\n')
-}
-
-export interface PackingTableRow {
-  cartons: string
-  contents: string
-  perCarton: string
-  pieces: string
-  kind: string
-}
-
-/** The packing table on the summary sheet in the supplier pack. */
-export function packingTable(packs: readonly Pack[], styleName: StyleName): PackingTableRow[] {
-  return packs
-    .filter(p => cleanContents(p.contents).length > 0)
-    .map(p => {
-      const contents = cleanContents(p.contents)
-      const sets = setsPerCarton(p)
-      const mixed = new Set(contents.map(c => c.lineId)).size > 1
-      const inner = contents.map(c => contentWords(c, styleName, true)).join('\n')
-      return {
-        cartons: String(int(p.cartons)),
-        contents: sets > 1 ? `${sets} sets of:\n${inner}` : inner,
-        perCarton: String(piecesPerCarton(p)),
-        pieces: String(packPieces(p)),
-        kind: p.kind === 'solid' ? 'Solid' : mixed ? 'Assort (mixed styles)' : 'Assort',
-      }
+  return packingRows(packs, styleName)
+    .map(r => {
+      const head = `${r.label} - ${r.boxes}, `
+      const pad = ' '.repeat(head.length)
+      return r.lines
+        .map((l, i) => `${i === 0 ? head : pad}${l.contents}${l.style ? ` ${l.style}` : ''}`)
+        .join('\n')
     })
+    .join('\n')
+}
+
+/** One pack on one line — for a list on screen where height is scarce. */
+export function describePack(pack: Pack, styleName: StyleName): string {
+  const rows = packingRows([pack], styleName)
+  if (!rows.length) return ''
+  const r = rows[0]
+  const body = r.lines.map(l => `${l.contents}${l.style ? ` ${l.style}` : ''}`).join(' + ')
+  return `${r.boxes}, ${body} · ${r.note}`
 }

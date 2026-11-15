@@ -209,6 +209,68 @@ async function buildDocModelPdf(model: DocModel) {
   }
   y = sumTop + sideBySideHeight(wordsBottom - sumTop, y - sumTop)
 
+  // ── Packing ────────────────────────────────────────────────────────────────
+  // A table without rules: the columns line up so it can be read down, and
+  // nothing boxes it in, because a packing list sitting inside a bordered
+  // grid next to the priced table reads as a second invoice.
+  //
+  // There is no limit on how many boxes an order needs, so it paginates —
+  // and the heading repeats, because a page beginning "Box 21" with no
+  // title on it is a page somebody has to go hunting to identify.
+  if (model.packing?.length) {
+    const labelX = M
+    const boxesX = M + 20
+    const bodyX = M + 46
+    const bodyW = CONTENT_W - 46 - 34   // the right column holds the count
+
+    const heading = (continued: boolean) => {
+      doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
+      doc.text(continued ? 'PACKING (CONTINUED)' : 'PACKING', M, y)
+      y += 4.5
+    }
+
+    y += 5
+    if (y + 18 > BOTTOM) { doc.addPage(); y = M }
+    heading(false)
+
+    for (const row of model.packing) {
+      // Measured, not guessed: a long assortment with a style name after it
+      // wraps, and a guessed height would run the last row off the page.
+      const lineHeights = row.lines.map(l => {
+        const text = l.style ? `${l.contents}  ${l.style}` : l.contents
+        return layoutTextBlock([text], bodyW, 4.4, wrap).height
+      })
+      const need = lineHeights.reduce((t, h) => t + h, 0) + 1.6
+
+      if (y + need > BOTTOM) { doc.addPage(); y = M; heading(true) }
+
+      const top = y
+      row.lines.forEach((l, i) => {
+        if (i === 0) {
+          doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(8.5); doc.setTextColor(...DARK)
+          doc.text(row.label, labelX, y)
+          doc.text(row.boxes, boxesX, y)
+        }
+        doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK)
+        // The style in brackets is part of the line, so it wraps with it
+        // rather than drifting into its own column on a long assortment.
+        const text = l.style ? `${l.contents}  ${l.style}` : l.contents
+        y = block([text], bodyX, y, bodyW, 4.4)
+      })
+      if (row.note) {
+        doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GREY)
+        doc.text(row.note, A4.w - M, top, { align: 'right' })
+      }
+      y += 1.6
+    }
+
+    if (model.packingNote) {
+      if (y + 8 > BOTTOM) { doc.addPage(); y = M }
+      doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8); doc.setTextColor(...GREY)
+      y = block([model.packingNote], M, y + 1, CONTENT_W, 3.8)
+    }
+  }
+
   // ── Note ───────────────────────────────────────────────────────────────────
   // model.note was carried by every adapter and drawn by nothing: a note
   // typed on an invoice went into the database and never onto the paper. It

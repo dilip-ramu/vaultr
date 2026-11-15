@@ -34,6 +34,20 @@ export interface DocTaxSummary {
   rows: string[][]
 }
 
+/**
+ * One instruction on the packing list, laid out as a table without rules.
+ * A carton that mixes styles has one `lines` entry per style.
+ */
+export interface DocPackingRow {
+  /** "Box 1" — the packer's name for this instruction. */
+  label: string
+  /** "20 boxes". */
+  boxes: string
+  lines: { contents: string; style: string }[]
+  /** "4 pcs/box · 80 pcs". */
+  note: string
+}
+
 export interface DocModel {
   accent: string
   status?: { label: string; tone: BandTone }
@@ -58,6 +72,11 @@ export interface DocModel {
   grandValue?: string        // e.g. '₹2,59,600'
   grandSub?: string          // optional secondary total line (e.g. INR equivalent)
   inWords?: string
+
+  /** How the goods are boxed. Printed as a borderless table. */
+  packing?: DocPackingRow[]
+  /** One line under the packing — the over-shipment agreed, say. */
+  packingNote?: string
 
   bankLines?: string[]       // left footer block
   terms?: string             // terms & conditions

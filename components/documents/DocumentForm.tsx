@@ -20,6 +20,9 @@ export interface DocInitial {
   companyId: string; partyId: string; date: string; reference: string; notes: string
   /** The currency this document is raised in. Defaults to INR. */
   currency?: string
+  /** Packing list copied from the order when the document is raised. */
+  packing?: { label: string; boxes: string; lines: { contents: string; style: string }[]; note: string }[]
+  packingNote?: string
   bankAccountId?: string | null
   signatoryId: string | null; number: string
   /** Dates only some types carry — a PO's cut-off date and ETD. */
@@ -131,6 +134,9 @@ export default function DocumentForm({ side, docType, companies, parties, existi
         party_address: party.address, party_gstin: party.gstin, party_state: party.state,
         number: finalNumber, date, reference: reference.trim() || null, notes: notes.trim() || null,
         currency,
+        // A snapshot, not a live read: what is printed on a document already
+        // sent to a supplier must not change because the order moved after.
+        ...(initial?.packing?.length ? { packing: initial.packing, packing_note: initial.packingNote ?? null } : {}),
         ...extraDatesToSave(docType, extraDates),
         signatory_id: signatoryId || null,
         bank_account_id: bankAccountId,
@@ -309,6 +315,29 @@ export default function DocumentForm({ side, docType, companies, parties, existi
 
           <button onClick={() => setLines(prev => [...prev, { id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: defaultGstFor(currency) }])} className="mt-3 md:mt-2 flex items-center justify-center md:justify-start gap-1.5 w-full md:w-auto py-2.5 md:py-0 rounded-xl md:rounded-none text-[13px] md:text-[12px] font-bold" style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}><Plus className="w-4 h-4 md:w-3.5 md:h-3.5" /> Add line</button>
         </div>
+
+        {initial?.packing?.length ? (
+          <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-wide mb-1.5" style={{ color: 'var(--text-muted)' }}>
+              Packing — printed on this document
+            </p>
+            {initial.packing.map((row, i) => (
+              <div key={i}>
+                {row.lines.map((l, j) => (
+                  <div key={j} className="flex items-baseline gap-2 text-[12.5px]">
+                    <span className="w-12 shrink-0 font-bold" style={{ color: 'var(--text)' }}>{j === 0 ? row.label : ''}</span>
+                    <span className="w-20 shrink-0 font-bold" style={{ color: 'var(--text)' }}>{j === 0 ? row.boxes : ''}</span>
+                    <span style={{ color: 'var(--text)' }}>{l.contents}{l.style ? ` ${l.style}` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {initial.packingNote && <p className="text-[11.5px] mt-1.5" style={{ color: 'var(--text-muted)' }}>{initial.packingNote}</p>}
+            <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-faint)' }}>
+              Change it on the order, then raise the purchase order again.
+            </p>
+          </div>
+        ) : null}
 
         <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes / terms" rows={2} className="w-full px-3 py-2 rounded-lg border text-sm resize-none" style={iStyle} />
 

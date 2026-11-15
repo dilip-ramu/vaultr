@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import DocumentForm, { type DocInitial } from '@/components/documents/DocumentForm'
 import { docConfigFor } from '@/lib/documents/config'
 import { orderDocLines } from '@/lib/orders/toDocument'
-import { describePack, totalCartons, type Pack } from '@/lib/orders/packing'
+import { packingRows, totalCartons, type Pack } from '@/lib/orders/packing'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,10 +105,16 @@ export default async function NewSupplierDocumentPage({
           lineId: String(c?.line_id ?? ''), size: String(c?.size ?? ''), qty: Number(c?.qty) || 0,
         })),
       }))
-      const packLines = packs.map(p => describePack(p, nameOfLine)).filter(Boolean)
+      const rows = packingRows(packs, nameOfLine)
       const cartons = totalCartons(packs)
-      const packingNote = packLines.length
-        ? `PACKING\n${packLines.join('\n')}\nTotal ${cartons} carton${cartons === 1 ? '' : 's'}.`
+      const tol = Number(ord.overship_tolerance_pct) || 0
+      const packingNote = rows.length
+        ? [
+            `Total ${cartons} box${cartons === 1 ? '' : 'es'}.`,
+            // Only said when something was agreed — "0% allowed" invites an
+            // argument about whether that was the agreement.
+            ...(tol > 0 ? [`Over-shipment allowed: ${tol}% as agreed.`] : []),
+          ].join(' ')
         : ''
 
       initial = {
@@ -116,7 +122,9 @@ export default async function NewSupplierDocumentPage({
         partyId: '',
         date: today,
         reference: (ord.customer_po_no as string | null) ?? String(ord.number ?? ''),
-        notes: packingNote,
+        notes: '',
+        packing: rows,
+        packingNote,
         signatoryId: null,
         number: '',
         // The supplier is paid in rupees whatever the customer pays in: the

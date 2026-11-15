@@ -57,10 +57,17 @@ interface Props {
   freeCustInvoices: CustInvRow[]
   freeBills: BillRow[]
   files: OrderFileRow[]
-  /** How the order is boxed, already written for a packer to read. */
+  /** How the order is boxed, already laid out for a packer to read. */
   packing: {
-    lines: string[]; cartons: number; packed: number; ordered: number
-    balanced: boolean; short: string[]; over: string[]
+    rows: { label: string; boxes: string; lines: { contents: string; style: string }[]; note: string }[]
+    cartons: number
+    tolerancePct: number
+    packed: number
+    ordered: number
+    balanced: boolean
+    short: string[]
+    overWithin: string[]
+    overBeyond: string[]
   }
   /** Everything the supplier-pack summary page needs, built server-side. */
   summary: SummaryInput
@@ -377,20 +384,31 @@ export default function OrderSheet(p: Props) {
           {!locked && <Link href={`/orders/${order.id}/edit`} className="text-[12px] font-bold shrink-0" style={{ color: 'var(--brand)' }}>Edit packing</Link>}
         </div>
 
-        {p.packing.lines.length === 0 ? (
+        {p.packing.rows.length === 0 ? (
           <p className="text-[13px] mt-2" style={{ color: 'var(--text-faint)' }}>
             Not set. The purchase order will give sizes and quantities but not say how to box them.
           </p>
         ) : (
           <>
-            <div className="mt-2.5 space-y-1">
-              {p.packing.lines.map((l, i) => (
-                <p key={i} className="text-[13px] tabular-nums" style={{ color: 'var(--text)' }}>{l}</p>
+            {/* The same borderless table the purchase order prints. */}
+            <div className="mt-2.5 space-y-1.5">
+              {p.packing.rows.map((row, i) => (
+                <div key={i}>
+                  {row.lines.map((l, j) => (
+                    <div key={j} className="flex items-baseline gap-2 text-[13px]">
+                      <span className="w-12 shrink-0 font-bold" style={{ color: 'var(--text)' }}>{j === 0 ? row.label : ''}</span>
+                      <span className="w-20 shrink-0 font-bold" style={{ color: 'var(--text)' }}>{j === 0 ? row.boxes : ''}</span>
+                      <span className="flex-1" style={{ color: 'var(--text)' }}>{l.contents}{l.style ? ` ${l.style}` : ''}</span>
+                      <span className="shrink-0 text-[11.5px]" style={{ color: 'var(--text-faint)' }}>{j === 0 ? row.note : ''}</span>
+                    </div>
+                  ))}
+                </div>
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5 pt-2.5 text-[12.5px]"
               style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              <span><b style={{ color: 'var(--text)' }}>{p.packing.cartons}</b> carton{p.packing.cartons === 1 ? '' : 's'}</span>
+              <span><b style={{ color: 'var(--text)' }}>{p.packing.cartons}</b> box{p.packing.cartons === 1 ? '' : 'es'}</span>
+              {p.packing.tolerancePct > 0 && <span>{p.packing.tolerancePct}% over-shipment agreed</span>}
               <span style={{ color: p.packing.balanced ? 'var(--income)' : undefined }}>
                 {p.packing.balanced
                   ? 'Every piece is packed'
@@ -400,8 +418,15 @@ export default function OrderSheet(p: Props) {
             {p.packing.short.length > 0 && (
               <p className="text-[12px] mt-1" style={{ color: '#92400E' }}>Still to pack: {p.packing.short.join(' · ')}</p>
             )}
-            {p.packing.over.length > 0 && (
-              <p className="text-[12px] mt-1 font-semibold" style={{ color: 'var(--expense)' }}>Packed more than ordered: {p.packing.over.join(' · ')}</p>
+            {p.packing.overWithin.length > 0 && (
+              <p className="text-[12px] mt-1" style={{ color: '#92400E' }}>
+                Over, within the {p.packing.tolerancePct}% agreed: {p.packing.overWithin.join(' · ')}
+              </p>
+            )}
+            {p.packing.overBeyond.length > 0 && (
+              <p className="text-[12px] mt-1 font-semibold" style={{ color: 'var(--expense)' }}>
+                {p.packing.tolerancePct > 0 ? `Over by more than the ${p.packing.tolerancePct}% agreed` : 'Packed more than ordered'}: {p.packing.overBeyond.join(' · ')}
+              </p>
             )}
           </>
         )}

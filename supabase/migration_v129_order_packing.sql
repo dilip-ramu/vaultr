@@ -31,7 +31,22 @@
 -- the word goes on the document the supplier reads, and it is the one rule
 -- worth enforcing — a "solid" carton holding two things is not solid.
 --
+-- HOW MUCH OVER IS ALLOWED IS NEGOTIATED. A supplier may be permitted to
+-- ship a few per cent extra on one order and none at all on the next, so the
+-- figure sits on the order. It defaults to none: an allowance nobody agreed
+-- is an allowance that does not exist, and a number baked into the code
+-- would quietly excuse an overshipment on an order that never allowed one.
+--
+-- THE PURCHASE ORDER KEEPS ITS OWN COPY. documents.packing is a snapshot
+-- taken when the PO is raised, not a live read of the order: what is printed
+-- on a document already sent to a supplier must not change because somebody
+-- moved a carton count afterwards. Same reason the cut-off date and ETD are
+-- copied rather than looked up.
+--
 -- ROLLBACK
+--   ALTER TABLE documents DROP COLUMN IF EXISTS packing;
+--   ALTER TABLE documents DROP COLUMN IF EXISTS packing_note;
+--   ALTER TABLE orders DROP COLUMN IF EXISTS overship_tolerance_pct;
 --   DROP TABLE IF EXISTS order_packs;
 -- ─────────────────────────────────────────────────────────────────────────────
 
@@ -62,5 +77,14 @@ CREATE POLICY order_packs_all ON order_packs FOR ALL
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_packs TO authenticated;
 
 CREATE INDEX IF NOT EXISTS order_packs_order_idx ON order_packs(order_id, sort);
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS overship_tolerance_pct numeric NOT NULL DEFAULT 0;
+COMMENT ON COLUMN orders.overship_tolerance_pct IS
+  'Over-shipment allowed on this order, as agreed with the supplier. 0 = none.';
+
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS packing jsonb;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS packing_note text;
+COMMENT ON COLUMN documents.packing IS
+  'Snapshot of the packing list when this document was raised: [{label,boxes,lines:[{contents,style}],note}].';
 
 NOTIFY pgrst, 'reload schema';

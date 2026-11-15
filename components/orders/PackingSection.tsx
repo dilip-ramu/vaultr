@@ -2,8 +2,8 @@
 
 import { Plus, Trash2, Box, AlertTriangle, Check } from 'lucide-react'
 import {
-  reconcilePacking, remainingByKey, suggestCartons, describePack,
-  piecesPerCarton, packPieces, packKey,
+  reconcilePacking, maxCartons, packingRows,
+  piecesPerCarton, packPieces,
   type Pack, type PackKind, type OrderedPiece,
 } from '@/lib/orders/packing'
 
@@ -33,6 +33,8 @@ interface Props {
   packs: PackDraft[]
   onChange: (packs: PackDraft[]) => void
   nextKey: () => number
+  /** Over-shipment agreed on this order. 0 = none. */
+  tolerancePct: number
 }
 
 const n = (v: string) => parseFloat(v) || 0
@@ -49,7 +51,7 @@ const toPack = (d: PackDraft): Pack => ({
     .map(c => ({ lineId: String(c.lineKey), size: c.size, qty: n(c.qty) })),
 })
 
-export default function PackingSection({ lines, packs, onChange, nextKey }: Props) {
+export default function PackingSection({ lines, packs, onChange, nextKey, tolerancePct }: Props) {
   const nameOf = (lineId: string) => lines.find(l => String(l.key) === lineId)?.name || 'Untitled style'
 
   const ordered: OrderedPiece[] = []
@@ -59,9 +61,16 @@ export default function PackingSection({ lines, packs, onChange, nextKey }: Prop
   }
 
   const asPacks = packs.map(toPack)
-  const r = reconcilePacking(ordered, asPacks)
-  const left = remainingByKey(ordered, asPacks)
+  const r = reconcilePacking(ordered, asPacks, tolerancePct)
+  const rows = packingRows(asPacks, nameOf)
 
+  /** Everything except the pack being edited — see maxCartons. */
+  const others = (pk: number) => packs.filter(p => p.key !== pk).map(toPack)
+  const capFor = (p: PackDraft) => maxCartons(toPack(p), ordered, others(p.key))
+
+  // Nothing is clamped. Going over what was ordered is allowed — a supplier
+  // may be permitted to ship a few per cent extra — so the job here is to
+  // make it impossible to do WITHOUT NOTICING, not impossible to do.
   const set = (pk: number, patch: Partial<PackDraft>) =>
     onChange(packs.map(p => p.key === pk ? { ...p, ...patch } : p))
   const setContent = (pk: number, i: number, patch: Partial<PackDraftContent>) =>
@@ -115,7 +124,8 @@ export default function PackingSection({ lines, packs, onChange, nextKey }: Prop
           {packs.map((p, idx) => {
             const asPack = toPack(p)
             const per = piecesPerCarton(asPack)
-            const fill = suggestCartons(asPack, left)
+            const cap = capFor(p)
+            const fill = cap
             return (
               <div key={p.key} className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -181,7 +191,8 @@ export default function PackingSection({ lines, packs, onChange, nextKey }: Prop
                         inputMode="decimal" className={`${sel} block mt-1 w-24`} style={iStyle} />
                     </label>
                   )}
-                  <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Cartons
+                  <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                    Boxes <span style={{ color: 'var(--text-faint)' }}>({cap} fit)</span>
                     <input value={p.cartons} onChange={e => set(p.key, { cartons: e.target.value })}
                       inputMode="decimal" className={`${sel} block mt-1 w-24`} style={iStyle} />
                   </label>
@@ -196,11 +207,17 @@ export default function PackingSection({ lines, packs, onChange, nextKey }: Prop
                   </span>
                 </div>
 
-                {/* Exactly what the supplier will read. */}
-                {describePack(asPack, nameOf) && (
-                  <p className="text-[11.5px] pt-1" style={{ color: 'var(--text-faint)', borderTop: '1px solid var(--border)' }}>
-                    On the purchase order: {describePack(asPack, nameOf)}
-                  </p>
+                {/* Exactly how it will be laid out on the purchase order. */}
+                {rows[idx] && (
+                  <div className="pt-1.5 text-[11.5px]" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-faint)' }}>
+                    {rows[idx].lines.map((l, j) => (
+                      <div key={j} className="flex gap-2">
+                        <span className="w-12 shrink-0">{j === 0 ? rows[idx].label : ''}</span>
+                        <span className="w-16 shrink-0">{j === 0 ? rows[idx].boxes : ''}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{l.contents}{l.style ? ` ${l.style}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )
@@ -210,9 +227,9 @@ export default function PackingSection({ lines, packs, onChange, nextKey }: Prop
 
       {/* Does it add up? */}
       {packs.length > 0 && (
-        <div className="rounded-xl p-3" style={{ background: r.balanced ? '#DCFCE7' : r.over.length ? '#FEE2E2' : 'var(--surface-2)' }}>
+        <div className="rounded-xl p-3" style={{ background: r.balanced ? '#DCFCE7' : r.overBeyondTolerance.length ? '#FEE2E2' : r.over.length ? '#FEF3C7' : 'var(--surface-2)' }}>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px]"
-            style={{ color: r.balanced ? '#14532D' : r.over.length ? '#991B1B' : 'var(--text-muted)' }}>
+            style={{ color: r.balanced ? '#14532D' : r.overBeyondTolerance.length ? '#991B1B' : r.over.length ? '#92400E' : 'var(--text-muted)' }}>
             {r.balanced
               ? <span className="font-bold inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Every piece is packed</span>
               : <span className="font-bold">{r.packedTotal} of {r.orderedTotal} pcs packed</span>}
@@ -224,9 +241,15 @@ export default function PackingSection({ lines, packs, onChange, nextKey }: Prop
               Still to pack: {r.short.map(d => `${nameOf(d.lineId)}${d.size ? ` ${d.size}` : ''} ${d.difference}`).join(' · ')}
             </p>
           )}
-          {r.over.length > 0 && (
+          {r.overWithinTolerance.length > 0 && (
+            <p className="text-[12px] mt-1.5" style={{ color: '#92400E' }}>
+              Over, within the {r.tolerancePct}% agreed: {r.overWithinTolerance.map(d => `${nameOf(d.lineId)}${d.size ? ` ${d.size}` : ''} +${-d.difference}`).join(' · ')}
+            </p>
+          )}
+          {r.overBeyondTolerance.length > 0 && (
             <p className="text-[12px] mt-1.5 font-semibold" style={{ color: '#991B1B' }}>
-              Packed more than ordered: {r.over.map(d => `${nameOf(d.lineId)}${d.size ? ` ${d.size}` : ''} +${-d.difference}`).join(' · ')}
+              {r.tolerancePct > 0 ? `Over by more than the ${r.tolerancePct}% agreed` : 'Packed more than ordered'}
+              : {r.overBeyondTolerance.map(d => `${nameOf(d.lineId)}${d.size ? ` ${d.size}` : ''} +${-d.difference}`).join(' · ')}
             </p>
           )}
           {r.problems.length > 0 && (

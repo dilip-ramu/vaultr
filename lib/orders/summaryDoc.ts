@@ -9,7 +9,7 @@
 // typography and the same text-wrapping as the purchase order sitting beside
 // it in the zip. Pure: a model in, a model out, no jsPDF and no database.
 
-import type { DocModel, DocColumn, DocRow } from '@/lib/documents/model'
+import type { DocModel, DocColumn, DocRow, DocPackingRow } from '@/lib/documents/model'
 import { formatSizes, lineQty, type SizeRow } from './sizes'
 
 export interface SummaryLine {
@@ -34,21 +34,26 @@ export interface SummaryInput {
   accent: string
   logoUrl?: string | null
   lines: readonly SummaryLine[]
-  /** One line per pack, already written for a packer to follow. */
-  packing?: readonly string[]
+  /** The packing list, already laid out for a packer to follow. */
+  packing?: readonly DocPackingRow[]
   /** Total cartons across the order. */
   cartons?: number
+  /** Over-shipment agreed with the supplier, as a percentage. 0 = none. */
+  tolerancePct?: number
   notes?: string | null
 }
 
 const n0 = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0)
 const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
 
-function packingNote(packing: readonly string[] | undefined, cartons: number | undefined): string | undefined {
-  const lines = (packing ?? []).map(p => p.trim()).filter(Boolean)
-  if (!lines.length) return undefined
-  const total = cartons ? `\nTotal ${cartons} carton${cartons === 1 ? '' : 's'}.` : ''
-  return `PACKING\n${lines.join('\n')}${total}`
+/** The line under the packing table: the total, and what was agreed. */
+function packingFootnote(cartons: number | undefined, tolerancePct: number | undefined): string | undefined {
+  const bits: string[] = []
+  if (cartons) bits.push(`Total ${cartons} box${cartons === 1 ? '' : 'es'}.`)
+  // Only said when something was actually agreed — printing "0% allowed"
+  // invites an argument about whether that was the agreement.
+  if (tolerancePct && tolerancePct > 0) bits.push(`Over-shipment allowed: ${tolerancePct}% as agreed.`)
+  return bits.length ? bits.join(' ') : undefined
 }
 
 export function orderSummaryDocModel(i: SummaryInput): DocModel {
@@ -111,9 +116,10 @@ export function orderSummaryDocModel(i: SummaryInput): DocModel {
     ],
     grandLabel: 'ORDER VALUE',
     grandValue: inr(totalValue),
-    // Packing goes in the note, which prints full width — a carton that
-    // mixes two styles does not belong to either line of the table.
-    note: packingNote(i.packing, i.cartons),
+    // Packing is its own borderless table — a carton that mixes two styles
+    // belongs to neither line of the priced table above it.
+    packing: i.packing?.length ? [...i.packing] : undefined,
+    packingNote: i.packing?.length ? packingFootnote(i.cartons, i.tolerancePct) : undefined,
     terms: i.notes?.trim() || undefined,
     signatureLabel: 'For ' + i.companyName,
   }

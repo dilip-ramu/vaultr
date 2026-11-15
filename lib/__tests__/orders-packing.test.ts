@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 import {
   cleanContents, piecesPerSet, piecesPerCarton, packPieces, totalCartons, totalPieces,
   packByKey, packedByKey, packProblem, reconcilePacking, remainingByKey,
-  suggestCartons, describePack, describePacking, packingTable, packKey,
+  suggestCartons, maxCartons, describePack, describePacking, packingRows, packKey,
   type Pack, type OrderedPiece,
 } from '@/lib/orders/packing'
 
@@ -207,77 +207,148 @@ describe('what is left, and how many cartons fit', () => {
 })
 
 describe('what the supplier reads', () => {
-  it('writes a solid pack plainly', () => {
-    expect(describePack(solid(POLO, 'M', 20, 5), name))
-      .toBe('5 ctn × 20 × M — Polo navy · 20 pcs/ctn · 100 pcs')
+  it('lays a solid pack out as box, count, sizes', () => {
+    expect(packingRows([solid(POLO, 'M', 20, 10)], name)[0]).toEqual({
+      label: 'Box 1', boxes: '10 boxes', lines: [{ contents: 'M-20', style: '' }],
+      note: '20 pcs/box · 200 pcs',
+    })
   })
 
-  it('writes an assortment as the set it is', () => {
+  it('writes an assortment the way it is spoken', () => {
     const p = pack({ contents: [
       { lineId: POLO, size: 'S', qty: 1 }, { lineId: POLO, size: 'M', qty: 2 },
       { lineId: POLO, size: 'L', qty: 2 }, { lineId: POLO, size: 'XL', qty: 1 },
-    ], cartons: 50 })
-    expect(describePack(p, name))
-      .toBe('50 ctn × (S + 2 × M + 2 × L + XL) — Polo navy · 6 pcs/ctn · 300 pcs')
+    ], cartons: 20 })
+    expect(packingRows([p], name)[0].lines).toEqual([{ contents: 'S-1, M-2, L-2, XL-1', style: '' }])
   })
 
-  it('says so when a carton holds more than one set', () => {
-    const p = pack({ contents: ['S', 'M', 'L', 'XL'].map(size => ({ lineId: POLO, size, qty: 1 })), setsPerCarton: 2, cartons: 50 })
-    expect(describePack(p, name)).toContain('2 sets of (S + M + L + XL)')
-    expect(describePack(p, name)).toContain('8 pcs/ctn')
+  it('numbers the boxes in order', () => {
+    const rows = packingRows([solid(POLO, 'M', 20, 1), solid(POLO, 'L', 20, 1)], name)
+    expect(rows.map(r => r.label)).toEqual(['Box 1', 'Box 2'])
   })
 
-  it('names both styles when the carton mixes them', () => {
+  it('says "1 box" rather than "1 boxes"', () => {
+    expect(packingRows([solid(POLO, 'M', 20, 1)], name)[0].boxes).toBe('1 box')
+  })
+
+  it('gives a mixed carton one line PER STYLE, each named', () => {
+    // The packer fills the box style by style. One long run of sizes with
+    // the styles buried in it is how the wrong garment goes in.
     const p = pack({ contents: [
-      { lineId: POLO, size: 'M', qty: 1 }, { lineId: TEE, size: 'M', qty: 1 },
-    ], cartons: 100 })
-    expect(describePack(p, name))
-      .toBe('100 ctn × (Polo navy / M + Crew tee / M) · 2 pcs/ctn · 200 pcs')
+      { lineId: POLO, size: 'S', qty: 1 }, { lineId: POLO, size: 'M', qty: 2 },
+      { lineId: TEE, size: 'S', qty: 1 }, { lineId: TEE, size: 'M', qty: 2 },
+    ], cartons: 20 })
+    expect(packingRows([p], name)[0].lines).toEqual([
+      { contents: 'S-1, M-2', style: '(Polo navy)' },
+      { contents: 'S-1, M-2', style: '(Crew tee)' },
+    ])
   })
 
-  it('does not repeat the style on every line of a single-style carton', () => {
+  it('does not name the style when the whole order is one style', () => {
+    const rows = packingRows([solid(POLO, 'M', 20, 2), solid(POLO, 'L', 20, 2)], name)
+    expect(rows.every(r => r.lines.every(l => l.style === ''))).toBe(true)
+  })
+
+  it('names the style on every row once any carton mixes them', () => {
+    const rows = packingRows([
+      solid(POLO, 'M', 20, 2),
+      pack({ contents: [{ lineId: POLO, size: 'L', qty: 1 }, { lineId: TEE, size: 'L', qty: 1 }], cartons: 5 }),
+    ], name)
+    expect(rows[0].lines[0].style).toBe('(Polo navy)')
+  })
+
+  it('says when a box takes more than one set', () => {
+    const p = pack({ contents: ['S', 'M'].map(size => ({ lineId: POLO, size, qty: 1 })), setsPerCarton: 2, cartons: 10 })
+    expect(packingRows([p], name)[0].lines[0].contents).toBe('2 sets of S-1, M-1')
+    expect(packingRows([p], name)[0].note).toBe('4 pcs/box · 40 pcs')
+  })
+
+  it('writes a style with no size breakdown as a piece count', () => {
+    const p = pack({ contents: [{ lineId: POLO, size: '', qty: 12 }], cartons: 5 })
+    expect(packingRows([p], name)[0].lines[0].contents).toBe('12 pcs')
+  })
+
+  it('leaves out a pack with nothing in it', () => {
+    expect(packingRows([pack({ cartons: 5 })], name)).toEqual([])
+  })
+
+  it('lines the continuation up under the first line in plain text', () => {
     const p = pack({ contents: [
-      { lineId: POLO, size: 'S', qty: 1 }, { lineId: POLO, size: 'M', qty: 1 },
-    ], cartons: 10 })
-    expect(describePack(p, name).match(/Polo navy/g)).toHaveLength(1)
+      { lineId: POLO, size: 'S', qty: 1 }, { lineId: TEE, size: 'S', qty: 1 },
+    ], cartons: 20 })
+    const [first, second] = describePacking([p], name).split('\n')
+    expect(first).toBe('Box 1 - 20 boxes, S-1 (Polo navy)')
+    expect(second.indexOf('S-1')).toBe(first.indexOf('S-1'))
+  })
+
+  it('fits one pack on one line for a screen', () => {
+    expect(describePack(solid(POLO, 'M', 20, 10), name)).toBe('10 boxes, M-20 · 20 pcs/box · 200 pcs')
   })
 
   it('says nothing for an empty pack', () => {
     expect(describePack(pack(), name)).toBe('')
     expect(describePacking([], name)).toBe('')
   })
-
-  it('puts each pack on its own line', () => {
-    const out = describePacking([solid(POLO, 'M', 20, 5), solid(TEE, 'L', 10, 2)], name)
-    expect(out.split('\n')).toHaveLength(2)
-  })
 })
 
-describe('the packing table on the summary sheet', () => {
-  it('gives a row per pack with the numbers a packer needs', () => {
-    const rows = packingTable([solid(POLO, 'M', 20, 5)], name)
-    expect(rows[0]).toEqual({
-      cartons: '5', contents: '20 × Polo navy / M', perCarton: '20', pieces: '100', kind: 'Solid',
-    })
+describe('packing more than was ordered', () => {
+  const ordered180: OrderedPiece[] = [{ lineId: POLO, size: 'S', qty: 180 }]
+
+  it('suggests what fits, but does not stop you going past it', () => {
+    // A supplier may ship a few per cent over when it has been agreed, so
+    // the carton box is a suggestion and not a cap.
+    expect(maxCartons(solid(POLO, 'S', 20, 0), ordered180, [])).toBe(9)
   })
 
-  it('marks a mixed-style carton as such', () => {
-    const rows = packingTable([pack({ contents: [
-      { lineId: POLO, size: 'M', qty: 1 }, { lineId: TEE, size: 'M', qty: 1 },
-    ], cartons: 100 })], name)
-    expect(rows[0].kind).toBe('Assort (mixed styles)')
-    expect(rows[0].contents).toBe('Polo navy / M\nCrew tee / M')
+  it('measures against what the OTHER packs have already claimed', () => {
+    const taken = solid(POLO, 'S', 20, 5)          // 100 of the 180 gone
+    expect(maxCartons(solid(POLO, 'S', 20, 0), ordered180, [taken])).toBe(4)
   })
 
-  it('spells out several sets to a carton', () => {
-    const rows = packingTable([pack({
-      contents: ['S', 'M'].map(size => ({ lineId: POLO, size, qty: 1 })), setsPerCarton: 2, cartons: 10,
-    })], name)
-    expect(rows[0].contents.startsWith('2 sets of:')).toBe(true)
-    expect(rows[0].perCarton).toBe('4')
+  it('does not count a pack against itself while it is being edited', () => {
+    expect(maxCartons(solid(POLO, 'S', 20, 9), ordered180, [])).toBe(9)
   })
 
-  it('leaves out a pack with nothing in it', () => {
-    expect(packingTable([pack({ cartons: 5 })], name)).toEqual([])
+  it('treats over as within tolerance when the order agreed one', () => {
+    // 185 against 180, on an order where 5% was negotiated.
+    const r = reconcilePacking(ordered180, [pack({ contents: [{ lineId: POLO, size: 'S', qty: 185 }], cartons: 1 })], 5)
+    expect(r.overWithinTolerance.map(d => d.size)).toEqual(['S'])
+    expect(r.overBeyondTolerance).toEqual([])
+  })
+
+  it('counts the last piece of the tolerance as still inside it', () => {
+    // 5% of 180 is 189.
+    const at = reconcilePacking(ordered180, [pack({ contents: [{ lineId: POLO, size: 'S', qty: 189 }], cartons: 1 })], 5)
+    const past = reconcilePacking(ordered180, [pack({ contents: [{ lineId: POLO, size: 'S', qty: 190 }], cartons: 1 })], 5)
+    expect(at.overWithinTolerance).toHaveLength(1)
+    expect(past.overBeyondTolerance).toHaveLength(1)
+  })
+
+  it('calls a serious overpack what it is', () => {
+    const r = reconcilePacking(ordered180, [solid(POLO, 'S', 20, 10)], 5)   // 200
+    expect(r.overBeyondTolerance.map(d => [d.size, d.difference])).toEqual([['S', -20]])
+  })
+
+  it('allows no tolerance on a size that was never ordered', () => {
+    const r = reconcilePacking(ordered180, [solid(POLO, 'XXL', 5, 1)], 5)
+    expect(r.overBeyondTolerance.map(d => d.size)).toEqual(['XXL'])
+  })
+
+  it('can be given a different tolerance', () => {
+    const r = reconcilePacking(ordered180, [solid(POLO, 'S', 20, 10)], 15)   // 200 vs 207
+    expect(r.overWithinTolerance).toHaveLength(1)
+    expect(r.tolerancePct).toBe(15)
+  })
+
+  it('allows nothing when the order negotiated no tolerance', () => {
+    // An allowance nobody agreed is an allowance that does not exist.
+    const r = reconcilePacking(ordered180, [pack({ contents: [{ lineId: POLO, size: 'S', qty: 181 }], cartons: 1 })])
+    expect(r.tolerancePct).toBe(0)
+    expect(r.overBeyondTolerance).toHaveLength(1)
+    expect(r.overWithinTolerance).toEqual([])
+  })
+
+  it('ignores a nonsense tolerance rather than allowing anything', () => {
+    expect(reconcilePacking(ordered180, [], -20).tolerancePct).toBe(0)
   })
 })

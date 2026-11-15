@@ -1,7 +1,7 @@
 // Adapters that turn each stored document shape into the unified DocModel that
 // <DocDesign> renders. Pure functions — safe to call from server components.
 
-import type { DocModel, DocRow, DocColumn } from './model'
+import type { DocModel, DocRow, DocColumn, DocPackingRow } from './model'
 import { invoiceStatusBand } from './model'
 import { amountToWords } from '@/lib/recoverables/invoices/words'
 import { extraDateChips, extraDateFieldValues, type ExtraDateKey } from './extraDates'
@@ -215,6 +215,9 @@ interface DocRecord extends Partial<Record<ExtraDateKey, string | null>> {
   doc_type?: string | null
   number?: string | null; date?: string | null; reference?: string | null; notes?: string | null
   currency?: string | null
+  /** Snapshot of the packing list taken when this document was raised. */
+  packing?: unknown
+  packing_note?: string | null
   party_name?: string | null; party_address?: string | null; party_gstin?: string | null; party_state?: string | null
   subtotal?: number | null; cgst_amount?: number | null; sgst_amount?: number | null; total?: number | null
 }
@@ -222,6 +225,29 @@ interface DocMeta2 {
   title: string; partyLabel: string; tax: boolean; referenceLabel?: string
   statusLabel: string; statusTone: 'grey' | 'blue' | 'violet' | 'amber' | 'green'
   subNote?: string; noteFallback?: string
+}
+
+/**
+ * The stored packing snapshot, checked on the way out.
+ *
+ * It is jsonb written by this app, but it is still the only thing standing
+ * between a malformed row and a renderer that would throw mid-document and
+ * produce no PDF at all.
+ */
+function readPacking(raw: unknown): DocPackingRow[] | undefined {
+  if (!Array.isArray(raw) || !raw.length) return undefined
+  const rows = raw.flatMap(r => {
+    const o = r as Record<string, unknown>
+    if (!o || typeof o !== 'object') return []
+    const lines = Array.isArray(o.lines) ? o.lines.flatMap(l => {
+      const x = l as Record<string, unknown>
+      const contents = String(x?.contents ?? '').trim()
+      return contents ? [{ contents, style: String(x?.style ?? '') }] : []
+    }) : []
+    if (!lines.length) return []
+    return [{ label: String(o.label ?? ''), boxes: String(o.boxes ?? ''), lines, note: String(o.note ?? '') }]
+  })
+  return rows.length ? rows : undefined
 }
 
 export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: InvoiceSettings | null, meta: DocMeta2, refs: BrandRefs): DocModel {
@@ -287,6 +313,8 @@ export function issuedDocToModel(doc: DocRecord, lines: DocLine[], settings: Inv
     subNote: meta.subNote,
     parties: [{ label: meta.partyLabel.toUpperCase(), name: String(doc.party_name ?? '—'), lines: pLines }],
     meta: metaChips,
+    packing: readPacking(doc.packing),
+    packingNote: compact(doc.packing_note) ?? undefined,
     columns: cols,
     rows,
     totals,
