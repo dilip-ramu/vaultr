@@ -142,6 +142,19 @@ export default function OrderSheet(p: Props) {
     ...p.bills.filter(b => (b.currency || 'INR') !== 'INR').map(b => b.invoice_number ?? 'bill'),
   ], [p.custInvoices, p.bills, order.currency])
 
+  // What is still to be settled in the order's currency, as the default
+  // denominator for a receipt. Invoices in another currency are left out:
+  // they are not what this rate is measured against.
+  const invoiceFxOutstanding = useMemo(() => {
+    const invoiced = p.custInvoices
+      .filter(i => (i.currency || 'INR') === order.currency)
+      .reduce((t, i) => t + Number(i.total || 0), 0)
+    const settled = p.payments
+      .filter(r => r.party === 'customer' && r.settled_fx)
+      .reduce((t, r) => t + Number(r.settled_fx || 0), 0)
+    return Math.max(0, Math.round((invoiced - settled) * 100) / 100)
+  }, [p.custInvoices, p.payments, order.currency])
+
   const margin = useMemo(() => computeMargin({
     customerValuePlanned: planned.customerValue,
     customerValueActual: actualCustomerValue,
@@ -605,6 +618,8 @@ export default function OrderSheet(p: Props) {
         customers={p.customers}
         billedTotal={p.billedTotal}
         invoicedTotal={p.invoicedTotal}
+        currency={order.currency}
+        invoiceFxOutstanding={invoiceFxOutstanding}
         defaultParty={p.po?.supplierName ?? null}
         customerName={order.customer_name}
         brand={p.brand}

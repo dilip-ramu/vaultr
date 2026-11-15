@@ -12,6 +12,7 @@ import {
   direction, paymentProblem, type PaymentKind, type PaymentParty,
 } from '@/lib/orders/payments'
 import { paymentSlipDocModel, paymentSlipFilename, type PaymentSlipInput } from '@/lib/orders/paymentSlip'
+import { computeReceipt, receiptWorkings, blendedRate, type AdjustmentCurrency, type AdjustmentSign } from '@/lib/orders/receipt'
 
 export interface OrderPaymentRow {
   id: string
@@ -24,6 +25,11 @@ export interface OrderPaymentRow {
   reference: string | null
   note: string | null
   transaction_id: string | null
+  /** Filled in on a foreign-currency receipt. */
+  realised_rate: number | null
+  settled_fx: number | null
+  remittance_inr: number | null
+  bank_charges: number | null
 }
 
 interface Props {
@@ -42,6 +48,10 @@ interface Props {
   defaultParty: string | null
   customerName: string
   customers: { id: string; name: string }[]
+  /** The order's currency. 'INR' means no rate to work out. */
+  currency: string
+  /** What is still uninvoiced-to-settled, in the order currency, as a default. */
+  invoiceFxOutstanding: number
   /** Letterhead for the slip. */
   brand: Omit<PaymentSlipInput, 'number' | 'kind' | 'amount' | 'date' | 'orderNumber'>
 }
@@ -84,6 +94,7 @@ function Side({ title, paperLabel, paper, moved, advances, balance, party, empty
 }
 const iStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
 const iCls = 'w-full px-3 py-2 rounded-lg border text-sm mt-1'
+const n = (v: string) => parseFloat(v) || 0
 
 export default function OrderPayments(p: Props) {
   const router = useRouter()
@@ -101,6 +112,31 @@ export default function OrderPayments(p: Props) {
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
 
+  // A foreign-currency receipt: what came in, what the bank took, and what
+  // the customer actually settled. The rate is worked out, never typed.
+  const [remittance, setRemittance] = useState('')
+  const [bankCharges, setBankCharges] = useState('')
+  const [invoiceFx, setInvoiceFx] = useState('')
+  const [adjAmount, setAdjAmount] = useState('')
+  const [adjCurrency, setAdjCurrency] = useState<AdjustmentCurrency>('fx')
+  const [adjSign, setAdjSign] = useState<AdjustmentSign>('deduct')
+  const [adjReason, setAdjReason] = useState('')
+
+  const isExport = p.currency !== 'INR'
+  const fxMode = isExport && party === 'customer'
+  const receipt = computeReceipt({
+    remittanceInr: n(remittance),
+    bankCharges: n(bankCharges),
+    invoiceFx: n(invoiceFx) || p.invoiceFxOutstanding,
+    adjustment: n(adjAmount) ? { amount: n(adjAmount), currency: adjCurrency, sign: adjSign } : null,
+  })
+
+  // What every receipt so far adds up to, weighted by what it settled.
+  const achieved = blendedRate(
+    p.payments
+      .filter(r => r.party === 'customer' && r.realised_rate && r.settled_fx)
+      .map(r => ({ netInr: Number(r.realised_rate) * Number(r.settled_fx), settledFx: Number(r.settled_fx) })))
+
   const supplierSide = paymentTotals(p.payments, 'supplier')
   const customerSide = paymentTotals(p.payments, 'customer')
   const supplierOwed = partyBalance(p.billedTotal, p.payments, 'supplier')
@@ -111,7 +147,12 @@ export default function OrderPayments(p: Props) {
     const partyName = party === 'customer'
       ? (p.customers.find(c => c.id === customerId)?.name ?? p.customerName)
       : (p.suppliers.find(s => s.id === supplierId)?.name ?? p.defaultParty ?? null)
-    const input = { kind, party, amount: parseFloat(amount), date, accountId, partyName, reference, note }
+    const input = {
+      kind, party, date, accountId, partyName, reference, note,
+      // On a foreign receipt the amount IS the net of the workings, so the
+      // bank entry matches the statement rather than the remittance advice.
+      amount: fxMode && n(remittance) > 0 ? receipt.netInr : parseFloat(amount),
+    }
     const bad = paymentProblem(input)
     if (bad) { notify(bad, 'info'); return }
 
@@ -123,12 +164,21 @@ export default function OrderPayments(p: Props) {
           ...input,
           supplierId: party === 'supplier' ? (supplierId || null) : null,
           customerId: party === 'customer' ? (customerId || null) : null,
+          ...(fxMode && n(remittance) > 0 ? {
+            fx: {
+              remittanceInr: n(remittance), bankCharges: n(bankCharges),
+              invoiceFx: n(invoiceFx) || p.invoiceFxOutstanding,
+              adjustmentAmount: n(adjAmount), adjustmentCurrency: adjCurrency,
+              adjustmentSign: adjSign, adjustmentReason: adjReason.trim() || null,
+            },
+          } : {}),
         }),
       })
       const data = await res.json()
       if (!res.ok) { notify(data.error ?? 'Could not record that', 'error'); return }
       notify(`${kindLabel(kind, party)} recorded — the bank entry is posted too`, 'success')
       setAdding(false); setAmount(''); setReference(''); setNote('')
+      setRemittance(''); setBankCharges(''); setInvoiceFx(''); setAdjAmount(''); setAdjReason('')
       router.refresh()
     } finally { setBusy(false) }
   }
@@ -228,9 +278,18 @@ export default function OrderPayments(p: Props) {
                 {kindHint(kind, party)}
               </span>
             </label>
-            <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Amount (₹)
-              <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="100000" className={iCls} style={iStyle} />
-            </label>
+            {fxMode ? (
+              <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Rupees received
+                <input value={remittance} onChange={e => setRemittance(e.target.value)} inputMode="decimal" placeholder="4150000" className={iCls} style={iStyle} />
+                <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>
+                  What the bank credited, before charges.
+                </span>
+              </label>
+            ) : (
+              <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Amount (₹)
+                <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="100000" className={iCls} style={iStyle} />
+              </label>
+            )}
             <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Date
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className={iCls} style={iStyle} />
             </label>
@@ -260,6 +319,81 @@ export default function OrderPayments(p: Props) {
               <input value={reference} onChange={e => setReference(e.target.value)} placeholder="NEFT / cheque no." className={iCls} style={iStyle} />
             </label>
           </div>
+          {/* A receipt in rupees against an invoice in another currency. The
+              rate is never typed — it falls out of the bank advice. */}
+          {fxMode && (
+            <div className="rounded-xl border p-3 mt-3" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+              <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                Rate you actually got
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-1">
+                <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Bank charges (₹)
+                  <input value={bankCharges} onChange={e => setBankCharges(e.target.value)} inputMode="decimal" placeholder="1500" className={iCls} style={iStyle} />
+                </label>
+                <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Invoice value ({p.currency})
+                  <input value={invoiceFx} onChange={e => setInvoiceFx(e.target.value)} inputMode="decimal"
+                    placeholder={p.invoiceFxOutstanding ? String(p.invoiceFxOutstanding) : '48000'} className={iCls} style={iStyle} />
+                  {!invoiceFx && p.invoiceFxOutstanding > 0 && (
+                    <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>
+                      Left blank, the outstanding {p.currency} {p.invoiceFxOutstanding} is used.
+                    </span>
+                  )}
+                </label>
+                <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Addition / deduction
+                  <div className="flex gap-1.5 mt-1">
+                    <select value={adjSign} onChange={e => setAdjSign(e.target.value as AdjustmentSign)}
+                      className="px-2 py-2 rounded-lg border text-sm" style={iStyle}>
+                      <option value="add">+ add</option>
+                      <option value="deduct">− deduct</option>
+                    </select>
+                    <input value={adjAmount} onChange={e => setAdjAmount(e.target.value)} inputMode="decimal" placeholder="500"
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border text-sm" style={iStyle} />
+                    <select value={adjCurrency} onChange={e => setAdjCurrency(e.target.value as AdjustmentCurrency)}
+                      className="px-2 py-2 rounded-lg border text-sm" style={iStyle}>
+                      <option value="fx">{p.currency}</option>
+                      <option value="inr">INR</option>
+                    </select>
+                  </div>
+                  <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>
+                    In {p.currency} it changes what the customer settled. In rupees it changes the rupees that came in.
+                  </span>
+                </label>
+                <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>What it was
+                  <input value={adjReason} onChange={e => setAdjReason(e.target.value)} placeholder="Short payment / discount" className={iCls} style={iStyle} />
+                </label>
+              </div>
+
+              <div className="mt-3 rounded-lg p-2.5" style={{ background: 'var(--surface-2)' }}>
+                {receipt.realisedRate ? (
+                  <>
+                    <div className="text-[13px]" style={{ color: 'var(--text)' }}>
+                      Rate on this receipt <b className="tabular-nums text-[15px]">₹{receipt.realisedRate.toFixed(4)}</b>
+                      <span style={{ color: 'var(--text-muted)' }}> per {p.currency}</span>
+                    </div>
+                    {receiptWorkings({
+                      remittanceInr: n(remittance), bankCharges: n(bankCharges),
+                      invoiceFx: n(invoiceFx) || p.invoiceFxOutstanding,
+                      adjustment: n(adjAmount) ? { amount: n(adjAmount), currency: adjCurrency, sign: adjSign } : null,
+                    }, p.currency).map((line, i) => (
+                      <div key={i} className="text-[11.5px] tabular-nums mt-0.5" style={{ color: 'var(--text-muted)' }}>{line}</div>
+                    ))}
+                    <div className="text-[11.5px] mt-1" style={{ color: 'var(--text-faint)' }}>
+                      {money(receipt.netInr)} is what gets posted to the bank, so it matches the statement.
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[12px]" style={{ color: 'var(--text-faint)' }}>
+                    {receipt.problem ?? 'Fill in the rupees received and the invoice value, and the rate works itself out.'}
+                  </div>
+                )}
+                {achieved && (
+                  <div className="text-[11.5px] mt-1.5 pt-1.5" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+                    Across every receipt so far: <b className="tabular-nums" style={{ color: 'var(--text)' }}>₹{achieved.toFixed(4)}</b> per {p.currency}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <input value={note} onChange={e => setNote(e.target.value)} placeholder="What this payment is for — 30% on order confirmation, say"
             className="w-full px-3 py-2 rounded-lg border text-sm mt-3" style={iStyle} />
           <div className="flex justify-end gap-2 mt-3">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { paymentProblem, paymentTransaction, type PaymentKind, type PaymentParty } from '@/lib/orders/payments'
+import { computeReceipt, type Adjustment } from '@/lib/orders/receipt'
 
 /**
  * Payments against an order.
@@ -46,6 +47,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .select('id').eq('id', input.accountId).eq('user_id', user.id).maybeSingle()
   if (!account) return NextResponse.json({ error: 'That account does not exist' }, { status: 400 })
 
+  // A foreign-currency receipt carries its own workings: what was remitted,
+  // what the bank took, what the customer actually settled. The rate falls
+  // out of those and is never typed — see lib/orders/receipt.ts. The amount
+  // that reaches the bank account is the remittance LESS the charges.
+  const fx = body.fx as Record<string, unknown> | undefined
+  let receipt: ReturnType<typeof computeReceipt> | null = null
+  let adjustment: Adjustment | null = null
+  if (fx && Number(fx.remittanceInr) > 0) {
+    adjustment = Number(fx.adjustmentAmount)
+      ? {
+          amount: Number(fx.adjustmentAmount),
+          currency: fx.adjustmentCurrency === 'inr' ? 'inr' : 'fx',
+          sign: fx.adjustmentSign === 'deduct' ? 'deduct' : 'add',
+          reason: (fx.adjustmentReason as string | null) ?? null,
+        }
+      : null
+    receipt = computeReceipt({
+      remittanceInr: Number(fx.remittanceInr),
+      bankCharges: Number(fx.bankCharges) || 0,
+      invoiceFx: Number(fx.invoiceFx) || 0,
+      adjustment,
+    })
+    // What hit the account, which is what the statement will show.
+    input.amount = receipt.netInr
+  }
+
   const draft = paymentTransaction(input, String(order.number))
   const { data: txn, error: txnErr } = await supabase.from('transactions')
     .insert({
@@ -69,6 +96,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       party_name: input.partyName,
       reference: input.reference, note: input.note,
       transaction_id: txn.id,
+      ...(receipt ? {
+        remittance_inr: Number(fx?.remittanceInr) || 0,
+        bank_charges: Number(fx?.bankCharges) || 0,
+        invoice_fx: Number(fx?.invoiceFx) || 0,
+        adjustment_amount: adjustment ? Math.abs(adjustment.amount) : 0,
+        adjustment_currency: adjustment?.currency ?? null,
+        adjustment_sign: adjustment?.sign ?? null,
+        adjustment_reason: adjustment?.reason ?? null,
+        realised_rate: receipt.realisedRate,
+        settled_fx: receipt.settledFx,
+      } : {}),
     })
     .select('*').single()
 
