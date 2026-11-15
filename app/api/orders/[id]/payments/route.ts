@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { paymentProblem, paymentTransaction, type PaymentKind } from '@/lib/orders/payments'
+import { paymentProblem, paymentTransaction, type PaymentKind, type PaymentParty } from '@/lib/orders/payments'
 
 /**
  * Payments against an order.
@@ -25,6 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const input = {
     kind: String(body.kind ?? '') as PaymentKind,
+    party: String(body.party ?? 'supplier') as PaymentParty,
     amount: Number(body.amount),
     date: String(body.date ?? ''),
     accountId: String(body.accountId ?? ''),
@@ -61,9 +62,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: payment, error } = await supabase.from('order_payments')
     .insert({
       order_id: id, user_id: user.id,
-      kind: input.kind, amount: draft.amount, paid_date: input.date,
+      kind: input.kind, party: input.party, amount: draft.amount, paid_date: input.date,
       account_id: input.accountId,
       supplier_id: (body.supplierId as string | null) || null,
+      customer_id: (body.customerId as string | null) || null,
       party_name: input.partyName,
       reference: input.reference, note: input.note,
       transaction_id: txn.id,

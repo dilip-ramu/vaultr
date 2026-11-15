@@ -12,12 +12,23 @@
 import type { DocModel, DocColumn, DocRow } from '@/lib/documents/model'
 import { money } from '@/lib/documents/money'
 import { amountToWords } from '@/lib/recoverables/invoices/words'
-import { kindLabel, direction, type PaymentKind } from './payments'
+import { direction, type PaymentKind, type PaymentParty } from './payments'
+
+/**
+ * The slip has its own words. The dropdown says "Advance paid" so the two
+ * sides read differently while choosing; the slip already says who was paid
+ * in the PAID TO box, and "Advance paid against order" reads like a stutter.
+ */
+const SLIP_WORD: Record<PaymentKind, string> = {
+  advance: 'Advance', settlement: 'Payment', refund: 'Refund',
+}
 
 export interface PaymentSlipInput {
   /** Our own reference for the slip — usually the payment's row number. */
   number: string
   kind: PaymentKind
+  /** Which side of the order. Decides every bit of wording that has a side. */
+  party?: PaymentParty
   amount: number
   date: string
   /** Who the money went to, or came from. */
@@ -40,7 +51,7 @@ export interface PaymentSlipInput {
 }
 
 export function paymentSlipDocModel(i: PaymentSlipInput): DocModel {
-  const inward = direction(i.kind) === 'in'
+  const inward = direction(i.kind, i.party ?? 'supplier') === 'in'
 
   const columns: DocColumn[] = [
     { key: 'what', label: 'PARTICULARS', flex: 2.6 },
@@ -50,7 +61,7 @@ export function paymentSlipDocModel(i: PaymentSlipInput): DocModel {
   const rows: DocRow[] = [{
     cells: {
       what: [
-        `${kindLabel(i.kind)} against order ${i.orderNumber}`,
+        `${SLIP_WORD[i.kind]} against order ${i.orderNumber}`,
         i.customerPoNo ? `Buyer reference ${i.customerPoNo}` : '',
         i.note?.trim() ?? '',
       ].filter(Boolean).join('\n'),
@@ -90,7 +101,7 @@ export function paymentSlipDocModel(i: PaymentSlipInput): DocModel {
 }
 
 /** The filename somebody will be looking for in a folder a year from now. */
-export function paymentSlipFilename(i: Pick<PaymentSlipInput, 'kind' | 'orderNumber' | 'number'>): string {
-  const head = direction(i.kind) === 'in' ? 'Receipt' : 'Payment'
+export function paymentSlipFilename(i: Pick<PaymentSlipInput, 'kind' | 'orderNumber' | 'number' | 'party'>): string {
+  const head = direction(i.kind, i.party ?? 'supplier') === 'in' ? 'Receipt' : 'Payment'
   return `${head} ${i.orderNumber} ${i.number}`.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim()
 }

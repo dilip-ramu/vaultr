@@ -74,3 +74,23 @@ describe('odds and ends', () => {
     expect(paymentSlipFilename({ kind: 'advance', orderNumber: 'A/B', number: 'x' })).toBe('Payment A-B x')
   })
 })
+
+describe('the customer side of the slip', () => {
+  it('is a receipt when the customer paid us', () => {
+    const m = paymentSlipDocModel(base({ party: 'customer', kind: 'settlement', partyName: 'Northwind Apparel' }))
+    expect(m.title).toBe('RECEIPT')
+    expect(m.parties[0].label).toBe('RECEIVED FROM')
+    expect(m.rows[0].cells.what).toContain('Payment against order')
+  })
+
+  it('is a payment slip when we refunded the customer', () => {
+    expect(paymentSlipDocModel(base({ party: 'customer', kind: 'refund' })).title).toBe('PAYMENT SLIP')
+  })
+
+  it('names the file by which way the money went, not by the party', () => {
+    expect(paymentSlipFilename({ kind: 'settlement', party: 'customer', orderNumber: 'O1', number: 'x' }))
+      .toBe('Receipt O1 x')
+    expect(paymentSlipFilename({ kind: 'refund', party: 'customer', orderNumber: 'O1', number: 'x' }))
+      .toBe('Payment O1 x')
+  })
+})

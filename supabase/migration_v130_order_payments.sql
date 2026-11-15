@@ -30,12 +30,19 @@ CREATE TABLE IF NOT EXISTS order_payments (
   order_id       uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   user_id        uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
 
+  -- Which side of the order. An order has money moving BOTH ways: out to
+  -- the supplier and in from the customer. Same three kinds on each side,
+  -- so the party decides the direction rather than there being six kinds.
+  -- Also added by the ALTER below, for a table created before this column
+  -- existed. Both paths have to be here or one of them is broken.
+  party          text NOT NULL DEFAULT 'supplier',
   kind           text NOT NULL CHECK (kind IN ('advance','settlement','refund')),
   amount         numeric NOT NULL CHECK (amount > 0),
   paid_date      date NOT NULL DEFAULT CURRENT_DATE,
 
   account_id     uuid REFERENCES accounts(id) ON DELETE SET NULL,
   supplier_id    uuid REFERENCES suppliers(id) ON DELETE SET NULL,
+  customer_id    uuid REFERENCES customers(id) ON DELETE SET NULL,
   party_name     text,
 
   reference      text,
@@ -50,6 +57,27 @@ CREATE TABLE IF NOT EXISTS order_payments (
 COMMENT ON COLUMN order_payments.transaction_id IS
   'The bank entry this payment posted. Removing the payment removes that entry and nothing else.';
 
+-- ── Re-runnable ─────────────────────────────────────────────────────────────
+-- CREATE TABLE IF NOT EXISTS does nothing when the table is already there, so
+-- columns added to its body after the first run never appear. `party` and
+-- `customer_id` arrived in a later pass; these put them on a table that was
+-- created before they existed, and do nothing on a fresh one.
+ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS party text NOT NULL DEFAULT 'supplier';
+ALTER TABLE order_payments ADD COLUMN IF NOT EXISTS customer_id uuid REFERENCES customers(id) ON DELETE SET NULL;
+
+-- The CHECK belongs to the table, not the column, so it is not covered by
+-- ADD COLUMN IF NOT EXISTS and has to be added on its own terms.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'order_payments'::regclass AND conname = 'order_payments_party_check'
+  ) THEN
+    ALTER TABLE order_payments
+      ADD CONSTRAINT order_payments_party_check CHECK (party IN ('supplier','customer'));
+  END IF;
+END $$;
+
 ALTER TABLE order_payments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS order_payments_all ON order_payments;
 CREATE POLICY order_payments_all ON order_payments FOR ALL
@@ -57,7 +85,10 @@ CREATE POLICY order_payments_all ON order_payments FOR ALL
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.order_payments TO authenticated;
 
-CREATE INDEX IF NOT EXISTS order_payments_order_idx ON order_payments(order_id, paid_date DESC);
+-- The index changed shape when `party` arrived, and CREATE INDEX IF NOT
+-- EXISTS keeps the old one rather than replacing it. Dropped by name first.
+DROP INDEX IF EXISTS order_payments_order_idx;
+CREATE INDEX IF NOT EXISTS order_payments_order_idx ON order_payments(order_id, party, paid_date DESC);
 CREATE INDEX IF NOT EXISTS order_payments_txn_idx   ON order_payments(transaction_id) WHERE transaction_id IS NOT NULL;
 
 NOTIFY pgrst, 'reload schema';

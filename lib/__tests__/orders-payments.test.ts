@@ -3,30 +3,39 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  direction, kindLabel, paymentProblem, paymentTransaction,
-  paymentTotals, supplierBalance, balanceWords, PAYMENT_KINDS,
+  direction, kindLabel, kindHint, paymentProblem, paymentTransaction,
+  paymentTotals, supplierBalance, partyBalance, balanceWords, PAYMENT_KINDS,
   type PaymentInput,
 } from '@/lib/orders/payments'
 
 const good: PaymentInput = {
-  kind: 'advance', amount: 100000, date: '2026-11-15',
+  kind: 'advance', party: 'supplier', amount: 100000, date: '2026-11-15',
   accountId: 'acc-1', partyName: 'Bharathi Fab Tex', reference: 'NEFT 8812',
 }
 
 describe('which way the money goes', () => {
-  it('sends an advance and a settlement out', () => {
-    expect(direction('advance')).toBe('out')
-    expect(direction('settlement')).toBe('out')
+  it('pays the supplier out of the account', () => {
+    expect(direction('advance', 'supplier')).toBe('out')
+    expect(direction('settlement', 'supplier')).toBe('out')
   })
 
-  it('brings a refund in', () => {
-    expect(direction('refund')).toBe('in')
+  it('takes the customer in', () => {
+    expect(direction('advance', 'customer')).toBe('in')
+    expect(direction('settlement', 'customer')).toBe('in')
   })
 
-  it('names every kind it offers', () => {
+  it('reverses whichever way that party normally goes for a refund', () => {
+    expect(direction('refund', 'supplier')).toBe('in')
+    expect(direction('refund', 'customer')).toBe('out')
+  })
+
+  it('names every kind on both sides, in the words of that side', () => {
     for (const k of PAYMENT_KINDS) {
-      expect(kindLabel(k.key)).toBe(k.label)
-      expect(k.hint.length).toBeGreaterThan(10)
+      for (const party of ['supplier', 'customer'] as const) {
+        expect(kindLabel(k.key, party).length).toBeGreaterThan(3)
+        expect(kindHint(k.key, party).length).toBeGreaterThan(10)
+      }
+      expect(kindLabel(k.key, 'supplier')).not.toBe(kindLabel(k.key, 'customer'))
     }
   })
 })
@@ -53,6 +62,10 @@ describe('refusing to post nonsense', () => {
   it('refuses a kind it does not know', () => {
     expect(paymentProblem({ ...good, kind: 'nonsense' as never })).toBe('Pick what kind of payment this is')
   })
+
+  it('insists on knowing which side of the order this is', () => {
+    expect(paymentProblem({ ...good, party: undefined })).toBe('Is this the customer or the supplier?')
+  })
 })
 
 describe('the bank entry a payment is', () => {
@@ -64,10 +77,22 @@ describe('the bank entry a payment is', () => {
     })
   })
 
-  it('puts a refund back in', () => {
+  it('puts a supplier refund back in', () => {
     const t = paymentTransaction({ ...good, kind: 'refund' }, 'ORD-26-0004')
     expect(t.type).toBe('income')
     expect(t.name).toBe('Refund from Bharathi Fab Tex — ORD-26-0004')
+  })
+
+  it('brings money from the customer IN', () => {
+    const t = paymentTransaction({ ...good, party: 'customer', partyName: 'Northwind Apparel' }, 'ORD-1')
+    expect(t.type).toBe('income')
+    expect(t.name).toBe('Advance from Northwind Apparel — ORD-1')
+  })
+
+  it('sends a refund to the customer back OUT', () => {
+    const t = paymentTransaction({ ...good, party: 'customer', kind: 'refund', partyName: 'Northwind Apparel' }, 'ORD-1')
+    expect(t.type).toBe('expense')
+    expect(t.name).toBe('Refund to Northwind Apparel — ORD-1')
   })
 
   it('names a settlement a payment', () => {
@@ -94,17 +119,30 @@ describe('the bank entry a payment is', () => {
 
 describe('where the order stands', () => {
   const rows = [
-    { kind: 'advance' as const, amount: 100000 },
-    { kind: 'settlement' as const, amount: 250000 },
-    { kind: 'refund' as const, amount: 5000 },
+    { kind: 'advance' as const, party: 'supplier' as const, amount: 100000 },
+    { kind: 'settlement' as const, party: 'supplier' as const, amount: 250000 },
+    { kind: 'refund' as const, party: 'supplier' as const, amount: 5000 },
   ]
 
   it('adds the kinds up separately', () => {
-    expect(paymentTotals(rows)).toEqual({ paidOut: 350000, advances: 100000, refunds: 5000, net: 345000 })
+    expect(paymentTotals(rows)).toEqual({ gross: 350000, advances: 100000, refunds: 5000, net: 345000 })
+  })
+
+  it('keeps the two sides of the order apart', () => {
+    const mixed = [
+      ...rows,
+      { kind: 'advance' as const, party: 'customer' as const, amount: 900000 },
+    ]
+    expect(paymentTotals(mixed, 'supplier').net).toBe(345000)
+    expect(paymentTotals(mixed, 'customer').net).toBe(900000)
+  })
+
+  it('treats a row with no party as the supplier, as the old ones are', () => {
+    expect(paymentTotals([{ kind: 'advance', amount: 1000 }], 'supplier').net).toBe(1000)
   })
 
   it('copes with nothing paid yet', () => {
-    expect(paymentTotals([])).toEqual({ paidOut: 0, advances: 0, refunds: 0, net: 0 })
+    expect(paymentTotals([])).toEqual({ gross: 0, advances: 0, refunds: 0, net: 0 })
   })
 
   it('measures what is owed against the BILLS, not the agreed cost', () => {
@@ -125,5 +163,15 @@ describe('where the order stands', () => {
 
   it('says what is still to pay', () => {
     expect(balanceWords(155000)).toBe('still to pay')
+  })
+
+  it('words the customer side as collecting, not paying', () => {
+    expect(balanceWords(155000, 'customer')).toBe('still to collect')
+    expect(balanceWords(-50000, 'customer')).toBe('received in advance')
+  })
+
+  it('measures the customer side against the invoices', () => {
+    const received = [{ kind: 'advance' as const, party: 'customer' as const, amount: 900000 }]
+    expect(partyBalance(2000000, received, 'customer')).toBe(1100000)
   })
 })

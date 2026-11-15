@@ -8,14 +8,15 @@ import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import { money } from '@/lib/documents/money'
 import {
-  PAYMENT_KINDS, paymentTotals, supplierBalance, balanceWords, kindLabel,
-  direction, paymentProblem, type PaymentKind,
+  PAYMENT_KINDS, paymentTotals, partyBalance, balanceWords, kindLabel, kindHint,
+  direction, paymentProblem, type PaymentKind, type PaymentParty,
 } from '@/lib/orders/payments'
 import { paymentSlipDocModel, paymentSlipFilename, type PaymentSlipInput } from '@/lib/orders/paymentSlip'
 
 export interface OrderPaymentRow {
   id: string
   kind: PaymentKind
+  party: PaymentParty
   amount: number
   paid_date: string
   account_id: string | null
@@ -35,13 +36,52 @@ interface Props {
   suppliers: { id: string; name: string }[]
   /** Everything the supplier has billed on this order. */
   billedTotal: number
+  /** Everything invoiced to the customer, in rupees. */
+  invoicedTotal: number
   /** Who the purchase order went to, if one has been raised. */
   defaultParty: string | null
+  customerName: string
+  customers: { id: string; name: string }[]
   /** Letterhead for the slip. */
   brand: Omit<PaymentSlipInput, 'number' | 'kind' | 'amount' | 'date' | 'orderNumber'>
 }
 
 const card = { borderColor: 'var(--border)', background: 'var(--surface)' }
+
+/**
+ * One side of the order. The two are never netted together: an order fully
+ * paid out with nothing collected yet is the case worth seeing, and a single
+ * combined figure hides exactly that.
+ */
+function Side({ title, paperLabel, paper, moved, advances, balance, party, emptyHint }: {
+  title: string; paperLabel: string; paper: number; moved: number; advances: number
+  balance: number; party: PaymentParty; emptyHint: string
+}) {
+  const words = balanceWords(balance, party)
+  const good = party === 'customer' ? balance <= 0 : balance <= 0
+  return (
+    <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+      <div className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{title}</div>
+      {paper === 0 && moved === 0 ? (
+        <p className="text-[12px] mt-1" style={{ color: 'var(--text-faint)' }}>{emptyHint}</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
+            <span>{paperLabel} <b className="tabular-nums" style={{ color: 'var(--text)' }}>{money(paper)}</b></span>
+            <span>{party === 'customer' ? 'Received' : 'Paid'} <b className="tabular-nums" style={{ color: 'var(--text)' }}>{money(moved)}</b></span>
+            {advances > 0 && <span>advance <b className="tabular-nums" style={{ color: 'var(--text)' }}>{money(advances)}</b></span>}
+          </div>
+          <div className="text-[13px] mt-1">
+            {words === 'Settled'
+              ? <b style={{ color: 'var(--income)' }}>Settled</b>
+              : <><b className="tabular-nums" style={{ color: good ? 'var(--income)' : 'var(--expense)' }}>{money(Math.abs(balance))}</b>
+                  <span style={{ color: 'var(--text-muted)' }}> {words}</span></>}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 const iStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
 const iCls = 'w-full px-3 py-2 rounded-lg border text-sm mt-1'
 
@@ -51,21 +91,27 @@ export default function OrderPayments(p: Props) {
   const [busy, setBusy] = useState(false)
   const [slipBusy, setSlipBusy] = useState<string | null>(null)
 
+  const [party, setParty] = useState<PaymentParty>('supplier')
   const [kind, setKind] = useState<PaymentKind>('advance')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [accountId, setAccountId] = useState(p.accounts[0]?.id ?? '')
   const [supplierId, setSupplierId] = useState('')
+  const [customerId, setCustomerId] = useState('')
   const [reference, setReference] = useState('')
   const [note, setNote] = useState('')
 
-  const totals = paymentTotals(p.payments)
-  const balance = supplierBalance(p.billedTotal, p.payments)
+  const supplierSide = paymentTotals(p.payments, 'supplier')
+  const customerSide = paymentTotals(p.payments, 'customer')
+  const supplierOwed = partyBalance(p.billedTotal, p.payments, 'supplier')
+  const customerOwed = partyBalance(p.invoicedTotal, p.payments, 'customer')
   const accountName = (id: string | null) => p.accounts.find(a => a.id === id)?.name ?? null
 
   async function add() {
-    const partyName = p.suppliers.find(s => s.id === supplierId)?.name ?? p.defaultParty ?? null
-    const input = { kind, amount: parseFloat(amount), date, accountId, partyName, reference, note }
+    const partyName = party === 'customer'
+      ? (p.customers.find(c => c.id === customerId)?.name ?? p.customerName)
+      : (p.suppliers.find(s => s.id === supplierId)?.name ?? p.defaultParty ?? null)
+    const input = { kind, party, amount: parseFloat(amount), date, accountId, partyName, reference, note }
     const bad = paymentProblem(input)
     if (bad) { notify(bad, 'info'); return }
 
@@ -73,11 +119,15 @@ export default function OrderPayments(p: Props) {
     try {
       const res = await fetch(`/api/orders/${p.orderId}/payments`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...input, supplierId: supplierId || null }),
+        body: JSON.stringify({
+          ...input,
+          supplierId: party === 'supplier' ? (supplierId || null) : null,
+          customerId: party === 'customer' ? (customerId || null) : null,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { notify(data.error ?? 'Could not record that', 'error'); return }
-      notify(`${kindLabel(kind)} recorded — the bank entry is posted too`, 'success')
+      notify(`${kindLabel(kind, party)} recorded — the bank entry is posted too`, 'success')
       setAdding(false); setAmount(''); setReference(''); setNote('')
       router.refresh()
     } finally { setBusy(false) }
@@ -85,7 +135,7 @@ export default function OrderPayments(p: Props) {
 
   async function remove(row: OrderPaymentRow) {
     const ok = await confirmDialog({
-      title: `Delete this ${kindLabel(row.kind).toLowerCase()}?`,
+      title: `Delete this ${kindLabel(row.kind, row.party).toLowerCase()}?`,
       message: row.transaction_id
         ? `${money(row.amount)} on ${row.paid_date}. The bank entry it posted goes with it, and the account balance changes.`
         : `${money(row.amount)} on ${row.paid_date}. There is no bank entry linked to it.`,
@@ -111,9 +161,10 @@ export default function OrderPayments(p: Props) {
         ...p.brand,
         number: row.reference?.trim() || row.id.slice(0, 8).toUpperCase(),
         kind: row.kind,
+        party: row.party,
         amount: Number(row.amount),
         date: row.paid_date,
-        partyName: row.party_name ?? p.defaultParty ?? null,
+        partyName: row.party_name ?? (row.party === 'customer' ? p.customerName : p.defaultParty) ?? null,
         accountName: accountName(row.account_id),
         reference: row.reference,
         note: row.note,
@@ -143,27 +194,38 @@ export default function OrderPayments(p: Props) {
         )}
       </div>
 
-      {/* Where it stands */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl p-3 text-[12.5px]" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-        <span>Billed <b className="tabular-nums" style={{ color: 'var(--text)' }}>{money(p.billedTotal)}</b></span>
-        <span>Paid <b className="tabular-nums" style={{ color: 'var(--text)' }}>{money(totals.net)}</b></span>
-        {totals.advances > 0 && <span>of which advance <b className="tabular-nums" style={{ color: 'var(--text)' }}>{money(totals.advances)}</b></span>}
-        <span className="text-[13px]">
-          {balanceWords(balance) === 'Settled'
-            ? <b style={{ color: 'var(--income)' }}>Settled</b>
-            : <><b className="tabular-nums" style={{ color: balance > 0 ? 'var(--expense)' : 'var(--income)' }}>{money(Math.abs(balance))}</b> {balanceWords(balance)}</>}
-        </span>
+      {/* Both sides of the order, kept apart. Netting them would hide the
+          case that matters: fully paid out and nothing collected yet. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Side
+          title="From the customer" paperLabel="Invoiced"
+          paper={p.invoicedTotal} moved={customerSide.net} advances={customerSide.advances}
+          balance={customerOwed} party="customer"
+          emptyHint="Nothing invoiced yet — attach a customer invoice below and this fills in."
+        />
+        <Side
+          title="To the supplier" paperLabel="Billed"
+          paper={p.billedTotal} moved={supplierSide.net} advances={supplierSide.advances}
+          balance={supplierOwed} party="supplier"
+          emptyHint="Nothing billed yet — attach a supplier bill below and this fills in."
+        />
       </div>
 
       {adding && !p.locked && (
         <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Which side
+              <select value={party} onChange={e => setParty(e.target.value as PaymentParty)} className={iCls} style={iStyle}>
+                <option value="customer">From the customer</option>
+                <option value="supplier">To the supplier</option>
+              </select>
+            </label>
             <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>What is it
               <select value={kind} onChange={e => setKind(e.target.value as PaymentKind)} className={iCls} style={iStyle}>
-                {PAYMENT_KINDS.map(k => <option key={k.key} value={k.key}>{k.label}</option>)}
+                {PAYMENT_KINDS.map(k => <option key={k.key} value={k.key}>{kindLabel(k.key, party)}</option>)}
               </select>
               <span className="block mt-1 text-[10px] font-normal" style={{ color: 'var(--text-faint)' }}>
-                {PAYMENT_KINDS.find(k => k.key === kind)?.hint}
+                {kindHint(kind, party)}
               </span>
             </label>
             <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Amount (₹)
@@ -173,18 +235,27 @@ export default function OrderPayments(p: Props) {
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className={iCls} style={iStyle} />
             </label>
             <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-              {direction(kind) === 'in' ? 'Into which account' : 'Out of which account'}
+              {direction(kind, party) === 'in' ? 'Into which account' : 'Out of which account'}
               <select value={accountId} onChange={e => setAccountId(e.target.value)} className={iCls} style={iStyle}>
                 <option value="">— pick —</option>
                 {p.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </label>
-            <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier
-              <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className={iCls} style={iStyle}>
-                <option value="">{p.defaultParty ?? '— pick —'}</option>
-                {p.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </label>
+            {party === 'supplier' ? (
+              <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Supplier
+                <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className={iCls} style={iStyle}>
+                  <option value="">{p.defaultParty ?? '— pick —'}</option>
+                  {p.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </label>
+            ) : (
+              <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Customer
+                <select value={customerId} onChange={e => setCustomerId(e.target.value)} className={iCls} style={iStyle}>
+                  <option value="">{p.customerName}</option>
+                  {p.customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+            )}
             <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Reference
               <input value={reference} onChange={e => setReference(e.target.value)} placeholder="NEFT / cheque no." className={iCls} style={iStyle} />
             </label>
@@ -208,7 +279,7 @@ export default function OrderPayments(p: Props) {
             <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-3 py-2" style={{ background: 'var(--surface-2)' }}>
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>
-                  {kindLabel(row.kind)}
+                  {kindLabel(row.kind, row.party)}
                   {row.party_name && <span style={{ color: 'var(--text-muted)' }}> · {row.party_name}</span>}
                 </div>
                 <div className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
@@ -222,12 +293,12 @@ export default function OrderPayments(p: Props) {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[14px] font-extrabold tabular-nums" style={{ color: direction(row.kind) === 'in' ? 'var(--income)' : 'var(--text)' }}>
-                  {direction(row.kind) === 'in' ? '+' : '−'}{money(row.amount)}
+                <span className="text-[14px] font-extrabold tabular-nums" style={{ color: direction(row.kind, row.party) === 'in' ? 'var(--income)' : 'var(--text)' }}>
+                  {direction(row.kind, row.party) === 'in' ? '+' : '−'}{money(row.amount)}
                 </span>
                 <button onClick={() => slip(row)} disabled={slipBusy === row.id}
                   className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--surface)' }}
-                  aria-label={direction(row.kind) === 'in' ? 'Receipt' : 'Payment slip'}>
+                  aria-label={direction(row.kind, row.party) === 'in' ? 'Receipt' : 'Payment slip'}>
                   {slipBusy === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />}
                 </button>
                 {!p.locked && (

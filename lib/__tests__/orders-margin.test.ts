@@ -262,3 +262,38 @@ describe('rubbish in', () => {
     expect(m.actual.net).toBe(50)
   })
 })
+
+describe('what each piece earns', () => {
+  const withPieces = (over = {}) => computeMargin(base({ pieces: 2000, ...over }))
+
+  it('divides the profit by the pieces on the order', () => {
+    // 6,28,000 planned on 2,000 pieces.
+    expect(withPieces().planned.netPerPiece).toBe(314)
+    expect(withPieces().planned.grossPerPiece).toBe(314)
+  })
+
+  it('separates gross per piece from net once there are costs', () => {
+    const m = withPieces({ costs: [{ name: 'Freight', sign: -1, basis: 'flat', planned: 60000 }] })
+    expect(m.planned.grossPerPiece).toBe(314)
+    expect(m.planned.netPerPiece).toBe(284)
+  })
+
+  it('uses the SAME piece count for both columns, so they compare', () => {
+    // Dividing the actual by what was actually invoiced would make a part
+    // shipment look more profitable per piece than it is.
+    const m = computeMargin(base({ pieces: 2000, customerValueActual: 24000, supplierCostActual: 1822250 }))
+    expect(m.actual.netPerPiece).toBe(r2(m.actual.net / 2000))
+  })
+
+  it('is zero on an order with no quantity, not infinity', () => {
+    expect(computeMargin(base()).planned.netPerPiece).toBe(0)
+    expect(computeMargin(base({ pieces: 0 })).planned.netPerPiece).toBe(0)
+    expect(computeMargin(base({ pieces: -5 })).planned.netPerPiece).toBe(0)
+  })
+
+  it('goes negative when the order loses money', () => {
+    expect(computeMargin(base({ pieces: 1000, supplierCostPlanned: 5000000 })).planned.netPerPiece).toBeLessThan(0)
+  })
+})
+
+const r2 = (n: number) => Math.round(n * 100) / 100

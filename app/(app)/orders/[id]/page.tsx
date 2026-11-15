@@ -35,7 +35,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     { data: docs }, { data: custInvoices }, { data: bills },
     { data: freeSellDocs }, { data: freeBuyDocs }, { data: freeCustInvoices }, { data: freeBills },
     { data: files }, { data: sizes }, { data: packRows },
-    { data: paymentRows }, { data: accounts }, { data: suppliers },
+    { data: paymentRows }, { data: accounts }, { data: suppliers }, { data: customers },
   ] = await Promise.all([
     supabase.from('order_lines').select('*').eq('order_id', id).order('line_number'),
     supabase.from('order_costs').select('*').eq('order_id', id).order('line_number'),
@@ -60,6 +60,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     supabase.from('order_payments').select('*').eq('order_id', id).order('paid_date', { ascending: false }),
     supabase.from('accounts').select('id, name').eq('user_id', uid).eq('is_active', true).order('name'),
     supabase.from('suppliers').select('id, name').eq('user_id', uid).eq('is_active', true).order('name'),
+    supabase.from('customers').select('id, name').eq('user_id', uid).order('name'),
   ])
 
   // Sizes belong to their line; the quantity on screen comes from them.
@@ -173,6 +174,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   // this and not against the agreed cost: until they invoice, nothing is
   // owed however much the order says it will come to.
   const billedTotal = (bills ?? []).reduce((t, b) => t + (Number(b.amount) || 0), 0)
+  // In rupees, so it sits beside the supplier side. An export invoice is in
+  // the customer's currency, converted at whatever rate the order holds.
+  const invoiceRate = Number(order.realised_rate) || Number(order.booked_rate) || 1
+  const invoicedTotal = (custInvoices ?? []).reduce((t, i) => t + (Number(i.total) || 0), 0) * invoiceRate
 
   // Today from the server, so the sheet and the list agree on what is late.
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -195,7 +200,10 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       payments={(paymentRows ?? []) as OrderPaymentRow[]}
       accounts={(accounts ?? []) as { id: string; name: string }[]}
       suppliers={(suppliers ?? []) as { id: string; name: string }[]}
+      customers={(customers ?? []) as { id: string; name: string }[]}
       billedTotal={billedTotal}
+      invoicedTotal={invoicedTotal}
+      pieces={packCheck.orderedTotal}
       brand={{
         partyLines: [],
         companyName: summary.companyName,

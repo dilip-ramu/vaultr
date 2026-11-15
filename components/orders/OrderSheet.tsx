@@ -74,7 +74,11 @@ interface Props {
   payments: OrderPaymentRow[]
   accounts: { id: string; name: string }[]
   suppliers: { id: string; name: string }[]
+  customers: { id: string; name: string }[]
   billedTotal: number
+  invoicedTotal: number
+  /** Pieces on the order — the denominator for the per-piece figures. */
+  pieces: number
   brand: Omit<PaymentSlipInput, 'number' | 'kind' | 'amount' | 'date' | 'orderNumber'>
   /** Everything the supplier-pack summary page needs, built server-side. */
   summary: SummaryInput
@@ -149,7 +153,8 @@ export default function OrderSheet(p: Props) {
       ? { basis: dbBasis, value: num(dbValue), actual: drawbackActual === '' ? null : num(drawbackActual) }
       : null,
     costs: costs.map(c => ({ name: c.name, sign: c.sign === 1 ? 1 : -1, basis: c.basis, planned: Number(c.planned) || 0, actual: c.actual })),
-  }), [planned, actualCustomerValue, actualSupplierCost, order, realisedRate, dbBasis, dbValue, drawbackActual, costs])
+    pieces: p.pieces,
+  }), [planned, actualCustomerValue, actualSupplierCost, order, realisedRate, dbBasis, dbValue, drawbackActual, costs, p.pieces])
 
   const ship = useMemo(() => shipmentProgress(lines.map(l => ({
     qty: l.qty, sellRate: l.sell_rate, costRate: l.cost_rate,
@@ -455,6 +460,18 @@ export default function OrderSheet(p: Props) {
           )}
         </div>
 
+        {/* Where the Actual column comes from. It read zero with nothing on
+            screen explaining it, which looks like a broken figure rather
+            than an empty one. */}
+        {(actualCustomerValue === 0 || actualSupplierCost === 0) && (
+          <p className="px-5 pb-3 -mt-1 text-[12px]" style={{ color: 'var(--text-faint)' }}>
+            Actual fills in from the paperwork on this order.{' '}
+            {actualCustomerValue === 0 && 'Customer value comes from the customer invoices — none attached yet. '}
+            {actualSupplierCost === 0 && 'Supplier cost comes from the supplier bills — none attached yet. '}
+            Raise them from the steps above, or attach existing ones under Sell side and Buy side.
+          </p>
+        )}
+
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: 'var(--surface-2)' }}>
@@ -487,6 +504,14 @@ export default function OrderSheet(p: Props) {
             ))}
             <Row label="Net profit" a={sInr(margin.planned.net)} b={sInr(margin.actual.net)} strong big />
             <Row label="Margin on sales" a={`${margin.planned.marginPct.toFixed(2)}%`} b={`${margin.actual.marginPct.toFixed(2)}%`} muted />
+            {p.pieces > 0 && (
+              <>
+                <Row label={`Gross per piece (${p.pieces.toLocaleString('en-IN')} pcs)`}
+                  a={sInr(margin.planned.grossPerPiece)} b={sInr(margin.actual.grossPerPiece)} muted />
+                <Row label="Profit per piece"
+                  a={sInr(margin.planned.netPerPiece)} b={sInr(margin.actual.netPerPiece)} strong />
+              </>
+            )}
             {isExport && (
               <tr style={{ borderTop: '1px solid var(--border)' }}>
                 <td className="px-5 py-2.5 text-[13px]" style={{ color: 'var(--text-muted)' }}>What the rate did</td>
@@ -577,8 +602,11 @@ export default function OrderSheet(p: Props) {
         payments={p.payments}
         accounts={p.accounts}
         suppliers={p.suppliers}
+        customers={p.customers}
         billedTotal={p.billedTotal}
+        invoicedTotal={p.invoicedTotal}
         defaultParty={p.po?.supplierName ?? null}
+        customerName={order.customer_name}
         brand={p.brand}
       />
 

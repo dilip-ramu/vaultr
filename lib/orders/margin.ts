@@ -60,6 +60,13 @@ export interface OrderMoney {
   supplierCostActual: number
   drawback?: Drawback | null
   costs?: readonly CostLine[]
+  /**
+   * Pieces on the order. Both columns are divided by the SAME figure — the
+   * quantity ordered — so Planned and Actual per piece can be read against
+   * each other. Dividing the actual by what was actually invoiced would
+   * make a part shipment look more profitable per piece than it is.
+   */
+  pieces?: number
 }
 
 export interface CostAmount {
@@ -84,6 +91,10 @@ export interface MarginColumn {
   net: number
   /** Net profit as a percentage of what you invoiced. 0 when you invoiced nothing. */
   marginPct: number
+  /** What each piece earns. 0 when the order has no quantity on it. */
+  netPerPiece: number
+  /** Gross margin per piece — before freight and the rest. */
+  grossPerPiece: number
 }
 
 export interface Margin {
@@ -129,6 +140,7 @@ function column(
   drawback: Drawback | null | undefined,
   costs: readonly CostLine[],
   useActual: boolean,
+  pieces: number,
 ): MarginColumn {
   const customerValueInr = r2(customerValueFx * rate)
   const gross = r2(customerValueInr - supplierCost)
@@ -148,6 +160,8 @@ function column(
     costTotal,
     net,
     marginPct: customerValueInr ? r2((net / customerValueInr) * 100) : 0,
+    netPerPiece: pieces > 0 ? r2(net / pieces) : 0,
+    grossPerPiece: pieces > 0 ? r2(gross / pieces) : 0,
   }
 }
 
@@ -157,8 +171,9 @@ export function computeMargin(m: OrderMoney): Margin {
   const hasRealised = typeof m.realisedRate === 'number' && Number.isFinite(m.realisedRate) && m.realisedRate > 0
   const realised = hasRealised ? (m.realisedRate as number) : booked
 
-  const planned = column(num(m.customerValuePlanned), booked, num(m.supplierCostPlanned), m.drawback, costs, false)
-  const actual  = column(num(m.customerValueActual),  realised, num(m.supplierCostActual),  m.drawback, costs, true)
+  const pieces = Math.max(0, num(m.pieces))
+  const planned = column(num(m.customerValuePlanned), booked, num(m.supplierCostPlanned), m.drawback, costs, false, pieces)
+  const actual  = column(num(m.customerValueActual),  realised, num(m.supplierCostActual),  m.drawback, costs, true, pieces)
 
   // What the rate did, measured on what was actually invoiced — comparing it
   // against the planned value would mix a pricing change into an FX number.

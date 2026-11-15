@@ -20,25 +20,67 @@
 
 export type PaymentKind = 'advance' | 'settlement' | 'refund'
 
-export const PAYMENT_KINDS: { key: PaymentKind; label: string; hint: string }[] = [
-  { key: 'advance',    label: 'Advance',   hint: 'Paid before the goods — comes off what you owe later' },
-  { key: 'settlement', label: 'Payment',   hint: 'Paid against the bills on this order' },
-  { key: 'refund',     label: 'Refund in', hint: 'Money the supplier sent back' },
+/**
+ * An order has money moving in BOTH directions: out to the supplier and in
+ * from the customer. Same three kinds on each side, so the party decides the
+ * direction rather than there being six kinds to keep straight.
+ */
+export type PaymentParty = 'supplier' | 'customer'
+
+export const PAYMENT_KINDS: { key: PaymentKind; label: Record<PaymentParty, string>; hint: Record<PaymentParty, string> }[] = [
+  {
+    key: 'advance',
+    label: { supplier: 'Advance paid', customer: 'Advance received' },
+    hint: {
+      supplier: 'Paid before the goods — comes off what you owe later',
+      customer: 'Received before shipping — comes off what they owe later',
+    },
+  },
+  {
+    key: 'settlement',
+    label: { supplier: 'Payment', customer: 'Payment received' },
+    hint: {
+      supplier: 'Paid against the bills on this order',
+      customer: 'Received against the invoices on this order',
+    },
+  },
+  {
+    key: 'refund',
+    label: { supplier: 'Refund from supplier', customer: 'Refund to customer' },
+    hint: {
+      supplier: 'Money the supplier sent back',
+      customer: 'Money you sent back to the customer',
+    },
+  },
 ]
 
-/** Out of the account, or into it. */
-export function direction(kind: PaymentKind): 'out' | 'in' {
-  return kind === 'refund' ? 'in' : 'out'
+/**
+ * Out of the account, or into it.
+ *
+ * Derived, never stored. Two fields that have to agree are two fields that
+ * eventually will not, and the one that would be wrong is the one deciding
+ * whether the bank balance goes up or down. A refund is simply the normal
+ * direction for that party, reversed.
+ */
+export function direction(kind: PaymentKind, party: PaymentParty = 'supplier'): 'out' | 'in' {
+  const normal: 'out' | 'in' = party === 'customer' ? 'in' : 'out'
+  if (kind !== 'refund') return normal
+  return normal === 'in' ? 'out' : 'in'
 }
 
-export function kindLabel(kind: PaymentKind): string {
-  return PAYMENT_KINDS.find(k => k.key === kind)?.label ?? kind
+export function kindLabel(kind: PaymentKind, party: PaymentParty = 'supplier'): string {
+  return PAYMENT_KINDS.find(k => k.key === kind)?.label[party] ?? kind
+}
+
+export function kindHint(kind: PaymentKind, party: PaymentParty = 'supplier'): string {
+  return PAYMENT_KINDS.find(k => k.key === kind)?.hint[party] ?? ''
 }
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100
 
 export interface PaymentInput {
   kind: PaymentKind
+  party: PaymentParty
   amount: number
   date: string
   accountId: string
@@ -53,6 +95,7 @@ export interface PaymentInput {
  */
 export function paymentProblem(p: Partial<PaymentInput>): string | null {
   if (!p.kind || !PAYMENT_KINDS.some(k => k.key === p.kind)) return 'Pick what kind of payment this is'
+  if (p.party !== 'supplier' && p.party !== 'customer') return 'Is this the customer or the supplier?'
   if (!p.accountId) return 'Pick the account the money moves through'
   if (!p.date) return 'Pick a date'
   const amount = Number(p.amount)
@@ -71,14 +114,15 @@ export interface TransactionDraft {
 
 /** The bank entry a payment is. One function, so every screen posts it alike. */
 export function paymentTransaction(p: PaymentInput, orderNumber: string): TransactionDraft {
+  const dir = direction(p.kind, p.party)
   const party = (p.partyName ?? '').trim()
-  const who = party ? ` ${direction(p.kind) === 'in' ? 'from' : 'to'} ${party}` : ''
+  const who = party ? ` ${dir === 'in' ? 'from' : 'to'} ${party}` : ''
   const head =
     p.kind === 'advance' ? 'Advance' :
     p.kind === 'refund' ? 'Refund' : 'Payment'
   return {
     account_id: p.accountId,
-    type: direction(p.kind) === 'in' ? 'income' : 'expense',
+    type: dir === 'in' ? 'income' : 'expense',
     amount: r2(p.amount),
     date: p.date,
     name: `${head}${who} — ${orderNumber}`,
@@ -90,47 +134,59 @@ export function paymentTransaction(p: PaymentInput, orderNumber: string): Transa
 
 export interface PaymentRow {
   kind: PaymentKind
+  party?: PaymentParty
   amount: number
 }
 
 export interface PaymentTotals {
-  /** Everything paid out — advances and settlements. */
-  paidOut: number
-  /** Advances alone, which is what has gone before any bill. */
+  /** Gross moved with this party, before any refund. */
+  gross: number
+  /** Advances alone, which is what moved before any paper. */
   advances: number
-  /** Money the supplier sent back. */
+  /** Money that went back the other way. */
   refunds: number
-  /** paidOut − refunds: what has actually left, net. */
+  /** gross − refunds: what has actually changed hands. */
   net: number
 }
 
-export function paymentTotals(rows: readonly PaymentRow[]): PaymentTotals {
-  let paidOut = 0, advances = 0, refunds = 0
+/** One party's side of the order. */
+export function paymentTotals(rows: readonly PaymentRow[], party: PaymentParty = 'supplier'): PaymentTotals {
+  let gross = 0, advances = 0, refunds = 0
   for (const r of rows) {
+    if ((r.party ?? 'supplier') !== party) continue
     const amount = r2(r.amount)
     if (r.kind === 'refund') refunds += amount
     else {
-      paidOut += amount
+      gross += amount
       if (r.kind === 'advance') advances += amount
     }
   }
-  return { paidOut: r2(paidOut), advances: r2(advances), refunds: r2(refunds), net: r2(paidOut - refunds) }
+  return { gross: r2(gross), advances: r2(advances), refunds: r2(refunds), net: r2(gross - refunds) }
 }
 
 /**
- * What is still owed to the supplier on this order.
+ * What is still owed on one side of the order.
  *
- * Measured against the BILLS, not against the agreed cost: until the supplier
- * invoices, nothing is owed however much the order says it will come to. An
- * advance paid before any bill shows as a negative balance, which is the
- * truth — they are holding your money.
+ * Measured against the PAPER — bills on the supplier side, invoices on the
+ * customer side — and not against the agreed value: until somebody invoices,
+ * nothing is owed however much the order says it will come to. An advance
+ * taken before any paper shows as a negative balance, which is the truth:
+ * somebody is holding money they have not yet earned.
  */
+export function partyBalance(
+  documentedTotal: number, rows: readonly PaymentRow[], party: PaymentParty = 'supplier',
+): number {
+  return r2(r2(documentedTotal) - paymentTotals(rows, party).net)
+}
+
+/** Kept for the supplier side, which is what most screens still ask for. */
 export function supplierBalance(billedTotal: number, rows: readonly PaymentRow[]): number {
-  return r2(r2(billedTotal) - paymentTotals(rows).net)
+  return partyBalance(billedTotal, rows, 'supplier')
 }
 
 /** How the balance should read on screen. */
-export function balanceWords(balance: number): string {
+export function balanceWords(balance: number, party: PaymentParty = 'supplier'): string {
   if (Math.abs(balance) < 0.005) return 'Settled'
+  if (party === 'customer') return balance > 0 ? 'still to collect' : 'received in advance'
   return balance > 0 ? 'still to pay' : 'paid in advance'
 }
