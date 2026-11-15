@@ -10,10 +10,11 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
   const { data: { user } } = await supabase.auth.getUser()
   const uid = user!.id
 
-  const [{ data: order }, { data: lines }, { data: sizes }, { data: companies }, { data: customers }, { data: existing }] = await Promise.all([
+  const [{ data: order }, { data: lines }, { data: sizes }, { data: packs }, { data: companies }, { data: customers }, { data: existing }] = await Promise.all([
     supabase.from('orders').select('*').eq('id', id).eq('user_id', uid).maybeSingle(),
     supabase.from('order_lines').select('*').eq('order_id', id).order('line_number'),
     supabase.from('order_line_sizes').select('*').eq('order_id', id).order('sort'),
+    supabase.from('order_packs').select('*').eq('order_id', id).order('sort'),
     supabase.from('companies').select('id, name').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
     supabase.from('customers').select('id, name').eq('user_id', uid).order('name'),
     supabase.from('orders').select('number').eq('user_id', uid),
@@ -41,6 +42,17 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
       sizes: (sizes ?? [])
         .filter((s: Record<string, unknown>) => String(s.line_id) === String(l.id))
         .map((s: Record<string, unknown>) => ({ sizeId: String(s.id), label: String(s.label ?? ''), qty: String(s.qty ?? '') })),
+    })),
+    packs: (packs ?? []).map((p: Record<string, unknown>) => ({
+      packId: String(p.id),
+      kind: (p.kind === 'solid' ? 'solid' : 'assort') as 'solid' | 'assort',
+      setsPerCarton: String(p.sets_per_carton ?? 1),
+      cartons: String(p.cartons ?? ''),
+      contents: (Array.isArray(p.contents) ? p.contents : []).map((c: Record<string, unknown>) => ({
+        lineId: String(c?.line_id ?? ''),
+        size: String(c?.size ?? ''),
+        qty: Number(c?.qty) || 0,
+      })),
     })),
   }
 

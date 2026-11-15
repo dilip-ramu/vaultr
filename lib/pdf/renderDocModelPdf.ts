@@ -209,6 +209,20 @@ async function buildDocModelPdf(model: DocModel) {
   }
   y = sumTop + sideBySideHeight(wordsBottom - sumTop, y - sumTop)
 
+  // ── Note ───────────────────────────────────────────────────────────────────
+  // model.note was carried by every adapter and drawn by nothing: a note
+  // typed on an invoice went into the database and never onto the paper. It
+  // gets the full width because it is where packing instructions and
+  // delivery conditions end up, and those wrap.
+  if (model.note) {
+    y += 4
+    if (y + 16 > BOTTOM) { doc.addPage(); y = M }
+    doc.setFont(PDF_FONT, 'bold'); doc.setFontSize(7.5); doc.setTextColor(150,150,150)
+    doc.text('NOTES', M, y); y += 4
+    doc.setFont(PDF_FONT, 'normal'); doc.setFontSize(8); doc.setTextColor(...DARK)
+    y = block([model.note], M, y, CONTENT_W, 3.8)
+  }
+
   // ── Footer: bank + terms (left), signature (right) ─────────────────────────
   y += 4
   if (y + 30 > BOTTOM) { doc.addPage(); y = M }

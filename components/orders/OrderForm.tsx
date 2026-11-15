@@ -9,11 +9,21 @@ import { notify } from '@/components/shared/Toast'
 import { nextOrderNumber } from '@/lib/orders/number'
 import { plannedFromLines } from '@/lib/orders/margin'
 import { parseSizes, sizeTotal, formatSizes, sizeWarning, type SizeRow } from '@/lib/orders/sizes'
+import type { PackKind } from '@/lib/orders/packing'
+import PackingSection, { packsForSave, type PackDraft, type PackLine } from './PackingSection'
 import { CURRENCIES } from '@/lib/currencies'
 
 interface Opt { id: string; name: string }
 
 export interface OrderInitialSize { sizeId?: string; label: string; qty: string }
+export interface OrderInitialPack {
+  packId?: string
+  kind: PackKind
+  /** Pieces in ONE set: which line, which size, how many. */
+  contents: { lineId: string; size: string; qty: number }[]
+  setsPerCarton: string
+  cartons: string
+}
 export interface OrderInitialLine {
   lineId?: string
   item: string; description: string; hsn: string
@@ -27,6 +37,8 @@ export interface OrderInitial {
   cutoffDate: string; etd: string
   notes: string
   lines: OrderInitialLine[]
+  /** Packing belongs to the ORDER: a carton can hold two styles. */
+  packs: OrderInitialPack[]
 }
 
 interface Props {
@@ -38,6 +50,7 @@ interface Props {
 }
 
 interface SizeItem { key: number; sizeId?: string; label: string; qty: string }
+
 interface Line {
   key: number; lineId?: string
   item: string; description: string; hsn: string
@@ -81,12 +94,40 @@ export default function OrderForm({ companies, customers, existingNumbers, order
           open: l.sizes.length > 0 || !!l.description,
         }))
       : [blankLine()])
+  // Packing points at lines by the form's own key, because a line that has
+  // not been saved yet has no id. Loading goes the other way: match the
+  // saved line id back to the key this render gave it.
+  const [packs, setPacks] = useState<PackDraft[]>(() => {
+    const keyByLineId = new Map<string, number>()
+    for (const l of lines) if (l.lineId) keyByLineId.set(l.lineId, l.key)
+    return (initial?.packs ?? []).map(p => ({
+      key: ++seq,
+      packId: p.packId,
+      kind: p.kind,
+      setsPerCarton: p.setsPerCarton,
+      cartons: p.cartons,
+      contents: p.contents
+        .map(c => ({ lineKey: keyByLineId.get(c.lineId) ?? 0, size: c.size, qty: String(c.qty) }))
+        .filter(c => c.lineKey > 0),
+    })).filter(p => p.contents.length > 0)
+  })
   const [saving, setSaving] = useState(false)
 
   const isExport = currency !== 'INR'
   const setLine = (key: number, patch: Partial<Line>) => setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l))
   const setSize = (lk: number, sk: number, patch: Partial<SizeItem>) =>
     setLines(prev => prev.map(l => l.key === lk ? { ...l, sizes: l.sizes.map(s => s.key === sk ? { ...s, ...patch } : s) } : l))
+
+
+  // Only styles with a name can be packed — an untitled line in the dropdown
+  // is a line somebody is still typing.
+  const packLines: PackLine[] = lines.filter(l => l.item.trim()).map(l => {
+    const rows = sizeRows(l)
+    const qtyBySize: Record<string, number> = {}
+    if (rows.length) for (const r of rows) qtyBySize[r.label] = r.qty
+    else qtyBySize[''] = num(l.qty)
+    return { key: l.key, name: l.item.trim(), sizes: rows.map(r => r.label), qtyBySize }
+  })
 
   const preview = useMemo(() => {
     const p = plannedFromLines(lines.map(l => ({ qty: effectiveQty(l), sellRate: num(l.sellRate), costRate: num(l.costRate) })))
@@ -152,6 +193,9 @@ export default function OrderForm({ companies, customers, existingNumbers, order
       // document forms do. An order line carries how much of it has shipped,
       // and wiping that to correct a rate would lose a part shipment.
       const keptLines: string[] = []
+      // Form key → database id, so the packing saved below can point at lines
+      // that did not exist when the page loaded.
+      const idByKey = new Map<number, string>()
       for (let i = 0; i < valid.length; i++) {
         const l = valid[i]
         let lineId = l.lineId
@@ -184,10 +228,38 @@ export default function OrderForm({ companies, customers, existingNumbers, order
         const goneSizes = (initial?.lines.find(x => x.lineId === lineId)?.sizes ?? [])
           .map(s => s.sizeId).filter((x): x is string => !!x && !keptSizes.includes(x))
         if (goneSizes.length) await sb.from('order_line_sizes').delete().in('id', goneSizes).eq('user_id', user.id)
+
+        idByKey.set(l.key, lineId)
       }
       const goneLines = (initial?.lines ?? []).map(l => l.lineId)
         .filter((x): x is string => !!x && !keptLines.includes(x))
       if (goneLines.length) await sb.from('order_lines').delete().in('id', goneLines).eq('user_id', user.id)
+
+      // Packing last, because it points AT the lines — a carton can hold two
+      // styles, so it could not be saved before both of them had ids.
+      // Matched by id like everything else: a carton count somebody worked
+      // out against the rest of the order should survive an unrelated edit.
+      const packRows = packsForSave(packs, idByKey)
+      const keptPacks: string[] = []
+      for (let j = 0; j < packRows.length; j++) {
+        const x = packRows[j]
+        const pBody = {
+          order_id: savedId, sort: j + 1,
+          kind: x.kind, contents: x.contents,
+          sets_per_carton: x.sets_per_carton, cartons: x.cartons,
+        }
+        if (x.packId) {
+          await sb.from('order_packs').update(pBody).eq('id', x.packId).eq('user_id', user.id)
+          keptPacks.push(x.packId)
+        } else {
+          const { data } = await sb.from('order_packs')
+            .insert({ user_id: user.id, ...pBody }).select('id').single()
+          if (data) keptPacks.push(data.id as string)
+        }
+      }
+      const gonePacks = (initial?.packs ?? []).map(x => x.packId)
+        .filter((x): x is string => !!x && !keptPacks.includes(x))
+      if (gonePacks.length) await sb.from('order_packs').delete().in('id', gonePacks).eq('user_id', user.id)
 
       notify(`Order ${numberStr} ${isEdit ? 'updated' : 'created'} ✓`, 'success')
       router.push(`/orders/${savedId}`)
@@ -392,6 +464,7 @@ export default function OrderForm({ companies, customers, existingNumbers, order
                       {warn && <p className="text-[12px] mt-1.5" style={{ color: '#92400E' }}>{warn}</p>}
                       {fromSizes && <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-faint)' }}>Goes to the supplier as: {formatSizes(rows)}</p>}
                     </div>
+
                   </div>
                 )}
               </div>
@@ -408,6 +481,8 @@ export default function OrderForm({ companies, customers, existingNumbers, order
           <span className="text-[15px]">Gross margin <b className="tabular-nums" style={{ color: preview.gross < 0 ? 'var(--expense)' : 'var(--income)' }}>{inr(preview.gross)} ({preview.pct.toFixed(1)}%)</b></span>
         </div>
       </div>
+
+      <PackingSection lines={packLines} packs={packs} onChange={setPacks} nextKey={() => ++seq} />
 
       <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <label className="text-[11px] font-semibold" style={labStyle}>Notes on this order

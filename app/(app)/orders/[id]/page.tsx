@@ -6,6 +6,10 @@ import OrderSheet, {
 import type { OrderFileRow } from '@/components/orders/OrderFilesPanel'
 import type { SummaryInput } from '@/lib/orders/summaryDoc'
 import { normalizeAccent } from '@/lib/companies/templates'
+import {
+  describePack, totalCartons, reconcilePacking,
+  type Pack, type OrderedPiece,
+} from '@/lib/orders/packing'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +33,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     { data: lines }, { data: costs },
     { data: docs }, { data: custInvoices }, { data: bills },
     { data: freeSellDocs }, { data: freeBuyDocs }, { data: freeCustInvoices }, { data: freeBills },
-    { data: files }, { data: sizes },
+    { data: files }, { data: sizes }, { data: packRows },
   ] = await Promise.all([
     supabase.from('order_lines').select('*').eq('order_id', id).order('line_number'),
     supabase.from('order_costs').select('*').eq('order_id', id).order('line_number'),
@@ -50,6 +54,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     supabase.from('supplier_invoices').select('id, invoice_number, invoice_date, amount, currency, is_paid').eq('user_id', uid).is('order_id', null).order('invoice_date', { ascending: false }).limit(FREE_LIMIT),
     supabase.from('order_files').select('id, side, name, path, size').eq('order_id', id).order('created_at'),
     supabase.from('order_line_sizes').select('*').eq('order_id', id).order('sort'),
+    supabase.from('order_packs').select('*').eq('order_id', id).order('sort'),
   ])
 
   // Sizes belong to their line; the quantity on screen comes from them.
@@ -71,6 +76,38 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     hsn: (l.hsn_sac as string | null) ?? null,
     sizes: sizesByLine.get(String(l.id)) ?? [],
   }))
+
+  // Packing, written the way a packer reads it. The style name comes from
+  // the line, so a carton mixing two styles names both.
+  const packs: Pack[] = (packRows ?? []).map(p => ({
+    kind: p.kind === 'solid' ? 'solid' : 'assort',
+    setsPerCarton: Number(p.sets_per_carton) || 1,
+    cartons: Number(p.cartons) || 0,
+    contents: (Array.isArray(p.contents) ? p.contents : []).map((c: Record<string, unknown>) => ({
+      lineId: String(c?.line_id ?? ''), size: String(c?.size ?? ''), qty: Number(c?.qty) || 0,
+    })),
+  }))
+  const styleName = (lineId: string) => lineRows.find(l => l.id === lineId)?.item ?? 'Style'
+  const packingLines = packs.map(p => describePack(p, styleName)).filter(Boolean)
+  const cartons = totalCartons(packs)
+
+  // Does the packing add up? Worked out here so the order page says it
+  // without anybody opening the edit form.
+  const orderedPieces: OrderedPiece[] = []
+  for (const l of lineRows) {
+    if (l.sizes.length) for (const s of l.sizes) orderedPieces.push({ lineId: l.id, size: s.label, qty: s.qty })
+    else orderedPieces.push({ lineId: l.id, size: '', qty: l.qty })
+  }
+  const packCheck = reconcilePacking(orderedPieces, packs)
+  const packing = {
+    lines: packingLines,
+    cartons,
+    packed: packCheck.packedTotal,
+    ordered: packCheck.orderedTotal,
+    balanced: packCheck.balanced,
+    short: packCheck.short.map(d => `${styleName(d.lineId)}${d.size ? ` ${d.size}` : ''} ${d.difference}`),
+    over: packCheck.over.map(d => `${styleName(d.lineId)}${d.size ? ` ${d.size}` : ''} +${-d.difference}`),
+  }
 
   // The purchase order already raised, if any — the supplier pack puts it in
   // the zip and names the zip after it.
@@ -116,6 +153,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     lines: lineRows.map(l => ({
       item: l.item, description: l.description, qty: l.qty, costRate: l.cost_rate, sizes: l.sizes,
     })),
+    packing: packingLines,
+    cartons,
     notes: (order.notes as string | null) ?? null,
   }
 
@@ -136,6 +175,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       freeCustInvoices={(freeCustInvoices ?? []) as CustInvRow[]}
       freeBills={(freeBills ?? []) as BillRow[]}
       files={(files ?? []) as OrderFileRow[]}
+      packing={packing}
       summary={summary}
       po={po}
     />

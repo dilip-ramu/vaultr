@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import DocumentForm, { type DocInitial } from '@/components/documents/DocumentForm'
 import { docConfigFor } from '@/lib/documents/config'
 import { orderDocLines } from '@/lib/orders/toDocument'
+import { describePack, totalCartons, type Pack } from '@/lib/orders/packing'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +81,12 @@ export default async function NewSupplierDocumentPage({
       const { data: sizes } = ids.length
         ? await supabase.from('order_line_sizes').select('*').in('line_id', ids).order('sort', { ascending: true })
         : { data: [] as Record<string, unknown>[] }
+      // Packing goes onto the purchase order as a note, because a carton
+      // that mixes two styles belongs to no single line of the table. The
+      // note prints on the PDF, and it is editable on the form before the
+      // order is sent.
+      const { data: packRows } = await supabase.from('order_packs')
+        .select('*').eq('order_id', fromOrder).eq('user_id', uid).order('sort')
       const sizesByLine = new Map<string, { label: string; qty: number }[]>()
       for (const s of sizes ?? []) {
         const row = s as Record<string, unknown>
@@ -88,12 +95,28 @@ export default async function NewSupplierDocumentPage({
         list.push({ label: String(row.label ?? ''), qty: Number(row.qty) || 0 })
         sizesByLine.set(k, list)
       }
+      const nameOfLine = (lineId: string) =>
+        String((ol ?? []).find((l: Record<string, unknown>) => String(l.id) === lineId)?.item ?? 'Style')
+      const packs: Pack[] = (packRows ?? []).map(p => ({
+        kind: p.kind === 'solid' ? 'solid' : 'assort',
+        setsPerCarton: Number(p.sets_per_carton) || 1,
+        cartons: Number(p.cartons) || 0,
+        contents: (Array.isArray(p.contents) ? p.contents : []).map((c: Record<string, unknown>) => ({
+          lineId: String(c?.line_id ?? ''), size: String(c?.size ?? ''), qty: Number(c?.qty) || 0,
+        })),
+      }))
+      const packLines = packs.map(p => describePack(p, nameOfLine)).filter(Boolean)
+      const cartons = totalCartons(packs)
+      const packingNote = packLines.length
+        ? `PACKING\n${packLines.join('\n')}\nTotal ${cartons} carton${cartons === 1 ? '' : 's'}.`
+        : ''
+
       initial = {
         companyId: (ord.company_id as string | null) ?? '',
         partyId: '',
         date: today,
         reference: (ord.customer_po_no as string | null) ?? String(ord.number ?? ''),
-        notes: '',
+        notes: packingNote,
         signatoryId: null,
         number: '',
         // The supplier is paid in rupees whatever the customer pays in: the

@@ -77,3 +77,29 @@ describe('building the summary', () => {
     expect(m.grandValue).toBe('₹0')
   })
 })
+
+describe('the packing on the summary sheet', () => {
+  it('puts each pack on its own line under a PACKING heading', () => {
+    const m = orderSummaryDocModel(base({
+      packing: ['5 ctn × 20 × M — Polo · 20 pcs/ctn · 100 pcs', '100 ctn × (Polo / M + Tee / M) · 2 pcs/ctn · 200 pcs'],
+      cartons: 105,
+    }))
+    expect(m.note).toBe(
+      'PACKING\n5 ctn × 20 × M — Polo · 20 pcs/ctn · 100 pcs\n100 ctn × (Polo / M + Tee / M) · 2 pcs/ctn · 200 pcs\nTotal 105 cartons.')
+  })
+
+  it('shows the carton total beside the piece total', () => {
+    const m = orderSummaryDocModel(base({ packing: ['x'], cartons: 1 }))
+    expect(m.totals?.map(t => t.label)).toEqual(['Total pieces', 'Total cartons'])
+  })
+
+  it('says nothing about packing when none has been set', () => {
+    const m = orderSummaryDocModel(base())
+    expect(m.note).toBeUndefined()
+    expect(m.totals?.map(t => t.label)).toEqual(['Total pieces'])
+  })
+
+  it('ignores blank pack lines rather than printing an empty heading', () => {
+    expect(orderSummaryDocModel(base({ packing: ['', '   '] })).note).toBeUndefined()
+  })
+})

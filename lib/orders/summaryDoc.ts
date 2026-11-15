@@ -34,11 +34,22 @@ export interface SummaryInput {
   accent: string
   logoUrl?: string | null
   lines: readonly SummaryLine[]
+  /** One line per pack, already written for a packer to follow. */
+  packing?: readonly string[]
+  /** Total cartons across the order. */
+  cartons?: number
   notes?: string | null
 }
 
 const n0 = (n: number) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0)
 const inr = (n: number) => '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(n || 0)
+
+function packingNote(packing: readonly string[] | undefined, cartons: number | undefined): string | undefined {
+  const lines = (packing ?? []).map(p => p.trim()).filter(Boolean)
+  if (!lines.length) return undefined
+  const total = cartons ? `\nTotal ${cartons} carton${cartons === 1 ? '' : 's'}.` : ''
+  return `PACKING\n${lines.join('\n')}${total}`
+}
 
 export function orderSummaryDocModel(i: SummaryInput): DocModel {
   const columns: DocColumn[] = [
@@ -94,9 +105,15 @@ export function orderSummaryDocModel(i: SummaryInput): DocModel {
     meta,
     columns,
     rows,
-    totals: [{ label: 'Total pieces', value: n0(totalQty) }],
+    totals: [
+      { label: 'Total pieces', value: n0(totalQty) },
+      ...(i.cartons ? [{ label: 'Total cartons', value: n0(i.cartons) }] : []),
+    ],
     grandLabel: 'ORDER VALUE',
     grandValue: inr(totalValue),
+    // Packing goes in the note, which prints full width — a carton that
+    // mixes two styles does not belong to either line of the table.
+    note: packingNote(i.packing, i.cartons),
     terms: i.notes?.trim() || undefined,
     signatureLabel: 'For ' + i.companyName,
   }

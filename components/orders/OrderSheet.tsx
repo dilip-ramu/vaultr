@@ -57,6 +57,11 @@ interface Props {
   freeCustInvoices: CustInvRow[]
   freeBills: BillRow[]
   files: OrderFileRow[]
+  /** How the order is boxed, already written for a packer to read. */
+  packing: {
+    lines: string[]; cartons: number; packed: number; ordered: number
+    balanced: boolean; short: string[]; over: string[]
+  }
   /** Everything the supplier-pack summary page needs, built server-side. */
   summary: SummaryInput
   /** The purchase order raised for this order, if there is one. */
@@ -358,6 +363,48 @@ export default function OrderSheet(p: Props) {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Packing ─────────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border p-5" style={card}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-[15px] font-extrabold" style={{ color: 'var(--text)' }}>Packing</h2>
+            <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              What goes in a carton. This is what the purchase order and the supplier pack tell them to do.
+            </p>
+          </div>
+          {!locked && <Link href={`/orders/${order.id}/edit`} className="text-[12px] font-bold shrink-0" style={{ color: 'var(--brand)' }}>Edit packing</Link>}
+        </div>
+
+        {p.packing.lines.length === 0 ? (
+          <p className="text-[13px] mt-2" style={{ color: 'var(--text-faint)' }}>
+            Not set. The purchase order will give sizes and quantities but not say how to box them.
+          </p>
+        ) : (
+          <>
+            <div className="mt-2.5 space-y-1">
+              {p.packing.lines.map((l, i) => (
+                <p key={i} className="text-[13px] tabular-nums" style={{ color: 'var(--text)' }}>{l}</p>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5 pt-2.5 text-[12.5px]"
+              style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <span><b style={{ color: 'var(--text)' }}>{p.packing.cartons}</b> carton{p.packing.cartons === 1 ? '' : 's'}</span>
+              <span style={{ color: p.packing.balanced ? 'var(--income)' : undefined }}>
+                {p.packing.balanced
+                  ? 'Every piece is packed'
+                  : `${p.packing.packed} of ${p.packing.ordered} pcs packed`}
+              </span>
+            </div>
+            {p.packing.short.length > 0 && (
+              <p className="text-[12px] mt-1" style={{ color: '#92400E' }}>Still to pack: {p.packing.short.join(' · ')}</p>
+            )}
+            {p.packing.over.length > 0 && (
+              <p className="text-[12px] mt-1 font-semibold" style={{ color: 'var(--expense)' }}>Packed more than ordered: {p.packing.over.join(' · ')}</p>
+            )}
+          </>
+        )}
       </div>
 
       {/* ── The P/L ─────────────────────────────────────────────────────── */}
