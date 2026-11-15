@@ -19,6 +19,7 @@ import type { SummaryInput } from '@/lib/orders/summaryDoc'
 import OrderStepRail from './OrderStepRail'
 import OrderFilesPanel, { type OrderFileRow } from './OrderFilesPanel'
 import SupplierPackButton from './SupplierPackButton'
+import DeleteOrderButton from './DeleteOrderButton'
 
 // ── Shapes the page hands down ──────────────────────────────────────────────
 
@@ -253,6 +254,7 @@ export default function OrderSheet(p: Props) {
             </select>
           )}
           <Link href={`/orders/${order.id}/edit`} className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-bold" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}><Pencil className="w-4 h-4" /> Edit</Link>
+          <DeleteOrderButton orderId={order.id} orderNumber={order.number} />
         </div>
       </div>
 
