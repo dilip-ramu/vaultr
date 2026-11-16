@@ -72,9 +72,11 @@ export default async function OrdersPage() {
       drawback: o.drawback_basis ? { basis: o.drawback_basis, value: Number(o.drawback_value) || 0, actual: o.drawback_actual == null ? null : Number(o.drawback_actual) } : null,
       costs: (costsBy.get(o.id) ?? []).map(c => ({ name: c.name, sign: c.sign === 1 ? 1 : -1, basis: c.basis, planned: Number(c.planned) || 0, actual: c.actual })),
     })
-    // Before anything is invoiced the Actual column is all zeroes, so the list
-    // shows the plan. Showing ₹0 profit on a live order would be a lie.
-    const col = actualCustomer > 0 ? m.actual : m.planned
+    // The Actual column stands in the costed figures for whatever has not
+    // happened yet (see margin.ts), so it reads as EXPECTED profit until the
+    // invoice and the supplier bill are both in, and as ACTUAL after. The
+    // list no longer has to choose a column.
+    const col = m.actual
 
     const shipBalance = myLines.reduce(
       (t, l) => t + Math.max(0, l.qty - Math.min(lineShipped(l.shippedQty, l.sizes), l.qty)), 0)

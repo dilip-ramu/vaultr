@@ -91,6 +91,10 @@ export interface MarginColumn {
   net: number
   /** Net profit as a percentage of what you invoiced. 0 when you invoiced nothing. */
   marginPct: number
+  /** True when this column's customer value is standing in for a real one. */
+  customerValueEstimated: boolean
+  /** True when its supplier cost is. */
+  supplierCostEstimated: boolean
   /** What each piece earns. 0 when the order has no quantity on it. */
   netPerPiece: number
   /** Gross margin per piece — before freight and the rest. */
@@ -141,6 +145,7 @@ function column(
   costs: readonly CostLine[],
   useActual: boolean,
   pieces: number,
+  estimates: { customerValue: boolean; supplierCost: boolean } = { customerValue: false, supplierCost: false },
 ): MarginColumn {
   const customerValueInr = r2(customerValueFx * rate)
   const gross = r2(customerValueInr - supplierCost)
@@ -160,6 +165,8 @@ function column(
     costTotal,
     net,
     marginPct: customerValueInr ? r2((net / customerValueInr) * 100) : 0,
+    customerValueEstimated: estimates.customerValue,
+    supplierCostEstimated: estimates.supplierCost,
     netPerPiece: pieces > 0 ? r2(net / pieces) : 0,
     grossPerPiece: pieces > 0 ? r2(gross / pieces) : 0,
   }
@@ -172,11 +179,35 @@ export function computeMargin(m: OrderMoney): Margin {
   const realised = hasRealised ? (m.realisedRate as number) : booked
 
   const pieces = Math.max(0, num(m.pieces))
+
+  // NOTHING KNOWN YET IS NOT THE SAME AS ZERO.
+  //
+  // The Actual column used to take the supplier's bills as the cost full
+  // stop, so an order with a customer invoice and no bill against it showed
+  // the whole invoice as profit — 100% margin, presented as fact. Zero cost
+  // is not what 'the bill has not arrived' means.
+  //
+  // Every other figure in this column already behaves properly: a cost line
+  // with no actual falls back to the planned one and is marked an estimate,
+  // and so does the drawback. These two now do the same. The column reads as
+  // EXPECTED profit until the real figures land, and becomes ACTUAL once
+  // they have — which is what actualIsComplete says.
+  const customerValueKnown = num(m.customerValueActual) > 0
+  const supplierCostKnown = num(m.supplierCostActual) > 0
+
   const planned = column(num(m.customerValuePlanned), booked, num(m.supplierCostPlanned), m.drawback, costs, false, pieces)
-  const actual  = column(num(m.customerValueActual),  realised, num(m.supplierCostActual),  m.drawback, costs, true, pieces)
+  const actual  = column(
+    customerValueKnown ? num(m.customerValueActual) : num(m.customerValuePlanned),
+    realised,
+    supplierCostKnown ? num(m.supplierCostActual) : num(m.supplierCostPlanned),
+    m.drawback, costs, true, pieces,
+    { customerValue: !customerValueKnown, supplierCost: !supplierCostKnown },
+  )
 
   // What the rate did, measured on what was actually invoiced — comparing it
   // against the planned value would mix a pricing change into an FX number.
+  // Measured only on what was REALLY invoiced: a value standing in for an
+  // invoice that does not exist has not been through any bank.
   const fxEffect = r2(num(m.customerValueActual) * (realised - booked))
 
   const drawbackKnown = !m.drawback || (typeof m.drawback.actual === 'number' && Number.isFinite(m.drawback.actual))

@@ -68,13 +68,26 @@ function Badge({ stage }: { stage: string }) {
   return <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0" style={{ background: c.bg, color: c.fg }}>{m.label}</span>
 }
 
-/** Profit, coloured, with a mark when it is still partly a guess. */
+/**
+ * Profit, coloured, and labelled for what it actually is.
+ *
+ * Expected while anything behind it is still the costed figure rather than a
+ * real one — a missing supplier bill, an invoice not yet raised. Actual once
+ * they are all in. An unlabelled percentage reads as a fact, and that is how
+ * an order with no bill against it came to show 100%.
+ */
 function Profit({ net, pct, estimated }: { net: number; pct: number; estimated: boolean }) {
   return (
-    <span className="tabular-nums font-bold" style={{ color: net < 0 ? 'var(--expense)' : 'var(--income)' }}>
+    <span className="tabular-nums font-bold" style={{ color: net < 0 ? 'var(--expense)' : 'var(--income)' }}
+      title={estimated
+        ? 'Expected: some of this is still the figure you costed at, not a real invoice or bill.'
+        : 'Actual: invoiced, billed and settled.'}>
       {estimated && <span style={{ color: 'var(--text-faint)' }}>~ </span>}
       {inr(net)}
       <span className="font-normal ml-1.5 text-[12px]" style={{ color: 'var(--text-muted)' }}>{pct.toFixed(1)}%</span>
+      <span className="font-normal ml-1.5 text-[11px]" style={{ color: 'var(--text-faint)' }}>
+        {estimated ? 'expected' : 'actual'}
+      </span>
     </span>
   )
 }

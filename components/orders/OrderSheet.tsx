@@ -499,8 +499,10 @@ export default function OrderSheet(p: Props) {
             </p>
           </div>
           {!margin.actualIsComplete && (
-            <span className="text-[11px] font-bold px-2 py-1 rounded" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-              Actual still has estimates in it
+            <span className="text-[11px] font-bold px-2 py-1 rounded"
+              style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+              title="Anything marked ~ is the figure you costed at, standing in until the real one arrives.">
+              Expected, not actual {margin.actual.supplierCostEstimated ? '· no supplier bill yet' : ''}
             </span>
           )}
         </div>
@@ -532,8 +534,13 @@ export default function OrderSheet(p: Props) {
                 <Row label="Exchange rate" a={margin.planned.rate.toFixed(2)} b={margin.actual.rate.toFixed(2)} muted />
               </>
             )}
-            <Row label="Customer value" a={inr(margin.planned.customerValueInr)} b={inr(margin.actual.customerValueInr)} />
-            <Row label="Supplier cost" a={sInr(-margin.planned.supplierCost)} b={sInr(-margin.actual.supplierCost)} negative />
+            {/* Marked when the Actual figure is still the costed one. A
+                missing supplier bill used to read as a cost of nothing,
+                which is how an order came to show a 100% margin. */}
+            <Row label="Customer value" a={inr(margin.planned.customerValueInr)} b={inr(margin.actual.customerValueInr)}
+              bEstimated={margin.actual.customerValueEstimated} />
+            <Row label="Supplier cost" a={sInr(-margin.planned.supplierCost)} b={sInr(-margin.actual.supplierCost)} negative
+              bEstimated={margin.actual.supplierCostEstimated} />
             <Row label="Gross margin" a={sInr(margin.planned.gross)} b={sInr(margin.actual.gross)} strong />
             {dbBasis && (
               <Row

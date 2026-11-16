@@ -297,3 +297,67 @@ describe('what each piece earns', () => {
 })
 
 const r2 = (n: number) => Math.round(n * 100) / 100
+
+describe('expected until settled, actual once it is', () => {
+  // An order invoiced to the customer with no supplier bill against it yet.
+  const invoicedNotBilled = () => computeMargin({
+    customerValuePlanned: 48000, customerValueActual: 48000,
+    bookedRate: 88, realisedRate: 88,
+    supplierCostPlanned: 3_600_000, supplierCostActual: 0,
+  })
+
+  it('does not read a missing supplier bill as a cost of nothing', () => {
+    // This is the bug that showed 100% margin on a live order: the invoice
+    // was there, the bill was not, and the whole invoice looked like profit.
+    const m = invoicedNotBilled()
+    expect(m.actual.supplierCost).toBe(3_600_000)
+    expect(m.actual.marginPct).not.toBe(100)
+    expect(m.actual.marginPct).toBeCloseTo(14.77, 1)
+  })
+
+  it('says the cost in that column is standing in for a real one', () => {
+    const m = invoicedNotBilled()
+    expect(m.actual.supplierCostEstimated).toBe(true)
+    expect(m.actual.customerValueEstimated).toBe(false)
+    expect(m.actualIsComplete).toBe(false)
+  })
+
+  it('uses the real bill the moment one arrives, and stops calling it an estimate', () => {
+    const m = computeMargin({
+      customerValuePlanned: 48000, customerValueActual: 48000,
+      bookedRate: 88, realisedRate: 88,
+      supplierCostPlanned: 3_600_000, supplierCostActual: 3_700_000,
+    })
+    expect(m.actual.supplierCost).toBe(3_700_000)
+    expect(m.actual.supplierCostEstimated).toBe(false)
+    expect(m.actualIsComplete).toBe(true)
+  })
+
+  it('stands in for the customer value too, before anything is invoiced', () => {
+    const m = computeMargin({
+      customerValuePlanned: 48000, customerValueActual: 0,
+      bookedRate: 88, supplierCostPlanned: 3_600_000, supplierCostActual: 0,
+    })
+    expect(m.actual.customerValueInr).toBe(r2(48000 * 88))
+    expect(m.actual.customerValueEstimated).toBe(true)
+    expect(m.actual.supplierCostEstimated).toBe(true)
+    expect(m.actualIsComplete).toBe(false)
+  })
+
+  it('claims no exchange gain on an invoice that does not exist', () => {
+    // The value standing in for an invoice has not been through any bank, so
+    // the rate cannot have done anything to it yet.
+    const m = computeMargin({
+      customerValuePlanned: 48000, customerValueActual: 0,
+      bookedRate: 88, realisedRate: 90,
+      supplierCostPlanned: 3_600_000, supplierCostActual: 0,
+    })
+    expect(m.fxEffect).toBe(0)
+  })
+
+  it('leaves the planned column alone throughout', () => {
+    const m = invoicedNotBilled()
+    expect(m.planned.supplierCostEstimated).toBe(false)
+    expect(m.planned.customerValueEstimated).toBe(false)
+  })
+})
