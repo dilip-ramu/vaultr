@@ -56,8 +56,32 @@ describe('tax on a foreign-currency document', () => {
     expect(defaultGstFor('EUR')).toBe('0')
   })
 
-  it('leaves a rupee document at the usual 18%', () => {
+  it('leaves a rupee document at the usual 18% when no company rate is set', () => {
     expect(defaultGstFor('INR')).toBe('18')
     expect(defaultGstFor('')).toBe('18')
+  })
+
+  it("uses the company's own rate on a rupee document", () => {
+    expect(defaultGstFor('INR', 5)).toBe('5')
+    expect(defaultGstFor('INR', 12)).toBe('12')
+  })
+
+  it('takes a company rate of nothing at its word', () => {
+    // A company set to 0 means 0, not 'unset'. Falling back to 18 here is
+    // how a nil-rated supply ends up taxed.
+    expect(defaultGstFor('INR', 0)).toBe('0')
+  })
+
+  it('ignores a missing or nonsense company rate', () => {
+    expect(defaultGstFor('INR', null)).toBe('18')
+    expect(defaultGstFor('INR', undefined)).toBe('18')
+    expect(defaultGstFor('INR', NaN)).toBe('18')
+    expect(defaultGstFor('INR', -5)).toBe('18')
+  })
+
+  it('still zero-rates an export even when the company has a rate set', () => {
+    // The export rule wins: an invoice under an LUT carries no tax line at
+    // all, whatever the company normally charges at home.
+    expect(defaultGstFor('USD', 12)).toBe('0')
   })
 })

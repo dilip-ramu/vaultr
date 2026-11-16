@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import DocumentForm, { type DocInitial } from '@/components/documents/DocumentForm'
 import { docConfigFor } from '@/lib/documents/config'
 import { orderDocLines } from '@/lib/orders/toDocument'
+import { defaultGstFor } from '@/lib/documents/money'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,13 +20,25 @@ export default async function NewCustomerDocumentPage({
   const uid = user!.id
 
   const [{ data: companies }, { data: customers }, { data: existing }] = await Promise.all([
-    supabase.from('companies').select('id, name, invoice_prefix').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
+    supabase.from('companies').select('id, name, invoice_prefix, cgst_rate, sgst_rate').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
     supabase.from('customers').select('id, name, gst_number, address, state, city').eq('user_id', uid).order('name'),
     supabase.from('documents').select('company_id, number').eq('user_id', uid).eq('doc_type', type).eq('party_kind', 'customer'),
   ])
 
-  const companyOpts = (companies ?? []).map(c => ({ id: c.id as string, name: c.name as string, prefix: (c.invoice_prefix as string | null) ?? '' }))
+  // The company's own GST rate is stored as its two halves, and a document
+  // line carries the whole rate — so CGST 6 + SGST 6 reaches the form as 12.
+  const companyOpts = (companies ?? []).map(c => ({
+    id: c.id as string, name: c.name as string, prefix: (c.invoice_prefix as string | null) ?? '',
+    gstRate: c.cgst_rate == null && c.sgst_rate == null ? null : (Number(c.cgst_rate) || 0) + (Number(c.sgst_rate) || 0),
+  }))
   const parties = (customers ?? []).map(c => ({ id: c.id as string, name: c.name as string, gstin: (c.gst_number as string | null) ?? null, address: (c.address as string | null) ?? null, state: ((c.state as string | null) || (c.city as string | null)) ?? null }))
+
+
+  // One rule for the starting tax rate, so a sales order, a purchase order
+  // and an invoice raised off the same order cannot disagree. See
+  // lib/documents/money.ts — currency first, then the company's own rate.
+  const companyGst = (id: string | null | undefined) =>
+    companyOpts.find(c => c.id === id)?.gstRate ?? companyOpts[0]?.gstRate ?? null
 
   let initial: DocInitial | undefined
   let sourceId: string | null = null
@@ -90,6 +103,7 @@ export default async function NewCustomerDocumentPage({
         list.push({ label: String((s as Record<string, unknown>).label ?? ''), qty: Number((s as Record<string, unknown>).qty) || 0 })
         sizesByLine.set(k, list)
       }
+      const docCurrency = String(ord.currency ?? 'INR')
       initial = {
         companyId: (ord.company_id as string | null) ?? '',
         partyId: (ord.customer_id as string | null) ?? '',
@@ -101,7 +115,7 @@ export default async function NewCustomerDocumentPage({
         // The customer agreed a price in THEIR currency, so that is what the
         // sales order and the proforma are written in. Rupees appear only on
         // the purchase order and on the P/L.
-        currency: String(ord.currency ?? 'INR'),
+        currency: docCurrency,
         lines: orderDocLines((ol ?? []).map((l: Record<string, unknown>) => ({
           item: String(l.item ?? ''),
           description: (l.description as string | null) ?? null,
@@ -110,7 +124,7 @@ export default async function NewCustomerDocumentPage({
           sellRate: Number(l.sell_rate) || 0,
           costRate: Number(l.cost_rate) || 0,
           sizes: sizesByLine.get(String(l.id)) ?? [],
-        })), 'sell'),
+        })), 'sell', defaultGstFor(docCurrency, companyGst(ord.company_id as string | null))),
       }
     }
   }

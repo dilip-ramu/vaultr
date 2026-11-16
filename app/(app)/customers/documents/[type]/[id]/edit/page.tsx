@@ -22,13 +22,18 @@ export default async function EditCustomerDocumentPage({ params }: { params: Pro
   const [{ data: doc }, { data: lines }, { data: companies }, { data: customers }, { data: existing }] = await Promise.all([
     supabase.from('documents').select('*').eq('id', id).eq('user_id', uid).maybeSingle(),
     supabase.from('document_lines').select('*').eq('document_id', id).order('line_number', { ascending: true }),
-    supabase.from('companies').select('id, name, invoice_prefix').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
+    supabase.from('companies').select('id, name, invoice_prefix, cgst_rate, sgst_rate').eq('user_id', uid).order('is_default', { ascending: false }).order('name'),
     supabase.from('customers').select('id, name, gst_number, address, state, city').eq('user_id', uid).order('name'),
     supabase.from('documents').select('company_id, number').eq('user_id', uid).eq('doc_type', type).eq('party_kind', 'customer'),
   ])
   if (!doc || doc.doc_type !== type || doc.party_kind !== 'customer') notFound()
 
-  const companyOpts = (companies ?? []).map(c => ({ id: c.id as string, name: c.name as string, prefix: (c.invoice_prefix as string | null) ?? '' }))
+  // The company's own GST rate is stored as its two halves, and a document
+  // line carries the whole rate — so CGST 6 + SGST 6 reaches the form as 12.
+  const companyOpts = (companies ?? []).map(c => ({
+    id: c.id as string, name: c.name as string, prefix: (c.invoice_prefix as string | null) ?? '',
+    gstRate: c.cgst_rate == null && c.sgst_rate == null ? null : (Number(c.cgst_rate) || 0) + (Number(c.sgst_rate) || 0),
+  }))
   const parties = (customers ?? []).map(c => ({ id: c.id as string, name: c.name as string, gstin: (c.gst_number as string | null) ?? null, address: (c.address as string | null) ?? null, state: ((c.state as string | null) || (c.city as string | null)) ?? null }))
 
   const initial: DocInitial = {

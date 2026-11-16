@@ -66,8 +66,14 @@ export default async function DirectInvoiceFlowPage({
       }
 
       // Export invoices are zero-rated, so the tax defaults to nothing
-      // rather than putting 9 + 9 on a document that must not carry it.
-      const half = String(Number(defaultGstFor(currency)) / 2)
+      // rather than putting 9 + 9 on a document that must not carry it. A
+      // rupee invoice starts at the rate set on the company, halved into
+      // CGST and SGST.
+      const companyRate = (companies ?? []).find(c => c.id === (ord.company_id as string | null))
+      const wholeRate = companyRate
+        ? (Number(companyRate.cgst_rate) || 0) + (Number(companyRate.sgst_rate) || 0)
+        : null
+      const half = String(Number(defaultGstFor(currency, wholeRate)) / 2)
 
       orderInitial = {
         customerId: orderCustomer ?? '',
@@ -84,7 +90,7 @@ export default async function DirectInvoiceFlowPage({
           sellRate: Number(l.sell_rate) || 0,
           costRate: Number(l.cost_rate) || 0,
           sizes: sizesByLine.get(String(l.id)) ?? [],
-        })), 'sell').map(l => ({
+        })), 'sell', defaultGstFor(currency, wholeRate)).map(l => ({
           description: l.item, hsn: l.hsn, qty: l.qty, rate: l.rate,
           cgst: half, sgst: half,
         })),

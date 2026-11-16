@@ -48,7 +48,13 @@ export function docLineText(l: Pick<OrderLineLike, 'item' | 'description' | 'siz
 export function orderDocLines(
   lines: readonly OrderLineLike[],
   side: 'sell' | 'cost',
-  defaultGst = '18',
+  /**
+   * The tax rate every line starts at. Required on purpose: it used to
+   * default to 18, which quietly put Indian GST on export sales orders and
+   * ignored the rate set on the company. Work it out with
+   * `defaultGstFor(currency, companyRate)` and pass it in.
+   */
+  defaultGst: string,
 ): DocLineDraft[] {
   return lines.map(l => ({
     item: docLineText(l),

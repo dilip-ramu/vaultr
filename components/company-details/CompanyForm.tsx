@@ -130,8 +130,10 @@ export default function CompanyForm({ company, existingLogoUrl, existingDocLogoU
         // v67 — flag flows to the API which syncs the customers mirror.
         is_available_as_customer: availableAsCustomer,
         invoice_prefix: invoicePrefix.trim() || 'INV-',
-        cgst_rate: parseFloat(cgstRate) || 9,
-        sgst_rate: parseFloat(sgstRate) || 9,
+        // `|| 9` would turn a deliberate 0% into 9%, so a nil-rated company
+        // could never be saved as one. Blank still falls back to 9.
+        cgst_rate: Number.isFinite(parseFloat(cgstRate)) ? parseFloat(cgstRate) : 9,
+        sgst_rate: Number.isFinite(parseFloat(sgstRate)) ? parseFloat(sgstRate) : 9,
         hsn_sac: hsnSac.trim() || '996812',
         payment_terms: paymentTerms,
         terms_conditions: terms.trim() || null,

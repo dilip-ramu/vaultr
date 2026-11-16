@@ -14,7 +14,11 @@ import { money, defaultGstFor } from '@/lib/documents/money'
 import { CURRENCIES } from '@/lib/currencies'
 import type { LinkKind } from '@/lib/documents/links'
 
-interface CompanyOpt { id: string; name: string; prefix: string }
+interface CompanyOpt {
+  id: string; name: string; prefix: string
+  /** The company's own GST rate, whole (CGST + SGST). null = not set. */
+  gstRate?: number | null
+}
 interface PartyOpt { id: string; name: string; gstin: string | null; address: string | null; state: string | null }
 export interface DocInitial {
   companyId: string; partyId: string; date: string; reference: string; notes: string
@@ -56,6 +60,10 @@ export default function DocumentForm({ side, docType, companies, parties, existi
   const listHref = `/${side === 'customer' ? 'customers' : 'suppliers'}/documents/${docType}`
 
   const companyPrefix = (cid: string) => companies.find(c => c.id === cid)?.prefix ?? ''
+  // The rate a new line starts at. One rule for every document — see
+  // lib/documents/money.ts.
+  const companyGst = (cid: string) => companies.find(c => c.id === cid)?.gstRate ?? null
+  const startingGst = (cur: string, cid: string) => defaultGstFor(cur, companyGst(cid))
   const nextNumber = (cid: string) => buildDocNumber(companyPrefix(cid), cfg.code, existing.filter(e => e.company_id === cid).map(e => e.number))
 
   const [companyId, setCompanyId] = useState(initial?.companyId ?? companies[0]?.id ?? '')
@@ -78,7 +86,10 @@ export default function DocumentForm({ side, docType, companies, parties, existi
     () => ({ ...extraDatesToForm(docType, null), ...(initial?.extraDates ?? {}) }))
   const [numberStr, setNumberStr] = useState(() => initial?.number ?? nextNumber(companies[0]?.id ?? ''))
   const [lines, setLines] = useState<Line[]>(() =>
-    initial?.lines?.length ? initial.lines.map(l => ({ id: ++seq, ...l })) : [{ id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: '18' }])
+    initial?.lines?.length
+      ? initial.lines.map(l => ({ id: ++seq, ...l }))
+      : [{ id: ++seq, item: '', hsn: '', qty: '1', rate: '',
+           gst: defaultGstFor(initial?.currency ?? 'INR', companies.find(c => c.id === (initial?.companyId ?? companies[0]?.id))?.gstRate ?? null) }])
   const [saving, setSaving] = useState(false)
 
   // For NEW documents, show the authoritative next number from the server
@@ -201,7 +212,17 @@ export default function DocumentForm({ side, docType, companies, parties, existi
       <div className="rounded-2xl border p-5 space-y-4" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>Company (from)
-            <select value={companyId} onChange={e => { setCompanyId(e.target.value); if (!isEdit) setNumberStr(nextNumber(e.target.value)) }} className={iCls} style={iStyle}>
+            <select value={companyId} className={iCls} style={iStyle}
+              onChange={e => {
+                const next = e.target.value
+                // Lines still sitting at the old company's rate follow the
+                // new one. A rate typed by hand is left where it is.
+                const before = startingGst(currency, companyId)
+                const after = startingGst(currency, next)
+                setCompanyId(next)
+                if (!isEdit) setNumberStr(nextNumber(next))
+                if (before !== after) setLines(prev => prev.map(l => l.gst === before ? { ...l, gst: after } : l))
+              }}>
               <option value="">— pick —</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -235,7 +256,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
                 // An export document is zero-rated by default: leaving 18%
                 // on a USD invoice would put a tax line on a document that
                 // must not carry one. Still editable per line.
-                setLines(prev => prev.map(l => ({ ...l, gst: defaultGstFor(next) })))
+                setLines(prev => prev.map(l => ({ ...l, gst: startingGst(next, companyId) })))
               }}>
               <option value="INR">INR — Indian Rupee</option>
               {CURRENCIES.filter(c => c.code !== 'INR').map(c => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
@@ -313,7 +334,7 @@ export default function DocumentForm({ side, docType, companies, parties, existi
             })}
           </div>
 
-          <button onClick={() => setLines(prev => [...prev, { id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: defaultGstFor(currency) }])} className="mt-3 md:mt-2 flex items-center justify-center md:justify-start gap-1.5 w-full md:w-auto py-2.5 md:py-0 rounded-xl md:rounded-none text-[13px] md:text-[12px] font-bold" style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}><Plus className="w-4 h-4 md:w-3.5 md:h-3.5" /> Add line</button>
+          <button onClick={() => setLines(prev => [...prev, { id: ++seq, item: '', hsn: '', qty: '1', rate: '', gst: startingGst(currency, companyId) }])} className="mt-3 md:mt-2 flex items-center justify-center md:justify-start gap-1.5 w-full md:w-auto py-2.5 md:py-0 rounded-xl md:rounded-none text-[13px] md:text-[12px] font-bold" style={{ color: 'var(--brand)', background: 'var(--brand-light)' }}><Plus className="w-4 h-4 md:w-3.5 md:h-3.5" /> Add line</button>
         </div>
 
         {initial?.packing?.length ? (

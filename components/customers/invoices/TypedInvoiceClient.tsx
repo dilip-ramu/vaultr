@@ -201,7 +201,8 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
               // An export invoice is zero-rated: leaving 9% + 9% on a USD
               // invoice would put a tax line on a document that must not
               // carry one. Still editable per line.
-              const half = String(Number(defaultGstFor(next)) / 2)
+              const whole = company == null ? null : (Number(company.cgst_rate) || 0) + (Number(company.sgst_rate) || 0)
+              const half = String(Number(defaultGstFor(next, whole)) / 2)
               setLines(prev => prev.map(l => ({ ...l, cgst: half, sgst: half })))
             }}>
             <option value="INR">INR — Indian Rupee</option>

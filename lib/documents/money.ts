@@ -63,13 +63,26 @@ export function plainAmount(amount: number, currency = 'INR', maximumFractionDig
 }
 
 /**
- * Whether a document in this currency should charge Indian GST by default.
+ * The GST rate a new document line starts at. ONE rule, used everywhere, so
+ * a sales order, a purchase order and an invoice cannot disagree:
  *
- * An export invoice is zero-rated — under an LUT no IGST is charged at all.
- * Defaulting a USD document to 18% would put a tax line on a document that
- * must not have one. It is a DEFAULT, not a rule: exports made with payment
- * of tax do carry IGST, and the form still lets you set it.
+ *   1. A document in another currency is zero-rated.
+ *   2. Otherwise the rate set on the company (CGST + SGST).
+ *   3. Otherwise 18.
+ *
+ * Currency wins over the company because an export invoice must not carry a
+ * tax line at all — under an LUT no IGST is charged. Both are DEFAULTS, not
+ * rules: exports made with payment of tax do carry IGST, and every line
+ * stays editable.
+ *
+ * `companyRate` is the company's full rate, not half of it: CGST 6 + SGST 6
+ * is passed as 12.
  */
-export function defaultGstFor(currency: string): string {
-  return (currency || 'INR') === 'INR' ? '18' : '0'
+export function defaultGstFor(currency: string, companyRate?: number | null): string {
+  if ((currency || 'INR') !== 'INR') return '0'
+  // null is 'not set', and Number(null) is 0 — which would quietly make
+  // every company with no rate nil-rated.
+  if (companyRate == null) return '18'
+  const rate = Number(companyRate)
+  return Number.isFinite(rate) && rate >= 0 ? String(rate) : '18'
 }
