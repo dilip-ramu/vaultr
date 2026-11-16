@@ -6,7 +6,7 @@ import {
   CheckCircle2, AlertCircle, Loader2,
   Users, Truck, ReceiptText, FileText, Info, Plus, X, ArrowRight, Building2, Minus,
 } from 'lucide-react'
-import type { ReimbursableInvoiceData } from './ReimbursableInvoicePDF'
+import type { ReimbursableInvoiceData } from './reimbursableInvoiceData'
 
 import ReimbursableDownloadButton from './ReimbursableDownloadButton'
 
