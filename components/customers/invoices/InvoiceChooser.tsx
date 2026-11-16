@@ -18,6 +18,7 @@
 import Link from 'next/link'
 import { Truck, Receipt, FileText, ArrowRight, Search } from 'lucide-react'
 import { FLOWS, FLOW_ORDER, type FlowId } from '@/lib/customers/invoiceFlows'
+import MonthPanel, { type MonthPanelProps } from './MonthPanel'
 import { inr } from '@/lib/assets/valuation'
 
 const ICON: Record<FlowId, typeof Truck> = {
@@ -36,7 +37,14 @@ export interface RecentInvoice {
   invoice_type: 'tax_invoice' | 'reimbursement' | string
 }
 
-export default function InvoiceChooser({ recent }: { recent: RecentInvoice[] }) {
+export default function InvoiceChooser({ recent, month }: {
+  recent: RecentInvoice[]
+  /**
+   * What is waiting this month. Optional: without it the page is exactly what
+   * it was before, three cards and the recent list.
+   */
+  month?: MonthPanelProps
+}) {
   const card = { border: '1px solid var(--border)', background: 'var(--surface)' }
 
   return (
@@ -46,9 +54,20 @@ export default function InvoiceChooser({ recent }: { recent: RecentInvoice[] }) 
           Invoices
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-          What are you making? Each one takes you all the way to the invoice.
+          {month ? 'Where the month stands, and what is left to bill.'
+                 : 'What are you making? Each one takes you all the way to the invoice.'}
         </p>
       </div>
+
+      {/* The month first. A once-a-month job has to be read back, not
+          remembered — see MonthPanel. */}
+      {month && <MonthPanel {...month} />}
+
+      {month && (
+        <p className="text-[11px] uppercase tracking-wide font-extrabold" style={{ color: 'var(--text-faint)' }}>
+          Or start something new
+        </p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {FLOW_ORDER.map(id => {
