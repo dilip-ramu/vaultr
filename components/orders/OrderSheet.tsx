@@ -17,6 +17,7 @@ import { orderDateFlags, whenWords, type DateFlag } from '@/lib/orders/dates'
 import type { OrderFacts, StepKey } from '@/lib/orders/flow'
 import type { SummaryInput } from '@/lib/orders/summaryDoc'
 import OrderStepRail from './OrderStepRail'
+import { billPosition, billTone, billDraftFromOrder } from '@/lib/orders/supplierBill'
 import OrderFilesPanel, { type OrderFileRow } from './OrderFilesPanel'
 import SupplierPackButton from './SupplierPackButton'
 import OrderPayments, { type OrderPaymentRow } from './OrderPayments'
@@ -83,7 +84,7 @@ interface Props {
   /** Everything the supplier-pack summary page needs, built server-side. */
   summary: SummaryInput
   /** The purchase order raised for this order, if there is one. */
-  po: { id: string; number: string; supplierName: string | null } | null
+  po: { id: string; number: string; supplierName: string | null; supplierId: string | null } | null
 }
 
 const DOC_LABEL: Record<string, string> = {
@@ -173,6 +174,37 @@ export default function OrderSheet(p: Props) {
     qty: l.qty, sellRate: l.sell_rate, costRate: l.cost_rate,
     shippedQty: lineShipped(l.shipped_qty, l.sizes),
   }))), [lines])
+
+  // Where the supplier's bills stand against what the order was costed at.
+  // 'Billed ₹0' and 'no bill has arrived' used to look the same on screen,
+  // and the second one means the Actual column is still a forecast.
+  const bill = useMemo(() => billPosition({
+    // Only rupee bills count here; one in another currency is already
+    // called out above rather than silently added in.
+    bills: p.bills.filter(b => (b.currency || 'INR') === 'INR').map(b => ({ amount: Number(b.amount) || 0, isPaid: b.is_paid })),
+    expected: planned.supplierCost,
+    shipped: ship.shipped,
+  }), [p.bills, planned.supplierCost, ship.shipped])
+
+  // A bill raised from here opens at what is LEFT to bill, so a second one
+  // against a part shipment cannot bill the order twice.
+  const billHref = useMemo(() => {
+    const draft = billDraftFromOrder({
+      orderNumber: order.number,
+      poNumber: p.po?.number ?? null,
+      supplierId: p.po?.supplierId ?? null,
+      expected: planned.supplierCost,
+      billed: bill.billed,
+    })
+    const q = new URLSearchParams({
+      fromOrder: order.id,
+      amount: String(draft.amount),
+      notes: draft.notes,
+      ref: p.po?.number ? `order ${order.number} · ${p.po.number}` : `order ${order.number}`,
+    })
+    if (draft.supplierId) q.set('supplier', draft.supplierId)
+    return `/suppliers/invoices?${q.toString()}`
+  }, [order.id, order.number, p.po, planned.supplierCost, bill.billed])
 
   const fullyShipped = ship.ordered > 0 && ship.balance === 0
   const dateFlags = orderDateFlags({ cutoffDate, etd, stage, fullyShipped }, p.today)
@@ -716,6 +748,8 @@ export default function OrderSheet(p: Props) {
         <Attached
           title="Buy side"
           blurb="Purchase orders and the supplier bills."
+          note={{ words: bill.words, tone: billTone(bill) }}
+          action={{ label: 'Supplier bill', href: billHref }}
           locked={locked}
           busy={busy}
           orderId={order.id}
@@ -778,10 +812,15 @@ function Row({ label, a, b, strong, big, muted, negative, bEstimated }: {
 interface AttachedRow { id: string; table: string; label: string; number: string; date: string; amount: string }
 interface FreeRow { id: string; table: string; label: string; date: string }
 
-function Attached({ title, blurb, rows, free, locked, busy, orderId, onLink }: {
+function Attached({ title, blurb, rows, free, locked, busy, orderId, onLink, note, action }: {
   title: string; blurb: string; rows: AttachedRow[]; free: FreeRow[]
   locked: boolean; busy: boolean; orderId: string
   onLink: (table: string, id: string, orderId: string | null) => void
+  /** Where this side stands, said in words rather than left to be inferred. */
+  note?: { words: string; tone: 'plain' | 'warn' | 'bad' | 'good' } | null
+  /** Something to raise from here, so the document is not entered elsewhere
+   *  and linked back by hand. */
+  action?: { label: string; href: string } | null
 }) {
   const [picking, setPicking] = useState(false)
 
@@ -793,11 +832,31 @@ function Attached({ title, blurb, rows, free, locked, busy, orderId, onLink }: {
           <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{blurb}</p>
         </div>
         {!locked && (
-          <button onClick={() => setPicking(v => !v)} className="shrink-0 flex items-center gap-1.5 text-[12px] font-bold" style={{ color: 'var(--brand)' }}>
-            <Link2 className="w-3.5 h-3.5" /> Attach
-          </button>
+          <div className="shrink-0 flex items-center gap-3">
+            {action && (
+              <Link href={action.href} className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: 'var(--brand)' }}>
+                <Plus className="w-3.5 h-3.5" /> {action.label}
+              </Link>
+            )}
+            <button onClick={() => setPicking(v => !v)} className="flex items-center gap-1.5 text-[12px] font-bold" style={{ color: 'var(--brand)' }}>
+              <Link2 className="w-3.5 h-3.5" /> Attach
+            </button>
+          </div>
         )}
       </div>
+
+      {note && (
+        <p className="text-[12.5px] rounded-xl px-3 py-2"
+          style={{
+            background: note.tone === 'bad' ? 'color-mix(in srgb, var(--expense) 10%, transparent)'
+              : note.tone === 'warn' ? 'color-mix(in srgb, var(--amber) 14%, transparent)'
+              : 'var(--surface-2)',
+            color: note.tone === 'bad' ? 'var(--expense)' : 'var(--text-muted)',
+            fontWeight: note.tone === 'bad' ? 700 : 400,
+          }}>
+          {note.words}
+        </p>
+      )}
 
       {picking && (
         <div className="rounded-xl border max-h-56 overflow-y-auto" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>

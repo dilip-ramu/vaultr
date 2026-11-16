@@ -21,6 +21,19 @@ interface Props {
   loadError?: string | null
   onSaved: (inv: SupplierInvoice) => void
   onClose: () => void
+  /**
+   * A bill being raised FROM an order: the supplier, what is left to bill and
+   * the reference come across, and the saved bill is filed against that order
+   * so the profit and loss picks up the real cost without anyone remembering
+   * to link it afterwards.
+   */
+  prefill?: {
+    orderId: string
+    orderLabel: string
+    supplierId?: string | null
+    amount?: string | null
+    notes?: string | null
+  } | null
 }
 
 const EMPTY = {
@@ -62,7 +75,18 @@ const RECOVERABLE_STATUS_OPTIONS = [
   { value: 'written_off',      label: 'Written Off' },
 ]
 
-export default function SupplierInvoiceForm({ invoice, suppliers, companies = [], loadError = null, onSaved, onClose }: Props) {
+export default function SupplierInvoiceForm({ invoice, suppliers, companies = [], loadError = null, onSaved, onClose, prefill = null }: Props) {
+  // A new bill raised from an order starts from the order's figures. Goods
+  // bought for an order are a direct cost, not something recovered from a
+  // customer, so is_recoverable is off here even though it defaults on.
+  const emptyForm = prefill ? {
+    ...EMPTY,
+    supplier_id: prefill.supplierId ?? '',
+    amount: prefill.amount ?? '',
+    notes: prefill.notes ?? '',
+    is_recoverable: false,
+  } : EMPTY
+
   const [form, setForm] = useState(() => invoice ? {
     ...EMPTY,
     supplier_id: invoice.supplier_id,
@@ -91,7 +115,7 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
     hsn_sac: (invoice as { hsn_sac?: string | null }).hsn_sac ?? '',
     itc_eligible: (invoice as { itc_eligible?: boolean }).itc_eligible !== false,
     reverse_charge: (invoice as { reverse_charge?: boolean }).reverse_charge === true,
-  } : { ...EMPTY })
+  } : { ...emptyForm })
 
   // ── GST split ─────────────────────────────────────────────────────────────
   // The bill total is what you have in front of you, so that's what you type.
@@ -239,6 +263,9 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
         igst_amount: gstSplit.igst,
         itc_eligible: form.itc_eligible,
         reverse_charge: form.reverse_charge,
+        // Filed against the order it was raised from, so the order's profit
+        // and loss uses the real cost rather than the costed one.
+        ...(prefill?.orderId && !invoice ? { order_id: prefill.orderId } : {}),
       }
 
       const url = invoice ? `/api/supplier-invoices/${invoice.id}` : '/api/supplier-invoices'
@@ -264,10 +291,21 @@ export default function SupplierInvoiceForm({ invoice, suppliers, companies = []
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl" style={{ backgroundColor: 'var(--surface)' }}>
         <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
-            {invoice ? 'Edit Invoice' : 'New Supplier Invoice'}
+            {invoice ? 'Edit Invoice' : prefill ? `Supplier bill for ${prefill.orderLabel}` : 'New Supplier Invoice'}
           </h2>
           <button onClick={onClose} style={{ color: 'var(--text-muted)' }}><X className="w-5 h-5" /></button>
         </div>
+
+        {/* Said out loud: a bill raised from an order files itself against
+            that order, which is the whole point of the button. */}
+        {prefill && !invoice && (
+          <p className="mx-6 mt-4 rounded-xl px-3 py-2 text-[12.5px]"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            This bill will be attached to <b style={{ color: 'var(--text)' }}>{prefill.orderLabel}</b>, so
+            that order&rsquo;s profit and loss uses the real cost. The amount is what is left to bill —
+            change it to whatever the supplier has actually invoiced.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && <div className="px-4 py-3 rounded-xl text-sm   border border-[var(--border)]">{error}</div>}

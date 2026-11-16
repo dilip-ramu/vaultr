@@ -43,7 +43,19 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
   const [invoices, setInvoices] = useState<InvoiceExt[]>(
     initialInvoices.map(i => ({ ...i, status: computeInvoiceStatus(i) })) as InvoiceExt[]
   )
-  const [showForm, setShowForm]           = useState(false)
+  // Arriving from an order: ?fromOrder=<id> opens the bill form already
+  // filled in, so the supplier bill is raised where the rest of the order's
+  // paperwork is raised instead of being entered here and linked by hand.
+  const fromOrder = searchParams.get('fromOrder')
+  const orderPrefill = fromOrder ? {
+    orderId: fromOrder,
+    orderLabel: searchParams.get('ref') || 'this order',
+    supplierId: searchParams.get('supplier'),
+    amount: searchParams.get('amount'),
+    notes: searchParams.get('notes'),
+  } : null
+
+  const [showForm, setShowForm]           = useState(!!fromOrder)
   const [editing, setEditing]             = useState<InvoiceExt | null>(null)
   const [showBulkPay, setShowBulkPay]     = useState(false)
   // payingIds is independent of checkbox selection — avoids overwriting multi-select
@@ -155,6 +167,14 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  /** Leaving the form. A bill raised from an order returns to that order, so
+   *  the figure it just changed can be seen where it matters. */
+  function closeForm() {
+    setShowForm(false)
+    setEditing(null)
+    if (orderPrefill) router.push(`/orders/${orderPrefill.orderId}`)
+  }
+
   function handleSaved(saved: SupplierInvoice) {
     const enrichedSaved = { ...saved, status: computeInvoiceStatus(saved) } as InvoiceExt
     setInvoices(prev => {
@@ -163,6 +183,7 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
     })
     setShowForm(false)
     setEditing(null)
+    if (orderPrefill) router.push(`/orders/${orderPrefill.orderId}`)
   }
 
   async function handleDelete(id: string) {
@@ -1185,8 +1206,9 @@ export default function SupplierInvoicesClient({ initialInvoices, suppliers, acc
           suppliers={suppliers}
           companies={companies}
           loadError={loadError}
+          prefill={editing ? null : orderPrefill}
           onSaved={handleSaved}
-          onClose={() => { setShowForm(false); setEditing(null) }}
+          onClose={closeForm}
         />
       )}
       {showBulkPay && (

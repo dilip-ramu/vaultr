@@ -123,11 +123,17 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   // The purchase order already raised, if any — the supplier pack puts it in
   // the zip and names the zip after it.
   const poDoc = (docs ?? []).find(d => d.doc_type === 'purchase_order') ?? null
-  let po: { id: string; number: string; supplierName: string | null } | null = null
+  let po: { id: string; number: string; supplierName: string | null; supplierId: string | null } | null = null
   if (poDoc) {
     const { data: full } = await supabase.from('documents')
-      .select('party_name').eq('id', poDoc.id).maybeSingle()
-    po = { id: String(poDoc.id), number: String(poDoc.number), supplierName: (full?.party_name as string | null) ?? null }
+      .select('party_name, party_id').eq('id', poDoc.id).maybeSingle()
+    po = {
+      id: String(poDoc.id), number: String(poDoc.number),
+      supplierName: (full?.party_name as string | null) ?? null,
+      // Carried so a bill raised from the order opens with the right supplier
+      // already chosen.
+      supplierId: (full?.party_id as string | null) ?? null,
+    }
   }
 
   // Branding for the one-page summary in the supplier pack — the same
