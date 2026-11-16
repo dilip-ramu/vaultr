@@ -33,6 +33,16 @@ interface TypedLineInput {
   hsn?: string
   cgst?: number
   sgst?: number
+  /**
+   * Which order this line bills, and which of its lines.
+   *
+   * The money is on the line, so the order belongs on the line too: that is
+   * what lets one invoice cover two customer POs and two invoices split one.
+   * The header's orderId still records which order the invoice was raised
+   * from. See lib/orders/invoiceAllocation.ts.
+   */
+  orderId?: string | null
+  orderLineId?: string | null
 }
 
 export async function POST(req: NextRequest) {
@@ -86,6 +96,10 @@ export async function POST(req: NextRequest) {
       hsn:  (l.hsn ?? '').trim(),
       cgst: Number(l.cgst ?? 0),
       sgst: Number(l.sgst ?? 0),
+      // Which order this line bills. A line that names none falls back to
+      // the invoice's own order further down.
+      orderId: l.orderId ?? null,
+      orderLineId: l.orderLineId ?? null,
     }))
     .filter(l => l.description && l.qty > 0 && l.rate > 0)
 
@@ -143,6 +157,9 @@ export async function POST(req: NextRequest) {
       cgst_amount: r2(amount * cgstRate / 100),
       sgst_rate:   sgstRate,
       sgst_amount: r2(amount * sgstRate / 100),
+      // Carried through from the form so the line keeps the order it bills.
+      order_id:      l.orderId ?? null,
+      order_line_id: l.orderLineId ?? null,
     }
   })
 
@@ -203,6 +220,11 @@ export async function POST(req: NextRequest) {
   const lineRows = lines.map(l => ({
     user_id:     user.id,
     invoice_id:  invoiceId,
+    // A line with no order of its own falls back to the invoice's, so an
+    // invoice raised from one order tags all of its lines without the form
+    // having to say so line by line.
+    order_id:      l.order_id ?? (body.orderId ?? null),
+    order_line_id: l.order_line_id ?? null,
     line_number: l.line_number,
     item_type:   'tax_invoice_line',
     description: l.description,

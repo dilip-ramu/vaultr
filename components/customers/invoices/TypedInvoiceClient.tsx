@@ -23,7 +23,12 @@ export interface InitialInvoice {
   signatoryId?: string | null
   /** The currency the invoice is raised in. Defaults to INR. */
   currency?: string
-  lines: { description: string; hsn: string; qty: string; rate: string; cgst: string; sgst: string }[]
+  lines: {
+    description: string; hsn: string; qty: string; rate: string; cgst: string; sgst: string
+    /** Which order and order line this bills, when it came from one. */
+    orderId?: string | null
+    orderLineId?: string | null
+  }[]
 }
 interface Props {
   customers: CustomerOption[]
@@ -36,6 +41,11 @@ interface Props {
   sourceDocId?: string | null
   /** Raised from an order — the invoice is filed against it. */
   orderId?: string | null
+  /**
+   * The customer's other open orders, with their billable lines ready.
+   * Adding one puts a second PO on the same invoice.
+   */
+  otherOrders?: { id: string; number: string; currency: string; lines: Omit<LineDraft, 'key'>[] }[]
 }
 
 interface LineDraft {
@@ -46,6 +56,13 @@ interface LineDraft {
   rate: string
   cgst: string
   sgst: string
+  /**
+   * The order this line bills. The money is on the line, so the order is too:
+   * that is what lets one invoice cover two customer POs and two invoices
+   * split one. See lib/orders/invoiceAllocation.ts.
+   */
+  orderId?: string | null
+  orderLineId?: string | null
 }
 
 const PAYMENT_TERMS: { value: string; label: string }[] = [
@@ -64,7 +81,7 @@ const fmt = moneyExact
 let seq = 0
 const newKey = () => `l${++seq}`
 
-export default function TypedInvoiceClient({ customers, companies, initialCustomerId, invoiceId = null, initial, sourceDocId = null, orderId = null }: Props) {
+export default function TypedInvoiceClient({ customers, companies, initialCustomerId, invoiceId = null, initial, sourceDocId = null, orderId = null, otherOrders = [] }: Props) {
   const router = useRouter()
   const isEdit = !!invoiceId
   const defaultCompany = companies.find(c => c.is_default) ?? companies[0] ?? null
@@ -118,6 +135,25 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
   const canSave = customerId &&
     lines.some(l => l.description.trim() && Number(l.qty) > 0 && Number(l.rate) > 0)
 
+  /** Which orders this invoice is billing, from the lines themselves. */
+  const usedOrders = useMemo(
+    () => [...new Set(lines.map(l => l.orderId).filter((x): x is string => !!x))],
+    [lines])
+
+  // An order already on the invoice is not offered again: its lines are here.
+  const available = useMemo(
+    () => otherOrders.filter(o => !usedOrders.includes(o.id) && o.lines.length > 0),
+    [otherOrders, usedOrders])
+
+  /** Drop another order's billable lines onto this invoice. */
+  function addOrderLines(o: { id: string; number: string; lines: Omit<LineDraft, 'key'>[] }) {
+    setLines(prev => [
+      ...prev.filter(l => l.description.trim() || Number(l.qty) > 0 || Number(l.rate) > 0),
+      ...o.lines.map(l => ({ ...l, key: newKey() })),
+    ])
+    notify(`Added ${o.lines.length} line${o.lines.length === 1 ? '' : 's'} from ${o.number}`, 'success')
+  }
+
   async function handleCreate() {
     if (!customerId) { notify('Pick a customer first', 'error'); return }
     const payloadLines = lines
@@ -129,6 +165,9 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
         hsn: l.hsn.trim(),
         cgst: Number(l.cgst) || 0,
         sgst: Number(l.sgst) || 0,
+        // Carried so each order's figure follows its own lines.
+        orderId: l.orderId ?? orderId ?? null,
+        orderLineId: l.orderLineId ?? null,
       }))
     if (!payloadLines.length) { notify('Add at least one complete line', 'error'); return }
 
@@ -267,10 +306,35 @@ export default function TypedInvoiceClient({ customers, companies, initialCustom
             </tbody>
           </table>
         </div>
-        <div className="px-3 py-2" style={{ borderTop: '1px solid var(--border-2)', background: 'var(--surface)' }}>
+        <div className="px-3 py-2 flex flex-wrap items-center gap-2" style={{ borderTop: '1px solid var(--border-2)', background: 'var(--surface)' }}>
           <button onClick={addLine} className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg" style={{ color: 'var(--brand)', background: 'var(--surface-2)' }}>
             <Plus className="w-4 h-4" /> Add line
           </button>
+
+          {/* A second customer PO on the same invoice. Each line arrives
+              tagged with its own order, so both orders' figures stay right
+              without anything being split by hand. */}
+          {available.length > 0 && (
+            <select
+              value=""
+              onChange={e => { const o = available.find(x => x.id === e.target.value); if (o) addOrderLines(o) }}
+              className="px-3 py-1.5 rounded-lg text-sm font-semibold"
+              style={{ color: 'var(--brand)', background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+            >
+              <option value="">+ Add another order&rsquo;s lines…</option>
+              {available.map(o => (
+                <option key={o.id} value={o.id}>
+                  {o.number} — {o.lines.length} line{o.lines.length === 1 ? '' : 's'} to bill
+                </option>
+              ))}
+            </select>
+          )}
+
+          {usedOrders.length > 1 && (
+            <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+              This invoice covers {usedOrders.length} orders.
+            </span>
+          )}
         </div>
       </div>
 

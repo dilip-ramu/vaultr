@@ -43,7 +43,12 @@ export interface LineRow {
 }
 export interface CostRow { id: string; name: string; sign: number; basis: CostLine['basis']; planned: number; actual: number | null }
 export interface DocRow { id: string; doc_type: string; number: string; date: string; total: number }
-export interface CustInvRow { id: string; invoice_number: string; invoice_date: string; total: number; currency: string; status: string }
+export interface CustInvRow {
+  id: string; invoice_number: string; invoice_date: string; total: number; currency: string; status: string
+  /** How much of this invoice belongs to THIS order. Differs from the total
+   *  on an invoice that covers two POs. */
+  share?: number
+}
 export interface BillRow { id: string; invoice_number: string | null; invoice_date: string; amount: number; currency: string; is_paid: boolean }
 
 interface Props {
@@ -744,7 +749,20 @@ export default function OrderSheet(p: Props) {
           rows={[
             ...p.docs.filter(d => ['quotation', 'proforma_gst', 'sales_order', 'delivery_challan', 'credit_note'].includes(d.doc_type))
               .map(d => ({ id: d.id, table: 'documents', label: DOC_LABEL[d.doc_type] ?? d.doc_type, number: d.number, date: d.date, amount: inr0(d.total) })),
-            ...p.custInvoices.map(i => ({ id: i.id, table: 'recoverable_invoices', label: 'Customer invoice', number: i.invoice_number, date: i.invoice_date, amount: money(i.total, i.currency || 'INR') })),
+            ...p.custInvoices.map(i => {
+              // An invoice covering two POs shows what is this order's, so it
+              // does not read as if the whole thing were against this order.
+              const share = typeof i.share === 'number' ? i.share : i.total
+              const partial = Math.abs(share - i.total) > 0.01
+              return {
+                id: i.id, table: 'recoverable_invoices',
+                label: partial ? 'Customer invoice · shared' : 'Customer invoice',
+                number: i.invoice_number, date: i.invoice_date,
+                amount: partial
+                  ? `${money(share, i.currency || 'INR')} of ${money(i.total, i.currency || 'INR')}`
+                  : money(i.total, i.currency || 'INR'),
+              }
+            }),
           ]}
           free={[
             ...p.freeSellDocs.map(d => ({ id: d.id, table: 'documents', label: `${DOC_LABEL[d.doc_type] ?? d.doc_type} ${d.number}`, date: d.date })),

@@ -8,10 +8,72 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import TypedInvoiceClient from '@/components/customers/invoices/TypedInvoiceClient'
 import FlowShell from '@/components/customers/invoices/FlowShell'
-import { orderDocLines } from '@/lib/orders/toDocument'
 import { defaultGstFor } from '@/lib/documents/money'
+import { billableLines } from '@/lib/orders/invoiceAllocation'
 
 export const dynamic = 'force-dynamic'
+
+/** An invoice line as the form takes it, carrying the order it bills. */
+interface OrderDraftLine {
+  description: string; hsn: string; qty: string; rate: string; cgst: string; sgst: string
+  orderId: string | null
+  orderLineId: string | null
+}
+
+/**
+ * The lines of one order, ready to drop onto an invoice.
+ *
+ * Prefilled from what has SHIPPED less what is already invoiced, so a part
+ * shipment invoices itself and the next invoice picks up the rest. Each line
+ * carries its order, which is what lets one invoice cover two POs.
+ */
+async function orderBillableLines(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  uid: string,
+  orderId: string,
+  half: string,
+  defaultHsn: string,
+): Promise<OrderDraftLine[]> {
+  const [{ data: ol }, { data: sizes }, { data: invLines }] = await Promise.all([
+    supabase.from('order_lines').select('id, item, qty, sell_rate, shipped_qty, hsn_sac').eq('order_id', orderId).order('line_number'),
+    supabase.from('order_line_sizes').select('line_id, qty, shipped_qty').eq('order_id', orderId),
+    supabase.from('recoverable_invoice_lines').select('order_line_id, qty').eq('user_id', uid).eq('order_id', orderId),
+  ])
+
+  // A line's shipped figure comes from its sizes once they carry one.
+  const shippedByLine = new Map<string, number>()
+  for (const z of (sizes ?? []) as { line_id: string; shipped_qty: number }[]) {
+    shippedByLine.set(String(z.line_id), (shippedByLine.get(String(z.line_id)) ?? 0) + (Number(z.shipped_qty) || 0))
+  }
+
+  const already: Record<string, number> = {}
+  for (const l of (invLines ?? []) as { order_line_id: string | null; qty: number }[]) {
+    if (!l.order_line_id) continue
+    already[String(l.order_line_id)] = (already[String(l.order_line_id)] ?? 0) + (Number(l.qty) || 0)
+  }
+
+  const rows = ((ol ?? []) as Record<string, unknown>[]).map(l => ({
+    id: String(l.id),
+    item: String(l.item ?? ''),
+    qty: Number(l.qty) || 0,
+    shippedQty: shippedByLine.get(String(l.id)) || Number(l.shipped_qty) || 0,
+    sellRate: Number(l.sell_rate) || 0,
+    hsn: (l.hsn_sac as string | null) ?? null,
+  }))
+
+  return billableLines(rows, already).map(b => {
+    const src = rows.find(r => r.id === b.orderLineId)
+    return {
+      description: b.item,
+      hsn: (src?.hsn ?? '') || defaultHsn,
+      qty: String(b.qty),
+      rate: String(b.rate),
+      cgst: half, sgst: half,
+      orderId,
+      orderLineId: b.orderLineId,
+    }
+  })
+}
 
 export default async function DirectInvoiceFlowPage({
   searchParams,
@@ -36,7 +98,7 @@ export default async function DirectInvoiceFlowPage({
   let orderInitial: {
     customerId: string; companyId: string; invoiceDate: string; paymentTerms: string
     notes: string; currency: string
-    lines: { description: string; hsn: string; qty: string; rate: string; cgst: string; sgst: string }[]
+    lines: OrderDraftLine[]
   } | undefined
   let orderCustomer: string | null = null
   if (fromOrder) {
@@ -74,6 +136,7 @@ export default async function DirectInvoiceFlowPage({
         ? (Number(companyRate.cgst_rate) || 0) + (Number(companyRate.sgst_rate) || 0)
         : null
       const half = String(Number(defaultGstFor(currency, wholeRate)) / 2)
+      const defaultHsn = (companyRate?.hsn_sac as string | null) ?? ''
 
       orderInitial = {
         customerId: orderCustomer ?? '',
@@ -82,19 +145,32 @@ export default async function DirectInvoiceFlowPage({
         paymentTerms: 'due_on_receipt',
         notes: '',
         currency,
-        lines: orderDocLines((ol ?? []).map((l: Record<string, unknown>) => ({
-          item: String(l.item ?? ''),
-          description: (l.description as string | null) ?? null,
-          hsn: (l.hsn_sac as string | null) ?? null,
-          qty: Number(l.qty) || 0,
-          sellRate: Number(l.sell_rate) || 0,
-          costRate: Number(l.cost_rate) || 0,
-          sizes: sizesByLine.get(String(l.id)) ?? [],
-        })), 'sell', defaultGstFor(currency, wholeRate)).map(l => ({
-          description: l.item, hsn: l.hsn, qty: l.qty, rate: l.rate,
-          cgst: half, sgst: half,
-        })),
+        // Shipped less already invoiced, each line tagged with this order.
+        lines: await orderBillableLines(supabase, user.id, fromOrder, half, defaultHsn),
       }
+    }
+  }
+
+  // ── A second PO on the same invoice ───────────────────────────────────────
+  //
+  // One invoice often covers two of a customer's POs. The other open orders
+  // for the same customer come with their billable lines ready, so adding
+  // them is one click rather than retyping an order.
+  const forCustomer = orderCustomer ?? customer ?? null
+  let otherOrders: { id: string; number: string; currency: string; lines: OrderDraftLine[] }[] = []
+  if (forCustomer) {
+    const { data: others } = await supabase.from('orders')
+      .select('id, number, currency, stage')
+      .eq('user_id', user.id).eq('customer_id', forCustomer)
+      .not('stage', 'in', '(closed,cancelled)')
+      .order('order_date', { ascending: false })
+      .limit(20)
+    const half = orderInitial ? orderInitial.lines[0]?.cgst ?? '0' : '0'
+    for (const o of (others ?? []) as { id: string; number: string; currency: string }[]) {
+      if (fromOrder && String(o.id) === fromOrder) continue
+      const lines = await orderBillableLines(supabase, user.id, String(o.id), half, '')
+      if (lines.length === 0) continue
+      otherOrders.push({ id: String(o.id), number: String(o.number), currency: String(o.currency ?? 'INR'), lines })
     }
   }
 
@@ -108,6 +184,7 @@ export default async function DirectInvoiceFlowPage({
         initialCustomerId={orderCustomer ?? customer ?? null}
         initial={orderInitial as never}
         orderId={fromOrder ?? null}
+        otherOrders={otherOrders}
       />
     </FlowShell>
   )

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { invoicedForOrder, type InvoiceLike } from '@/lib/orders/invoiceAllocation'
 import { notFound } from 'next/navigation'
 import OrderSheet, {
   type OrderRow, type CostRow, type DocRow, type CustInvRow, type BillRow,
@@ -183,7 +184,73 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   // In rupees, so it sits beside the supplier side. An export invoice is in
   // the customer's currency, converted at whatever rate the order holds.
   const invoiceRate = Number(order.realised_rate) || Number(order.booked_rate) || 1
-  const invoicedTotal = (custInvoices ?? []).reduce((t, i) => t + (Number(i.total) || 0), 0) * invoiceRate
+
+  // ── What this order has been invoiced ─────────────────────────────────────
+  //
+  // One invoice can cover two customer POs and one PO can be invoiced in two
+  // goes, so the figure comes off the invoice LINES rather than the header.
+  // An invoice whose lines carry no tag still counts in full against the
+  // order it was raised from — see lib/orders/invoiceAllocation.ts.
+  const { data: myInvLines } = await supabase
+    .from('recoverable_invoice_lines')
+    .select('invoice_id')
+    .eq('user_id', uid)
+    .eq('order_id', id)
+
+  // An invoice raised from ANOTHER order that bills some of this one still
+  // belongs on this order's paperwork, so it is fetched too.
+  const headerIds = new Set(((custInvoices ?? []) as { id: string }[]).map(i => String(i.id)))
+  const extraIds = [...new Set(((myInvLines ?? []) as { invoice_id: string }[]).map(l => String(l.invoice_id)))]
+    .filter(x => !headerIds.has(x))
+  const { data: sharedInv } = extraIds.length
+    ? await supabase.from('recoverable_invoices')
+        .select('id, invoice_number, invoice_date, total, currency, status')
+        .eq('user_id', uid).in('id', extraIds)
+    : { data: [] as Record<string, unknown>[] }
+
+  const allCustInvoices = [...((custInvoices ?? []) as Record<string, unknown>[]), ...((sharedInv ?? []) as Record<string, unknown>[])]
+  const allInvoiceIds = allCustInvoices.map(i => String(i.id))
+
+  // Every line of those invoices, including the ones belonging to other
+  // orders: without them there is no telling a tagged invoice from an
+  // untagged one.
+  const { data: theirLines } = allInvoiceIds.length
+    ? await supabase.from('recoverable_invoice_lines')
+        .select('invoice_id, order_id, amount')
+        .eq('user_id', uid).in('invoice_id', allInvoiceIds)
+    : { data: [] as Record<string, unknown>[] }
+
+  const linesByInvoice = new Map<string, { orderId: string | null; amount: number }[]>()
+  for (const l of (theirLines ?? []) as { invoice_id: string; order_id: string | null; amount: number }[]) {
+    const list = linesByInvoice.get(String(l.invoice_id)) ?? []
+    list.push({ orderId: l.order_id ?? null, amount: Number(l.amount) || 0 })
+    linesByInvoice.set(String(l.invoice_id), list)
+  }
+  const invoiceModels: InvoiceLike[] = allCustInvoices.map(i => ({
+    id: String(i.id),
+    orderId: (i.order_id as string | null) ?? null,
+    total: Number(i.total) || 0,
+    lines: linesByInvoice.get(String(i.id)) ?? [],
+  }))
+
+  const invoicedFx = invoicedForOrder(invoiceModels, id)
+  const invoicedTotal = invoicedFx * invoiceRate
+
+  // Each invoice with the share that belongs to THIS order, so a shared one
+  // can say '₹4,00,000 of ₹6,50,000 on this order' rather than looking as if
+  // the whole invoice were against it.
+  const custInvoiceRows = invoiceModels.map(m => {
+    const row = allCustInvoices.find(i => String(i.id) === m.id)!
+    return {
+      id: m.id,
+      invoice_number: String(row.invoice_number ?? ''),
+      invoice_date: String(row.invoice_date ?? ''),
+      total: Number(row.total) || 0,
+      currency: String(row.currency ?? 'INR'),
+      status: String(row.status ?? ''),
+      share: invoicedForOrder([m], id),
+    }
+  })
 
   // Today from the server, so the sheet and the list agree on what is late.
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
@@ -195,7 +262,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
       lines={lineRows}
       costs={(costs ?? []) as CostRow[]}
       docs={(docs ?? []) as DocRow[]}
-      custInvoices={(custInvoices ?? []) as CustInvRow[]}
+      custInvoices={custInvoiceRows as CustInvRow[]}
       bills={(bills ?? []) as BillRow[]}
       freeSellDocs={(freeSellDocs ?? []) as DocRow[]}
       freeBuyDocs={(freeBuyDocs ?? []) as DocRow[]}

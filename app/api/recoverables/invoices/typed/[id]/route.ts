@@ -16,7 +16,12 @@ function calcDueDate(invoiceDate: string, paymentTerms: string): string {
 }
 const r2 = (n: number) => Math.round(n * 100) / 100
 
-interface TypedLineInput { description: string; qty: number; rate: number; hsn?: string; cgst?: number; sgst?: number }
+interface TypedLineInput {
+  description: string; qty: number; rate: number; hsn?: string; cgst?: number; sgst?: number
+  /** The order this line bills — see lib/orders/invoiceAllocation.ts. */
+  orderId?: string | null
+  orderLineId?: string | null
+}
 type RouteContext = { params: Promise<{ id: string }> }
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
@@ -36,12 +41,15 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   if (!customerId) return NextResponse.json({ error: 'customerId is required' }, { status: 400 })
 
   // Existing invoice — must be a typed tax invoice owned by the user.
-  const { data: existing } = await supabase.from('recoverable_invoices').select('id, invoice_type, paid_amount').eq('id', id).eq('user_id', user.id).maybeSingle()
+  const { data: existing } = await supabase.from('recoverable_invoices').select('id, invoice_type, paid_amount, order_id').eq('id', id).eq('user_id', user.id).maybeSingle()
   if (!existing) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
   if (existing.invoice_type !== 'tax_invoice') return NextResponse.json({ error: 'Only typed tax invoices can be edited here.' }, { status: 400 })
 
   const inputLines = (rawLines ?? [])
-    .map(l => ({ description: (l.description ?? '').trim(), qty: Number(l.qty ?? 0), rate: Number(l.rate ?? 0), hsn: (l.hsn ?? '').trim(), cgst: Number(l.cgst ?? 0), sgst: Number(l.sgst ?? 0) }))
+    // orderId / orderLineId are carried through on purpose: the lines are
+    // deleted and reinserted below, so anything not carried is LOST. Dropping
+    // them would quietly un-invoice every order this invoice bills.
+    .map(l => ({ description: (l.description ?? '').trim(), qty: Number(l.qty ?? 0), rate: Number(l.rate ?? 0), hsn: (l.hsn ?? '').trim(), cgst: Number(l.cgst ?? 0), sgst: Number(l.sgst ?? 0), orderId: l.orderId ?? null, orderLineId: l.orderLineId ?? null }))
     .filter(l => l.description && l.qty > 0 && l.rate > 0)
   if (!inputLines.length) return NextResponse.json({ error: 'Add at least one line with a description, qty and rate.' }, { status: 400 })
 
@@ -56,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
   const lines = inputLines.map((l, i) => {
     const cgstRate = l.cgst || defCgst, sgstRate = l.sgst || defSgst, amount = r2(l.qty * l.rate)
-    return { line_number: i + 1, description: l.description, hsn_sac: l.hsn || defHsn, qty: Math.round(l.qty), rate: l.rate, amount, cgst_rate: cgstRate, cgst_amount: r2(amount * cgstRate / 100), sgst_rate: sgstRate, sgst_amount: r2(amount * sgstRate / 100) }
+    return { line_number: i + 1, description: l.description, hsn_sac: l.hsn || defHsn, qty: Math.round(l.qty), rate: l.rate, amount, cgst_rate: cgstRate, cgst_amount: r2(amount * cgstRate / 100), sgst_rate: sgstRate, sgst_amount: r2(amount * sgstRate / 100), order_id: l.orderId, order_line_id: l.orderLineId }
   })
   const subtotal = r2(lines.reduce((s, l) => s + l.amount, 0))
   const cgstAmount = r2(lines.reduce((s, l) => s + l.cgst_amount, 0))
@@ -81,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
   // Replace lines
   await supabase.from('recoverable_invoice_lines').delete().eq('invoice_id', id).eq('user_id', user.id)
-  const lineRows = lines.map(l => ({ user_id: user.id, invoice_id: id, line_number: l.line_number, item_type: 'tax_invoice_line', description: l.description, awb: l.description, hsn_sac: l.hsn_sac, qty: l.qty, base_rate: l.rate, rate: l.rate, amount: l.amount, cgst_rate: l.cgst_rate, cgst_amount: l.cgst_amount, sgst_rate: l.sgst_rate, sgst_amount: l.sgst_amount }))
+  const lineRows = lines.map(l => ({ user_id: user.id, invoice_id: id, line_number: l.line_number, item_type: 'tax_invoice_line', description: l.description, awb: l.description, hsn_sac: l.hsn_sac, qty: l.qty, base_rate: l.rate, rate: l.rate, amount: l.amount, cgst_rate: l.cgst_rate, cgst_amount: l.cgst_amount, sgst_rate: l.sgst_rate, sgst_amount: l.sgst_amount, order_id: l.order_id ?? (existing.order_id as string | null) ?? null, order_line_id: l.order_line_id ?? null }))
   const { error: lineErr } = await supabase.from('recoverable_invoice_lines').insert(lineRows)
   if (lineErr) return NextResponse.json({ error: `Line update failed: ${lineErr.message}` }, { status: 500 })
 
