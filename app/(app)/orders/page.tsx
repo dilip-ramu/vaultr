@@ -95,6 +95,10 @@ export default async function OrdersPage() {
       customer_po_no: o.customer_po_no, order_date: o.order_date,
       stage: o.stage as OrderStage, currency: o.currency,
       value: col.customerValueFx,
+      // Rupees as well as the order's own currency: a list holding $48,000
+      // and ₹2,00,000 cannot be sorted or totalled on the cell figure.
+      valueInr: col.customerValueInr,
+      invoicedInr: actualCustomer * (Number(o.realised_rate) || Number(o.booked_rate) || 1),
       net: col.net, marginPct: col.marginPct,
       estimated: !m.actualIsComplete,
       flags: orderDateFlags({
