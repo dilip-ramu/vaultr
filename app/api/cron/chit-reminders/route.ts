@@ -31,7 +31,10 @@ import {
 import { fieldWords, type Facts } from '@/lib/chit/messageFields'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
-import { monthlyInstallment } from '@/lib/chit/auction'
+import {
+  monthlyInstallment, numberOfMonths, monthlyCommission, bidCeiling,
+} from '@/lib/chit/auction'
+import { BID_STEP } from '@/lib/chit/bidding'
 import { scheduledAuctionDate } from '@/lib/chit/messages'
 
 // Service role: one run covers every user, so RLS is bypassed deliberately.
@@ -72,7 +75,7 @@ export async function GET(req: NextRequest) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
   const { data: groups } = await sb.from('chit_groups')
-    .select('id, user_id, name, chit_value, members, auction_day, start_date, status, reminder_steps, dues_due_days, auction_time')
+    .select('id, user_id, name, chit_value, members, auction_day, start_date, status, reminder_steps, dues_due_days, auction_time, commission_pct, bid_ceiling_pct, commission_model')
     .eq('status', 'active')
 
   // The message library is one set per user, shared by every group, so it is
@@ -121,11 +124,16 @@ export async function GET(req: NextRequest) {
       ? String((future as Record<string, unknown>[])[0].auction_date).slice(0, 10)
       : scheduledAuctionDate(String(g.start_date ?? ''), Number(g.auction_day) || null, monthNumber + 1)
 
-    const [{ data: links }, { data: paid }, { data: log }] = await Promise.all([
+    const [{ data: links }, { data: paid }, { data: log }, { data: windows }] = await Promise.all([
       sb.from('chit_group_members').select('member_id').eq('group_id', groupId),
       sb.from('chit_collections').select('member_id').eq('group_id', groupId).eq('month_number', monthNumber),
       sb.from('chit_message_log').select('step_key, member_id').eq('auction_id', String(auction.id)),
+      // The bidding rules as they were frozen when the window opened, which is
+      // what members were actually told — not today's settings.
+      sb.from('chit_bid_windows').select('ceiling_amount, min_increment, month_number')
+        .eq('group_id', groupId).order('month_number', { ascending: false }).limit(1),
     ])
+    const window = ((windows ?? []) as Record<string, unknown>[])[0]
 
     const memberIds = ((links ?? []) as { member_id: string }[]).map(l => String(l.member_id))
     if (memberIds.length === 0) continue
@@ -173,6 +181,19 @@ export async function GET(req: NextRequest) {
     // it is the next auction, and nothing is ever counted as overdue.
     const dueDate = dueDateFor(auctionDate, nextAuctionDate, g.dues_due_days as number | null)
 
+    // The chit's own terms, the same figures the group screen shows.
+    const terms = {
+      chitValue: Number(g.chit_value) || 0,
+      members: Number(g.members) || 0,
+      commissionPct: Number(g.commission_pct) || 0,
+      bidCeilingPct: Number(g.bid_ceiling_pct) || 0,
+      model: (String(g.commission_model ?? 'MONTHLY') as 'MONTHLY' | 'UPFRONT'),
+    }
+    const totalMonths = numberOfMonths(terms)
+    const auctionDay = Number(g.auction_day) || null
+    const startDate = (g.start_date as string | null) ?? null
+    const endDate = startDate ? scheduledAuctionDate(startDate, auctionDay, totalMonths) : null
+
     for (const d of result.due) {
       const person = ((people ?? []) as Record<string, unknown>[]).find(p => String(p.id) === d.memberId)
       const facts: Facts = {
@@ -184,8 +205,19 @@ export async function GET(req: NextRequest) {
         month,
         monthNumber,
         membersCount: Number(g.members) || null,
+        totalMonths,
+        startDate,
+        endDate,
+        auctionDay,
         chitValue: Number(g.chit_value) || 0,
         installment,
+        commissionPct: Number(g.commission_pct),
+        commissionAmount: monthlyCommission(terms),
+        // What was frozen when bidding opened, if it has; otherwise the rules
+        // as they stand.
+        minBid: window ? Number(window.min_increment) || BID_STEP : BID_STEP,
+        maxDiscount: window ? Number(window.ceiling_amount) || bidCeiling(terms) : bidCeiling(terms),
+        maxDiscountPct: Number(g.bid_ceiling_pct),
         auctionDate,
         auctionTime: (g.auction_time as string | null) ?? null,
         nextAuctionDate,

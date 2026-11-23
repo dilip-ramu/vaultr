@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   FIELDS, field, money, dateWords, safeVar, daysOverdue, valueFor,
-  renderFields, fieldWords, fieldProblem, fieldsFor,
+  renderFields, fieldWords, fieldProblem, fieldsFor, ordinal, trimPct,
   type Facts, type FieldId,
 } from '@/lib/chit/messageFields'
 
@@ -13,6 +13,9 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   bidAmount: 60000, netPayout: 425000,
   bankName: 'HDFC Bank', accountEnding: '123456784321',
   memberCode: 'M-014', today: '2026-11-20',
+  totalMonths: 20, startDate: '2026-04-05', endDate: '2027-11-05', auctionDay: 5,
+  commissionPct: 5, commissionAmount: 25000,
+  minBid: 100, maxDiscount: 150000, maxDiscountPct: 30,
   ...o,
 })
 
@@ -163,5 +166,77 @@ describe('a field used where it cannot be honest', () => {
     expect(all).not.toContain('days_overdue')
     expect(fieldsFor('winner').map(f => f.id)).toContain('net_payout')
     expect(fieldsFor('unpaid').map(f => f.id)).toContain('days_overdue')
+  })
+})
+
+describe('the chit\u2019s own terms', () => {
+  it('gives the length of the chit and where it is', () => {
+    const f = facts()
+    expect(valueFor('total_months', f)).toBe('20')
+    expect(valueFor('months_left', f)).toBe('13')
+    expect(valueFor('start_date', f)).toBe('5 April 2026')
+    expect(valueFor('end_date', f)).toBe('5 November 2027')
+    expect(valueFor('auction_day', f)).toBe('5th')
+  })
+
+  it('gives the rules of the auction', () => {
+    const f = facts()
+    expect(valueFor('commission_pct', f)).toBe('5')
+    expect(valueFor('commission_amount', f)).toBe('25,000')
+    expect(valueFor('min_bid', f)).toBe('100')
+    expect(valueFor('max_discount', f)).toBe('1,50,000')
+    expect(valueFor('max_discount_pct', f)).toBe('30')
+  })
+
+  // The last month is not 'minus one month left'.
+  it('will not report a negative number of months left', () => {
+    expect(valueFor('months_left', facts({ monthNumber: 21 }))).toBeNull()
+    expect(valueFor('months_left', facts({ monthNumber: 20 }))).toBe('0')
+  })
+
+  it('reports a term that has not been set as unknown', () => {
+    expect(valueFor('start_date', facts({ startDate: null }))).toBeNull()
+    expect(valueFor('auction_day', facts({ auctionDay: null }))).toBeNull()
+    expect(valueFor('total_months', facts({ totalMonths: null }))).toBeNull()
+  })
+
+  it('writes the day of the month as people say it', () => {
+    expect(ordinal(1)).toBe('1st')
+    expect(ordinal(2)).toBe('2nd')
+    expect(ordinal(3)).toBe('3rd')
+    expect(ordinal(5)).toBe('5th')
+    expect(ordinal(11)).toBe('11th')
+    expect(ordinal(21)).toBe('21st')
+    expect(ordinal(31)).toBe('31st')
+  })
+
+  it('writes a percentage without trailing zeros, and without a sign', () => {
+    expect(trimPct(5)).toBe('5')
+    expect(trimPct(2.5)).toBe('2.5')
+    expect(trimPct(30.0)).toBe('30')
+    expect(trimPct(Number.NaN)).toBe('0')
+  })
+
+  // These are the chit's own terms, not one member's, so every message may
+  // carry them.
+  it('offers every term to every audience', () => {
+    for (const a of ['all', 'winner', 'unpaid'] as const) {
+      const ids = fieldsFor(a).map(f => f.id)
+      for (const id of ['total_months', 'start_date', 'end_date', 'auction_day',
+        'commission_pct', 'commission_amount', 'min_bid', 'max_discount',
+        'max_discount_pct', 'months_left'] as const) {
+        expect({ audience: a, id, offered: ids.includes(id) })
+          .toEqual({ audience: a, id, offered: true })
+      }
+    }
+  })
+
+  it('has a value for every field in the catalogue', () => {
+    const f = facts()
+    for (const spec of FIELDS) {
+      // Only the winner-and-overdue ones are allowed to be unknown here.
+      expect({ id: spec.id, known: valueFor(spec.id, f) !== null })
+        .toEqual({ id: spec.id, known: true })
+    }
   })
 })

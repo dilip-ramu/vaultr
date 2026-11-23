@@ -35,7 +35,10 @@ import type { Audience } from './reminderSchedule'
 export type FieldId =
   | 'member_name' | 'member_code' | 'bank_name' | 'account_ending'
   | 'group_name' | 'month' | 'month_number' | 'members_count'
+  | 'total_months' | 'months_left' | 'start_date' | 'end_date' | 'auction_day'
   | 'chit_value' | 'installment'
+  | 'commission_pct' | 'commission_amount'
+  | 'min_bid' | 'max_discount' | 'max_discount_pct'
   | 'auction_date' | 'auction_time' | 'next_auction_date'
   | 'amount_due' | 'due_date' | 'dividend' | 'days_overdue'
   | 'bid_amount' | 'net_payout'
@@ -47,7 +50,7 @@ export interface FieldSpec {
   /** The example value Meta asks for. Free of # $ % and line breaks. */
   sample: string
   /** For grouping the picker. */
-  group: 'member' | 'group' | 'auction' | 'money' | 'winner'
+  group: 'member' | 'group' | 'terms' | 'auction' | 'money' | 'winner'
   /**
    * Some fields only exist for one audience. A bid amount is the winner's; a
    * day count is only honest in a message that goes to somebody who owes.
@@ -64,8 +67,24 @@ export const FIELDS: readonly FieldSpec[] = [
   { id: 'group_name',    label: 'chit name',      sample: 'Uma 5 Lakh A',      group: 'group' },
   { id: 'members_count', label: 'total members',  sample: '20',                group: 'group' },
   { id: 'chit_value',    label: 'chit value',     sample: '5,00,000',          group: 'group' },
+  { id: 'total_months',  label: 'total months',   sample: '20',                group: 'group',
+    note: 'How many monthly auctions the chit runs for.' },
+  { id: 'months_left',   label: 'months left',    sample: '13',                group: 'group' },
+  { id: 'start_date',    label: 'chit start date', sample: '5 April 2026',     group: 'group' },
+  { id: 'end_date',      label: 'chit end date',  sample: '5 November 2027',   group: 'group',
+    note: 'The month the last auction falls in.' },
+  { id: 'auction_day',   label: 'auction day',    sample: '5th',               group: 'group',
+    note: 'The day of the month, as in "the 5th of every month".' },
   { id: 'installment',   label: 'monthly subscription', sample: '25,000',      group: 'money' },
   { id: 'month',         label: 'month',          sample: 'November 2026',     group: 'group' },
+  { id: 'commission_pct', label: 'commission percent', sample: '5',            group: 'terms',
+    note: 'Just the number — write a % sign after it if you want one.' },
+  { id: 'commission_amount', label: 'commission amount', sample: '25,000',     group: 'terms' },
+  { id: 'min_bid',       label: 'minimum bid',    sample: '100',               group: 'terms',
+    note: 'The smallest bid that will be accepted when bidding opens.' },
+  { id: 'max_discount',  label: 'maximum discount', sample: '1,50,000',        group: 'terms',
+    note: 'The most a bid may discount the pot. The auction is capped there.' },
+  { id: 'max_discount_pct', label: 'maximum discount percent', sample: '30',   group: 'terms' },
   { id: 'month_number',  label: 'month number',   sample: '7',                 group: 'group',
     note: 'The 7th of 20 months.' },
   { id: 'auction_date',  label: 'auction date',   sample: '5 November 2026',   group: 'auction' },
@@ -87,6 +106,7 @@ export const FIELDS: readonly FieldSpec[] = [
 export const GROUP_LABEL: Record<FieldSpec['group'], string> = {
   member: 'The member',
   group: 'The chit',
+  terms: 'The rules',
   auction: 'The auction',
   money: 'Money and dates',
   winner: 'The winner only',
@@ -103,6 +123,25 @@ export function field(id: string): FieldSpec | undefined {
 export function money(n: number): string {
   const v = Number.isFinite(Number(n)) ? Math.round(Number(n)) : 0
   return v.toLocaleString('en-IN')
+}
+
+/** '5th', '21st' — for 'the 5th of every month'. */
+export function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = Math.abs(Math.round(n)) % 100
+  return `${Math.round(n)}${s[(v - 20) % 10] || s[v] || s[0]}`
+}
+
+/**
+ * A percentage as a person writes it: 5, not 5.00, and 2.5 kept.
+ *
+ * Without the % sign, because the wording carries it — '{{commission_pct}}%'
+ * reads correctly and 'a commission of {{commission_pct}} percent' also does.
+ */
+export function trimPct(n: number): string {
+  const v = Number(n)
+  if (!Number.isFinite(v)) return '0'
+  return String(Math.round(v * 100) / 100)
 }
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -151,8 +190,22 @@ export interface Facts {
   month?: string
   monthNumber?: number | null
   membersCount?: number | null
+  /** How many monthly auctions in all — not always the member count. */
+  totalMonths?: number | null
+  startDate?: string | null
+  /** The month the last auction falls in. */
+  endDate?: string | null
+  /** The day of the month the auction is held, 1 to 31. */
+  auctionDay?: number | null
   chitValue?: number | null
   installment?: number | null
+  commissionPct?: number | null
+  commissionAmount?: number | null
+  /** The smallest bid that will be accepted when bidding opens. */
+  minBid?: number | null
+  /** The most a bid may discount the pot, in rupees and as a percent. */
+  maxDiscount?: number | null
+  maxDiscountPct?: number | null
   auctionDate?: string | null
   auctionTime?: string | null
   nextAuctionDate?: string | null
@@ -190,6 +243,20 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'month':         return text(f.month)
     case 'month_number':  return has(f.monthNumber) ? String(Math.round(Number(f.monthNumber))) : null
     case 'members_count': return has(f.membersCount) ? String(Math.round(Number(f.membersCount))) : null
+    case 'total_months':  return has(f.totalMonths) ? String(Math.round(Number(f.totalMonths))) : null
+    case 'months_left': {
+      if (!has(f.totalMonths) || !has(f.monthNumber)) return null
+      const left = Math.round(Number(f.totalMonths)) - Math.round(Number(f.monthNumber))
+      return left >= 0 ? String(left) : null
+    }
+    case 'start_date':    return dateWords(f.startDate)
+    case 'end_date':      return dateWords(f.endDate)
+    case 'auction_day':   return has(f.auctionDay) ? ordinal(Math.round(Number(f.auctionDay))) : null
+    case 'commission_pct': return has(f.commissionPct) ? trimPct(Number(f.commissionPct)) : null
+    case 'commission_amount': return has(f.commissionAmount) ? money(Number(f.commissionAmount)) : null
+    case 'min_bid':       return has(f.minBid) ? money(Number(f.minBid)) : null
+    case 'max_discount':  return has(f.maxDiscount) ? money(Number(f.maxDiscount)) : null
+    case 'max_discount_pct': return has(f.maxDiscountPct) ? trimPct(Number(f.maxDiscountPct)) : null
     case 'chit_value':    return has(f.chitValue) ? money(Number(f.chitValue)) : null
     case 'installment':   return has(f.installment) ? money(Number(f.installment)) : null
     case 'auction_date':  return dateWords(f.auctionDate)
