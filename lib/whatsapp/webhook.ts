@@ -74,6 +74,8 @@ export interface StatusEvent {
   at?: string | null
 }
 
+export type MediaKind = 'image' | 'document' | 'audio' | 'video' | 'sticker'
+
 export interface InboundMessage {
   /** Meta's id for their message, so the same reply is never stored twice. */
   messageId: string
@@ -81,6 +83,16 @@ export interface InboundMessage {
   from: string
   /** What they typed. A button press arrives as its label. */
   body: string
+  /**
+   * A picture or a file, when they sent one.
+   *
+   * WhatsApp does not deliver the file itself — only an id to fetch it with,
+   * using the same token that sends messages. So the id is what is kept, and
+   * the file is fetched when somebody actually opens it.
+   */
+  mediaId?: string | null
+  mediaKind?: MediaKind | null
+  mediaMime?: string | null
   at?: string | null
 }
 
@@ -93,6 +105,18 @@ function stamp(v: unknown): string | null {
   return new Date(n * 1000).toISOString()
 }
 
+const MEDIA_KINDS = ['image', 'document', 'audio', 'video', 'sticker'] as const
+
+/** The picture or file on a message, if it carries one. */
+function mediaOf(m: Record<string, unknown>): Pick<InboundMessage, 'mediaId' | 'mediaKind' | 'mediaMime'> {
+  const type = str(m.type) as MediaKind
+  if (!MEDIA_KINDS.includes(type)) return {}
+  const part = m[type] as { id?: unknown; mime_type?: unknown } | undefined
+  const id = str(part?.id)
+  if (!id) return {}
+  return { mediaId: id, mediaKind: type, mediaMime: str(part?.mime_type) || null }
+}
+
 /** The text of a reply, whatever shape it arrived in. */
 function textOf(m: Record<string, unknown>): string {
   const type = str(m.type)
@@ -101,6 +125,12 @@ function textOf(m: Record<string, unknown>): string {
   if (type === 'interactive') {
     const i = m.interactive as { button_reply?: { title?: unknown }; list_reply?: { title?: unknown } }
     return str(i?.button_reply?.title ?? i?.list_reply?.title)
+  }
+  // A picture or a file may carry a caption, which is the only words there
+  // are. A payment screenshot usually has none.
+  if (MEDIA_KINDS.includes(type as MediaKind)) {
+    const part = m[type] as { caption?: unknown } | undefined
+    return str(part?.caption) || `[${type}]`
   }
   // An image, a voice note, a location. There is nothing to read, but the
   // fact that they answered at all is worth keeping.
@@ -150,6 +180,7 @@ export function parseEvents(payload: unknown): { statuses: StatusEvent[]; messag
           messageId: str(m.id),
           from: str(m.from),
           body,
+          ...mediaOf(m),
           at: stamp(m.timestamp),
         })
       }

@@ -15,7 +15,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, MessageSquare, BellOff, Send, Loader2 } from 'lucide-react'
+import { Check, MessageSquare, BellOff, Send, Loader2, Paperclip } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import { windowLeftMinutes, windowWords } from '@/lib/whatsapp/cloud'
@@ -25,14 +25,20 @@ export interface ReplyRow {
   member_id: string | null
   body: string
   from_phone: string
+  media_id?: string | null
+  media_kind?: string | null
   looks_paid: boolean
   looks_stop: boolean
   handled: boolean
   received_at: string
-  member?: { name: string } | null
+  member?: { name: string; member_code?: string | null } | null
 }
 
-export default function Replies({ rows }: { rows: ReplyRow[] }) {
+export default function Replies({ rows, groupsByMember = {} }: {
+  rows: ReplyRow[]
+  /** Which chits each member sits in, for the line above their words. */
+  groupsByMember?: Record<string, string[]>
+}) {
   const router = useRouter()
   const sb = createClient()
   const [showHandled, setShowHandled] = useState(false)
@@ -117,9 +123,35 @@ export default function Replies({ rows }: { rows: ReplyRow[] }) {
           style={{ opacity: r.handled ? 0.55 : 1 }}>
           <div className="min-w-0">
             <p className="text-[12px]" style={{ color: 'var(--text-faint)' }}>
-              {r.member?.name ?? r.from_phone} · {when(r.received_at)}
+              <span className="font-semibold" style={{ color: 'var(--text-muted)' }}>
+                {r.member?.name ?? 'Unknown number'}
+              </span>
+              {r.member?.member_code ? ` · ${r.member.member_code}` : ''}
+              {' · '}{r.from_phone}
+              {(groupsByMember[r.member_id ?? ''] ?? []).length > 0
+                && ` · ${(groupsByMember[r.member_id ?? ''] ?? []).join(', ')}`}
+              {' · '}{when(r.received_at)}
             </p>
             <p className="text-[13px] mt-0.5" style={{ color: 'var(--text)' }}>{r.body || '—'}</p>
+
+            {/* A picture comes through the server, because fetching it from
+                Meta needs the token. */}
+            {r.media_id && r.media_kind === 'image' && (
+              <a href={`/api/chit/media/${r.id}`} target="_blank" rel="noreferrer"
+                className="inline-block mt-1.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`/api/chit/media/${r.id}`} alt="what they sent"
+                  className="rounded-lg max-h-40"
+                  style={{ border: '1px solid var(--border)' }} />
+              </a>
+            )}
+            {r.media_id && r.media_kind !== 'image' && (
+              <a href={`/api/chit/media/${r.id}`} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[12px] font-bold mt-1"
+                style={{ color: 'var(--brand)' }}>
+                <Paperclip className="w-3.5 h-3.5" /> open the {r.media_kind}
+              </a>
+            )}
             <div className="flex flex-wrap items-center gap-2 mt-1">
               {r.looks_paid && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded-md"

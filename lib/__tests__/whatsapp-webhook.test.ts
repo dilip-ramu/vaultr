@@ -199,3 +199,63 @@ describe('what a reply seems to say', () => {
     expect(looksLikeStop('stop sending me this and tell me the amount')).toBe(false)
   })
 })
+
+describe('a picture or a file', () => {
+  // WhatsApp sends an id, never the file, so the id is what must survive.
+  it('keeps the id, the kind and the type of an image', () => {
+    const { messages } = parseEvents(payload({
+      messages: [{
+        id: 'wamid.img', from: '919876543210', type: 'image',
+        image: { id: '1234567890', mime_type: 'image/jpeg', sha256: 'x' },
+      }],
+    }))
+    expect(messages[0].mediaId).toBe('1234567890')
+    expect(messages[0].mediaKind).toBe('image')
+    expect(messages[0].mediaMime).toBe('image/jpeg')
+  })
+
+  it('uses the caption as the words, when there is one', () => {
+    const { messages } = parseEvents(payload({
+      messages: [{
+        id: 'a', from: '91', type: 'image',
+        image: { id: '1', mime_type: 'image/jpeg', caption: 'paid today' },
+      }],
+    }))
+    expect(messages[0].body).toBe('paid today')
+  })
+
+  // A payment screenshot usually arrives with nothing written on it.
+  it('says what it is when there is no caption', () => {
+    const { messages } = parseEvents(payload({
+      messages: [{ id: 'a', from: '91', type: 'image', image: { id: '1' } }],
+    }))
+    expect(messages[0].body).toBe('[image]')
+    expect(messages[0].mediaId).toBe('1')
+  })
+
+  it('handles a document the same way', () => {
+    const { messages } = parseEvents(payload({
+      messages: [{
+        id: 'a', from: '91', type: 'document',
+        document: { id: '9', mime_type: 'application/pdf', caption: 'receipt' },
+      }],
+    }))
+    expect(messages[0]).toMatchObject({ mediaKind: 'document', mediaId: '9', body: 'receipt' })
+  })
+
+  it('leaves a plain text message with no media on it', () => {
+    const { messages } = parseEvents(payload({
+      messages: [{ id: 'a', from: '91', type: 'text', text: { body: 'hello' } }],
+    }))
+    expect(messages[0].mediaId).toBeUndefined()
+  })
+
+  // An id-less media message would give a link to nothing.
+  it('ignores media with no id', () => {
+    const { messages } = parseEvents(payload({
+      messages: [{ id: 'a', from: '91', type: 'image', image: { mime_type: 'image/jpeg' } }],
+    }))
+    expect(messages[0].mediaId).toBeUndefined()
+    expect(messages[0].body).toBe('[image]')
+  })
+})
