@@ -25,7 +25,7 @@ import { createClient } from '@supabase/supabase-js'
 import {
   plan, sendKey, DEFAULT_STEPS, type Step, type MemberLike,
 } from '@/lib/chit/reminderSchedule'
-import { TEMPLATES, variablesFor, type Facts } from '@/lib/chit/reminderTemplates'
+import { templateFor, variablesForToday, type Facts } from '@/lib/chit/reminderTemplates'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
 import { monthlyInstallment } from '@/lib/chit/auction'
@@ -163,9 +163,13 @@ export async function GET(req: NextRequest) {
         dueDate: nextAuctionDate ?? auctionDate,
         bidAmount: Number(auction.bid_amount) || 0,
         netPayout: Number(auction.net_payout) || 0,
+        today,
       }
 
-      const variables = variablesFor(d.kind, facts)
+      // Past the due date the reminder becomes the overdue one, which counts
+      // the days instead of naming a date. Same step, different template.
+      const spec = templateFor(d.kind, facts, today)
+      const variables = variablesForToday(d.kind, facts, today)
       const to = normalizeWhatsAppNumber(
         `${String(person?.dial_code ?? '91')}${String(person?.phone ?? '')}`.replace(/\D/g, ''),
       )
@@ -202,8 +206,8 @@ export async function GET(req: NextRequest) {
 
       const res = await sendTemplate({
         to,
-        template: TEMPLATES[d.kind].name,
-        language: TEMPLATES[d.kind].language,
+        template: spec.name,
+        language: spec.language,
         variables,
       }, config)
 

@@ -5,6 +5,7 @@ import ChitGroupDetail from '@/components/chit/ChitGroupDetail'
 import type { ChitGroup, ChitGroupMember, ChitAuction, ChitCollection, ChitMember } from '@/lib/chit/types'
 import { isChitAccount } from '@/lib/chit/account'
 import type { CreditMoveRow } from '@/lib/chit/groupLedger'
+import { DEFAULT_DRAFTS } from '@/lib/chit/reminderTemplates'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,7 @@ export default async function ChitGroupPage({ params }: Props) {
     { data: companies },
     { data: creditMoves },
     { data: messageLog },
+    { data: templateRows },
   ] = await Promise.all([
     supabase.from('chit_group_members').select('*, member:chit_members(*)')
       .eq('user_id', uid).eq('group_id', id).order('slot_number', { nullsFirst: false }),
@@ -65,6 +67,9 @@ export default async function ChitGroupPage({ params }: Props) {
       .select('id, member_id, step_key, kind, channel, status, error, sent_at, member:chit_members(name)')
       .eq('user_id', uid).eq('group_id', id)
       .order('sent_at', { ascending: false }).limit(100),
+    // The templates are one set for every group, so this is not scoped to the
+    // group — see migration v135.
+    supabase.from('chit_message_templates').select('*').eq('user_id', uid),
   ])
 
   const accounts = ((companyAccounts ?? []) as { id: string; name: string; type: string; company_id: string | null }[])
@@ -93,6 +98,30 @@ export default async function ChitGroupPage({ params }: Props) {
         sent_at: String(r.sent_at ?? ''),
       }))}
       whatsappLive={Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_TOKEN)}
+      whatsappConnected={Boolean(process.env.WHATSAPP_WABA_ID && process.env.WHATSAPP_TOKEN)}
+      templates={Object.entries(DEFAULT_DRAFTS).map(([kind, d]) => {
+        // What has been saved and submitted, if anything. With no row the
+        // defaults stand, so the screen is never blank.
+        const saved = ((templateRows ?? []) as Record<string, unknown>[]).find(r => String(r.kind) === kind)
+        return {
+          kind,
+          label: d.label,
+          draft: {
+            name: String(saved?.template_name ?? d.name),
+            language: String(saved?.language ?? d.language),
+            category: (String(saved?.category_requested ?? d.category) as 'UTILITY' | 'MARKETING'),
+            body: String(saved?.body ?? d.body),
+            footer: (saved?.footer as string | null) ?? d.footer ?? '',
+            variables: Array.isArray(saved?.variables)
+              ? (saved!.variables as { label: string; sample: string }[])
+              : d.variables,
+          },
+          status: String(saved?.status ?? 'DRAFT') as 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED',
+          categoryAssigned: (saved?.category_assigned as string | null) ?? null,
+          rejectedReason: (saved?.rejected_reason as string | null) ?? null,
+          editTimes: Array.isArray(saved?.edit_times) ? (saved!.edit_times as string[]) : [],
+        }
+      })}
       accounts={accounts}
       companies={(companies ?? []) as { id: string; name: string }[]}
       creditMoves={(creditMoves ?? []) as CreditMoveRow[]}

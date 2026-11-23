@@ -53,10 +53,43 @@ export const TEMPLATES: Record<StepKind, TemplateSpec> = {
     variables: ['member name', 'month', 'bid amount', 'amount payable to you', 'auction date'],
   },
   reminder: {
-    name: 'chit_payment_reminder',
+    name: 'chit_payment_due',
     language: 'en',
     variables: ['member name', 'month', 'amount outstanding', 'due date'],
   },
+}
+
+/**
+ * The overdue version of the reminder.
+ *
+ * One template cannot say both 'due on 5 December' and 'overdue by 12 days':
+ * the wording is fixed at approval and only the variables change. So the
+ * reminder is two templates, and which one is used is decided by the date.
+ */
+export const OVERDUE_TEMPLATE: TemplateSpec = {
+  name: 'chit_payment_overdue',
+  language: 'en',
+  variables: ['member name', 'month', 'amount outstanding', 'days overdue'],
+}
+
+/** How many days past the due date, or 0 when it has not passed. */
+export function daysOverdue(dueDate: string | undefined, today: string): number {
+  if (!dueDate || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return 0
+  const a = Date.parse(`${dueDate}T00:00:00Z`)
+  const b = Date.parse(`${today}T00:00:00Z`)
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 0
+  return Math.round((b - a) / 86400000)
+}
+
+/**
+ * Which template a step actually uses.
+ *
+ * Only the reminder has a choice to make: past the due date it becomes the
+ * overdue one, which counts the days instead of naming a date.
+ */
+export function templateFor(kind: StepKind, f: Facts, today: string): TemplateSpec {
+  if (kind === 'reminder' && daysOverdue(f.dueDate, today) > 0) return OVERDUE_TEMPLATE
+  return TEMPLATES[kind]
 }
 
 /** Rupees as they read in a sentence: 5,000 — no symbol, templates carry it. */
@@ -91,6 +124,8 @@ export interface Facts {
   /** The winner's figures. */
   bidAmount?: number
   netPayout?: number
+  /** Today, so a reminder can count the days it is late. */
+  today?: string
 }
 
 /**
@@ -123,6 +158,21 @@ export function variablesFor(kind: StepKind, f: Facts): string[] | null {
 }
 
 /**
+ * Variables for a step, choosing the overdue wording once the date has passed.
+ *
+ * The fourth variable changes meaning with the template: a due date before,
+ * a number of days after. That is the whole reason there are two templates.
+ */
+export function variablesForToday(kind: StepKind, f: Facts, today: string): string[] | null {
+  const overdue = kind === 'reminder' ? daysOverdue(f.dueDate, today) : 0
+  if (overdue > 0) {
+    if (f.amountDue == null) return null
+    return [safeVar(f.memberName), safeVar(f.month), safeVar(money(f.amountDue)), safeVar(String(overdue))]
+  }
+  return variablesFor(kind, f)
+}
+
+/**
  * The same facts as plain text, for the click-to-chat link.
  *
  * Not a copy of the template's wording — the template is Meta's, approved and
@@ -138,8 +188,12 @@ export function linkText(kind: StepKind, f: Facts): string {
       return `Hi ${name}, your ${f.month} subscription after this month's dividend is ₹${money(f.amountDue ?? 0)}, due on ${f.dueDate}. Thank you.`
     case 'winner':
       return `Hi ${name}, congratulations — you have taken the ${f.month} chit. Bid ₹${money(f.bidAmount ?? 0)}, amount payable to you ₹${money(f.netPayout ?? 0)}. We will transfer it to your registered account.`
-    case 'reminder':
-      return `Hi ${name}, a gentle reminder that ₹${money(f.amountDue ?? 0)} for ${f.month} is still outstanding (due ${f.dueDate}). Please ignore this if you have just paid.`
+    case 'reminder': {
+      const late = daysOverdue(f.dueDate, f.today ?? '')
+      return late > 0
+        ? `Hi ${name}, ₹${money(f.amountDue ?? 0)} for ${f.month} is now overdue by ${late} day${late === 1 ? '' : 's'}. Please arrange payment. Ignore this if you have just paid.`
+        : `Hi ${name}, a gentle reminder that ₹${money(f.amountDue ?? 0)} for ${f.month} is still outstanding (due ${f.dueDate}). Please ignore this if you have just paid.`
+    }
   }
 }
 
@@ -147,4 +201,93 @@ export function linkText(kind: StepKind, f: Facts): string {
 export function submissionGuide(kind: StepKind): string {
   const t = TEMPLATES[kind]
   return `${t.name} (${t.language}) — ${t.variables.map((v, i) => `{{${i + 1}}} ${v}`).join(', ')}`
+}
+
+/**
+ * The wording each template starts with, ready to submit.
+ *
+ * Written to read as UTILITY: addressed to one member, about their own month,
+ * their own amount, their own date. No "attend without fail", no payment
+ * instructions, no rows of emoji — those read as marketing to Meta's
+ * classifier, and marketing costs roughly 7.5x utility.
+ *
+ * None of them starts or ends with a variable, because Meta rejects that.
+ */
+export const DEFAULT_DRAFTS: Record<string, {
+  label: string
+  name: string
+  language: string
+  category: 'UTILITY'
+  body: string
+  footer?: string
+  variables: { label: string; sample: string }[]
+}> = {
+  notice: {
+    label: 'Auction notice',
+    name: 'chit_auction_notice',
+    language: 'en',
+    category: 'UTILITY',
+    body: 'Hello {{1}}, the {{2}} auction for your Rs {{3}} chit is coming up. Your monthly subscription is Rs {{4}}. The auction is on {{5}} at {{6}}, and you are welcome to join.',
+    variables: [
+      { label: 'member name', sample: 'Ravi' },
+      { label: 'month', sample: 'November 2026' },
+      { label: 'chit value', sample: '5,00,000' },
+      { label: 'monthly subscription', sample: '25,000' },
+      { label: 'auction date', sample: '5 November' },
+      { label: 'auction time', sample: '6:30 PM' },
+    ],
+  },
+  dues: {
+    label: 'Due amount after the auction',
+    name: 'chit_dues',
+    language: 'en',
+    category: 'UTILITY',
+    body: 'Hello {{1}}, after this month\u2019s dividend your subscription for {{2}} is Rs {{3}}, payable by {{4}}. Thank you.',
+    variables: [
+      { label: 'member name', sample: 'Ravi' },
+      { label: 'month', sample: 'November 2026' },
+      { label: 'amount due', sample: '23,750' },
+      { label: 'due date', sample: '5 December' },
+    ],
+  },
+  winner: {
+    label: 'Winning particulars (winner only)',
+    name: 'chit_winner',
+    language: 'en',
+    category: 'UTILITY',
+    body: 'Hello {{1}}, you have taken the {{2}} chit. Your bid was Rs {{3}} and the amount payable to you is Rs {{4}}, as settled on {{5}}. It will be transferred to your registered account.',
+    variables: [
+      { label: 'member name', sample: 'Ravi' },
+      { label: 'month', sample: 'November 2026' },
+      { label: 'bid amount', sample: '60,000' },
+      { label: 'amount payable to you', sample: '4,25,000' },
+      { label: 'auction date', sample: '5 November' },
+    ],
+  },
+  reminder: {
+    label: 'Payment reminder (before the due date)',
+    name: 'chit_payment_due',
+    language: 'en',
+    category: 'UTILITY',
+    body: 'Hello {{1}}, your chit subscription for {{2}} of Rs {{3}} is due on {{4}}. Please ignore this message if you have already paid.',
+    variables: [
+      { label: 'member name', sample: 'Ravi' },
+      { label: 'month', sample: 'November 2026' },
+      { label: 'amount outstanding', sample: '23,750' },
+      { label: 'due date', sample: '5 December' },
+    ],
+  },
+  reminder_overdue: {
+    label: 'Payment reminder (overdue)',
+    name: 'chit_payment_overdue',
+    language: 'en',
+    category: 'UTILITY',
+    body: 'Hello {{1}}, your chit subscription for {{2}} of Rs {{3}} is now overdue by {{4}} days. Please arrange payment, and ignore this message if you have already paid.',
+    variables: [
+      { label: 'member name', sample: 'Ravi' },
+      { label: 'month', sample: 'November 2026' },
+      { label: 'amount outstanding', sample: '23,750' },
+      { label: 'days overdue', sample: '12' },
+    ],
+  },
 }

@@ -14,14 +14,13 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, RotateCcw, MessageSquare } from 'lucide-react'
+import { Loader2, RotateCcw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { notify } from '@/components/shared/Toast'
 import {
   DEFAULT_STEPS, PRESETS, STEP_LABEL, stepWords, stepProblem, timetable,
   type Step, type Anchors,
 } from '@/lib/chit/reminderSchedule'
-import { TEMPLATES, submissionGuide } from '@/lib/chit/reminderTemplates'
 import type { ChitMember } from '@/lib/chit/types'
 
 export default function ReminderScheduleTab({
@@ -206,29 +205,6 @@ export default function ReminderScheduleTab({
         })}
       </div>
 
-      {/* ── What to register at Meta ───────────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden" style={card}>
-        <p className="px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wide"
-          style={{ color: 'var(--text-faint)', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
-          <MessageSquare className="w-3.5 h-3.5 inline mr-1.5" />
-          The four templates to register at Meta
-        </p>
-        <p className="px-4 pt-3 text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
-          Submit these in WhatsApp Manager. The wording lives there, not here — Meta approves the text and
-          that is what members receive. The three reminders share one template, so there are four, not six.
-          Use these exact placeholders in this order, or a send fails at Meta.
-        </p>
-        {(Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]).map(kind => (
-          <p key={kind} className="px-4 py-2 text-[11.5px] font-mono" style={{ color: 'var(--text)' }}>
-            {submissionGuide(kind)}
-          </p>
-        ))}
-        <p className="px-4 pb-3 text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
-          Ask for the <b>utility</b> category. An announcement — &ldquo;attend without fail&rdquo;, payment
-          instructions, rows of emoji — is classified as marketing, which costs roughly 7.5&times; more and
-          brings opt-in rules with it.
-        </p>
-      </div>
     </div>
   )
 }
