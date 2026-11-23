@@ -1,6 +1,9 @@
 'use client'
 
 import LiveBiddingPanel from './LiveBiddingPanel'
+import ReminderScheduleTab from './ReminderScheduleTab'
+import ReminderLog, { type LogRow } from './ReminderLog'
+import type { Step } from '@/lib/chit/reminderSchedule'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -26,12 +29,13 @@ import { isChitAccount } from '@/lib/chit/account'
 import { groupLedger, ledgerFor, type CreditMoveRow } from '@/lib/chit/groupLedger'
 import { balanceWords } from '@/lib/chit/memberLedger'
 
-type Tab = 'members' | 'auctions' | 'collections' | 'receivables'
+type Tab = 'members' | 'auctions' | 'collections' | 'receivables' | 'reminders'
 type Account = { id: string; name: string; type: string; company_id: string | null }
 type Coll = ChitCollection & { member?: { name: string } }
 
 export default function ChitGroupDetail({
   group: initialGroup, groupMembers, allMembers, auctions: initialAuctions, collections: initialCollections, accounts, companies, creditMoves = [],
+  messageLog = [], whatsappLive = false,
 }: {
   group: ChitGroup
   groupMembers: ChitGroupMember[]
@@ -42,6 +46,10 @@ export default function ChitGroupDetail({
   collections: Coll[]
   accounts: Account[]
   companies: { id: string; name: string }[]
+  /** What the daily reminder run has tried for this group. */
+  messageLog?: LogRow[]
+  /** Whether a WhatsApp number is registered, so the screen can be honest. */
+  whatsappLive?: boolean
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('members')
@@ -126,6 +134,26 @@ export default function ChitGroupDetail({
   // Member-months still short. Comes from the same ledger as everything else,
   // so a member who overpaid last month is not counted as owing this one.
   const pendingCollections = gl.pendingCount
+  const pendingMessages = messageLog.filter(r => r.status === 'pending').length
+
+  // This month's auction and the next, for the reminder timetable. The most
+  // recent auction held is the one the schedule hangs off.
+  const reminderAnchors = useMemo(() => {
+    const held = [...auctions]
+      .filter(a => a.auction_date)
+      .sort((a, b) => String(b.auction_date).localeCompare(String(a.auction_date)))
+    const latest = held[0]
+    if (!latest) return null
+    const next = [...auctions]
+      .filter(a => a.auction_date && String(a.auction_date) > String(latest.auction_date))
+      .sort((a, b) => String(a.auction_date).localeCompare(String(b.auction_date)))[0]
+    return {
+      auctionDate: String(latest.auction_date).slice(0, 10),
+      nextAuctionDate: next
+        ? String(next.auction_date).slice(0, 10)
+        : scheduledAuctionDate(group.start_date, group.auction_day, (latest.month_number ?? 0) + 1),
+    }
+  }, [auctions, group.start_date, group.auction_day])
 
   const TABS: [Tab, string][] = [
     ['members', `Members · ${members.length}`],
@@ -133,6 +161,9 @@ export default function ChitGroupDetail({
     // Pending, not collected: a count that goes to zero is worth looking at.
     ['collections', pendingCollections > 0 ? `Collections · ${pendingCollections} pending` : 'Collections · all in'],
     ['receivables', 'Receivables'],
+    // Pending messages are the ones worth a number on the tab: they are
+    // waiting on something.
+    ['reminders', pendingMessages > 0 ? `Reminders · ${pendingMessages} waiting` : 'Reminders'],
   ]
 
   return (
@@ -191,6 +222,18 @@ export default function ChitGroupDetail({
         <CollectionsTab group={group} installment={installment} months={months}
           members={members} accounts={accounts} defaultAccountId={defaultAccountId}
           dueForMonth={dueForMonth} payableFor={payableFor} gl={gl} winnerByMonth={winnerByMonth} collections={collections} onChange={setCollections} />
+      )}
+      {tab === 'reminders' && (
+        <div className="space-y-4">
+          <ReminderScheduleTab
+            groupId={group.id}
+            groupSteps={(group as { reminder_steps?: Step[] | null }).reminder_steps ?? null}
+            members={members.map(m => m.member).filter((m): m is ChitMember => !!m)}
+            anchors={reminderAnchors}
+            whatsappLive={whatsappLive}
+          />
+          <ReminderLog rows={messageLog} />
+        </div>
       )}
       {tab === 'receivables' && (
         <ReceivablesTab group={group} installment={installment} months={months} members={members}

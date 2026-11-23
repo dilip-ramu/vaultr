@@ -38,6 +38,7 @@ export default async function ChitGroupPage({ params }: Props) {
     { data: companyAccounts },
     { data: companies },
     { data: creditMoves },
+    { data: messageLog },
   ] = await Promise.all([
     supabase.from('chit_group_members').select('*, member:chit_members(*)')
       .eq('user_id', uid).eq('group_id', id).order('slot_number', { nullsFirst: false }),
@@ -57,6 +58,13 @@ export default async function ChitGroupPage({ params }: Props) {
     supabase.from('chit_credit_moves')
       .select('member_id, from_group_id, to_group_id, to_month, amount')
       .eq('user_id', uid),
+    // What the daily reminder run has tried for this group. Failures and
+    // pending rows included: a log of successes only cannot answer 'nobody
+    // told me'.
+    supabase.from('chit_message_log')
+      .select('id, member_id, step_key, kind, channel, status, error, sent_at, member:chit_members(name)')
+      .eq('user_id', uid).eq('group_id', id)
+      .order('sent_at', { ascending: false }).limit(100),
   ])
 
   const accounts = ((companyAccounts ?? []) as { id: string; name: string; type: string; company_id: string | null }[])
@@ -73,6 +81,18 @@ export default async function ChitGroupPage({ params }: Props) {
       allMembers={(allMembers ?? []) as ChitMember[]}
       auctions={(auctions ?? []) as ChitAuction[]}
       collections={(collections ?? []) as (ChitCollection & { member?: { name: string } })[]}
+      messageLog={((messageLog ?? []) as Record<string, unknown>[]).map(r => ({
+        id: String(r.id),
+        member_id: String(r.member_id),
+        member_name: ((r.member as { name?: string } | null)?.name) ?? null,
+        step_key: String(r.step_key),
+        kind: String(r.kind) as 'notice' | 'dues' | 'winner' | 'reminder',
+        channel: String(r.channel ?? 'link'),
+        status: String(r.status ?? 'sent'),
+        error: (r.error as string | null) ?? null,
+        sent_at: String(r.sent_at ?? ''),
+      }))}
+      whatsappLive={Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_TOKEN)}
       accounts={accounts}
       companies={(companies ?? []) as { id: string; name: string }[]}
       creditMoves={(creditMoves ?? []) as CreditMoveRow[]}
