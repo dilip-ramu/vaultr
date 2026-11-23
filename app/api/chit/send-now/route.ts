@@ -24,7 +24,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, CAN } from '@/lib/chit/access'
 import { fromRow, templateById, renderVariables, fieldsUsed } from '@/lib/chit/messageTemplates'
-import { fieldWords, usesResultFields } from '@/lib/chit/messageFields'
+import { missingWords, usesResultFields } from '@/lib/chit/messageFields'
 import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
@@ -162,21 +162,24 @@ export async function POST(req: NextRequest) {
         today,
       })
 
-      const { values, missing } = renderVariables(template, facts)
+      const { values, missing, sendable } = renderVariables(template, facts)
       const to = normalizeWhatsAppNumber(
         `${String(person.dial_code ?? '91')}${String(person.phone ?? '')}`.replace(/\D/g, ''),
       )
 
-      if (missing.length > 0 || !to) {
+      if (!sendable || !to) {
         skipped++
-        notes.push(`${String(person.name)}: ${!to ? 'no usable phone number' : `nothing to put in ${fieldWords(missing)}`}`)
+        notes.push(`${String(person.name)}: ${!to ? 'no usable phone number' : missingWords(missing)}`)
         continue
       }
+      const note = missing.length > 0 ? missingWords(missing) : null
+      if (note) notes.push(`${String(person.name)}: sent with ${note}`)
 
       if (!config) {
         // Recorded, so the list is ready the day the number goes live.
         const { error } = await sb.from('chit_message_log').insert({
-          ...row, status: 'pending', error: 'Waiting for a registered WhatsApp number',
+          ...row, status: 'pending',
+          error: ['Waiting for a registered WhatsApp number', note].filter(Boolean).join(' · '),
         })
         if (!error) pending++
         continue
@@ -188,7 +191,9 @@ export async function POST(req: NextRequest) {
 
       if (res.ok) {
         sent++
-        await sb.from('chit_message_log').insert({ ...row, status: 'sent', provider_message_id: res.messageId })
+        await sb.from('chit_message_log').insert({
+          ...row, status: 'sent', provider_message_id: res.messageId, error: note,
+        })
       } else {
         skipped++
         notes.push(`${String(person.name)}: ${res.error}`)

@@ -391,6 +391,22 @@ export function renderFields(ids: readonly FieldId[], f: Facts):
   return { values, missing }
 }
 
+/**
+ * The word that stands in for a detail nobody has filled in.
+ *
+ * Only used by a message set to send anyway — see MessageTemplate.onMissing.
+ * It is a plain word rather than a dash or a blank, because a member reading
+ * 'account number: missing' knows to send theirs, and a member reading
+ * 'account number: -' thinks the message is broken. Meta rejects an empty
+ * variable outright, so a blank was never an option.
+ */
+export const MISSING_WORD = 'missing'
+
+/** 'account number: missing', 'account number and PAN: missing'. */
+export function missingWords(ids: readonly FieldId[]): string {
+  return ids.length === 0 ? '' : `${fieldWords(ids)}: ${MISSING_WORD}`
+}
+
 /** 'bid amount, their bank' — for saying what is missing in a sentence. */
 export function fieldWords(ids: readonly FieldId[]): string {
   const labels = ids.map(id => field(id)?.label ?? id)

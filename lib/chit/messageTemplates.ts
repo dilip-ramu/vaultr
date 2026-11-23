@@ -28,6 +28,7 @@
 
 import {
   field, fieldProblem, labelToField, renderFields, safeVar, usesResultFields,
+  MISSING_WORD, valueFor,
   type FieldId, type FieldSpec, type Facts,
 } from './messageFields'
 import type { Audience } from './reminderSchedule'
@@ -51,6 +52,16 @@ export interface MessageTemplate {
   body: string
   /** One optional line underneath. No fields allowed in it — Meta's rule. */
   footer?: string | null
+  /**
+   * What to do when a detail it uses has never been filled in.
+   *
+   * 'hold' keeps the message back and records what was missing, which is the
+   * safe default: a reminder saying 'Rs missing is due' is worse than no
+   * reminder. 'fill' sends it anyway with the word 'missing' in place of the
+   * value, which is the right choice for a message whose whole purpose is to
+   * get the detail out of the member — 'your account number: missing'.
+   */
+  onMissing?: 'hold' | 'fill'
   status: TemplateStatus
   /** What Meta classified it as, which is not always what was asked for. */
   categoryAssigned?: string | null
@@ -157,6 +168,7 @@ export function fromRow(r: Record<string, unknown>): MessageTemplate {
     audience: (String(r.audience ?? 'all') as Audience),
     body: fromNumbered(String(r.body ?? ''), labels),
     footer: (r.footer as string | null) ?? null,
+    onMissing: String(r.on_missing ?? 'hold') === 'fill' ? 'fill' : 'hold',
     status: (String(r.status ?? 'DRAFT') as TemplateStatus),
     categoryAssigned: (r.category_assigned as string | null) ?? null,
     rejectedReason: (r.rejected_reason as string | null) ?? null,
@@ -223,9 +235,30 @@ export function canSubmit(t: MessageTemplate): boolean {
   return templateProblems(t).length === 0
 }
 
-/** The values for one member and month, or which details are not known. */
-export function renderVariables(t: MessageTemplate, f: Facts): { values: string[]; missing: FieldId[] } {
-  return renderFields(fieldsUsed(t.body), f)
+/**
+ * The values for one member and month, and which details were not known.
+ *
+ * `missing` is reported either way. What changes with onMissing is whether
+ * `values` is complete: a message set to 'fill' gets the word 'missing' in
+ * those places and can be sent, a message set to 'hold' comes back short and
+ * the caller holds it.
+ */
+export function renderVariables(t: MessageTemplate, f: Facts): {
+  values: string[]
+  missing: FieldId[]
+  /** True when there is a complete set of values to send. */
+  sendable: boolean
+} {
+  const ids = fieldsUsed(t.body)
+  const plain = renderFields(ids, f)
+  if (plain.missing.length === 0) return { ...plain, sendable: true }
+  if (t.onMissing !== 'fill') return { ...plain, sendable: false }
+  // Every place filled, so the count still matches what Meta approved.
+  return {
+    values: ids.map(id => valueFor(id, f) ?? MISSING_WORD),
+    missing: plain.missing,
+    sendable: true,
+  }
 }
 
 /** 'chit_auction_notice' from 'Auction notice'. */
@@ -257,6 +290,7 @@ export function blankTemplate(taken: readonly string[] = [], label = 'New messag
     audience: 'all',
     body: '',
     footer: null,
+    onMissing: 'hold',
     status: 'DRAFT',
     categoryAssigned: null,
     rejectedReason: null,
@@ -376,7 +410,7 @@ export const STARTER_LIBRARY: readonly MessageTemplate[] = [
     id: '', label: 'Auction notice', name: 'chit_auction_notice', language: 'en',
     category: 'UTILITY', audience: 'all',
     body: 'Hello {{member_name}}, the {{month}} auction for {{group_name}} is on {{auction_date}} at {{auction_time}}. Your monthly subscription is Rs {{installment}}. You are welcome to join us.',
-    footer: null, status: 'DRAFT', editTimes: [], sortOrder: 1,
+    footer: null, onMissing: 'hold', status: 'DRAFT', editTimes: [], sortOrder: 1,
   },
   {
     id: '', label: 'Due amount after the auction', name: 'chit_dues', language: 'en',

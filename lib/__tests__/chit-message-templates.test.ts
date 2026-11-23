@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   compile, normalizeToken, fieldsUsed, insertToken, toDraft, previewOf,
   templateProblems, canSubmit, renderVariables, slugFromLabel, uniqueName,
-  blankTemplate, duplicateOf, templateById, stepWarning, fromNumbered,
+  blankTemplate, duplicateOf, templateById, stepWarning, fromNumbered, fromRow,
   matchStepsToLibrary, audienceWords, STARTER_LIBRARY,
   type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
@@ -375,5 +375,51 @@ describe('who a message is for, in words', () => {
     const library = [tpl({ id: 'd', name: 'chit_dues', audience: 'except_winner' })]
     const matched = matchStepsToLibrary([{ kind: 'dues', audience: 'all' as Audience }], library)
     expect(matched[0]).toEqual({ kind: 'dues', audience: 'except_winner', templateId: 'd' })
+  })
+})
+
+describe('when a detail has never been filled in', () => {
+  const asking = tpl({
+    audience: 'winner',
+    body: 'Hello {{member_name}}, please confirm your {{bank_name}} account number {{account_number}} before we transfer.',
+  })
+
+  // The safe default: a reminder saying 'Rs missing is due' is worse than no
+  // reminder at all, so the message is held and the gap is reported.
+  it('holds the message back by default', () => {
+    const r = renderVariables(asking, facts({ accountNumber: null }))
+    expect(r.sendable).toBe(false)
+    expect(r.missing).toEqual(['account_number'])
+  })
+
+  // The message whose whole purpose is to get the detail out of the member.
+  it('sends it saying "missing" when told to', () => {
+    const r = renderVariables({ ...asking, onMissing: 'fill' }, facts({ accountNumber: null }))
+    expect(r.sendable).toBe(true)
+    expect(r.values).toEqual(['Ravi', 'HDFC Bank', 'missing'])
+    // Still reported, so it can be fixed before next month.
+    expect(r.missing).toEqual(['account_number'])
+  })
+
+  it('fills every gap, so the count still matches what Meta approved', () => {
+    const r = renderVariables({ ...asking, onMissing: 'fill' },
+      facts({ accountNumber: null, bankName: null }))
+    expect(r.values).toEqual(['Ravi', 'missing', 'missing'])
+    expect(r.values).toHaveLength(3)
+  })
+
+  it('changes nothing when everything is known', () => {
+    for (const mode of ['hold', 'fill'] as const) {
+      const r = renderVariables({ ...asking, onMissing: mode }, facts())
+      expect(r.sendable).toBe(true)
+      expect(r.missing).toEqual([])
+      expect(r.values).toEqual(['Ravi', 'HDFC Bank', '50100123454321'])
+    }
+  })
+
+  it('reads a saved choice back, and defaults to holding', () => {
+    expect(fromRow({ template_name: 'x', on_missing: 'fill' }).onMissing).toBe('fill')
+    expect(fromRow({ template_name: 'x' }).onMissing).toBe('hold')
+    expect(fromRow({ template_name: 'x', on_missing: 'nonsense' }).onMissing).toBe('hold')
   })
 })

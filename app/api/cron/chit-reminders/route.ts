@@ -33,7 +33,7 @@ import {
   fromRow, matchStepsToLibrary, templateById, renderVariables, fieldsUsed,
   type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
-import { fieldWords, usesResultFields } from '@/lib/chit/messageFields'
+import { missingWords, usesResultFields } from '@/lib/chit/messageFields'
 import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
@@ -254,24 +254,28 @@ export async function GET(req: NextRequest) {
         today,
       })
 
-      const { values, missing } = renderVariables(template, facts)
+      const { values, missing, sendable } = renderVariables(template, facts)
       const to = normalizeWhatsAppNumber(
         `${String(person.dial_code ?? '91')}${String(person.phone ?? '')}`.replace(/\D/g, ''),
       )
 
-      if (missing.length > 0 || !to) {
+      if (!sendable || !to) {
         failed++
         await sb.from('chit_message_log').insert({
           ...row, status: 'failed',
-          error: !to ? 'No usable phone number' : `Nothing to put in: ${fieldWords(missing)}`,
+          error: !to ? 'No usable phone number' : missingWords(missing),
         })
         continue
       }
+      // Sent with a gap in it, deliberately — the log says which, so it can be
+      // filled in before next month.
+      const note = missing.length > 0 ? missingWords(missing) : null
 
       if (!config) {
         pending++
         await sb.from('chit_message_log').insert({
-          ...row, status: 'pending', error: 'Waiting for a registered WhatsApp number',
+          ...row, status: 'pending',
+          error: ['Waiting for a registered WhatsApp number', note].filter(Boolean).join(' · '),
         })
         continue
       }
@@ -292,7 +296,9 @@ export async function GET(req: NextRequest) {
 
       if (res.ok) {
         sent++
-        await sb.from('chit_message_log').insert({ ...row, status: 'sent', provider_message_id: res.messageId })
+        await sb.from('chit_message_log').insert({
+          ...row, status: 'sent', provider_message_id: res.messageId, error: note,
+        })
       } else {
         failed++
         // A retryable failure is NOT logged as a completed send, so tomorrow's

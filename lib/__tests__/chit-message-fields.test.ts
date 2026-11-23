@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   FIELDS, field, money, dateWords, safeVar, daysOverdue, valueFor,
   renderFields, fieldWords, fieldProblem, fieldsFor, ordinal, trimPct, labelToField,
-  daysBetween,
+  daysBetween, missingWords, MISSING_WORD,
   type Facts, type FieldId,
 } from '@/lib/chit/messageFields'
 
@@ -414,5 +414,21 @@ describe('counting the days in a sentence', () => {
     expect(daysBetween('2026-11-12', '2026-11-05')).toBe(0)
     expect(daysBetween('05/11/2026', '2026-11-12')).toBe(0)
     expect(daysBetween(null, '2026-11-12')).toBe(0)
+  })
+})
+
+describe('saying what is missing', () => {
+  it('names the detail and says missing', () => {
+    expect(missingWords(['account_number'])).toBe('account number: missing')
+    expect(missingWords(['account_number', 'bank_ifsc']))
+      .toBe('account number and IFSC code: missing')
+    expect(missingWords([])).toBe('')
+  })
+
+  // Meta rejects an empty variable, so the stand-in has to be a real word —
+  // and a member reading 'account number: missing' knows to send theirs.
+  it('stands in with a word, not a dash or a blank', () => {
+    expect(MISSING_WORD).toBe('missing')
+    expect(MISSING_WORD.trim()).not.toBe('')
   })
 })
