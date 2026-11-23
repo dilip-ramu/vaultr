@@ -22,7 +22,7 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   groupName: 'Uma 5 Lakh A', installment: 25000, chitValue: 500000,
   auctionDate: '2026-11-05', auctionTime: '6:30 PM', dueDate: '2026-11-15',
   bidAmount: 60000, netPayout: 425000, bankName: 'HDFC Bank',
-  accountEnding: '987654324321', today: '2026-11-20',
+  accountEnding: '987654324321', winnerName: 'Ravi', today: '2026-11-20',
   ...o,
 })
 
@@ -107,7 +107,7 @@ describe('what is wrong with it', () => {
 
   it('stops a winner detail in a message to everybody', () => {
     const p = templateProblems(tpl({
-      body: 'Hello {{member_name}}, your bid of Rs {{bid_amount}} has been recorded today.',
+      body: 'Hello {{member_name}}, Rs {{net_payout}} will be paid to you shortly.',
     }))
     expect(p.some(x => x.message.includes('only exists for the auction winner'))).toBe(true)
   })
@@ -115,7 +115,14 @@ describe('what is wrong with it', () => {
   it('allows the same detail once the audience matches', () => {
     expect(templateProblems(tpl({
       audience: 'winner',
-      body: 'Hello {{member_name}}, your bid of Rs {{bid_amount}} has been recorded today.',
+      body: 'Hello {{member_name}}, Rs {{net_payout}} will be paid to you shortly.',
+    }))).toEqual([])
+  })
+
+  // Announcing the result to the whole group is the normal thing to do.
+  it('allows the result of the auction in a message to everybody', () => {
+    expect(templateProblems(tpl({
+      body: 'Hello {{member_name}}, the {{month}} chit was taken by {{winner_name}} at a discount of Rs {{bid_amount}}, so your dividend is Rs {{dividend}}.',
     }))).toEqual([])
   })
 

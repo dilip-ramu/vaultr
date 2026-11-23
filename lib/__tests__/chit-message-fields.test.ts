@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   FIELDS, field, money, dateWords, safeVar, daysOverdue, valueFor,
-  renderFields, fieldWords, fieldProblem, fieldsFor, ordinal, trimPct,
+  renderFields, fieldWords, fieldProblem, fieldsFor, ordinal, trimPct, labelToField,
   type Facts, type FieldId,
 } from '@/lib/chit/messageFields'
 
@@ -10,8 +10,8 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   chitValue: 500000, installment: 25000, membersCount: 20, monthNumber: 7,
   auctionDate: '2026-11-05', auctionTime: '6:30 PM', nextAuctionDate: '2026-12-05',
   amountDue: 23750, dividend: 1250, dueDate: '2026-11-15',
-  bidAmount: 60000, netPayout: 425000,
-  bankName: 'HDFC Bank', accountEnding: '123456784321',
+  bidAmount: 60000, discountShared: 35000, netPayout: 425000,
+  bankName: 'HDFC Bank', accountEnding: '123456784321', winnerName: 'Ravi',
   memberCode: 'M-014', today: '2026-11-20',
   totalMonths: 20, startDate: '2026-04-05', endDate: '2027-11-05', auctionDay: 5,
   commissionPct: 5, commissionAmount: 25000,
@@ -128,20 +128,29 @@ describe('rendering a list of fields', () => {
 
   it('says what is missing in a sentence', () => {
     expect(fieldWords([])).toBe('')
-    expect(fieldWords(['bid_amount'])).toBe('bid amount')
-    expect(fieldWords(['bid_amount', 'bank_name'])).toBe('bid amount and their bank')
+    expect(fieldWords(['bid_amount'])).toBe('winning bid')
+    expect(fieldWords(['bid_amount', 'bank_name'])).toBe('winning bid and their bank')
     expect(fieldWords(['bid_amount', 'bank_name', 'net_payout']))
-      .toBe('bid amount, their bank and amount payable to them')
+      .toBe('winning bid, their bank and amount payable to them')
   })
 })
 
 describe('a field used where it cannot be honest', () => {
   it('lets a winner detail through in a winner message', () => {
-    expect(fieldProblem('bid_amount', 'winner')).toBeNull()
+    expect(fieldProblem('net_payout', 'winner')).toBeNull()
   })
 
   it('stops a winner detail in a message to everybody', () => {
-    expect(fieldProblem('bid_amount', 'all')).toContain('only exists for the auction winner')
+    expect(fieldProblem('net_payout', 'all')).toContain('only exists for the auction winner')
+  })
+
+  // The result of the auction is announced to the whole group, so these are
+  // not the winner's private business.
+  it('allows the winning bid and who won in any message', () => {
+    for (const a of ['all', 'winner', 'unpaid'] as const) {
+      expect(fieldProblem('bid_amount', a)).toBeNull()
+      expect(fieldProblem('winner_name', a)).toBeNull()
+    }
   })
 
   it('stops a day count in a message to everybody', () => {
@@ -162,10 +171,33 @@ describe('a field used where it cannot be honest', () => {
   it('offers only the fields that suit the audience', () => {
     const all = fieldsFor('all').map(f => f.id)
     expect(all).toContain('member_name')
-    expect(all).not.toContain('bid_amount')
+    expect(all).toContain('bid_amount')
+    expect(all).toContain('winner_name')
+    expect(all).not.toContain('net_payout')
     expect(all).not.toContain('days_overdue')
     expect(fieldsFor('winner').map(f => f.id)).toContain('net_payout')
     expect(fieldsFor('unpaid').map(f => f.id)).toContain('days_overdue')
+  })
+})
+
+describe('the result of the auction', () => {
+  it('gives the winning bid and the part shared with members', () => {
+    expect(valueFor('bid_amount', facts())).toBe('60,000')
+    expect(valueFor('discount_shared', facts())).toBe('35,000')
+    expect(valueFor('winner_name', facts())).toBe('Ravi')
+  })
+
+  // The app's own screens call the winning bid the winning discount, so both
+  // ways of writing it find the same figure.
+  it('knows the other words for the winning bid', () => {
+    for (const word of ['discount', 'discount amount', 'winning discount', 'bid amount']) {
+      expect(labelToField(word)?.id).toBe('bid_amount')
+    }
+  })
+
+  it('has nothing to say in a month nobody won', () => {
+    expect(valueFor('winner_name', facts({ winnerName: null }))).toBeNull()
+    expect(valueFor('bid_amount', facts({ bidAmount: null }))).toBeNull()
   })
 })
 

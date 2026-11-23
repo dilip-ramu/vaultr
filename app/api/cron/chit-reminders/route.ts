@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     // The auction this run is about: the most recent one held. Before the
     // first auction there is nothing anchored, so the group is skipped.
     const { data: auctions } = await sb.from('chit_auctions')
-      .select('id, month_number, auction_date, winner_member_id, bid_amount, net_payout, dividend_per_member')
+      .select('id, month_number, auction_date, winner_member_id, bid_amount, net_payout, dividend_per_member, commission')
       .eq('group_id', groupId)
       .lte('auction_date', today)
       .order('auction_date', { ascending: false })
@@ -180,6 +180,10 @@ export async function GET(req: NextRequest) {
     // What members are told, and what 'overdue by 12 days' counts from. Unset,
     // it is the next auction, and nothing is ever counted as overdue.
     const dueDate = dueDateFor(auctionDate, nextAuctionDate, g.dues_due_days as number | null)
+    // Who took the chit, for a message that announces the result to the group.
+    // Nobody, in an upfront month 1.
+    const winnerName = ((people ?? []) as Record<string, unknown>[])
+      .find(p => String(p.id) === String(auction.winner_member_id ?? ''))?.name as string | undefined
 
     // The chit's own terms, the same figures the group screen shows.
     const terms = {
@@ -220,11 +224,17 @@ export async function GET(req: NextRequest) {
         maxDiscountPct: Number(g.bid_ceiling_pct),
         auctionDate,
         auctionTime: (g.auction_time as string | null) ?? null,
+        winnerName: winnerName ?? null,
         nextAuctionDate,
         amountDue,
         dividend,
         dueDate,
         bidAmount: Number(auction.bid_amount) || 0,
+        // The part of the discount that reaches members, after the foreman's
+        // cut. The same figure as dividend x members, taken from what was
+        // stored on the night rather than recomputed.
+        discountShared: Math.max(0,
+          Math.round(((Number(auction.bid_amount) || 0) - (Number(auction.commission) || 0)) * 100) / 100),
         netPayout: Number(auction.net_payout) || 0,
         today,
       }

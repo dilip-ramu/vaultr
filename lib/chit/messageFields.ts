@@ -39,9 +39,9 @@ export type FieldId =
   | 'chit_value' | 'installment'
   | 'commission_pct' | 'commission_amount'
   | 'min_bid' | 'max_discount' | 'max_discount_pct'
-  | 'auction_date' | 'auction_time' | 'next_auction_date'
+  | 'auction_date' | 'auction_time' | 'next_auction_date' | 'winner_name'
   | 'amount_due' | 'due_date' | 'dividend' | 'days_overdue'
-  | 'bid_amount' | 'net_payout'
+  | 'bid_amount' | 'discount_shared' | 'net_payout'
 
 export interface FieldSpec {
   id: FieldId
@@ -90,13 +90,19 @@ export const FIELDS: readonly FieldSpec[] = [
   { id: 'auction_date',  label: 'auction date',   sample: '5 November 2026',   group: 'auction' },
   { id: 'auction_time',  label: 'auction time',   sample: '6:30 PM',           group: 'auction' },
   { id: 'next_auction_date', label: 'next auction date', sample: '5 December 2026', group: 'auction' },
+  { id: 'winner_name',   label: 'who won',        sample: 'Ravi',              group: 'auction',
+    note: 'The member who took the chit this month.' },
+  { id: 'bid_amount',    label: 'winning bid',    sample: '60,000',            group: 'auction',
+    note: 'The discount the chit was taken at \u2014 what the group screen calls the winning discount. The same figure for everybody, so any message may use it.' },
+  { id: 'discount_shared', label: 'discount shared', sample: '35,000',          group: 'auction',
+    note: 'The winning bid less the commission \u2014 the part divided among the members as dividend.' },
   { id: 'amount_due',    label: 'amount due',     sample: '23,750',            group: 'money',
     note: 'This month’s subscription after their dividend.' },
   { id: 'dividend',      label: 'dividend',       sample: '1,250',             group: 'money' },
   { id: 'due_date',      label: 'due date',       sample: '5 December 2026',   group: 'money' },
   { id: 'days_overdue',  label: 'days overdue',   sample: '12',                group: 'money', onlyFor: 'unpaid',
     note: 'Only in a message to members who still owe, and only after the due date.' },
-  { id: 'bid_amount',    label: 'bid amount',     sample: '60,000',            group: 'winner', onlyFor: 'winner' },
+
   { id: 'net_payout',    label: 'amount payable to them', sample: '4,25,000',  group: 'winner', onlyFor: 'winner' },
   { id: 'bank_name',     label: 'their bank',     sample: 'HDFC Bank',         group: 'winner', onlyFor: 'winner' },
   { id: 'account_ending', label: 'account ending', sample: '4321',             group: 'winner', onlyFor: 'winner',
@@ -208,11 +214,15 @@ export interface Facts {
   maxDiscountPct?: number | null
   auctionDate?: string | null
   auctionTime?: string | null
+  /** Who took the chit this month. Nobody, in an upfront month 1. */
+  winnerName?: string | null
   nextAuctionDate?: string | null
   amountDue?: number | null
   dividend?: number | null
   dueDate?: string | null
   bidAmount?: number | null
+  /** The winning bid less the commission — what is divided among members. */
+  discountShared?: number | null
   netPayout?: number | null
   /** The day being planned for, so a reminder can count the days it is late. */
   today?: string
@@ -262,6 +272,7 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'auction_date':  return dateWords(f.auctionDate)
     case 'auction_time':  return text(f.auctionTime)
     case 'next_auction_date': return dateWords(f.nextAuctionDate)
+    case 'winner_name':   return text(f.winnerName)
     case 'amount_due':    return has(f.amountDue) ? money(Number(f.amountDue)) : null
     case 'dividend':      return has(f.dividend) ? money(Number(f.dividend)) : null
     case 'due_date':      return dateWords(f.dueDate)
@@ -271,6 +282,7 @@ export function valueFor(id: FieldId, f: Facts): string | null {
       return n > 0 ? String(n) : null
     }
     case 'bid_amount':    return has(f.bidAmount) ? money(Number(f.bidAmount)) : null
+    case 'discount_shared': return has(f.discountShared) ? money(Number(f.discountShared)) : null
     case 'net_payout':    return has(f.netPayout) ? money(Number(f.netPayout)) : null
   }
 }
@@ -319,6 +331,11 @@ export function fieldProblem(id: FieldId, audience: Audience): string | null {
  * named form — see fromNumbered() in messageTemplates.ts.
  */
 const ALIASES: Record<string, FieldId> = {
+  'bid amount': 'bid_amount',
+  'discount': 'bid_amount',
+  'discount amount': 'bid_amount',
+  'winning discount': 'bid_amount',
+  'winner': 'winner_name',
   'amount payable to you': 'net_payout',
   'amount payable': 'net_payout',
   'amount outstanding': 'amount_due',
