@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { notify } from '@/components/shared/Toast'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { ChevronLeft, TrendingUp, TrendingDown, ArrowLeftRight } from 'lucide-react'
@@ -40,9 +43,31 @@ function periodBounds(p: Period, customFrom: string, customTo: string): { from: 
 interface Props {
   category: Category
   transactions: Transaction[]
+  /** Assets this category's spend could build up on. */
+  assets?: { id: string; name: string }[]
 }
 
-export default function CategoryDetailClient({ category, transactions: initial }: Props) {
+export default function CategoryDetailClient({ category, transactions: initial, assets = [] }: Props) {
+  const router = useRouter()
+  const sb = createClient()
+  // Which asset this category funds. The one click there is in the whole
+  // feature: set it once here, and every transaction afterwards counts towards
+  // that asset by itself. See lib/assets/construction.ts.
+  const [assetId, setAssetId] = useState<string>((category as { asset_id?: string | null }).asset_id ?? '')
+  const [linking, setLinking] = useState(false)
+
+  async function linkAsset(next: string) {
+    const was = assetId
+    setAssetId(next)
+    setLinking(true)
+    const { error } = await sb.from('categories').update({ asset_id: next || null }).eq('id', category.id)
+    setLinking(false)
+    if (error) { setAssetId(was); notify(error.message, 'error'); return }
+    notify(next
+      ? `Spend here now builds up on ${assets.find(a => a.id === next)?.name ?? 'the asset'}`
+      : 'No longer building up on an asset', 'success')
+    router.refresh()
+  }
   const [transactions, setTransactions] = useState<Transaction[]>(initial)
   const [period, setPeriod] = useState<Period>('this_month')
   const [customFrom, setCustomFrom] = useState('')
@@ -128,6 +153,28 @@ export default function CategoryDetailClient({ category, transactions: initial }
           </div>
         </div>
       </div>
+
+      {/* ── Where this spend builds up ────────────────────────────────────
+          Set once. Every transaction filed here afterwards counts towards that
+          asset with nothing to click, because the asset's figure IS the sum of
+          these transactions rather than a copy of them. */}
+      {category.type === 'expense' && assets.length > 0 && (
+        <div className="rounded-2xl border px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+          <span className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>Spend here builds up on</span>
+          <select value={assetId} disabled={linking} onChange={e => linkAsset(e.target.value)}
+            className="px-3 py-1.5 rounded-lg border text-[13px] font-semibold disabled:opacity-50"
+            style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}>
+            <option value="">nothing — it is just an expense</option>
+            {assets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          {assetId && (
+            <span className="text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
+              Every transaction here counts towards it. Fold it onto another asset when the work is done.
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Period filter */}
       <div className="flex flex-wrap gap-2 items-center">

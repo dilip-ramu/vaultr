@@ -12,6 +12,7 @@ import { valueAsset, assetFx, inr, pctStr, type Valuation } from '@/lib/assets/v
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
 import AssetDetail from './AssetDetail'
+import type { Bucket, Fold } from '@/lib/assets/construction'
 import { createClient } from '@/lib/supabase/client'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { netProceeds } from '@/lib/assets/sale'
@@ -25,9 +26,19 @@ interface Props {
   marketRates: MarketRate[]
   initialDefaults: AssetRateDefault[]
   accounts?: PickerAccount[]
+  /**
+   * Spend that has built up on an asset through a funding category, keyed by
+   * asset — worked out from the bills, never stored. See
+   * lib/assets/construction.ts.
+   */
+  buckets?: Record<string, Bucket>
+  /** Which category feeds each asset, for saying so on screen. */
+  bucketCategory?: Record<string, string>
+  /** Buckets already folded into another asset. */
+  folds?: Fold[]
 }
 
-export default function AssetsClient({ initialAssets, marketRates, initialDefaults, accounts = [] }: Props) {
+export default function AssetsClient({ initialAssets, marketRates, initialDefaults, accounts = [], buckets = {}, bucketCategory = {}, folds = [] }: Props) {
   const router = useRouter()
   const { hidden } = useBalanceVisibility()
   const m = (n: number) => hidden ? '••••' : inr(n)
@@ -480,6 +491,10 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
 
       {detail && (
         <AssetDetail asset={detail} valuation={valued.get(detail.id)!} marketRates={marketRates} defaults={defaults} accounts={accounts} fx={assetFx(detail, fxRates)}
+          bucket={buckets[detail.id]} bucketCategory={bucketCategory[detail.id]}
+          foldTargets={assets.filter(a => a.id !== detail.id).map(a => ({ id: a.id, name: a.name }))}
+          foldsOut={folds.filter(f => f.sourceAssetId === detail.id)}
+          foldsIn={folds.filter(f => f.targetAssetId === detail.id)}
           onEdit={() => { setFormFor({ asset: detail, category: detail.category, subcategory: detail.subcategory ?? '' }); setDetail(null) }}
           onSaved={(a) => { onSaved(a); setDetail(a) }}
           onDeleted={onDeleted} onClose={() => setDetail(null)} />

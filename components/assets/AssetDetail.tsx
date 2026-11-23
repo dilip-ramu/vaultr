@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { improvementValue, yearsSince, type Improvement } from '@/lib/assets/improvements'
+import { bucketWords, foldDrift, type Bucket, type Fold } from '@/lib/assets/construction'
+import FoldBucketModal from './FoldBucketModal'
 import { X, Pencil, Trash2, FileText, Paperclip, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
@@ -21,6 +23,19 @@ interface Props {
   defaults?: AssetRateDefault[]
   accounts?: PickerAccount[]
   fx?: number
+  /**
+   * Spend built up on this asset through a funding category. Worked out from
+   * the bills, so it needs no clicking when a transaction is entered — see
+   * lib/assets/construction.ts.
+   */
+  bucket?: Bucket
+  /** The category feeding it, for saying where the money came from. */
+  bucketCategory?: string
+  /** Assets this bucket could be folded into. */
+  foldTargets?: { id: string; name: string }[]
+  /** Buckets folded out of this asset, and folds that landed on it. */
+  foldsOut?: Fold[]
+  foldsIn?: Fold[]
   onEdit: () => void
   onSaved: (a: Asset) => void
   onDeleted: (id: string) => void
@@ -29,8 +44,13 @@ interface Props {
 
 const GOLD_GRAD = 'linear-gradient(150deg,#8A6D1F,#5C4711)'
 
-export default function AssetDetail({ asset, valuation, marketRates, defaults = [], accounts = [], fx = 1, onEdit, onSaved, onDeleted, onClose }: Props) {
+export default function AssetDetail({
+  asset, valuation, marketRates, defaults = [], accounts = [], fx = 1,
+  bucket, bucketCategory, foldTargets = [], foldsOut = [], foldsIn = [],
+  onEdit, onSaved, onDeleted, onClose,
+}: Props) {
   const [deleting, setDeleting] = useState(false)
+  const [folding, setFolding] = useState(false)
   const [lightbox, setLightbox] = useState<number | null>(null)
   const isSold = asset.status === 'sold'
   const isPaid = asset.sale_payment_status === 'received'
@@ -258,6 +278,71 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
             </div>
           </div>
 
+          {/* ── Money building up on this asset ───────────────────────────────
+              A category funds this asset, so every bill filed under it counts
+              here with nothing to click when the transaction is entered. The
+              figure IS the sum of those bills: add one and it rises, delete one
+              and it falls. When the work is finished it is FOLDED onto whatever
+              asset it became, and this reads zero again for the next project. */}
+          {bucket && (
+            <>
+              <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>
+                IN PROGRESS{bucketCategory ? ` · FROM ${bucketCategory.toUpperCase()}` : ''}
+              </p>
+              <div className="rounded-[14px] overflow-hidden mb-5" style={{ border: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                      {inr(bucket.amount)}
+                    </p>
+                    <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{bucketWords(bucket)}</p>
+                  </div>
+                  {bucket.count > 0 && !isSold && (
+                    <button onClick={() => setFolding(true)}
+                      className="shrink-0 text-[12px] font-bold px-3 py-1.5 rounded-lg"
+                      style={{ background: 'var(--brand-light)', color: 'var(--brand)' }}>
+                      Fold into an asset
+                    </button>
+                  )}
+                </div>
+                {bucket.count === 0 && (
+                  <p className="px-4 pb-3 text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
+                    The next bill filed under this category lands here by itself.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Folds already made out of this asset: where the money went. */}
+          {foldsOut.length > 0 && (
+            <>
+              <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>FOLDED AWAY</p>
+              <div className="rounded-[14px] overflow-hidden mb-5" style={{ border: '1px solid var(--border)' }}>
+                {foldsOut.map(f => {
+                  // A bill corrected after the fold does not move a finished
+                  // building's cost — but the disagreement is said out loud.
+                  const drift = bucket ? foldDrift(f, bucket.transactions) : null
+                  const target = foldTargets.find(t => t.id === f.targetAssetId)
+                  return (
+                    <div key={f.id} className="px-4 py-2.5" style={{ borderBottom: '1px solid var(--border-2, var(--border))' }}>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[12.5px] font-semibold truncate" style={{ color: 'var(--text)' }}>
+                          {f.improvementName}{target ? ` → ${target.name}` : ''}
+                        </p>
+                        <span className="text-[12.5px] shrink-0" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{inr(f.amount)}</span>
+                      </div>
+                      <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                        finished {f.completedOn} · {f.transactionIds.length} bill{f.transactionIds.length === 1 ? '' : 's'}
+                      </p>
+                      {drift && <p className="text-[11px] mt-0.5" style={{ color: 'var(--expense)' }}>{drift.words}</p>}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
           {/* ── Improvements ──────────────────────────────────────────────────
               What you built or added after buying it, each valued from the day it
               was FINISHED — not from the day you bought the asset. The age is
@@ -371,6 +456,16 @@ export default function AssetDetail({ asset, valuation, marketRates, defaults = 
             </div>
           )}
         </div>
+      )}
+
+      {folding && bucket && (
+        <FoldBucketModal
+          sourceAsset={{ id: asset.id, name: asset.name }}
+          bucket={bucket}
+          targets={foldTargets}
+          onClose={() => setFolding(false)}
+          onFolded={() => { setFolding(false); onClose() }}
+        />
       )}
     </div>
   )

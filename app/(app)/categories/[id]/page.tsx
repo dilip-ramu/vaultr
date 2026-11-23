@@ -10,7 +10,7 @@ export default async function CategoryDetailPage({ params }: { params: Promise<{
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: category }, { data: transactions }] = await Promise.all([
+  const [{ data: category }, { data: transactions }, { data: assets }] = await Promise.all([
     supabase
       .from('categories')
       .select('*')
@@ -26,9 +26,19 @@ export default async function CategoryDetailPage({ params }: { params: Promise<{
       .eq('category_id', id)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false }),
+    // A category can fund an asset: everything filed under it builds up there
+    // with nothing to click. See lib/assets/construction.ts.
+    supabase.from('assets').select('id, name, category').eq('user_id', user.id)
+      .eq('status', 'held').order('name'),
   ])
 
   if (!category) notFound()
 
-  return <CategoryDetailClient category={category} transactions={transactions ?? []} />
+  return (
+    <CategoryDetailClient
+      category={category}
+      transactions={transactions ?? []}
+      assets={((assets ?? []) as { id: string; name: string }[]).map(a => ({ id: a.id, name: a.name }))}
+    />
+  )
 }
