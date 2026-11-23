@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_STEPS, PRESETS, addDays, stepDate, stepWords, stepProblem,
   resolveSteps, plan, sendKey, timetable, planWords,
+  stepLabel, uniqueStepKey, newStep, dueDateFor,
   type Step, type MemberLike, type PlanInput,
 } from '@/lib/chit/reminderSchedule'
 
@@ -221,5 +222,77 @@ describe('the line the screen shows', () => {
     expect(planWords(plan(input({ paidMemberIds: ['m1'] }))))
       .toBe('Nothing to send today — 1 member has paid.')
     expect(planWords(plan(input({ today: '2026-11-11' })))).toBe('Nothing to send today.')
+  })
+})
+
+
+describe('a schedule you can add to', () => {
+  it('names a step after its message, or after its kind', () => {
+    expect(stepLabel(step({ key: 'x', label: 'Second push' }))).toBe('Second push')
+    expect(stepLabel(step({ key: 'x', kind: 'notice' }))).toBe('Auction notice')
+    expect(stepLabel(step({ key: 'x', label: '   ' }))).toBe('Payment reminder')
+  })
+
+  // A key is what the log is written against. Reusing one would make an old
+  // send look like today's and stop the new step going out at all.
+  it('never reuses a key', () => {
+    const existing = [step({ key: 'step-1' }), step({ key: 'step-2' })]
+    expect(uniqueStepKey(existing)).toBe('step-3')
+    expect(uniqueStepKey([])).toBe('step-1')
+  })
+
+  it('adds a step that is ready to use', () => {
+    const s = newStep(DEFAULT_STEPS)
+    expect(s.key).toBe('step-1')
+    expect(s.enabled).toBe(true)
+    expect(s.templateId).toBeNull()
+    expect(stepProblem(s)).toBeNull()
+  })
+
+  it('takes what you give it', () => {
+    const s = newStep([], { offsetDays: 20, audience: 'all', templateId: 'abc' })
+    expect(s.offsetDays).toBe(20)
+    expect(s.audience).toBe('all')
+    expect(s.templateId).toBe('abc')
+  })
+
+  it('plans a schedule of any length', () => {
+    const many = [1, 2, 3, 4, 5, 6, 7, 8].map((n, i) =>
+      step({ key: `r-${i}`, offsetDays: n }))
+    const result = plan(input({ groupSteps: many, today: '2026-11-08' }))
+    expect(result.due).toHaveLength(1)
+    expect(result.due[0].stepKey).toBe('r-2')
+  })
+})
+
+describe('when the subscription falls due', () => {
+  it('counts the days from the auction when they are set', () => {
+    expect(dueDateFor('2026-11-05', '2026-12-05', 10)).toBe('2026-11-15')
+    expect(dueDateFor('2026-11-05', '2026-12-05', 0)).toBe('2026-11-05')
+  })
+
+  // The latest it could possibly be owed is the next auction, so that is the
+  // honest fallback rather than a number nobody chose.
+  it('falls back to the next auction', () => {
+    expect(dueDateFor('2026-11-05', '2026-12-05', null)).toBe('2026-12-05')
+    expect(dueDateFor('2026-11-05', null, null)).toBeNull()
+  })
+})
+
+describe('what to send, and which message', () => {
+  it('carries the message the step points at', () => {
+    const r = plan(input({
+      groupSteps: [step({ key: 'r1', offsetDays: 5, templateId: 'tpl-9' })],
+      today: '2026-11-10',
+    }))
+    expect(r.due[0].templateId).toBe('tpl-9')
+  })
+
+  it('says so plainly when no message was chosen', () => {
+    const r = plan(input({
+      groupSteps: [step({ key: 'r1', offsetDays: 5 })],
+      today: '2026-11-10',
+    }))
+    expect(r.due[0].templateId).toBeNull()
   })
 })

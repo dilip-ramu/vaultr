@@ -39,6 +39,14 @@ export interface Step {
   /** Negative is before the anchor, positive after, 0 on the day. */
   offsetDays: number
   enabled: boolean
+  /**
+   * Which message it sends, from the one library shared by every group. Empty
+   * on the steps the app ships with: they are matched to the starter messages
+   * the first time the schedule is saved.
+   */
+  templateId?: string | null
+  /** Your own name for this step, when the message's name is not enough. */
+  label?: string | null
 }
 
 /** His six, as the app ships them. */
@@ -116,6 +124,61 @@ export function stepProblem(step: Step): string | null {
   return null
 }
 
+/** A step's own name, or the sensible default for its kind. */
+export function stepLabel(step: Step): string {
+  const own = String(step.label ?? '').trim()
+  return own || STEP_LABEL[step.kind]
+}
+
+/**
+ * A key nothing else in the schedule is using.
+ *
+ * Keys are what the log is written against, so reusing one would make an old
+ * send look like today's and stop the new step going out.
+ */
+export function uniqueStepKey(existing: readonly Step[], base = 'step'): string {
+  const taken = new Set(existing.map(s => s.key))
+  for (let n = 1; n < 500; n++) {
+    const key = `${base}-${n}`
+    if (!taken.has(key)) return key
+  }
+  return `${base}-${Date.now()}`
+}
+
+/** Another step, added to the end of a schedule. */
+export function newStep(existing: readonly Step[], patch: Partial<Step> = {}): Step {
+  return {
+    key: uniqueStepKey(existing),
+    kind: 'reminder',
+    audience: 'unpaid',
+    anchor: 'auction',
+    offsetDays: 10,
+    enabled: true,
+    templateId: null,
+    label: null,
+    ...patch,
+  }
+}
+
+/**
+ * The day this month's subscription falls due.
+ *
+ * A chit's dues are owed within a few days of the auction, not on the day of
+ * the next one — which matters, because 'overdue by 12 days' is counted from
+ * this date. When nothing is set, the next auction is used, which is the
+ * latest it could possibly be owed.
+ */
+export function dueDateFor(
+  auctionDate: string,
+  nextAuctionDate?: string | null,
+  duesDueDays?: number | null,
+): string | null {
+  if (duesDueDays != null && Number.isFinite(Number(duesDueDays))) {
+    return addDays(auctionDate, Math.round(Number(duesDueDays)))
+  }
+  return nextAuctionDate ?? null
+}
+
 /**
  * The steps that apply to one member: their own if they have any, otherwise
  * the group's. REPLACES, never merges — see the note at the top.
@@ -155,6 +218,8 @@ export interface Send {
   memberName: string
   stepKey: string
   kind: StepKind
+  /** Which message to send, from the library. Null when none was chosen. */
+  templateId: string | null
   /** The day it is due. Equal to `today` for everything in `due`. */
   date: string
 }
@@ -206,7 +271,10 @@ export function plan(i: PlanInput): Plan {
       const key = sendKey(i.auctionId, m.id, step.key)
       if (sent.has(key)) { add('already_sent'); continue }
 
-      due.push({ key, memberId: m.id, memberName: m.name, stepKey: step.key, kind: step.kind, date })
+      due.push({
+        key, memberId: m.id, memberName: m.name, stepKey: step.key, kind: step.kind,
+        templateId: step.templateId ?? null, date,
+      })
     }
   }
 

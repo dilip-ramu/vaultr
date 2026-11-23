@@ -14,7 +14,7 @@ import {
   Banknote, UserSquare, CalendarClock, History,
   Building2, CheckCheck,
   ArrowDownUp, ReceiptText, Globe, Archive, Mail, Scale,
-  CalendarRange, CreditCard, Gem, BarChart3, Coins, LineChart, FlaskConical , ShieldCheck, Package } from 'lucide-react'
+  CalendarRange, CreditCard, Gem, BarChart3, Coins, LineChart, FlaskConical , ShieldCheck, Package, MessageSquare } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
@@ -129,6 +129,9 @@ const navSections: NavSection[] = [
         subItems: [
           { href: '/chit/groups',  label: 'Groups',  icon: Layers },
           { href: '/chit/members', label: 'Members', icon: Users },
+          // The wording members receive. One set for every group, which is why
+          // it is here and not inside a group.
+          { href: '/chit/messages', label: 'Messages', icon: MessageSquare },
           // Owner only — filtered out below for admins, who must not see the
           // list of who else has access, let alone change it.
           { href: '/chit/admins',  label: 'Admins', icon: ShieldCheck },

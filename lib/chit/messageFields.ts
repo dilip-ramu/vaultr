@@ -1,0 +1,281 @@
+// The details a chit message can carry, and what each one is worth today.
+//
+// WHY A CATALOGUE AND NOT A FIXED LIST PER MESSAGE
+//
+// The six messages used to have their variables hard-coded: the notice always
+// carried six figures in one order, the winner's message five in another. That
+// works until you want to ask the winner to confirm their bank account, or put
+// a new rule in the auction notice, and then it does not work at all.
+//
+// So a message no longer owns a list of variables. It is written as plain text
+// with {{field}} tokens in it — {{member_name}}, {{amount_due}} — and this
+// file is the only place that knows what a field means, what it is worth for a
+// given member and month, and whether it can honestly be used at all.
+//
+// ── WHY NOT NUMBERS ────────────────────────────────────────────────────────
+//
+// Meta's own syntax is {{1}}, {{2}}, and it rejects a template whose numbers
+// are out of order, repeated wrongly, or do not match the examples given. Half
+// the rejections in lib/whatsapp/templateSpec.ts are about numbering. Writing
+// with names and NUMBERING AT THE LAST MOMENT, in the order the tokens appear,
+// makes every one of those mistakes impossible to make. See compile() in
+// messageTemplates.ts.
+//
+// ── A FIELD CAN BE UNKNOWN ─────────────────────────────────────────────────
+//
+// 'days overdue' means nothing before the due date; a bid amount means nothing
+// to a member who did not win. valueFor returns null rather than a zero or a
+// dash, and the caller decides: the screen greys it out, the daily run records
+// 'not enough information' instead of sending 'overdue by 0 days'.
+//
+// Pure. No React, no database, no clock of its own — today is passed in.
+
+import type { Audience } from './reminderSchedule'
+
+export type FieldId =
+  | 'member_name' | 'member_code' | 'bank_name' | 'account_ending'
+  | 'group_name' | 'month' | 'month_number' | 'members_count'
+  | 'chit_value' | 'installment'
+  | 'auction_date' | 'auction_time' | 'next_auction_date'
+  | 'amount_due' | 'due_date' | 'dividend' | 'days_overdue'
+  | 'bid_amount' | 'net_payout'
+
+export interface FieldSpec {
+  id: FieldId
+  /** What it is called on screen and in the submission to Meta. */
+  label: string
+  /** The example value Meta asks for. Free of # $ % and line breaks. */
+  sample: string
+  /** For grouping the picker. */
+  group: 'member' | 'group' | 'auction' | 'money' | 'winner'
+  /**
+   * Some fields only exist for one audience. A bid amount is the winner's; a
+   * day count is only honest in a message that goes to somebody who owes.
+   */
+  onlyFor?: Audience
+  /** A plain sentence for the picker. */
+  note?: string
+}
+
+export const FIELDS: readonly FieldSpec[] = [
+  { id: 'member_name',   label: 'member name',    sample: 'Ravi',              group: 'member' },
+  { id: 'member_code',   label: 'member number',  sample: 'M-014',             group: 'member',
+    note: 'Their code in your register, if you have given them one.' },
+  { id: 'group_name',    label: 'chit name',      sample: 'Uma 5 Lakh A',      group: 'group' },
+  { id: 'members_count', label: 'total members',  sample: '20',                group: 'group' },
+  { id: 'chit_value',    label: 'chit value',     sample: '5,00,000',          group: 'group' },
+  { id: 'installment',   label: 'monthly subscription', sample: '25,000',      group: 'money' },
+  { id: 'month',         label: 'month',          sample: 'November 2026',     group: 'group' },
+  { id: 'month_number',  label: 'month number',   sample: '7',                 group: 'group',
+    note: 'The 7th of 20 months.' },
+  { id: 'auction_date',  label: 'auction date',   sample: '5 November 2026',   group: 'auction' },
+  { id: 'auction_time',  label: 'auction time',   sample: '6:30 PM',           group: 'auction' },
+  { id: 'next_auction_date', label: 'next auction date', sample: '5 December 2026', group: 'auction' },
+  { id: 'amount_due',    label: 'amount due',     sample: '23,750',            group: 'money',
+    note: 'This month’s subscription after their dividend.' },
+  { id: 'dividend',      label: 'dividend',       sample: '1,250',             group: 'money' },
+  { id: 'due_date',      label: 'due date',       sample: '5 December 2026',   group: 'money' },
+  { id: 'days_overdue',  label: 'days overdue',   sample: '12',                group: 'money', onlyFor: 'unpaid',
+    note: 'Only in a message to members who still owe, and only after the due date.' },
+  { id: 'bid_amount',    label: 'bid amount',     sample: '60,000',            group: 'winner', onlyFor: 'winner' },
+  { id: 'net_payout',    label: 'amount payable to them', sample: '4,25,000',  group: 'winner', onlyFor: 'winner' },
+  { id: 'bank_name',     label: 'their bank',     sample: 'HDFC Bank',         group: 'winner', onlyFor: 'winner' },
+  { id: 'account_ending', label: 'account ending', sample: '4321',             group: 'winner', onlyFor: 'winner',
+    note: 'The last four digits only. The full number never goes in a message.' },
+]
+
+export const GROUP_LABEL: Record<FieldSpec['group'], string> = {
+  member: 'The member',
+  group: 'The chit',
+  auction: 'The auction',
+  money: 'Money and dates',
+  winner: 'The winner only',
+}
+
+const BY_ID = new Map<string, FieldSpec>(FIELDS.map(f => [f.id, f]))
+
+/** The field with this id, or undefined for a token nobody recognises. */
+export function field(id: string): FieldSpec | undefined {
+  return BY_ID.get(String(id).trim())
+}
+
+/** Rupees as they read in a sentence: 5,000 — no symbol, the wording carries it. */
+export function money(n: number): string {
+  const v = Number.isFinite(Number(n)) ? Math.round(Number(n)) : 0
+  return v.toLocaleString('en-IN')
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
+
+/** '2026-11-05' becomes '5 November 2026'. Anything else is left alone. */
+export function dateWords(iso: string | null | undefined): string | null {
+  const s = String(iso ?? '').slice(0, 10)
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (!m) return s.trim() === '' ? null : s
+  const month = MONTHS[Number(m[2]) - 1]
+  if (!month) return s
+  return `${Number(m[3])} ${month} ${m[1]}`
+}
+
+/**
+ * Anything going into a variable, made safe for Meta.
+ *
+ * Line breaks and tabs are flattened because Meta rejects them outright. Empty
+ * is NOT turned into a dash here: an empty value means the fact is unknown,
+ * and the caller needs to see that rather than send a dash to a member.
+ */
+export function safeVar(v: string | number | null | undefined): string {
+  return String(v ?? '').replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 1024)
+}
+
+/** How many days past the due date, or 0 when it has not passed. */
+export function daysOverdue(dueDate: string | undefined | null, today: string): number {
+  const d = String(dueDate ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return 0
+  const a = Date.parse(`${d}T00:00:00Z`)
+  const b = Date.parse(`${today}T00:00:00Z`)
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 0
+  return Math.round((b - a) / 86400000)
+}
+
+/** Everything a message might want to say, as far as it is known. */
+export interface Facts {
+  memberName?: string
+  memberCode?: string | null
+  bankName?: string | null
+  /** The last four digits. Never the whole number. */
+  accountEnding?: string | null
+  groupName?: string
+  /** 'November 2026' — whatever the group calls this month. */
+  month?: string
+  monthNumber?: number | null
+  membersCount?: number | null
+  chitValue?: number | null
+  installment?: number | null
+  auctionDate?: string | null
+  auctionTime?: string | null
+  nextAuctionDate?: string | null
+  amountDue?: number | null
+  dividend?: number | null
+  dueDate?: string | null
+  bidAmount?: number | null
+  netPayout?: number | null
+  /** The day being planned for, so a reminder can count the days it is late. */
+  today?: string
+}
+
+const has = (n: number | null | undefined) => n != null && Number.isFinite(Number(n))
+
+/**
+ * What a field is worth for these facts, or null when it is not known.
+ *
+ * Zero is a real value — a dividend of 0 in the first month is the truth — so
+ * only a missing fact gives null, never a zero.
+ */
+export function valueFor(id: FieldId, f: Facts): string | null {
+  const text = (v: string | null | undefined) => {
+    const s = safeVar(v)
+    return s === '' ? null : s
+  }
+  switch (id) {
+    case 'member_name':   return text(f.memberName)
+    case 'member_code':   return text(f.memberCode)
+    case 'bank_name':     return text(f.bankName)
+    case 'account_ending': {
+      const digits = String(f.accountEnding ?? '').replace(/\D/g, '')
+      return digits.length >= 4 ? digits.slice(-4) : null
+    }
+    case 'group_name':    return text(f.groupName)
+    case 'month':         return text(f.month)
+    case 'month_number':  return has(f.monthNumber) ? String(Math.round(Number(f.monthNumber))) : null
+    case 'members_count': return has(f.membersCount) ? String(Math.round(Number(f.membersCount))) : null
+    case 'chit_value':    return has(f.chitValue) ? money(Number(f.chitValue)) : null
+    case 'installment':   return has(f.installment) ? money(Number(f.installment)) : null
+    case 'auction_date':  return dateWords(f.auctionDate)
+    case 'auction_time':  return text(f.auctionTime)
+    case 'next_auction_date': return dateWords(f.nextAuctionDate)
+    case 'amount_due':    return has(f.amountDue) ? money(Number(f.amountDue)) : null
+    case 'dividend':      return has(f.dividend) ? money(Number(f.dividend)) : null
+    case 'due_date':      return dateWords(f.dueDate)
+    case 'days_overdue': {
+      const n = daysOverdue(f.dueDate, String(f.today ?? ''))
+      // 'overdue by 0 days' is worse than not sending. Unknown, not zero.
+      return n > 0 ? String(n) : null
+    }
+    case 'bid_amount':    return has(f.bidAmount) ? money(Number(f.bidAmount)) : null
+    case 'net_payout':    return has(f.netPayout) ? money(Number(f.netPayout)) : null
+  }
+}
+
+/**
+ * The values for a list of fields, or which ones are not known.
+ *
+ * All-or-nothing on purpose: a message half filled in is not worth sending,
+ * and Meta rejects an empty variable anyway.
+ */
+export function renderFields(ids: readonly FieldId[], f: Facts):
+  { values: string[]; missing: FieldId[] } {
+  const values: string[] = []
+  const missing: FieldId[] = []
+  for (const id of ids) {
+    const v = valueFor(id, f)
+    if (v === null) missing.push(id)
+    else values.push(v)
+  }
+  return { values, missing }
+}
+
+/** 'bid amount, their bank' — for saying what is missing in a sentence. */
+export function fieldWords(ids: readonly FieldId[]): string {
+  const labels = ids.map(id => field(id)?.label ?? id)
+  if (labels.length <= 1) return labels.join('')
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+}
+
+/** A field used where it cannot be honest, said plainly. Null when it is fine. */
+export function fieldProblem(id: FieldId, audience: Audience): string | null {
+  const spec = field(id)
+  if (!spec) return `There is no detail called ${id}.`
+  if (!spec.onlyFor || spec.onlyFor === audience) return null
+  if (spec.onlyFor === 'winner') {
+    return `"${spec.label}" only exists for the auction winner, and this message goes to ${audience === 'unpaid' ? 'everybody who owes' : 'everybody'}.`
+  }
+  return `"${spec.label}" only makes sense in a message to members who still owe.`
+}
+
+/**
+ * The field behind a label, including the labels earlier versions used.
+ *
+ * The first templates were stored as {{1}}, {{2}} with a separate list of what
+ * each number meant. Those words are how such a message is read back into the
+ * named form — see fromNumbered() in messageTemplates.ts.
+ */
+const ALIASES: Record<string, FieldId> = {
+  'amount payable to you': 'net_payout',
+  'amount payable': 'net_payout',
+  'amount outstanding': 'amount_due',
+  'outstanding': 'amount_due',
+  'subscription': 'installment',
+  'monthly installment': 'installment',
+  'name': 'member_name',
+  'chit name': 'group_name',
+  'group name': 'group_name',
+  'their bank': 'bank_name',
+  'bank': 'bank_name',
+  'account ending': 'account_ending',
+}
+
+export function labelToField(label: string): FieldSpec | undefined {
+  const want = String(label ?? '').trim().toLowerCase()
+  if (!want) return undefined
+  const exact = FIELDS.find(f => f.label.toLowerCase() === want)
+  if (exact) return exact
+  const alias = ALIASES[want]
+  return alias ? field(alias) : field(want.replace(/\s+/g, '_'))
+}
+
+/** The fields that can be used in a message for this audience. */
+export function fieldsFor(audience: Audience): readonly FieldSpec[] {
+  return FIELDS.filter(f => !f.onlyFor || f.onlyFor === audience)
+}

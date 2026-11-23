@@ -3,7 +3,7 @@
 import LiveBiddingPanel from './LiveBiddingPanel'
 import ReminderScheduleTab from './ReminderScheduleTab'
 import ReminderLog, { type LogRow } from './ReminderLog'
-import TemplateEditor, { type TemplateRow } from './TemplateEditor'
+import type { MessageTemplate } from '@/lib/chit/messageTemplates'
 import type { Step } from '@/lib/chit/reminderSchedule'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -36,7 +36,7 @@ type Coll = ChitCollection & { member?: { name: string } }
 
 export default function ChitGroupDetail({
   group: initialGroup, groupMembers, allMembers, auctions: initialAuctions, collections: initialCollections, accounts, companies, creditMoves = [],
-  messageLog = [], whatsappLive = false, whatsappConnected = false, templates = [],
+  messageLog = [], whatsappLive = false, templates = [],
 }: {
   group: ChitGroup
   groupMembers: ChitGroupMember[]
@@ -51,10 +51,8 @@ export default function ChitGroupDetail({
   messageLog?: LogRow[]
   /** Whether a WhatsApp number is registered, so the screen can be honest. */
   whatsappLive?: boolean
-  /** Whether a business account is connected, so templates can be submitted. */
-  whatsappConnected?: boolean
-  /** The five templates, saved or at their defaults. */
-  templates?: TemplateRow[]
+  /** The message library, shared by every group. */
+  templates?: MessageTemplate[]
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('members')
@@ -236,8 +234,9 @@ export default function ChitGroupDetail({
             members={members.map(m => m.member).filter((m): m is ChitMember => !!m)}
             anchors={reminderAnchors}
             whatsappLive={whatsappLive}
+            templates={templates}
+            duesDueDays={(group as { dues_due_days?: number | null }).dues_due_days ?? null}
           />
-          <TemplateEditor rows={templates} connected={whatsappConnected} />
           <ReminderLog rows={messageLog} />
         </div>
       )}

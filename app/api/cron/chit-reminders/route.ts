@@ -1,8 +1,8 @@
 // The daily chit reminder run.
 //
-// Called by Vercel cron. For every active group it works out which of the six
-// messages fall on today, who they are for, and sends them — or records why it
-// could not. Nothing here decides WHEN anything goes out: that is
+// Called by Vercel cron. For every active group it works out which of its
+// scheduled steps fall on today, who they are for, which message each one
+// sends, and sends it — or records why it could not. Nothing here decides WHEN anything goes out: that is
 // lib/chit/reminderSchedule.ts, which is pure and tested. This file is the
 // plumbing around it.
 //
@@ -23,9 +23,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
-  plan, sendKey, DEFAULT_STEPS, type Step, type MemberLike,
+  plan, sendKey, dueDateFor, DEFAULT_STEPS, type Step, type MemberLike,
 } from '@/lib/chit/reminderSchedule'
-import { templateFor, variablesForToday, type Facts } from '@/lib/chit/reminderTemplates'
+import {
+  fromRow, matchStepsToLibrary, templateById, renderVariables, type MessageTemplate,
+} from '@/lib/chit/messageTemplates'
+import { fieldWords, type Facts } from '@/lib/chit/messageFields'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
 import { monthlyInstallment } from '@/lib/chit/auction'
@@ -69,8 +72,20 @@ export async function GET(req: NextRequest) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
   const { data: groups } = await sb.from('chit_groups')
-    .select('id, user_id, name, chit_value, members, auction_day, start_date, status, reminder_steps')
+    .select('id, user_id, name, chit_value, members, auction_day, start_date, status, reminder_steps, dues_due_days, auction_time')
     .eq('status', 'active')
+
+  // The message library is one set per user, shared by every group, so it is
+  // fetched once per user rather than once per group.
+  const libraries = new Map<string, MessageTemplate[]>()
+  async function libraryFor(userId: string): Promise<MessageTemplate[]> {
+    const had = libraries.get(userId)
+    if (had) return had
+    const { data } = await sb.from('chit_message_templates').select('*').eq('user_id', userId)
+    const lib = ((data ?? []) as Record<string, unknown>[]).map(fromRow).filter(t => !t.archived)
+    libraries.set(userId, lib)
+    return lib
+  }
 
   let sent = 0, pending = 0, failed = 0, considered = 0
   const notes: string[] = []
@@ -116,7 +131,7 @@ export async function GET(req: NextRequest) {
     if (memberIds.length === 0) continue
 
     const { data: people } = await sb.from('chit_members')
-      .select('id, name, phone, dial_code, reminder_steps')
+      .select('id, name, phone, dial_code, reminder_steps, member_code, bank_name, bank_account_number')
       .in('id', memberIds)
 
     const members: MemberLike[] = ((people ?? []) as Record<string, unknown>[]).map(p => ({
@@ -128,11 +143,18 @@ export async function GET(req: NextRequest) {
         : null,
     }))
 
+    const library = await libraryFor(userId)
+    // A schedule saved before the library existed names no message, so each
+    // step is pointed at the one written for its job — the same matching the
+    // screen shows, so what runs is what was displayed.
     const result = plan({
       auctionId: String(auction.id),
       anchors: { auctionDate, nextAuctionDate },
-      groupSteps: steps(g.reminder_steps),
-      members,
+      groupSteps: matchStepsToLibrary(steps(g.reminder_steps), library),
+      members: members.map(m => ({
+        ...m,
+        steps: m.steps ? matchStepsToLibrary(m.steps, library) : null,
+      })),
       paidMemberIds: ((paid ?? []) as { member_id: string }[]).map(p => String(p.member_id)),
       winnerMemberId: (auction.winner_member_id as string | null) ?? null,
       sentKeys: ((log ?? []) as { step_key: string; member_id: string }[])
@@ -147,29 +169,34 @@ export async function GET(req: NextRequest) {
     const dividend = Number(auction.dividend_per_member) || 0
     const amountDue = Math.max(0, Math.round((installment - dividend) * 100) / 100)
     const month = monthLabel(auctionDate)
+    // What members are told, and what 'overdue by 12 days' counts from. Unset,
+    // it is the next auction, and nothing is ever counted as overdue.
+    const dueDate = dueDateFor(auctionDate, nextAuctionDate, g.dues_due_days as number | null)
 
     for (const d of result.due) {
       const person = ((people ?? []) as Record<string, unknown>[]).find(p => String(p.id) === d.memberId)
       const facts: Facts = {
         memberName: d.memberName,
+        memberCode: (person?.member_code as string | null) ?? null,
+        bankName: (person?.bank_name as string | null) ?? null,
+        accountEnding: (person?.bank_account_number as string | null) ?? null,
+        groupName: String(g.name ?? ''),
         month,
+        monthNumber,
+        membersCount: Number(g.members) || null,
         chitValue: Number(g.chit_value) || 0,
         installment,
         auctionDate,
-        auctionTime: null,
+        auctionTime: (g.auction_time as string | null) ?? null,
+        nextAuctionDate,
         amountDue,
-        // The dues fall due by the next auction at the latest; that is the
-        // date members are told, and the one the reminders count against.
-        dueDate: nextAuctionDate ?? auctionDate,
+        dividend,
+        dueDate,
         bidAmount: Number(auction.bid_amount) || 0,
         netPayout: Number(auction.net_payout) || 0,
         today,
       }
 
-      // Past the due date the reminder becomes the overdue one, which counts
-      // the days instead of naming a date. Same step, different template.
-      const spec = templateFor(d.kind, facts, today)
-      const variables = variablesForToday(d.kind, facts, today)
       const to = normalizeWhatsAppNumber(
         `${String(person?.dial_code ?? '91')}${String(person?.phone ?? '')}`.replace(/\D/g, ''),
       )
@@ -186,11 +213,22 @@ export async function GET(req: NextRequest) {
         channel: config ? 'whatsapp' : 'link',
       }
 
-      if (!variables || !to) {
+      const template = templateById(library, d.templateId)
+      if (!template) {
         failed++
         await sb.from('chit_message_log').insert({
           ...row, status: 'failed',
-          error: !to ? 'No usable phone number' : 'Not enough information for this message',
+          error: 'No message is chosen for this step',
+        })
+        continue
+      }
+
+      const { values, missing } = renderVariables(template, facts)
+      if (missing.length > 0 || !to) {
+        failed++
+        await sb.from('chit_message_log').insert({
+          ...row, status: 'failed',
+          error: !to ? 'No usable phone number' : `Nothing to put in: ${fieldWords(missing)}`,
         })
         continue
       }
@@ -204,11 +242,22 @@ export async function GET(req: NextRequest) {
         continue
       }
 
+      // Meta refuses a send against a template it has not approved, so this is
+      // recorded as waiting rather than burnt as a failure.
+      if (template.status !== 'APPROVED') {
+        pending++
+        await sb.from('chit_message_log').insert({
+          ...row, status: 'pending',
+          error: `Waiting for Meta to approve "${template.label}"`,
+        })
+        continue
+      }
+
       const res = await sendTemplate({
         to,
-        template: spec.name,
-        language: spec.language,
-        variables,
+        template: template.name,
+        language: template.language,
+        variables: values,
       }, config)
 
       if (res.ok) {

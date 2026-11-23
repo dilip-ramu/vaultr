@@ -5,7 +5,7 @@ import ChitGroupDetail from '@/components/chit/ChitGroupDetail'
 import type { ChitGroup, ChitGroupMember, ChitAuction, ChitCollection, ChitMember } from '@/lib/chit/types'
 import { isChitAccount } from '@/lib/chit/account'
 import type { CreditMoveRow } from '@/lib/chit/groupLedger'
-import { DEFAULT_DRAFTS } from '@/lib/chit/reminderTemplates'
+import { fromRow } from '@/lib/chit/messageTemplates'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,30 +98,7 @@ export default async function ChitGroupPage({ params }: Props) {
         sent_at: String(r.sent_at ?? ''),
       }))}
       whatsappLive={Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_TOKEN)}
-      whatsappConnected={Boolean(process.env.WHATSAPP_WABA_ID && process.env.WHATSAPP_TOKEN)}
-      templates={Object.entries(DEFAULT_DRAFTS).map(([kind, d]) => {
-        // What has been saved and submitted, if anything. With no row the
-        // defaults stand, so the screen is never blank.
-        const saved = ((templateRows ?? []) as Record<string, unknown>[]).find(r => String(r.kind) === kind)
-        return {
-          kind,
-          label: d.label,
-          draft: {
-            name: String(saved?.template_name ?? d.name),
-            language: String(saved?.language ?? d.language),
-            category: (String(saved?.category_requested ?? d.category) as 'UTILITY' | 'MARKETING'),
-            body: String(saved?.body ?? d.body),
-            footer: (saved?.footer as string | null) ?? d.footer ?? '',
-            variables: Array.isArray(saved?.variables)
-              ? (saved!.variables as { label: string; sample: string }[])
-              : d.variables,
-          },
-          status: String(saved?.status ?? 'DRAFT') as 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED',
-          categoryAssigned: (saved?.category_assigned as string | null) ?? null,
-          rejectedReason: (saved?.rejected_reason as string | null) ?? null,
-          editTimes: Array.isArray(saved?.edit_times) ? (saved!.edit_times as string[]) : [],
-        }
-      })}
+      templates={((templateRows ?? []) as Record<string, unknown>[]).map(fromRow)}
       accounts={accounts}
       companies={(companies ?? []) as { id: string; name: string }[]}
       creditMoves={(creditMoves ?? []) as CreditMoveRow[]}

@@ -79,6 +79,8 @@ const HUBS: { name: string; tabs: Tab[] }[] = [
     { href: '/chit', label: 'Overview' },
     { href: '/chit/groups', label: 'Groups' },
     { href: '/chit/members', label: 'Members' },
+    // Owner and partners write what members receive.
+    { href: '/chit/messages', label: 'Messages', needs: CAN.manageGroups },
     // Owner only. Hidden when the signed-in person is a chit admin — the page
     // redirects them and the database refuses the rows, so this is tidiness,
     // not the lock.
