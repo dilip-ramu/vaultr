@@ -56,6 +56,20 @@ export default async function ChitMessagesPage() {
   const connected = Boolean(process.env.WHATSAPP_WABA_ID && process.env.WHATSAPP_TOKEN)
   const live = Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_TOKEN)
 
+  // Which settings are missing, by name.
+  //
+  // Sending and submitting a template need DIFFERENT settings, so 'it says
+  // not connected here but it sent there' is a real and confusing state. The
+  // names are not secrets — the values are — and naming them turns half an
+  // hour of guessing into one line.
+  const missingEnv = ([
+    ['WHATSAPP_PHONE_NUMBER_ID', 'to send messages'],
+    ['WHATSAPP_WABA_ID', 'to submit wording to Meta'],
+    ['WHATSAPP_TOKEN', 'for both'],
+    ['WHATSAPP_VERIFY_TOKEN', 'to receive replies'],
+    ['WHATSAPP_APP_SECRET', 'to prove replies came from Meta'],
+  ] as const).filter(([name]) => !process.env[name])
+
   return (
     <div className="w-full px-4 md:px-8 py-6 space-y-5">
       <div>
@@ -66,6 +80,26 @@ export default async function ChitMessagesPage() {
           What members receive and when — written once, used by every group.
         </p>
       </div>
+
+      {missingEnv.length > 0 && (
+        <div className="rounded-2xl p-4"
+          style={{ border: '1px solid var(--border)', background: 'color-mix(in srgb, var(--expense) 7%, transparent)' }}>
+          <p className="text-[12.5px] font-semibold" style={{ color: 'var(--text)' }}>
+            {missingEnv.length === 1 ? 'One setting is missing' : `${missingEnv.length} settings are missing`} in Vercel
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
+            {missingEnv.map(([name, why]) => (
+              <li key={name} className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>
+                · <b>{name}</b> — {why}
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11.5px] mt-1.5" style={{ color: 'var(--text-faint)' }}>
+            Add them under Settings &rarr; Environment Variables for Production, then redeploy —
+            a new build is the only thing that picks them up.
+          </p>
+        </div>
+      )}
 
       <Replies rows={(replies ?? []) as unknown as ReplyRow[]} />
 
