@@ -10,8 +10,9 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   chitValue: 500000, installment: 25000, membersCount: 20, monthNumber: 7,
   auctionDate: '2026-11-05', auctionTime: '6:30 PM', nextAuctionDate: '2026-12-05',
   amountDue: 23750, dividend: 1250, dueDate: '2026-11-15',
-  bidAmount: 60000, discountShared: 35000, netPayout: 425000,
-  bankName: 'HDFC Bank', accountEnding: '123456784321',
+  bidAmount: 60000, discountShared: 35000, netPayout: 440000,
+  pendingDues: 47500, payoutAfterDues: 392500,
+  bankName: 'HDFC Bank', accountNumber: '50100123454321',
   bankAccountName: 'R Ravi', bankBranch: 'Tiruppur Main', bankIfsc: 'HDFC0001234',
   winnerName: 'Ravi', winnerCode: 'M-014',
   memberCode: 'M-014', slotNumber: 7, memberPhone: '98765 43210',
@@ -93,10 +94,9 @@ describe('what a field is worth', () => {
     expect(valueFor('month_number', f)).toBe('7')
   })
 
-  // The whole account number must never reach a WhatsApp message.
-  it('gives only the last four digits of an account', () => {
-    expect(valueFor('account_ending', facts())).toBe('4321')
-    expect(valueFor('account_ending', facts({ accountEnding: '321' }))).toBeNull()
+  it('gives the whole account number, for them to check their passbook', () => {
+    expect(valueFor('account_number', facts())).toBe('50100123454321')
+    expect(valueFor('account_number', facts({ accountNumber: null }))).toBeNull()
   })
 
   it('counts the days overdue against today', () => {
@@ -137,17 +137,17 @@ describe('rendering a list of fields', () => {
     expect(fieldWords(['bid_amount'])).toBe('winning bid')
     expect(fieldWords(['bid_amount', 'bank_name'])).toBe('winning bid and their bank')
     expect(fieldWords(['bid_amount', 'bank_name', 'net_payout']))
-      .toBe('winning bid, their bank and amount payable to them')
+      .toBe('winning bid, their bank and winning amount')
   })
 })
 
 describe('a field used where it cannot be honest', () => {
   it('lets a winner detail through in a winner message', () => {
-    expect(fieldProblem('net_payout', 'winner')).toBeNull()
+    expect(fieldProblem('payout_after_dues', 'winner')).toBeNull()
   })
 
   it('stops a winner detail in a message to everybody', () => {
-    expect(fieldProblem('net_payout', 'all')).toContain('only exists for the auction winner')
+    expect(fieldProblem('payout_after_dues', 'all')).toContain('only exists for the auction winner')
   })
 
   // The result of the auction is announced to the whole group, so these are
@@ -179,7 +179,9 @@ describe('a field used where it cannot be honest', () => {
     expect(all).toContain('member_name')
     expect(all).toContain('bid_amount')
     expect(all).toContain('winner_name')
-    expect(all).not.toContain('net_payout')
+    // The app's own broadcast announces the winning amount to the group.
+    expect(all).toContain('net_payout')
+    expect(all).not.toContain('payout_after_dues')
     expect(all).not.toContain('days_overdue')
     expect(fieldsFor('winner').map(f => f.id)).toContain('net_payout')
     expect(fieldsFor('unpaid').map(f => f.id)).toContain('days_overdue')
@@ -197,21 +199,12 @@ describe('everything on the member page', () => {
     expect(valueFor('guarantor_name', f)).toBe('Murugan')
   })
 
-  // An identity number in a WhatsApp message is forwarded, screenshotted and
-  // read over shoulders. Four characters confirm the record; the rest is risk.
-  it('gives only the tail of an identity number', () => {
-    expect(valueFor('aadhaar_ending', facts())).toBe('4321')
-    expect(valueFor('pan_ending', facts())).toBe('234K')
-    expect(valueFor('aadhaar_ending', facts({ aadhaar: '12' }))).toBeNull()
-    expect(valueFor('pan_ending', facts({ pan: null }))).toBeNull()
-  })
-
-  it('has no field for a whole Aadhaar or PAN', () => {
-    // Compared as plain text: the type says they cannot exist, and this says
-    // the same thing out loud, so adding one later fails here too.
-    const ids = FIELDS.map(x => String(x.id))
-    expect(ids).not.toContain('aadhaar')
-    expect(ids).not.toContain('pan')
+  it('gives the papers as entered', () => {
+    expect(valueFor('aadhaar', facts())).toBe('1234 5678 4321')
+    expect(valueFor('pan', facts())).toBe('ABCDE1234K')
+    expect(valueFor('pan', facts({ pan: ' abcde1234k ' }))).toBe('ABCDE1234K')
+    expect(valueFor('aadhaar', facts({ aadhaar: null }))).toBeNull()
+    expect(valueFor('pan', facts({ pan: null }))).toBeNull()
   })
 
   // Notes are what you wrote about a member, not what you would say to them.
@@ -251,27 +244,21 @@ describe('the result of the auction', () => {
   })
 })
 
-describe('the bank, for the winner to confirm', () => {
-  it('gives enough to check the account without exposing it', () => {
+describe('the bank, for a member to confirm', () => {
+  it('gives the whole account, so it can be checked against a passbook', () => {
     const f = facts()
     expect(valueFor('bank_name', f)).toBe('HDFC Bank')
     expect(valueFor('bank_account_name', f)).toBe('R Ravi')
     expect(valueFor('bank_branch', f)).toBe('Tiruppur Main')
     expect(valueFor('bank_ifsc', f)).toBe('HDFC0001234')
-    expect(valueFor('account_ending', f)).toBe('4321')
-  })
-
-  // There is no field for the whole account number, by design: a WhatsApp
-  // message is forwarded, screenshotted and read over shoulders.
-  it('has no field for the whole account number', () => {
-    expect(FIELDS.some(x => /account_number|full_account/.test(x.id))).toBe(false)
+    expect(valueFor('account_number', f)).toBe('50100123454321')
   })
 
   // It is their own account, going to their own number. There is nothing to
   // protect it from, and a message asking everybody to confirm their account
   // before the dividend goes out is a reasonable thing to send.
   it('allows the bank in any message, since it is the reader\u2019s own', () => {
-    for (const id of ['bank_name', 'bank_account_name', 'bank_branch', 'bank_ifsc', 'account_ending'] as const) {
+    for (const id of ['bank_name', 'bank_account_name', 'bank_branch', 'bank_ifsc', 'account_number'] as const) {
       for (const a of ['all', 'winner', 'unpaid'] as const) {
         expect({ id, a, ok: fieldProblem(id, a) === null }).toEqual({ id, a, ok: true })
       }
@@ -282,6 +269,33 @@ describe('the bank, for the winner to confirm', () => {
     expect(labelToField('ifsc')?.id).toBe('bank_ifsc')
     expect(labelToField('account holder name')?.id).toBe('bank_account_name')
     expect(labelToField('branch')?.id).toBe('bank_branch')
+  })
+})
+
+describe('the winning amount, and what reaches the winner', () => {
+  it('gives the figures the group screen gives', () => {
+    const f = facts()
+    expect(valueFor('net_payout', f)).toBe('4,40,000')
+    expect(valueFor('pending_dues', f)).toBe('47,500')
+    expect(valueFor('payout_after_dues', f)).toBe('3,92,500')
+  })
+
+  // The app's own winner message prints all three, so the words it uses find
+  // the same figures here.
+  it('knows the words the app already uses for them', () => {
+    expect(labelToField('winning amount')?.id).toBe('net_payout')
+    expect(labelToField('pending amount')?.id).toBe('pending_dues')
+    expect(labelToField('after deduction')?.id).toBe('payout_after_dues')
+  })
+
+  it('reports them as unknown before the auction is recorded', () => {
+    expect(valueFor('net_payout', facts({ netPayout: null }))).toBeNull()
+    expect(valueFor('payout_after_dues', facts({ payoutAfterDues: null }))).toBeNull()
+  })
+
+  it('keeps the winner\u2019s netting to the winner', () => {
+    expect(fieldProblem('payout_after_dues', 'except_winner')).toContain('only exists for the auction winner')
+    expect(fieldProblem('payout_after_dues', 'winner')).toBeNull()
   })
 })
 

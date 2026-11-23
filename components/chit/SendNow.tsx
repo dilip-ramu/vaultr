@@ -14,7 +14,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Send } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
-import type { MessageTemplate } from '@/lib/chit/messageTemplates'
+import { audienceWords, type MessageTemplate } from '@/lib/chit/messageTemplates'
+
+/** Who it reaches, said in the terms of a send that covers every group. */
+function reach(a: string): string {
+  switch (a) {
+    case 'winner': return 'this month\u2019s winner in each active group'
+    case 'except_winner': return 'every member except the winner, in every active group'
+    case 'unpaid': return 'everybody who still owes, in every active group'
+    default: return 'every member of every active group'
+  }
+}
 
 const AUDIENCE_WORDS: Record<string, string> = {
   all: 'every member of every active group',
@@ -83,7 +93,7 @@ export default function SendNow({ templates, connected }: {
 
         {chosen && (
           <p className="text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
-            Goes to {AUDIENCE_WORDS[chosen.audience] ?? 'the members it is written for'}.
+            Goes to {reach(chosen.audience)}.
             {!connected && ' No WhatsApp number is registered, so it will be recorded as pending instead of sent.'}
             {connected && chosen.status !== 'APPROVED'
               && ' Meta has not approved this message yet, so it cannot go out.'}
@@ -94,7 +104,7 @@ export default function SendNow({ templates, connected }: {
           <div className="rounded-xl p-3 space-y-2"
             style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)' }}>
             <p className="text-[12.5px]" style={{ color: 'var(--text)' }}>
-              Send <b>{chosen.label}</b> to {AUDIENCE_WORDS[chosen.audience]}? This cannot be undone.
+              Send <b>{chosen.label}</b> to {reach(chosen.audience)}? This cannot be undone.
             </p>
             <div className="flex items-center gap-2">
               <button onClick={send}

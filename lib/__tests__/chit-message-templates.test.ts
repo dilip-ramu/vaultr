@@ -3,7 +3,7 @@ import {
   compile, normalizeToken, fieldsUsed, insertToken, toDraft, previewOf,
   templateProblems, canSubmit, renderVariables, slugFromLabel, uniqueName,
   blankTemplate, duplicateOf, templateById, stepWarning, fromNumbered,
-  matchStepsToLibrary, STARTER_LIBRARY,
+  matchStepsToLibrary, audienceWords, STARTER_LIBRARY,
   type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import type { Facts } from '@/lib/chit/messageFields'
@@ -22,7 +22,8 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   groupName: 'Uma 5 Lakh A', installment: 25000, chitValue: 500000,
   auctionDate: '2026-11-05', auctionTime: '6:30 PM', dueDate: '2026-11-15',
   bidAmount: 60000, netPayout: 425000, bankName: 'HDFC Bank',
-  accountEnding: '987654324321', winnerName: 'Ravi', today: '2026-11-20',
+  accountNumber: '50100123454321', winnerName: 'Ravi',
+  pendingDues: 47500, payoutAfterDues: 392500, today: '2026-11-20',
   ...o,
 })
 
@@ -107,7 +108,7 @@ describe('what is wrong with it', () => {
 
   it('stops a winner detail in a message to everybody', () => {
     const p = templateProblems(tpl({
-      body: 'Hello {{member_name}}, Rs {{net_payout}} will be paid to you shortly.',
+      body: 'Hello {{member_name}}, Rs {{payout_after_dues}} will be paid to you shortly.',
     }))
     expect(p.some(x => x.message.includes('only exists for the auction winner'))).toBe(true)
   })
@@ -115,7 +116,7 @@ describe('what is wrong with it', () => {
   it('allows the same detail once the audience matches', () => {
     expect(templateProblems(tpl({
       audience: 'winner',
-      body: 'Hello {{member_name}}, Rs {{net_payout}} will be paid to you shortly.',
+      body: 'Hello {{member_name}}, Rs {{payout_after_dues}} will be paid to you shortly.',
     }))).toEqual([])
   })
 
@@ -162,7 +163,7 @@ describe('filling one in for a member', () => {
     const r = renderVariables(winner, facts())
     expect(r.missing).toEqual([])
     expect(r.values).toContain('HDFC Bank')
-    expect(r.values).toContain('4321')
+    expect(r.values).toContain('50100123454321')
   })
 
   it('will not fill in an overdue message before anything is overdue', () => {
@@ -228,7 +229,7 @@ describe('warning before the day arrives', () => {
   })
 
   it('notices the message is written for somebody else', () => {
-    expect(stepWarning(step, tpl({ audience: 'winner' }), 10)).toContain('written for the winner')
+    expect(stepWarning(step, tpl({ audience: 'winner' }), 10)).toContain('written for the auction winner')
   })
 
   // The mistake this exists for: an overdue message scheduled before the
@@ -340,5 +341,39 @@ describe('a result message scheduled before the result exists', () => {
   it('leaves a message with no result in it alone', () => {
     const notice = tpl({ audience: 'all', body: 'Hello {{member_name}}, the {{month}} auction is on {{auction_date}}.' })
     expect(stepWarning({ audience: 'all', templateId: 'a', offsetDays: -3, anchor: 'auction' }, notice, 10)).toBeNull()
+  })
+})
+
+describe('who a message is for, in words', () => {
+  it('says it the way it reads on screen', () => {
+    expect(audienceWords('all')).toBe('every member')
+    expect(audienceWords('except_winner')).toBe('everybody except the winner')
+    expect(audienceWords('winner')).toBe('the auction winner')
+    expect(audienceWords('unpaid')).toBe('members who still owe')
+  })
+
+  it('will not let a message to everybody-but-the-winner use the winner’s figures', () => {
+    const p = templateProblems(tpl({
+      audience: 'except_winner',
+      body: 'Hello {{member_name}}, Rs {{payout_after_dues}} will be paid to you shortly.',
+    }))
+    expect(p.some(x => x.message.includes('everybody except the winner'))).toBe(true)
+  })
+
+  it('allows the result of the auction, which everybody hears anyway', () => {
+    expect(templateProblems(tpl({
+      audience: 'except_winner',
+      body: 'Hello {{member_name}}, the {{month}} chit went to {{winner_name}} at Rs {{bid_amount}}, so your dividend is Rs {{dividend}}.',
+    }))).toEqual([])
+  })
+
+  it('ships the dues message to everybody but the winner', () => {
+    expect(STARTER_LIBRARY.find(t => t.name === 'chit_dues')!.audience).toBe('except_winner')
+  })
+
+  it('points a step at a message and takes its audience too', () => {
+    const library = [tpl({ id: 'd', name: 'chit_dues', audience: 'except_winner' })]
+    const matched = matchStepsToLibrary([{ kind: 'dues', audience: 'all' as Audience }], library)
+    expect(matched[0]).toEqual({ kind: 'dues', audience: 'except_winner', templateId: 'd' })
   })
 })

@@ -34,8 +34,8 @@ import type { Audience } from './reminderSchedule'
 
 export type FieldId =
   | 'member_name' | 'member_code' | 'slot_number' | 'member_phone' | 'member_address'
-  | 'aadhaar_ending' | 'pan_ending' | 'nominee_name' | 'guarantor_name'
-  | 'bank_name' | 'bank_account_name' | 'bank_branch' | 'bank_ifsc' | 'account_ending'
+  | 'aadhaar' | 'pan' | 'nominee_name' | 'guarantor_name'
+  | 'bank_name' | 'bank_account_name' | 'bank_branch' | 'bank_ifsc' | 'account_number'
   | 'group_name' | 'month' | 'month_number' | 'members_count'
   | 'total_months' | 'months_left' | 'start_date' | 'end_date' | 'auction_day'
   | 'chit_value' | 'installment'
@@ -45,6 +45,7 @@ export type FieldId =
   | 'winner_name' | 'winner_code'
   | 'amount_due' | 'due_date' | 'dividend' | 'days_overdue'
   | 'bid_amount' | 'discount_shared' | 'net_payout'
+  | 'pending_dues' | 'payout_after_dues'
 
 export interface FieldSpec {
   id: FieldId
@@ -72,10 +73,9 @@ export const FIELDS: readonly FieldSpec[] = [
   { id: 'member_phone',  label: 'their phone number', sample: '98765 43210',   group: 'member',
     note: 'The number this message is going to \u2014 useful when asking them to confirm it is current.' },
   { id: 'member_address', label: 'their address', sample: '12 Kumaran Road, Tiruppur', group: 'member' },
-  { id: 'aadhaar_ending', label: 'Aadhaar ending', sample: '4321',             group: 'member',
-    note: 'The last four digits only. The full number never goes in a message.' },
-  { id: 'pan_ending',    label: 'PAN ending',     sample: '234K',              group: 'member',
-    note: 'The last four characters only.' },
+  { id: 'aadhaar',       label: 'Aadhaar number', sample: '1234 5678 4321',   group: 'member',
+    note: 'As entered on their member page.' },
+  { id: 'pan',           label: 'PAN',            sample: 'ABCDE1234K',        group: 'member' },
   { id: 'nominee_name',  label: 'nominee name',   sample: 'Lakshmi',           group: 'member',
     note: 'The first nominee on their record.' },
   { id: 'guarantor_name', label: 'guarantor name', sample: 'Murugan',          group: 'member',
@@ -118,17 +118,24 @@ export const FIELDS: readonly FieldSpec[] = [
     note: 'This month’s subscription after their dividend.' },
   { id: 'dividend',      label: 'dividend',       sample: '1,250',             group: 'money' },
   { id: 'due_date',      label: 'due date',       sample: '5 December 2026',   group: 'money' },
+  { id: 'pending_dues',  label: 'everything they still owe', sample: '47,500', group: 'money',
+    note: 'Every month run so far that they have not paid, added up \u2014 not only this month.' },
   { id: 'days_overdue',  label: 'days overdue',   sample: '12',                group: 'money', onlyFor: 'unpaid',
     note: 'Only in a message to members who still owe, and only after the due date.' },
 
-  { id: 'net_payout',    label: 'amount payable to them', sample: '4,25,000',  group: 'winner', onlyFor: 'winner' },
+  // The app's own broadcast already announces this to the whole group, so it
+  // is not the winner's private business.
+  { id: 'net_payout',    label: 'winning amount', sample: '4,40,000',          group: 'auction',
+    note: 'The chit value less the winning discount \u2014 what the group screen calls the winning amount.' },
+  { id: 'payout_after_dues', label: 'winning amount after their dues', sample: '3,92,500', group: 'winner', onlyFor: 'winner',
+    note: 'The winning amount less everything they still owe. What actually reaches them.' },
   { id: 'bank_name',     label: 'their bank',     sample: 'HDFC Bank',         group: 'bank' },
   { id: 'bank_account_name', label: 'account name', sample: 'R Ravi',           group: 'bank',
     note: 'The name on the account, for them to confirm before you transfer.' },
   { id: 'bank_branch',   label: 'bank branch',    sample: 'Tiruppur Main',     group: 'bank' },
   { id: 'bank_ifsc',     label: 'IFSC code',      sample: 'HDFC0001234',       group: 'bank' },
-  { id: 'account_ending', label: 'account ending', sample: '4321',             group: 'bank',
-    note: 'The last four digits only. The full number never goes in a message \u2014 four digits are enough to confirm it is the right account.' },
+  { id: 'account_number', label: 'account number', sample: '50100123454321',  group: 'bank',
+    note: 'The whole number, for them to check against their passbook.' },
 ]
 
 export const GROUP_LABEL: Record<FieldSpec['group'], string> = {
@@ -215,7 +222,6 @@ export interface Facts {
   slotNumber?: number | null
   memberPhone?: string | null
   memberAddress?: string | null
-  /** Whole numbers, never messaged whole — only the last few characters are. */
   aadhaar?: string | null
   pan?: string | null
   nomineeName?: string | null
@@ -224,8 +230,7 @@ export interface Facts {
   bankAccountName?: string | null
   bankBranch?: string | null
   bankIfsc?: string | null
-  /** The last four digits. Never the whole number. */
-  accountEnding?: string | null
+  accountNumber?: string | null
   groupName?: string
   /** 'November 2026' — whatever the group calls this month. */
   month?: string
@@ -258,6 +263,10 @@ export interface Facts {
   dividend?: number | null
   dueDate?: string | null
   bidAmount?: number | null
+  /** Every month run so far that this member has not paid, added up. */
+  pendingDues?: number | null
+  /** The winning amount less their own dues: what actually reaches them. */
+  payoutAfterDues?: number | null
   /** The winning bid less the commission — what is divided among members. */
   discountShared?: number | null
   netPayout?: number | null
@@ -284,16 +293,10 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'slot_number':   return has(f.slotNumber) ? String(Math.round(Number(f.slotNumber))) : null
     case 'member_phone':  return text(f.memberPhone)
     case 'member_address': return text(f.memberAddress)
-    // Only the tail of an identity number is ever sent. A WhatsApp message is
-    // forwarded, screenshotted and read over shoulders, and four characters
-    // are enough for somebody to confirm it is the right record.
-    case 'aadhaar_ending': {
-      const digits = String(f.aadhaar ?? '').replace(/\D/g, '')
-      return digits.length >= 4 ? digits.slice(-4) : null
-    }
-    case 'pan_ending': {
+    case 'aadhaar':       return text(f.aadhaar)
+    case 'pan': {
       const pan = String(f.pan ?? '').replace(/\s+/g, '').toUpperCase()
-      return pan.length >= 4 ? pan.slice(-4) : null
+      return pan === '' ? null : pan
     }
     case 'nominee_name':  return text(f.nomineeName)
     case 'guarantor_name': return text(f.guarantorName)
@@ -301,10 +304,7 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'bank_account_name': return text(f.bankAccountName)
     case 'bank_branch':   return text(f.bankBranch)
     case 'bank_ifsc':     return text(f.bankIfsc)
-    case 'account_ending': {
-      const digits = String(f.accountEnding ?? '').replace(/\D/g, '')
-      return digits.length >= 4 ? digits.slice(-4) : null
-    }
+    case 'account_number': return text(f.accountNumber)
     case 'group_name':    return text(f.groupName)
     case 'month':         return text(f.month)
     case 'month_number':  return has(f.monthNumber) ? String(Math.round(Number(f.monthNumber))) : null
@@ -341,6 +341,8 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'bid_amount':    return has(f.bidAmount) ? money(Number(f.bidAmount)) : null
     case 'discount_shared': return has(f.discountShared) ? money(Number(f.discountShared)) : null
     case 'net_payout':    return has(f.netPayout) ? money(Number(f.netPayout)) : null
+    case 'pending_dues':  return has(f.pendingDues) ? money(Number(f.pendingDues)) : null
+    case 'payout_after_dues': return has(f.payoutAfterDues) ? money(Number(f.payoutAfterDues)) : null
   }
 }
 
@@ -375,7 +377,10 @@ export function fieldProblem(id: FieldId, audience: Audience): string | null {
   if (!spec) return `There is no detail called ${id}.`
   if (!spec.onlyFor || spec.onlyFor === audience) return null
   if (spec.onlyFor === 'winner') {
-    return `"${spec.label}" only exists for the auction winner, and this message goes to ${audience === 'unpaid' ? 'everybody who owes' : 'everybody'}.`
+    const who = audience === 'unpaid' ? 'everybody who owes'
+      : audience === 'except_winner' ? 'everybody except the winner'
+      : 'everybody'
+    return `"${spec.label}" only exists for the auction winner, and this message goes to ${who}.`
   }
   return `"${spec.label}" only makes sense in a message to members who still owe.`
 }
@@ -393,6 +398,12 @@ const ALIASES: Record<string, FieldId> = {
   'discount amount': 'bid_amount',
   'winning discount': 'bid_amount',
   'winner': 'winner_name',
+  'amount payable to them': 'net_payout',
+  'winning amount': 'net_payout',
+  'prize money': 'net_payout',
+  'after deduction': 'payout_after_dues',
+  'pending amount': 'pending_dues',
+  'pending dues': 'pending_dues',
   'amount payable to you': 'net_payout',
   'amount payable': 'net_payout',
   'amount outstanding': 'amount_due',
@@ -405,18 +416,19 @@ const ALIASES: Record<string, FieldId> = {
   'their bank': 'bank_name',
   'bank': 'bank_name',
   'ifsc': 'bank_ifsc',
+  'account ending': 'account_number',
+  'account': 'account_number',
+  'aadhaar ending': 'aadhaar',
+  'pan ending': 'pan',
   'account holder': 'bank_account_name',
   'account holder name': 'bank_account_name',
   'branch': 'bank_branch',
   'address': 'member_address',
   'phone': 'member_phone',
   'phone number': 'member_phone',
-  'aadhaar': 'aadhaar_ending',
-  'pan': 'pan_ending',
   'nominee': 'nominee_name',
   'guarantor': 'guarantor_name',
   'slot': 'slot_number',
-  'account ending': 'account_ending',
 }
 
 export function labelToField(label: string): FieldSpec | undefined {
@@ -438,7 +450,7 @@ export function labelToField(label: string): FieldSpec | undefined {
  */
 export const RESULT_FIELDS: readonly FieldId[] = [
   'winner_name', 'winner_code', 'bid_amount', 'discount_shared', 'net_payout',
-  'dividend', 'amount_due',
+  'dividend', 'amount_due', 'payout_after_dues',
 ]
 
 export function usesResultFields(ids: readonly FieldId[]): boolean {

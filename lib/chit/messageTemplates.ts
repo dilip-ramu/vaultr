@@ -63,6 +63,16 @@ export interface MessageTemplate {
   sortOrder?: number
 }
 
+/** 'the winner', 'everybody except the winner' — for saying who gets it. */
+export function audienceWords(a: Audience): string {
+  switch (a) {
+    case 'winner': return 'the auction winner'
+    case 'except_winner': return 'everybody except the winner'
+    case 'unpaid': return 'members who still owe'
+    default: return 'every member'
+  }
+}
+
 /** A {{token}}: letters, digits, underscores or spaces between the braces. */
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g
 
@@ -303,7 +313,9 @@ export function matchStepsToLibrary<T extends { kind: string; audience: Audience
       : s.kind === 'dues' ? byName('dues')
       : s.kind === 'winner' ? (byName('winner') ?? byAudience('winner'))
       : (byName('payment_due') ?? byAudience('unpaid'))
-    return guess ? { ...s, templateId: guess.id } : s
+    // The message decides who it is for, so the step follows it rather than
+    // keeping whatever the old default said.
+    return guess ? { ...s, templateId: guess.id, audience: guess.audience } : s
   })
 }
 
@@ -322,7 +334,7 @@ export function stepWarning(
   if (!t) return 'Choose which message this step sends.'
   if (t.archived) return 'That message is archived. Choose another.'
   if (t.audience !== step.audience) {
-    return `"${t.label}" is written for ${t.audience === 'winner' ? 'the winner' : t.audience === 'unpaid' ? 'members who owe' : 'everybody'}, which does not match this step.`
+    return `"${t.label}" is written for ${audienceWords(t.audience)}, which does not match this step.`
   }
   const used = fieldsUsed(t.body)
 
@@ -368,14 +380,15 @@ export const STARTER_LIBRARY: readonly MessageTemplate[] = [
   },
   {
     id: '', label: 'Due amount after the auction', name: 'chit_dues', language: 'en',
-    category: 'UTILITY', audience: 'all',
+    // Not the winner: they get their own message the same day.
+    category: 'UTILITY', audience: 'except_winner',
     body: 'Hello {{member_name}}, after this month’s dividend your subscription for {{month}} is Rs {{amount_due}}, payable by {{due_date}}. Thank you.',
     footer: null, status: 'DRAFT', editTimes: [], sortOrder: 2,
   },
   {
     id: '', label: 'Winning particulars', name: 'chit_winner', language: 'en',
     category: 'UTILITY', audience: 'winner',
-    body: 'Hello {{member_name}}, you have taken the {{month}} chit. Your bid was Rs {{bid_amount}} and the amount payable to you is Rs {{net_payout}}. Please confirm your account with {{bank_name}} ending {{account_ending}} is still correct, and we will transfer it.',
+    body: 'Hello {{member_name}}, you have taken the {{month}} chit. Your bid was Rs {{bid_amount}} and the winning amount is Rs {{net_payout}}. After your own pending dues of Rs {{pending_dues}}, Rs {{payout_after_dues}} will be transferred to your {{bank_name}} account {{account_number}}. Please confirm it is correct.',
     footer: null, status: 'DRAFT', editTimes: [], sortOrder: 3,
   },
   {

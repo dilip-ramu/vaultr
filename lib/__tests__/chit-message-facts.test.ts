@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  factsFor, auctionSettled, monthLabel, firstName,
+  factsFor, auctionSettled, monthLabel, firstName, pendingDues,
   type FactsInput, type GroupRow, type AuctionRow, type MemberRow,
 } from '@/lib/chit/messageFacts'
 
@@ -93,7 +93,7 @@ describe('the figures behind a message', () => {
     expect(f.nomineeName).toBe('Lakshmi')
     expect(f.guarantorName).toBe('Murugan')
     expect(f.bankIfsc).toBe('HDFC0001234')
-    expect(f.accountEnding).toBe('50100123454321')
+    expect(f.accountNumber).toBe('50100123454321')
   })
 
   it('names the winner separately from the reader', () => {
@@ -148,5 +148,73 @@ describe('whether the auction has been recorded', () => {
     expect(auctionSettled({ month_number: 1, auction_date: '2026-04-05', bid_amount: 0 })).toBe(false)
     expect(auctionSettled(null)).toBe(false)
     expect(auctionSettled()).toBe(false)
+  })
+})
+
+describe('what a member still owes in all', () => {
+  const months = [
+    { month_number: 1, dividend_per_member: 1000 },
+    { month_number: 2, dividend_per_member: 1500 },
+    { month_number: 3, dividend_per_member: 2000 },
+  ]
+
+  it('adds up every month run that was not paid for', () => {
+    // 25,000 less each month's dividend: 24,000 + 23,500 + 23,000.
+    expect(pendingDues({ installment: 25000, auctions: months, paidMonths: [], uptoMonth: 3 }))
+      .toBe(70500)
+  })
+
+  it('leaves out the months already paid', () => {
+    expect(pendingDues({ installment: 25000, auctions: months, paidMonths: [1, 2], uptoMonth: 3 }))
+      .toBe(23000)
+  })
+
+  // A month that has not been auctioned yet is not owed yet.
+  it('counts nothing past this month', () => {
+    expect(pendingDues({ installment: 25000, auctions: months, paidMonths: [], uptoMonth: 1 }))
+      .toBe(24000)
+  })
+
+  it('is nothing when everything is paid', () => {
+    expect(pendingDues({ installment: 25000, auctions: months, paidMonths: [1, 2, 3], uptoMonth: 3 }))
+      .toBe(0)
+  })
+
+  it('never counts a month as negative, however large the dividend', () => {
+    expect(pendingDues({
+      installment: 25000,
+      auctions: [{ month_number: 1, dividend_per_member: 40000 }],
+      paidMonths: [], uptoMonth: 1,
+    })).toBe(0)
+  })
+})
+
+describe('the winner’s own netting', () => {
+  const months = [
+    { month_number: 6, dividend_per_member: 1500 },
+    { month_number: 7, dividend_per_member: 1750 },
+  ]
+
+  it('deducts what they owe from the winning amount', () => {
+    const f = factsFor(input({ allAuctions: months, paidMonths: [6] }))
+    // Month 7 unpaid: 25,000 less 1,750.
+    expect(f.pendingDues).toBe(23250)
+    expect(f.netPayout).toBe(440000)
+    expect(f.payoutAfterDues).toBe(416750)
+  })
+
+  it('pays the whole amount to somebody who owes nothing', () => {
+    const f = factsFor(input({ allAuctions: months, paidMonths: [6, 7] }))
+    expect(f.pendingDues).toBe(0)
+    expect(f.payoutAfterDues).toBe(440000)
+  })
+
+  // Without the months and the payments there is nothing to work it out from,
+  // and a message asking for it should not be sent rather than show a wrong
+  // figure.
+  it('is unknown when the months were not passed in', () => {
+    const f = factsFor(input())
+    expect(f.pendingDues).toBeNull()
+    expect(f.payoutAfterDues).toBeNull()
   })
 })

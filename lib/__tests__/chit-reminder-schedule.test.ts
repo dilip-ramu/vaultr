@@ -120,8 +120,14 @@ describe('who gets messaged today', () => {
 
   it('sends the notice before the auction and the dues on the day', () => {
     expect(plan(input({ today: '2026-11-02' })).due.map(d => d.stepKey)).toEqual(['notice'])
-    const onDay = plan(input({ today: '2026-11-05', winnerMemberId: 'm1' }))
-    expect(onDay.due.map(d => d.stepKey).sort()).toEqual(['dues', 'winner'])
+    // m1 won, so m1 gets the winner message and m2 gets the dues — the winner
+    // is not sent both.
+    const onDay = plan(input({
+      today: '2026-11-05', winnerMemberId: 'm1',
+      members: [member('m1'), member('m2')],
+    }))
+    expect(onDay.due.map(d => `${d.stepKey}:${d.memberId}`).sort())
+      .toEqual(['dues:m2', 'winner:m1'])
   })
 
   it('skips a member who has already paid', () => {
@@ -131,10 +137,10 @@ describe('who gets messaged today', () => {
     expect(p.skipped.some(s => s.reason === 'paid')).toBe(true)
   })
 
-  it('still sends the notice and the dues to somebody who has paid', () => {
-    // Those are not chasing; they are information everybody needs.
-    const p = plan(input({ today: '2026-11-05', paidMemberIds: ['m1'], winnerMemberId: 'm1' }))
-    expect(p.due.map(d => d.stepKey).sort()).toEqual(['dues', 'winner'])
+  it('still sends the dues to somebody who has paid', () => {
+    // That is not chasing; it is information everybody needs.
+    const p = plan(input({ today: '2026-11-05', paidMemberIds: ['m1'], winnerMemberId: 'm9' }))
+    expect(p.due.map(d => d.stepKey)).toEqual(['dues'])
   })
 
   it('sends the winner particulars only to the winner', () => {
@@ -319,8 +325,9 @@ describe('the result messages wait for the auction to be recorded', () => {
 
   it('sends them the day the auction is recorded, not the day it was held', () => {
     const late = { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05', settledDate: '2026-11-07' }
-    expect(plan(input({ anchors: late, today: '2026-11-05', winnerMemberId: 'm1' })).due).toEqual([])
-    expect(plan(input({ anchors: late, today: '2026-11-07', winnerMemberId: 'm1' }))
+    const two = [member('m1'), member('m2')]
+    expect(plan(input({ anchors: late, today: '2026-11-05', winnerMemberId: 'm1', members: two })).due).toEqual([])
+    expect(plan(input({ anchors: late, today: '2026-11-07', winnerMemberId: 'm1', members: two }))
       .due.map(d => d.stepKey).sort()).toEqual(['dues', 'winner'])
   })
 
@@ -330,7 +337,7 @@ describe('the result messages wait for the auction to be recorded', () => {
       today: '2026-11-05', winnerMemberId: 'm1',
     }))
     expect(p.due).toEqual([])
-    expect(p.skipped.filter(x => x.reason === 'anchor_unknown').map(x => x.stepKey).sort())
+    expect([...new Set(p.skipped.filter(x => x.reason === 'anchor_unknown').map(x => x.stepKey))].sort())
       .toEqual(['dues', 'winner'])
   })
 
@@ -344,5 +351,44 @@ describe('the result messages wait for the auction to be recorded', () => {
   it('leaves the notice and the reminders on the auction dates', () => {
     expect(DEFAULT_STEPS.find(s => s.key === 'notice')!.anchor).toBe('auction')
     expect(DEFAULT_STEPS.filter(s => s.kind === 'reminder').every(s => s.anchor !== 'settled')).toBe(true)
+  })
+})
+
+describe('everybody except the winner', () => {
+  // The winner gets their own message the same day. Two on one day reads as
+  // not knowing who won.
+  it('leaves the winner out, and says why', () => {
+    const p = plan(input({
+      groupSteps: [step({ key: 'dues', kind: 'dues', audience: 'except_winner', anchor: 'settled', offsetDays: 0 })],
+      members: [member('m1'), member('m2'), member('m3')],
+      winnerMemberId: 'm2',
+      today: '2026-11-05',
+    }))
+    expect(p.due.map(d => d.memberId)).toEqual(['m1', 'm3'])
+    expect(p.skipped.filter(s => s.reason === 'is_winner').map(s => s.memberId)).toEqual(['m2'])
+  })
+
+  it('sends to everybody in a month nobody won', () => {
+    const p = plan(input({
+      groupSteps: [step({ key: 'dues', kind: 'dues', audience: 'except_winner', anchor: 'settled', offsetDays: 0 })],
+      members: [member('m1'), member('m2')],
+      winnerMemberId: null,
+      today: '2026-11-05',
+    }))
+    expect(p.due.map(d => d.memberId)).toEqual(['m1', 'm2'])
+  })
+
+  // It is an announcement, not a chase, so paying early does not opt you out.
+  it('still reaches somebody who has paid', () => {
+    const p = plan(input({
+      groupSteps: [step({ key: 'dues', kind: 'dues', audience: 'except_winner', anchor: 'settled', offsetDays: 0 })],
+      paidMemberIds: ['m1'],
+      today: '2026-11-05',
+    }))
+    expect(p.due.map(d => d.memberId)).toEqual(['m1'])
+  })
+
+  it('ships the dues step that way', () => {
+    expect(DEFAULT_STEPS.find(s => s.key === 'dues')!.audience).toBe('except_winner')
   })
 })

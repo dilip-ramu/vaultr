@@ -96,14 +96,17 @@ export async function POST(req: NextRequest) {
       ? scheduledAuctionDate(String(g.start_date ?? ''), Number(g.auction_day) || null, monthNumber + 1)
       : null
 
-    const [{ data: links }, { data: paid }, { data: windows }] = await Promise.all([
+    const [{ data: links }, { data: paid }, { data: windows }, { data: allAuctions }] = await Promise.all([
       sb.from('chit_group_members').select('member_id, slot_number').eq('group_id', groupId),
-      auction
-        ? sb.from('chit_collections').select('member_id').eq('group_id', groupId).eq('month_number', monthNumber)
-        : Promise.resolve({ data: [] as { member_id: string }[] }),
+      // Every payment, not only this month's: what a member still owes in all
+      // is what gets deducted from a payout.
+      sb.from('chit_collections').select('member_id, month_number').eq('group_id', groupId),
       sb.from('chit_bid_windows').select('ceiling_amount, min_increment')
         .eq('group_id', groupId).order('month_number', { ascending: false }).limit(1),
+      sb.from('chit_auctions').select('month_number, dividend_per_member').eq('group_id', groupId),
     ])
+    const payments = (paid ?? []) as { member_id: string; month_number: number }[]
+    const months = (allAuctions ?? []) as { month_number: number; dividend_per_member: number }[]
 
     const memberLinks = (links ?? []) as { member_id: string; slot_number: number | null }[]
     const memberIds = memberLinks.map(l => String(l.member_id))
@@ -114,7 +117,9 @@ export async function POST(req: NextRequest) {
       .in('id', memberIds)
 
     const rows = (people ?? []) as Record<string, unknown>[]
-    const paidIds = new Set(((paid ?? []) as { member_id: string }[]).map(p => String(p.member_id)))
+    const paidIds = new Set(payments
+      .filter(p => Number(p.month_number) === monthNumber)
+      .map(p => String(p.member_id)))
     const winnerId = String(auction?.winner_member_id ?? '')
     const winnerRow = rows.find(p => String(p.id) === winnerId)
     const window = ((windows ?? []) as Record<string, unknown>[])[0] ?? null
@@ -122,6 +127,9 @@ export async function POST(req: NextRequest) {
     // Who the message is written for decides who hears it.
     const audience = rows.filter(p => {
       if (template.audience === 'winner') return String(p.id) === winnerId
+      // The winner has their own message; two on one day reads as not knowing
+      // who won.
+      if (template.audience === 'except_winner') return !winnerId || String(p.id) !== winnerId
       if (template.audience === 'unpaid') return !paidIds.has(String(p.id))
       return true
     })
@@ -147,6 +155,10 @@ export async function POST(req: NextRequest) {
         window,
         nextAuctionDate,
         duesDueDays,
+        allAuctions: months,
+        paidMonths: payments
+          .filter(p => String(p.member_id) === memberId)
+          .map(p => Number(p.month_number)),
         today,
       })
 

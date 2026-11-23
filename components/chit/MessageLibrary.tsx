@@ -29,7 +29,7 @@ import { statusWords, editsLeft, type TemplateCategory } from '@/lib/whatsapp/te
 import { GROUP_LABEL, fieldsFor, type FieldSpec } from '@/lib/chit/messageFields'
 import {
   templateProblems, previewOf, insertToken, blankTemplate, duplicateOf,
-  slugFromLabel, uniqueName, STARTER_LIBRARY, type MessageTemplate,
+  slugFromLabel, uniqueName, audienceWords, STARTER_LIBRARY, type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import type { Audience } from '@/lib/chit/reminderSchedule'
 
@@ -38,12 +38,6 @@ interface Row { key: string; t: MessageTemplate }
 
 let localKeys = 0
 const newKey = () => `new-${++localKeys}`
-
-const AUDIENCE_WORDS: Record<Audience, string> = {
-  all: 'every member',
-  winner: 'the auction winner',
-  unpaid: 'members who still owe',
-}
 
 export default function MessageLibrary({ saved, connected }: {
   saved: MessageTemplate[]
@@ -167,7 +161,7 @@ export default function MessageLibrary({ saved, connected }: {
               {t.label || 'Untitled message'}
             </p>
             <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
-              to {AUDIENCE_WORDS[t.audience]} · {t.name}
+              to {audienceWords(t.audience)} · {t.name}
             </p>
           </div>
           <span className="text-[11px] font-bold shrink-0" style={{ color: statusTone }}>
@@ -206,6 +200,7 @@ export default function MessageLibrary({ saved, connected }: {
                   onChange={e => edit(key, { audience: e.target.value as Audience })}
                   className={field} style={fieldStyle}>
                   <option value="all">every member</option>
+                  <option value="except_winner">every member except the winner</option>
                   <option value="winner">the auction winner</option>
                   <option value="unpaid">members who still owe</option>
                 </select>

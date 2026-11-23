@@ -27,7 +27,14 @@
 // Pure. No React, no database, no clock of its own — today is passed in.
 
 export type StepKind = 'notice' | 'dues' | 'winner' | 'reminder'
-export type Audience = 'all' | 'winner' | 'unpaid'
+/**
+ * Who a message is for.
+ *
+ * 'except_winner' exists because the winner gets their own message. Sending
+ * them the dues announcement as well, on the same day, reads as not knowing
+ * who won.
+ */
+export type Audience = 'all' | 'winner' | 'except_winner' | 'unpaid'
 /**
  * What a step's date is counted from.
  *
@@ -64,7 +71,7 @@ export const DEFAULT_STEPS: readonly Step[] = [
   { key: 'notice',     kind: 'notice',   audience: 'all',    anchor: 'auction',      offsetDays: -3, enabled: true },
   // The result messages go out when the auction is recorded, not when it was
   // held — see the note on Anchor.
-  { key: 'dues',       kind: 'dues',     audience: 'all',    anchor: 'settled',      offsetDays: 0,  enabled: true },
+  { key: 'dues',       kind: 'dues',     audience: 'except_winner', anchor: 'settled', offsetDays: 0, enabled: true },
   { key: 'winner',     kind: 'winner',   audience: 'winner', anchor: 'settled',      offsetDays: 0,  enabled: true },
   { key: 'remind-1',   kind: 'reminder', audience: 'unpaid', anchor: 'auction',      offsetDays: 5,  enabled: true },
   { key: 'remind-2',   kind: 'reminder', audience: 'unpaid', anchor: 'auction',      offsetDays: 15, enabled: true },
@@ -258,7 +265,7 @@ export interface Send {
 export interface Skip {
   memberId: string
   stepKey: string
-  reason: 'paid' | 'no_phone' | 'not_winner' | 'already_sent' | 'anchor_unknown' | 'disabled'
+  reason: 'paid' | 'no_phone' | 'not_winner' | 'is_winner' | 'already_sent' | 'anchor_unknown' | 'disabled'
 }
 
 export interface Plan {
@@ -296,6 +303,11 @@ export function plan(i: PlanInput): Plan {
       if (date !== i.today) continue   // not today's business at all
 
       if (step.audience === 'winner' && m.id !== (i.winnerMemberId ?? '')) { add('not_winner'); continue }
+      // The winner has their own message for this month; two on one day reads
+      // as not knowing who won.
+      if (step.audience === 'except_winner' && i.winnerMemberId && m.id === i.winnerMemberId) {
+        add('is_winner'); continue
+      }
       if (step.audience === 'unpaid' && paid.has(m.id)) { add('paid'); continue }
       if (!m.phone || !String(m.phone).trim()) { add('no_phone'); continue }
 

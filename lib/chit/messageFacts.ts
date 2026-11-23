@@ -77,6 +77,37 @@ export interface WindowRow {
   min_increment?: number | string | null
 }
 
+export interface DuesInput {
+  /** What one member pays in each month. */
+  installment: number
+  /** Every month already run, with the dividend that month carried. */
+  auctions: readonly { month_number?: number | string | null; dividend_per_member?: number | string | null }[]
+  /** The months this member has paid for. */
+  paidMonths: readonly number[]
+  /** Count up to and including this month. */
+  uptoMonth: number
+}
+
+/**
+ * Everything a member still owes across the months run so far.
+ *
+ * Not this month's subscription — every month that has been auctioned, less
+ * that month's dividend, that they have not paid for. This is the figure the
+ * app's own winner message calls the pending amount, and it is what gets
+ * deducted from a payout.
+ */
+export function pendingDues(i: DuesInput): number {
+  const paid = new Set(i.paidMonths.map(m => Math.round(Number(m))))
+  let total = 0
+  for (const a of i.auctions) {
+    const month = Math.round(num(a.month_number))
+    if (month < 1 || month > Math.round(num(i.uptoMonth))) continue
+    if (paid.has(month)) continue
+    total += Math.max(0, num(i.installment) - num(a.dividend_per_member))
+  }
+  return Math.round(total * 100) / 100
+}
+
 export interface FactsInput {
   group: GroupRow
   /** The month being messaged about. Null before the first auction. */
@@ -92,6 +123,10 @@ export interface FactsInput {
   nextAuctionDate?: string | null
   /** Days after the auction the subscription is owed. */
   duesDueDays?: number | null
+  /** Every month already run, for working out what is still owed. */
+  allAuctions?: readonly { month_number?: number | string | null; dividend_per_member?: number | string | null }[]
+  /** The months this member has paid for. */
+  paidMonths?: readonly number[]
   today: string
 }
 
@@ -123,6 +158,17 @@ export function factsFor(i: FactsInput): Facts {
   const auctionDate = a?.auction_date ? String(a.auction_date).slice(0, 10) : null
 
   const dividend = a ? num(a.dividend_per_member) : null
+
+  // What this member still owes in all, and so what actually reaches them if
+  // they win. Only known when the months and their payments were passed in.
+  const owing = i.allAuctions
+    ? pendingDues({
+        installment,
+        auctions: i.allAuctions,
+        paidMonths: i.paidMonths ?? [],
+        uptoMonth: Math.round(num(a?.month_number)),
+      })
+    : null
   // What this member actually owes: their subscription less their dividend.
   const amountDue = a
     ? Math.max(0, Math.round((installment - num(a.dividend_per_member)) * 100) / 100)
@@ -143,7 +189,7 @@ export function factsFor(i: FactsInput): Facts {
     bankAccountName: i.member.bank_account_name ?? null,
     bankBranch: i.member.bank_branch ?? null,
     bankIfsc: i.member.bank_ifsc ?? null,
-    accountEnding: i.member.bank_account_number ?? null,
+    accountNumber: i.member.bank_account_number ?? null,
 
     groupName: String(g.name ?? ''),
     month: auctionDate ? monthLabel(auctionDate) : monthLabel(i.today),
@@ -179,6 +225,10 @@ export function factsFor(i: FactsInput): Facts {
       ? Math.max(0, Math.round((num(a.bid_amount) - num(a.commission)) * 100) / 100)
       : null,
     netPayout: a ? num(a.net_payout) : null,
+    pendingDues: owing,
+    payoutAfterDues: a && owing != null
+      ? Math.max(0, Math.round((num(a.net_payout) - owing) * 100) / 100)
+      : null,
     today: i.today,
   }
 }

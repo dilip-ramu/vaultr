@@ -170,6 +170,7 @@ export default function ReminderRules({
               {stepWords(s)}
               {s.audience === 'unpaid' && ' · only those who owe'}
               {s.audience === 'winner' && ' · the winner only'}
+              {s.audience === 'except_winner' && ' · everybody except the winner'}
             </p>
 
             {(problems[i] ?? warnings[i]) && (
