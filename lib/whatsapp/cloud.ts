@@ -100,6 +100,96 @@ export function isRetryable(status: number): boolean {
   return status === 429 || status >= 500
 }
 
+/**
+ * How long is left of the window in which a free-form reply may be sent.
+ *
+ * WhatsApp allows a business to write whatever it likes for 24 hours after a
+ * member writes to it. Outside that window only an approved template can be
+ * sent, and Meta rejects anything else — which is the whole reason the app
+ * needs to show the clock rather than let somebody type into a dead box.
+ *
+ * Measured from the LAST thing they sent, in minutes. Zero means closed.
+ */
+export function windowLeftMinutes(lastInboundAt: string | null | undefined, now: Date = new Date()): number {
+  const t = Date.parse(String(lastInboundAt ?? ''))
+  if (!Number.isFinite(t)) return 0
+  const left = 24 * 60 - Math.floor((now.getTime() - t) / 60000)
+  return left > 0 ? left : 0
+}
+
+/** '3 hours left to reply', '12 minutes left to reply', or why not. */
+export function windowWords(lastInboundAt: string | null | undefined, now: Date = new Date()): string {
+  const left = windowLeftMinutes(lastInboundAt, now)
+  if (left <= 0) return 'More than a day since they wrote — only an approved message can be sent now.'
+  if (left < 60) return `${left} minute${left === 1 ? '' : 's'} left to reply in your own words.`
+  const hours = Math.floor(left / 60)
+  return `${hours} hour${hours === 1 ? '' : 's'} left to reply in your own words.`
+}
+
+export interface TextSend {
+  /** Digits only, with country code. */
+  to: string
+  body: string
+}
+
+/** Why this reply cannot be sent, or null when it can. */
+export function textProblem(s: TextSend): string | null {
+  if (!/^\d{11,15}$/.test(s.to)) return `'${s.to}' is not a phone number with a country code`
+  const body = String(s.body ?? '').trim()
+  if (!body) return 'Nothing to send'
+  // Meta's limit on a text message body.
+  if (body.length > 4096) return 'Too long — keep it under 4096 characters'
+  return null
+}
+
+export function textPayload(s: TextSend): Record<string, unknown> {
+  return {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: s.to,
+    type: 'text',
+    // Links in a reply should preview, as they would in the app.
+    text: { preview_url: true, body: String(s.body).trim() },
+  }
+}
+
+/**
+ * A reply in your own words.
+ *
+ * Only possible inside the 24-hour window — see windowLeftMinutes. Outside it
+ * Meta refuses with a 'message outside window' error, which is passed back as
+ * it comes rather than dressed up: the operator needs to know that the member
+ * has to write first.
+ */
+export async function sendText(s: TextSend, config?: CloudConfig | null): Promise<SendResult> {
+  const c = config ?? cloudConfig()
+  if (!c) return { ok: false, error: 'WhatsApp is not configured yet — no business number registered', retryable: false }
+
+  const problem = textProblem(s)
+  if (problem) return { ok: false, error: problem, retryable: false }
+
+  try {
+    const res = await fetch(sendUrl(c), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${c.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(textPayload(s)),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const err = (data as { error?: { message?: string; code?: number } }).error
+      return {
+        ok: false,
+        error: err?.message ? `${err.message}${err.code ? ` (${err.code})` : ''}` : `HTTP ${res.status}`,
+        retryable: isRetryable(res.status),
+      }
+    }
+    const id = (data as { messages?: { id?: string }[] }).messages?.[0]?.id
+    return id ? { ok: true, messageId: id } : { ok: false, error: 'Meta accepted it but returned no message id', retryable: false }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Network error', retryable: true }
+  }
+}
+
 /** The one function here that touches the network. */
 export async function sendTemplate(s: TemplateSend, config?: CloudConfig | null): Promise<SendResult> {
   const c = config ?? cloudConfig()

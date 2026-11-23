@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   cloudConfig, sendProblem, templatePayload, sendUrl, isRetryable, sendTemplate,
+  windowLeftMinutes, windowWords, textPayload, textProblem,
   type TemplateSend,
 } from '@/lib/whatsapp/cloud'
 
@@ -121,5 +122,54 @@ describe('sending', () => {
     const r = await sendTemplate(send({ to: 'nope' }), { phoneNumberId: '1', token: 't', version: 'v21.0' })
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.retryable).toBe(false)
+  })
+})
+
+describe('the 24-hour window for a reply in your own words', () => {
+  const now = new Date('2026-11-24T12:00:00Z')
+
+  it('counts down from the last thing they wrote', () => {
+    expect(windowLeftMinutes('2026-11-24T11:00:00Z', now)).toBe(23 * 60)
+    expect(windowLeftMinutes('2026-11-23T13:00:00Z', now)).toBe(60)
+  })
+
+  it('is closed a day later, and for a member who never wrote', () => {
+    expect(windowLeftMinutes('2026-11-23T11:59:00Z', now)).toBe(0)
+    expect(windowLeftMinutes(null, now)).toBe(0)
+    expect(windowLeftMinutes('not a date', now)).toBe(0)
+  })
+
+  it('says how long is left in words', () => {
+    expect(windowWords('2026-11-24T11:00:00Z', now)).toBe('23 hours left to reply in your own words.')
+    // Nearly a day since they wrote: half an hour of it left.
+    expect(windowWords('2026-11-23T12:30:00Z', now)).toBe('30 minutes left to reply in your own words.')
+    expect(windowWords('2026-11-23T12:01:00Z', now)).toBe('1 minute left to reply in your own words.')
+    expect(windowWords(null, now)).toContain('only an approved message')
+  })
+})
+
+describe('sending a reply', () => {
+  it('builds the text Meta expects', () => {
+    const p = textPayload({ to: '919876543210', body: '  Noted, thank you  ' })
+    expect(p).toEqual({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: '919876543210',
+      type: 'text',
+      text: { preview_url: true, body: 'Noted, thank you' },
+    })
+  })
+
+  it('refuses a bare ten-digit number, which would reach somebody else', () => {
+    expect(textProblem({ to: '9876543210', body: 'hi' })).toContain('country code')
+  })
+
+  it('refuses an empty reply and an over-long one', () => {
+    expect(textProblem({ to: '919876543210', body: '   ' })).toBe('Nothing to send')
+    expect(textProblem({ to: '919876543210', body: 'x'.repeat(4097) })).toContain('4096')
+  })
+
+  it('passes a sensible reply', () => {
+    expect(textProblem({ to: '919876543210', body: 'Received, thank you.' })).toBeNull()
   })
 })

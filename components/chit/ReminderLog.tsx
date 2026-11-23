@@ -28,6 +28,10 @@ const TONE: Record<string, { fg: string; label: string }> = {
   // Not a failure: it is waiting for a detail, and it goes out by itself on
   // the day the detail is filled in.
   held:    { fg: 'var(--amber, #92400E)', label: 'waiting for a detail' },
+  // From WhatsApp itself, through the webhook. A message stuck on 'sent' for
+  // a day is how a dead number announces itself.
+  delivered: { fg: 'var(--income)', label: 'delivered' },
+  read:    { fg: 'var(--income)', label: 'read' },
 }
 
 export default function ReminderLog({ rows }: { rows: LogRow[] }) {

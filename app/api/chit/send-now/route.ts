@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
     if (memberIds.length === 0) continue
 
     const { data: people } = await sb.from('chit_members')
-      .select('id, name, phone, dial_code, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
+      .select('id, name, phone, dial_code, messaging_opted_out, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
       .in('id', memberIds)
 
     const rows = (people ?? []) as Record<string, unknown>[]
@@ -127,6 +127,8 @@ export async function POST(req: NextRequest) {
 
     // Who the message is written for decides who hears it.
     const audience = rows.filter(p => {
+      // Asked not to be messaged. Not negotiable, not even for a manual send.
+      if (p.messaging_opted_out) return false
       if (template.audience === 'winner') return String(p.id) === winnerId
       // The winner has their own message; two on one day reads as not knowing
       // who won.

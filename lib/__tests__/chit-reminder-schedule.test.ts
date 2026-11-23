@@ -413,3 +413,27 @@ describe('what counts as finished business', () => {
     expect(isSettledSend('PENDING')).toBe(false)
   })
 })
+
+describe('a member who asked not to be messaged', () => {
+  // Not optional: on WhatsApp, members marking messages as spam costs
+  // delivery for every member, not only the one who complained.
+  it('is left out, and said so plainly', () => {
+    const p = plan(input({ members: [member('m1', { optedOut: true }), member('m2')] }))
+    expect(p.due.map(d => d.memberId)).toEqual(['m2'])
+    expect(p.skipped.some(s => s.memberId === 'm1' && s.reason === 'opted_out')).toBe(true)
+  })
+
+  it('counts them in the summary', () => {
+    const p = plan(input({ members: [member('m1', { optedOut: true })] }))
+    expect(planWords(p)).toContain('asked not to be messaged')
+  })
+
+  // Even a notice, which is information rather than a chase.
+  it('is left out of every kind of message', () => {
+    const p = plan(input({
+      members: [member('m1', { optedOut: true })],
+      today: '2026-11-02',
+    }))
+    expect(p.due).toEqual([])
+  })
+})

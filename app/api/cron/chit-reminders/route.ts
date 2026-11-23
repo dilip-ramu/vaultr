@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
     if (memberIds.length === 0) continue
 
     const { data: people } = await sb.from('chit_members')
-      .select('id, name, phone, dial_code, reminder_steps, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
+      .select('id, name, phone, dial_code, reminder_steps, messaging_opted_out, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
       .in('id', memberIds)
 
     const rows = (people ?? []) as Record<string, unknown>[]
@@ -184,6 +184,7 @@ export async function GET(req: NextRequest) {
       id: String(p.id),
       name: String(p.name ?? ''),
       phone: (p.phone as string | null) ?? null,
+      optedOut: Boolean(p.messaging_opted_out),
       steps: Array.isArray(p.reminder_steps) && (p.reminder_steps as Step[]).length > 0
         ? matchStepsToLibrary(p.reminder_steps as Step[], library)
         : null,

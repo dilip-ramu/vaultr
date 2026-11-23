@@ -232,6 +232,12 @@ export interface MemberLike {
   phone?: string | null
   /** Their own schedule, when they need different handling. */
   steps?: readonly Step[] | null
+  /**
+   * They have asked not to be messaged. Honouring this is not optional: on
+   * WhatsApp, members marking messages as spam costs delivery for every
+   * member, not only the one who complained.
+   */
+  optedOut?: boolean | null
 }
 
 export interface PlanInput {
@@ -265,7 +271,8 @@ export interface Send {
 export interface Skip {
   memberId: string
   stepKey: string
-  reason: 'paid' | 'no_phone' | 'not_winner' | 'is_winner' | 'already_sent' | 'anchor_unknown' | 'disabled'
+  reason: 'paid' | 'no_phone' | 'opted_out' | 'not_winner' | 'is_winner'
+    | 'already_sent' | 'anchor_unknown' | 'disabled'
 }
 
 export interface Plan {
@@ -325,6 +332,7 @@ export function plan(i: PlanInput): Plan {
       }
       if (step.audience === 'unpaid' && paid.has(m.id)) { add('paid'); continue }
       if (!m.phone || !String(m.phone).trim()) { add('no_phone'); continue }
+      if (m.optedOut) { add('opted_out'); continue }
 
       const key = sendKey(i.auctionId, m.id, step.key)
       if (sent.has(key)) { add('already_sent'); continue }
@@ -350,13 +358,18 @@ export function timetable(groupSteps: readonly Step[], a: Anchors): { step: Step
 export function planWords(p: Plan): string {
   if (p.due.length === 0) {
     const paid = p.skipped.filter(s => s.reason === 'paid').length
-    if (paid > 0) return `Nothing to send today — ${paid} ${paid === 1 ? 'member has' : 'members have'} paid.`
-    return 'Nothing to send today.'
+    const out = p.skipped.filter(s => s.reason === 'opted_out').length
+    const why: string[] = []
+    if (paid > 0) why.push(`${paid} ${paid === 1 ? 'member has' : 'members have'} paid`)
+    if (out > 0) why.push(`${out} asked not to be messaged`)
+    return why.length > 0 ? `Nothing to send today — ${why.join(', ')}.` : 'Nothing to send today.'
   }
   const bits = [`${p.due.length} to message`]
   const paid = p.skipped.filter(s => s.reason === 'paid').length
   const noPhone = p.skipped.filter(s => s.reason === 'no_phone').length
+  const out = p.skipped.filter(s => s.reason === 'opted_out').length
   if (paid > 0) bits.push(`${paid} ${paid === 1 ? 'has' : 'have'} paid`)
   if (noPhone > 0) bits.push(`${noPhone} with no phone number`)
+  if (out > 0) bits.push(`${out} asked not to be messaged`)
   return bits.join(' · ')
 }
