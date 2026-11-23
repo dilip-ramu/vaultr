@@ -42,7 +42,6 @@ function rowFrom(t: MessageTemplate, userId: string) {
     language: t.language,
     body: t.body,
     footer: t.footer ?? null,
-    on_missing: t.onMissing === 'fill' ? 'fill' : 'hold',
     // The compiled variables, in Meta's order — a record of what was submitted.
     variables: draft.variables,
     category_requested: t.category,

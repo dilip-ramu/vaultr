@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   compile, normalizeToken, fieldsUsed, insertToken, toDraft, previewOf,
   templateProblems, canSubmit, renderVariables, slugFromLabel, uniqueName,
-  blankTemplate, duplicateOf, templateById, stepWarning, fromNumbered, fromRow,
+  blankTemplate, duplicateOf, templateById, stepWarning, fromNumbered,
   matchStepsToLibrary, audienceWords, STARTER_LIBRARY,
   type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
@@ -384,42 +384,89 @@ describe('when a detail has never been filled in', () => {
     body: 'Hello {{member_name}}, please confirm your {{bank_name}} account number {{account_number}} before we transfer.',
   })
 
-  // The safe default: a reminder saying 'Rs missing is due' is worse than no
-  // reminder at all, so the message is held and the gap is reported.
-  it('holds the message back by default', () => {
+  // The safe default: nothing is in the policy, so any gap holds the message
+  // and is reported. A reminder saying 'Rs missing is due' is worse than no
+  // reminder at all.
+  it('holds the message back when nothing says otherwise', () => {
     const r = renderVariables(asking, facts({ accountNumber: null }))
     expect(r.sendable).toBe(false)
+    expect(r.held).toEqual(['account_number'])
     expect(r.missing).toEqual(['account_number'])
   })
 
-  // The message whose whole purpose is to get the detail out of the member.
-  it('sends it saying "missing" when told to', () => {
-    const r = renderVariables({ ...asking, onMissing: 'fill' }, facts({ accountNumber: null }))
+  // The detail only the member can fix.
+  it('sends it saying "missing" for a detail set that way', () => {
+    const r = renderVariables(asking, facts({ accountNumber: null }), { account_number: 'fill' })
     expect(r.sendable).toBe(true)
     expect(r.values).toEqual(['Ravi', 'HDFC Bank', 'missing'])
-    // Still reported, so it can be fixed before next month.
+    expect(r.filled).toEqual(['account_number'])
+    // Still reported, so it can be chased.
     expect(r.missing).toEqual(['account_number'])
   })
 
-  it('fills every gap, so the count still matches what Meta approved', () => {
-    const r = renderVariables({ ...asking, onMissing: 'fill' },
-      facts({ accountNumber: null, bankName: null }))
+  // Half a message is not worth sending: the member cannot tell which half
+  // was meant.
+  it('holds the whole message when one gap is not allowed through', () => {
+    const r = renderVariables(asking, facts({ accountNumber: null, bankName: null }),
+      { account_number: 'fill' })
+    expect(r.sendable).toBe(false)
+    expect(r.held).toEqual(['bank_name'])
+  })
+
+  it('fills every allowed gap, so the count still matches what Meta approved', () => {
+    const r = renderVariables(asking, facts({ accountNumber: null, bankName: null }),
+      { account_number: 'fill', bank_name: 'fill' })
     expect(r.values).toEqual(['Ravi', 'missing', 'missing'])
     expect(r.values).toHaveLength(3)
+    expect(r.sendable).toBe(true)
   })
 
   it('changes nothing when everything is known', () => {
-    for (const mode of ['hold', 'fill'] as const) {
-      const r = renderVariables({ ...asking, onMissing: mode }, facts())
+    for (const policy of [undefined, { account_number: 'fill' as const }]) {
+      const r = renderVariables(asking, facts(), policy)
       expect(r.sendable).toBe(true)
       expect(r.missing).toEqual([])
+      expect(r.filled).toEqual([])
       expect(r.values).toEqual(['Ravi', 'HDFC Bank', '50100123454321'])
     }
   })
 
-  it('reads a saved choice back, and defaults to holding', () => {
-    expect(fromRow({ template_name: 'x', on_missing: 'fill' }).onMissing).toBe('fill')
-    expect(fromRow({ template_name: 'x' }).onMissing).toBe('hold')
-    expect(fromRow({ template_name: 'x', on_missing: 'nonsense' }).onMissing).toBe('hold')
+  it('ignores a detail marked hold, which is the same as not naming it', () => {
+    const r = renderVariables(asking, facts({ accountNumber: null }), { account_number: 'hold' })
+    expect(r.sendable).toBe(false)
+  })
+})
+
+describe('who a message is for, in words', () => {
+  it('says it the way it reads on screen', () => {
+    expect(audienceWords('all')).toBe('every member')
+    expect(audienceWords('except_winner')).toBe('everybody except the winner')
+    expect(audienceWords('winner')).toBe('the auction winner')
+    expect(audienceWords('unpaid')).toBe('members who still owe')
+  })
+
+  it('will not let a message to everybody-but-the-winner use the winner’s figures', () => {
+    const p = templateProblems(tpl({
+      audience: 'except_winner',
+      body: 'Hello {{member_name}}, Rs {{payout_after_dues}} will be paid to you shortly.',
+    }))
+    expect(p.some(x => x.message.includes('everybody except the winner'))).toBe(true)
+  })
+
+  it('allows the result of the auction, which everybody hears anyway', () => {
+    expect(templateProblems(tpl({
+      audience: 'except_winner',
+      body: 'Hello {{member_name}}, the {{month}} chit went to {{winner_name}} at Rs {{bid_amount}}, so your dividend is Rs {{dividend}}.',
+    }))).toEqual([])
+  })
+
+  it('ships the dues message to everybody but the winner', () => {
+    expect(STARTER_LIBRARY.find(t => t.name === 'chit_dues')!.audience).toBe('except_winner')
+  })
+
+  it('points a step at a message and takes its audience too', () => {
+    const library = [tpl({ id: 'd', name: 'chit_dues', audience: 'except_winner' })]
+    const matched = matchStepsToLibrary([{ kind: 'dues', audience: 'all' as Audience }], library)
+    expect(matched[0]).toEqual({ kind: 'dues', audience: 'except_winner', templateId: 'd' })
   })
 })

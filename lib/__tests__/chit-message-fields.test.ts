@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   FIELDS, field, money, dateWords, safeVar, daysOverdue, valueFor,
   renderFields, fieldWords, fieldProblem, fieldsFor, ordinal, trimPct, labelToField,
-  daysBetween, missingWords, MISSING_WORD,
+  daysBetween, missingWords, MISSING_WORD, fillable, decideMissing, ASKABLE_FIELDS,
   type Facts, type FieldId,
 } from '@/lib/chit/messageFields'
 
@@ -430,5 +430,39 @@ describe('saying what is missing', () => {
   it('stands in with a word, not a dash or a blank', () => {
     expect(MISSING_WORD).toBe('missing')
     expect(MISSING_WORD.trim()).not.toBe('')
+  })
+})
+
+describe('which details may go out as missing', () => {
+  it('names only the exceptions, and everything else holds', () => {
+    expect(fillable({ account_number: 'fill', bank_ifsc: 'hold' })).toEqual(['account_number'])
+    expect(fillable({})).toEqual([])
+    expect(fillable()).toEqual([])
+  })
+
+  it('ignores a field it has never heard of', () => {
+    expect(fillable({ nonsense: 'fill' } as Record<string, 'fill'>)).toEqual([])
+  })
+
+  it('splits the gaps into the ones allowed through and the ones that stop it', () => {
+    const d = decideMissing(['account_number', 'amount_due'], { account_number: 'fill' })
+    expect(d.fill).toEqual(['account_number'])
+    expect(d.hold).toEqual(['amount_due'])
+  })
+
+  it('holds everything when there is no policy at all', () => {
+    expect(decideMissing(['account_number'], undefined).hold).toEqual(['account_number'])
+  })
+
+  // A figure the app works out is never offered: if the app cannot work it
+  // out, the message is wrong, and 'missing' in place of an amount is
+  // alarming rather than helpful.
+  it('offers the member’s own record, never a calculated figure', () => {
+    expect(ASKABLE_FIELDS).toContain('account_number')
+    expect(ASKABLE_FIELDS).toContain('bank_ifsc')
+    expect(ASKABLE_FIELDS).toContain('member_address')
+    expect(ASKABLE_FIELDS).not.toContain('amount_due')
+    expect(ASKABLE_FIELDS).not.toContain('days_overdue')
+    expect(ASKABLE_FIELDS).not.toContain('net_payout')
   })
 })

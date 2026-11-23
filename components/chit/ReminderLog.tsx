@@ -25,6 +25,9 @@ const TONE: Record<string, { fg: string; label: string }> = {
   sent:    { fg: 'var(--income)',  label: 'sent' },
   pending: { fg: 'var(--amber, #92400E)', label: 'waiting for a number' },
   failed:  { fg: 'var(--expense)', label: 'failed' },
+  // Not a failure: it is waiting for a detail, and it goes out by itself on
+  // the day the detail is filled in.
+  held:    { fg: 'var(--amber, #92400E)', label: 'waiting for a detail' },
 }
 
 export default function ReminderLog({ rows }: { rows: LogRow[] }) {

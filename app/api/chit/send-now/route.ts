@@ -24,7 +24,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, CAN } from '@/lib/chit/access'
 import { fromRow, templateById, renderVariables, fieldsUsed } from '@/lib/chit/messageTemplates'
-import { missingWords, usesResultFields } from '@/lib/chit/messageFields'
+import { missingWords, usesResultFields, type MissingPolicy } from '@/lib/chit/messageFields'
 import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
@@ -61,8 +61,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: settings } = await sb.from('chit_settings')
-    .select('dues_due_days').eq('user_id', uid).maybeSingle()
+    .select('dues_due_days, missing_policy').eq('user_id', uid).maybeSingle()
   const duesDueDays = (settings?.dues_due_days as number | null) ?? null
+  const missingPolicy = (settings?.missing_policy ?? {}) as MissingPolicy
 
   const { data: groups } = await sb.from('chit_groups')
     .select('id, name, chit_value, members, auction_day, auction_time, start_date, commission_pct, bid_ceiling_pct, commission_model')
@@ -162,18 +163,18 @@ export async function POST(req: NextRequest) {
         today,
       })
 
-      const { values, missing, sendable } = renderVariables(template, facts)
+      const { values, filled, held, sendable } = renderVariables(template, facts, missingPolicy)
       const to = normalizeWhatsAppNumber(
         `${String(person.dial_code ?? '91')}${String(person.phone ?? '')}`.replace(/\D/g, ''),
       )
 
       if (!sendable || !to) {
         skipped++
-        notes.push(`${String(person.name)}: ${!to ? 'no usable phone number' : missingWords(missing)}`)
+        notes.push(`${String(person.name)}: ${!to ? 'no usable phone number' : `waiting for ${missingWords(held)}`}`)
         continue
       }
-      const note = missing.length > 0 ? missingWords(missing) : null
-      if (note) notes.push(`${String(person.name)}: sent with ${note}`)
+      const note = filled.length > 0 ? `sent with ${missingWords(filled)}` : null
+      if (note) notes.push(`${String(person.name)}: ${note}`)
 
       if (!config) {
         // Recorded, so the list is ready the day the number goes live.

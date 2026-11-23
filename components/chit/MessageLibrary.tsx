@@ -251,20 +251,6 @@ export default function MessageLibrary({ saved, connected }: {
               </label>
 
               <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
-                If a detail is missing
-                <select value={t.onMissing ?? 'hold'}
-                  onChange={e => edit(key, { onMissing: e.target.value === 'fill' ? 'fill' : 'hold' })}
-                  className={field} style={fieldStyle}>
-                  <option value="hold">hold the message back</option>
-                  <option value="fill">send it saying &ldquo;missing&rdquo;</option>
-                </select>
-                <span className="block mt-1 text-[10.5px] font-normal" style={{ color: 'var(--text-faint)' }}>
-                  Hold back a reminder rather than send &ldquo;Rs missing is due&rdquo;. Send
-                  anyway when the point of the message is to get the detail from them.
-                </span>
-              </label>
-
-              <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
                 Ask Meta for
                 <select value={t.category}
                   onChange={e => edit(key, { category: e.target.value as TemplateCategory })}

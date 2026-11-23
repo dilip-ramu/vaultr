@@ -13,6 +13,7 @@ import type { Step } from '@/lib/chit/reminderSchedule'
 import MessageLibrary from '@/components/chit/MessageLibrary'
 import ReminderRules from '@/components/chit/ReminderRules'
 import MemberRules, { type MemberRow } from '@/components/chit/MemberRules'
+import MissingPolicy from '@/components/chit/MissingPolicy'
 import SendNow from '@/components/chit/SendNow'
 
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,8 @@ export default async function ChitMessagesPage() {
   const [{ data: templateRows }, { data: settings }, { data: members }] = await Promise.all([
     supabase.from('chit_message_templates').select('*').eq('user_id', uid)
       .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
-    supabase.from('chit_settings').select('reminder_steps, dues_due_days').eq('user_id', uid).maybeSingle(),
+    supabase.from('chit_settings').select('reminder_steps, dues_due_days, missing_policy')
+      .eq('user_id', uid).maybeSingle(),
     supabase.from('chit_members').select('id, name, phone, reminder_steps')
       .eq('user_id', uid).eq('is_active', true).order('name'),
   ])
@@ -61,6 +63,11 @@ export default async function ChitMessagesPage() {
       />
 
       <MessageLibrary saved={templates} connected={connected} />
+
+      <MissingPolicy
+        userId={uid}
+        policy={(settings?.missing_policy ?? {}) as Record<string, 'fill' | 'hold'>}
+      />
 
       <MemberRules
         members={((members ?? []) as Record<string, unknown>[]).map(m => ({

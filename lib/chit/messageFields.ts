@@ -407,6 +407,59 @@ export function missingWords(ids: readonly FieldId[]): string {
   return ids.length === 0 ? '' : `${fieldWords(ids)}: ${MISSING_WORD}`
 }
 
+/**
+ * What to do about each detail when nobody has filled it in. One decision per
+ * detail, for the whole business.
+ *
+ * Only the exceptions are stored. Anything not named here holds the message
+ * back, because that is the answer that cannot do harm: a reminder saying
+ * 'Rs missing is due on missing' is worse than no reminder at all.
+ *
+ * The details worth switching over are the ones only the member can fix —
+ * their account number, their IFSC, their address. Those are better sent
+ * reading 'account number: missing', because that is what gets the number out
+ * of them.
+ */
+export type MissingPolicy = Partial<Record<FieldId, 'fill' | 'hold'>>
+
+/** The details this business is happy to send as 'missing'. */
+export function fillable(policy?: MissingPolicy): FieldId[] {
+  if (!policy) return []
+  return (Object.keys(policy) as FieldId[]).filter(id => policy[id] === 'fill' && !!field(id))
+}
+
+/**
+ * Which gaps can be written as 'missing' and which stop the message.
+ *
+ * All or nothing per message: one held detail holds the whole thing, because
+ * half a message is not worth sending and the member cannot tell which half
+ * was meant.
+ */
+export function decideMissing(missing: readonly FieldId[], policy?: MissingPolicy): {
+  fill: FieldId[]
+  hold: FieldId[]
+} {
+  const fill: FieldId[] = []
+  const hold: FieldId[] = []
+  for (const id of missing) {
+    if (policy?.[id] === 'fill') fill.push(id)
+    else hold.push(id)
+  }
+  return { fill, hold }
+}
+
+/**
+ * The details that may sensibly be sent as 'missing'.
+ *
+ * A figure the app works out — an amount, a date, a day count — is never in
+ * this list: if the app cannot work it out, the message is wrong, and 'missing'
+ * in place of an amount is alarming rather than helpful. What is offered is
+ * what lives on a member's own record.
+ */
+export const ASKABLE_FIELDS: readonly FieldId[] = FIELDS
+  .filter(f => f.group === 'member' || f.group === 'bank')
+  .map(f => f.id)
+
 /** 'bid amount, their bank' — for saying what is missing in a sentence. */
 export function fieldWords(ids: readonly FieldId[]): string {
   const labels = ids.map(id => field(id)?.label ?? id)

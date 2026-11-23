@@ -33,7 +33,7 @@ import {
   fromRow, matchStepsToLibrary, templateById, renderVariables, fieldsUsed,
   type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
-import { missingWords, usesResultFields } from '@/lib/chit/messageFields'
+import { missingWords, usesResultFields, type MissingPolicy } from '@/lib/chit/messageFields'
 import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
@@ -82,7 +82,11 @@ export async function GET(req: NextRequest) {
   // The library and the schedule are both one per user, shared by every group,
   // so they are fetched once per user rather than once per group.
   const libraries = new Map<string, MessageTemplate[]>()
-  const settings = new Map<string, { steps: readonly Step[]; duesDueDays: number | null }>()
+  const settings = new Map<string, {
+    steps: readonly Step[]
+    duesDueDays: number | null
+    missingPolicy: MissingPolicy
+  }>()
 
   async function libraryFor(userId: string): Promise<MessageTemplate[]> {
     const had = libraries.get(userId)
@@ -97,10 +101,11 @@ export async function GET(req: NextRequest) {
     const had = settings.get(userId)
     if (had) return had
     const { data } = await sb.from('chit_settings')
-      .select('reminder_steps, dues_due_days').eq('user_id', userId).maybeSingle()
+      .select('reminder_steps, dues_due_days, missing_policy').eq('user_id', userId).maybeSingle()
     const value = {
       steps: steps(data?.reminder_steps),
       duesDueDays: (data?.dues_due_days as number | null) ?? null,
+      missingPolicy: (data?.missing_policy ?? {}) as MissingPolicy,
     }
     settings.set(userId, value)
     return value
@@ -145,7 +150,10 @@ export async function GET(req: NextRequest) {
       // Every payment, not only this month's: what a member still owes in all
       // is what gets deducted from a payout.
       sb.from('chit_collections').select('member_id, month_number').eq('group_id', groupId),
-      sb.from('chit_message_log').select('step_key, member_id').eq('auction_id', String(auction.id)),
+      // The status matters: a HELD message is not a sent one. It keeps its row
+      // — the unique index allows only one per auction, member and step — and
+      // that row is updated in place on the day the detail is filled in.
+      sb.from('chit_message_log').select('id, step_key, member_id, status').eq('auction_id', String(auction.id)),
       // The bidding rules as they were frozen when the window opened, which is
       // what members were actually told — not today's settings.
       sb.from('chit_bid_windows').select('ceiling_amount, min_increment, month_number')
@@ -155,6 +163,7 @@ export async function GET(req: NextRequest) {
     const payments = (paid ?? []) as { member_id: string; month_number: number }[]
     const months = (allAuctions ?? []) as { month_number: number; dividend_per_member: number }[]
 
+    const logRows = (log ?? []) as { id: string; step_key: string; member_id: string; status: string }[]
     const memberLinks = (links ?? []) as { member_id: string; slot_number: number | null }[]
     const memberIds = memberLinks.map(l => String(l.member_id))
     if (memberIds.length === 0) continue
@@ -165,7 +174,7 @@ export async function GET(req: NextRequest) {
 
     const rows = (people ?? []) as Record<string, unknown>[]
     const library = await libraryFor(userId)
-    const { steps: orgSteps, duesDueDays } = await settingsFor(userId)
+    const { steps: orgSteps, duesDueDays, missingPolicy } = await settingsFor(userId)
 
     const members: MemberLike[] = rows.map(p => ({
       id: String(p.id),
@@ -194,7 +203,8 @@ export async function GET(req: NextRequest) {
         .filter(p => Number(p.month_number) === monthNumber)
         .map(p => String(p.member_id)),
       winnerMemberId: (auction.winner_member_id as string | null) ?? null,
-      sentKeys: ((log ?? []) as { step_key: string; member_id: string }[])
+      sentKeys: logRows
+        .filter(r => String(r.status) !== 'held')
         .map(r => sendKey(String(auction.id), String(r.member_id), String(r.step_key))),
       today,
     })
@@ -204,6 +214,22 @@ export async function GET(req: NextRequest) {
 
     const winnerRow = rows.find(p => String(p.id) === String(auction.winner_member_id ?? ''))
     const window = ((windows ?? []) as Record<string, unknown>[])[0] ?? null
+
+    /**
+     * Write what happened. A message already waiting on a missing detail has a
+     * row, and that row is updated rather than a second one inserted — the
+     * unique index would refuse it anyway.
+     */
+    async function record(memberId: string, stepKey: string, fields: Record<string, unknown>) {
+      const existing = logRows.find(r =>
+        String(r.member_id) === memberId && String(r.step_key) === stepKey)
+      if (existing) {
+        await sb.from('chit_message_log')
+          .update({ ...fields, sent_at: new Date().toISOString() }).eq('id', existing.id)
+        return
+      }
+      await sb.from('chit_message_log').insert(fields)
+    }
 
     for (const d of result.due) {
       const person = rows.find(p => String(p.id) === d.memberId)
@@ -224,7 +250,7 @@ export async function GET(req: NextRequest) {
       const template = templateById(library, d.templateId)
       if (!template) {
         failed++
-        await sb.from('chit_message_log').insert({
+        await record(d.memberId, d.stepKey, {
           ...row, status: 'failed', error: 'No message is chosen for this step',
         })
         continue
@@ -254,26 +280,35 @@ export async function GET(req: NextRequest) {
         today,
       })
 
-      const { values, missing, sendable } = renderVariables(template, facts)
+      const { values, missing, filled, held, sendable } = renderVariables(template, facts, missingPolicy)
       const to = normalizeWhatsAppNumber(
         `${String(person.dial_code ?? '91')}${String(person.phone ?? '')}`.replace(/\D/g, ''),
       )
 
-      if (!sendable || !to) {
+      if (!to) {
         failed++
-        await sb.from('chit_message_log').insert({
-          ...row, status: 'failed',
-          error: !to ? 'No usable phone number' : missingWords(missing),
+        await record(d.memberId, d.stepKey, { ...row, status: 'failed', error: 'No usable phone number' })
+        continue
+      }
+
+      // WAITING, not failed. The row is kept so the screen can say what it is
+      // waiting for, and tomorrow's run tries again — so filling the detail in
+      // is all it takes for the message to go out.
+      if (!sendable) {
+        pending++
+        await record(d.memberId, d.stepKey, {
+          ...row, status: 'held', error: `Waiting for ${missingWords(held)}`,
         })
         continue
       }
+
       // Sent with a gap in it, deliberately — the log says which, so it can be
-      // filled in before next month.
-      const note = missing.length > 0 ? missingWords(missing) : null
+      // chased.
+      const note = filled.length > 0 ? `sent with ${missingWords(filled)}` : null
 
       if (!config) {
         pending++
-        await sb.from('chit_message_log').insert({
+        await record(d.memberId, d.stepKey, {
           ...row, status: 'pending',
           error: ['Waiting for a registered WhatsApp number', note].filter(Boolean).join(' · '),
         })
@@ -284,7 +319,7 @@ export async function GET(req: NextRequest) {
       // recorded as waiting rather than burnt as a failure.
       if (template.status !== 'APPROVED') {
         pending++
-        await sb.from('chit_message_log').insert({
+        await record(d.memberId, d.stepKey, {
           ...row, status: 'pending', error: `Waiting for Meta to approve "${template.label}"`,
         })
         continue
@@ -296,7 +331,7 @@ export async function GET(req: NextRequest) {
 
       if (res.ok) {
         sent++
-        await sb.from('chit_message_log').insert({
+        await record(d.memberId, d.stepKey, {
           ...row, status: 'sent', provider_message_id: res.messageId, error: note,
         })
       } else {
@@ -307,7 +342,7 @@ export async function GET(req: NextRequest) {
         if (res.retryable) {
           notes.push(`${d.memberName}: ${res.error} (will try again tomorrow)`)
         } else {
-          await sb.from('chit_message_log').insert({ ...row, status: 'failed', error: res.error })
+          await record(d.memberId, d.stepKey, { ...row, status: 'failed', error: res.error })
         }
       }
     }
