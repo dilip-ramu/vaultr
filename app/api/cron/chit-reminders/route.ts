@@ -27,7 +27,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
-  plan, sendKey, DEFAULT_STEPS, type Step, type MemberLike,
+  plan, sendKey, isSettledSend, DEFAULT_STEPS, type Step, type MemberLike,
 } from '@/lib/chit/reminderSchedule'
 import {
   fromRow, matchStepsToLibrary, templateById, renderVariables, fieldsUsed,
@@ -150,9 +150,13 @@ export async function GET(req: NextRequest) {
       // Every payment, not only this month's: what a member still owes in all
       // is what gets deducted from a payout.
       sb.from('chit_collections').select('member_id, month_number').eq('group_id', groupId),
-      // The status matters: a HELD message is not a sent one. It keeps its row
-      // — the unique index allows only one per auction, member and step — and
-      // that row is updated in place on the day the detail is filled in.
+      // The status matters. HELD (waiting for a detail) and PENDING (waiting
+      // for a registered number, or for Meta to approve the wording) are not
+      // sends: they keep their row — the unique index allows only one per
+      // auction, member and step — and that row is updated in place on the day
+      // the thing they were waiting for arrives. Without this, every message
+      // recorded before WhatsApp went live would be counted as done and never
+      // actually sent.
       sb.from('chit_message_log').select('id, step_key, member_id, status').eq('auction_id', String(auction.id)),
       // The bidding rules as they were frozen when the window opened, which is
       // what members were actually told — not today's settings.
@@ -204,7 +208,7 @@ export async function GET(req: NextRequest) {
         .map(p => String(p.member_id)),
       winnerMemberId: (auction.winner_member_id as string | null) ?? null,
       sentKeys: logRows
-        .filter(r => String(r.status) !== 'held')
+        .filter(r => isSettledSend(String(r.status)))
         .map(r => sendKey(String(auction.id), String(r.member_id), String(r.step_key))),
       today,
     })

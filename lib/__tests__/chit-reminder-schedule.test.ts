@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_STEPS, PRESETS, addDays, stepDate, stepWords, stepProblem,
   resolveSteps, plan, sendKey, timetable, planWords,
-  stepLabel, uniqueStepKey, newStep, dueDateFor,
+  stepLabel, uniqueStepKey, newStep, dueDateFor, isSettledSend,
   type Step, type MemberLike, type PlanInput,
 } from '@/lib/chit/reminderSchedule'
 
@@ -390,5 +390,26 @@ describe('everybody except the winner', () => {
 
   it('ships the dues step that way', () => {
     expect(DEFAULT_STEPS.find(s => s.key === 'dues')!.audience).toBe('except_winner')
+  })
+})
+
+describe('what counts as finished business', () => {
+  // The bug this guards: every message recorded as pending while there was no
+  // WhatsApp number would have been counted as done, and never sent.
+  it('plans a waiting message again', () => {
+    expect(isSettledSend('pending')).toBe(false)
+    expect(isSettledSend('held')).toBe(false)
+  })
+
+  // A member with no usable phone number should not be retried every morning
+  // for a month.
+  it('leaves a sent or failed one alone', () => {
+    expect(isSettledSend('sent')).toBe(true)
+    expect(isSettledSend('failed')).toBe(true)
+  })
+
+  it('treats anything it does not recognise as finished', () => {
+    expect(isSettledSend('')).toBe(true)
+    expect(isSettledSend('PENDING')).toBe(false)
   })
 })

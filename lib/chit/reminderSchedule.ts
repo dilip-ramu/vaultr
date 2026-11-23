@@ -275,6 +275,21 @@ export interface Plan {
   skipped: Skip[]
 }
 
+/**
+ * Whether a logged attempt counts as finished business.
+ *
+ * Only 'sent' and 'failed' do. A message WAITING — for a registered WhatsApp
+ * number, for Meta to approve the wording, for a detail nobody has filled in
+ * — keeps its row and must be planned again tomorrow, or everything recorded
+ * before the number went live would be counted as done and never actually go
+ * out. 'failed' is final on purpose: a member with no usable phone number
+ * should not be retried every morning for a month.
+ */
+export function isSettledSend(status: string): boolean {
+  const s = String(status ?? '').toLowerCase()
+  return s !== 'held' && s !== 'pending'
+}
+
 /** auction + member + step. The same message can never be logged twice. */
 export function sendKey(auctionId: string, memberId: string, stepKey: string): string {
   return `${auctionId}:${memberId}:${stepKey}`
