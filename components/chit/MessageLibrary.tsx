@@ -29,7 +29,7 @@ import { statusWords, editsLeft, type TemplateCategory } from '@/lib/whatsapp/te
 import { GROUP_LABEL, fieldsFor, type FieldSpec } from '@/lib/chit/messageFields'
 import {
   templateProblems, previewOf, insertToken, blankTemplate, duplicateOf,
-  slugFromLabel, uniqueName, audienceWords, driftFromApproved,
+  slugFromLabel, uniqueName, audienceWords, driftFromApproved, chasesPayment,
   STARTER_LIBRARY, type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import type { Audience } from '@/lib/chit/reminderSchedule'
@@ -249,6 +249,22 @@ export default function MessageLibrary({ saved, connected }: {
                 bank details — is just words. Type it in.
               </p>
             </div>
+
+            {/* THE RULE, visible where the message is written. */}
+            <label className="flex items-start gap-2 text-[12px]" style={{ color: 'var(--text)' }}>
+              <input type="checkbox" className="w-4 h-4 mt-0.5"
+                checked={chasesPayment(t)}
+                disabled={chasesPayment({ ...t, neverIfPaid: false })}
+                onChange={e => edit(key, { neverIfPaid: e.target.checked })} />
+              <span>
+                Never send this to a member who has already paid this month
+                <span className="block text-[10.5px] font-normal" style={{ color: 'var(--text-faint)' }}>
+                  {chasesPayment({ ...t, neverIfPaid: false })
+                    ? 'Always on for this message: it is written for members who owe, or it counts days overdue.'
+                    : 'Leave this off for an announcement everybody should get, such as the dues after an auction.'}
+                </span>
+              </span>
+            </label>
 
             <div className="grid sm:grid-cols-2 gap-3">
               <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>

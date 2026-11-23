@@ -14,7 +14,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  templateById, renderVariables, fieldsUsed, driftFromApproved, type MessageTemplate,
+  templateById, renderVariables, fieldsUsed, driftFromApproved, chasesPayment,
+  type MessageTemplate,
 } from './messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from './messageFields'
 import { factsFor, auctionSettled } from './messageFacts'
@@ -60,6 +61,9 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
   if (drift) return { sent: 0, pending: 0, skipped: 0, notes: [drift] }
 
   const needsResult = usesResultFields(fieldsUsed(template.body))
+  // THE RULE: a message that chases a payment never reaches somebody who has
+  // paid. Not by the audience dropdown — by what the message is.
+  const neverIfPaid = chasesPayment(template)
 
   let sent = 0, pending = 0, skipped = 0
   const notes: string[] = []
@@ -142,6 +146,9 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
     const audience = rows.filter(p => {
       // Asked not to be messaged. Not negotiable, not even for a manual send.
       if (p.messaging_opted_out) return false
+      // Paid this month. Also not negotiable, and checked before the audience
+      // is considered at all.
+      if (neverIfPaid && paidIds.has(String(p.id))) return false
       if (template.audience === 'winner') return String(p.id) === winnerId
       if (template.audience === 'except_winner') return !winnerId || String(p.id) !== winnerId
       if (template.audience === 'unpaid') return !paidIds.has(String(p.id))

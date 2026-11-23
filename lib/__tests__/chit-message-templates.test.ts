@@ -3,7 +3,8 @@ import {
   compile, normalizeToken, fieldsUsed, insertToken, toDraft, previewOf,
   templateProblems, canSubmit, renderVariables, slugFromLabel, uniqueName,
   blankTemplate, duplicateOf, templateById, stepWarning, fromNumbered,
-  matchStepsToLibrary, audienceWords, driftFromApproved, STARTER_LIBRARY,
+  matchStepsToLibrary, audienceWords, driftFromApproved, chasesPayment, chaseWords, fromRow,
+  STARTER_LIBRARY,
   type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import type { Facts } from '@/lib/chit/messageFields'
@@ -517,5 +518,57 @@ describe('wording that has drifted from what Meta approved', () => {
   // Approved before the app started recording the shape: nothing to compare.
   it('says nothing when there is no record of what was approved', () => {
     expect(driftFromApproved({ ...approved, approvedBody: null, approvedVariables: null })).toBeNull()
+  })
+})
+
+describe('a payment reminder never reaches somebody who has paid', () => {
+  // THE RULE. Chasing a member who paid on the first day is how a chit
+  // operator's number gets reported, and a reported number loses delivery for
+  // every member — not only the one who complained.
+  it('holds for a message marked as a reminder', () => {
+    expect(chasesPayment(tpl({ neverIfPaid: true, audience: 'all' }))).toBe(true)
+  })
+
+  it('holds for a message written for members who owe', () => {
+    expect(chasesPayment(tpl({ audience: 'unpaid' }))).toBe(true)
+  })
+
+  // The audience is a dropdown, one careless click from chasing everybody.
+  // A message counting days overdue is a chase whatever the dropdown says.
+  it('holds for wording that could only address somebody who owes', () => {
+    for (const field of ['days_overdue', 'pending_dues', 'days_to_due']) {
+      const t = tpl({
+        audience: 'all',
+        body: `Hello {{member_name}}, this is about {{${field}}} and your chit for {{month}} today.`,
+      })
+      expect({ field, chases: chasesPayment(t) }).toEqual({ field, chases: true })
+    }
+  })
+
+  // The dues announcement after an auction uses the same figures and should
+  // reach a member who paid early. Intention, not wording.
+  it('does not hold for an announcement everybody should get', () => {
+    const dues = tpl({
+      audience: 'except_winner',
+      neverIfPaid: false,
+      body: 'Hello {{member_name}}, your subscription for {{month}} is Rs {{amount_due}}, payable by {{due_date}}.',
+    })
+    expect(chasesPayment(dues)).toBe(false)
+  })
+
+  it('says the rule out loud, and says nothing when it does not apply', () => {
+    expect(chaseWords(tpl({ audience: 'unpaid' }))).toContain('never sent to a member who has already paid')
+    expect(chaseWords(tpl({ audience: 'all', neverIfPaid: false }))).toBeNull()
+  })
+
+  it('reads the flag back from a stored row', () => {
+    expect(fromRow({ template_name: 'x', never_if_paid: true }).neverIfPaid).toBe(true)
+    expect(fromRow({ template_name: 'x' }).neverIfPaid).toBe(false)
+  })
+
+  it('ships the reminders that way', () => {
+    for (const t of STARTER_LIBRARY.filter(x => x.audience === 'unpaid')) {
+      expect({ label: t.label, chases: chasesPayment(t) }).toEqual({ label: t.label, chases: true })
+    }
   })
 })

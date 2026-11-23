@@ -66,6 +66,14 @@ export interface MessageTemplate {
    */
   approvedBody?: string | null
   approvedVariables?: { label: string; sample: string }[] | null
+  /**
+   * Never send this to somebody who has already paid this month.
+   *
+   * Stored rather than worked out, because the dues announcement after an
+   * auction uses the same figures as a reminder and SHOULD reach a member who
+   * paid early. The two differ in intention, not in wording.
+   */
+  neverIfPaid?: boolean
   /** Kept but out of the way. Archived messages cannot be scheduled. */
   archived?: boolean
   /** Order in the list. */
@@ -170,6 +178,7 @@ export function fromRow(r: Record<string, unknown>): MessageTemplate {
     categoryAssigned: (r.category_assigned as string | null) ?? null,
     rejectedReason: (r.rejected_reason as string | null) ?? null,
     editTimes: Array.isArray(r.edit_times) ? (r.edit_times as string[]) : [],
+    neverIfPaid: Boolean(r.never_if_paid),
     approvedBody: (r.approved_body as string | null) ?? null,
     approvedVariables: Array.isArray(r.approved_variables)
       ? (r.approved_variables as { label: string; sample: string }[])
@@ -336,6 +345,40 @@ export function duplicateOf(t: MessageTemplate, taken: readonly string[]): Messa
 export function templateById(templates: readonly MessageTemplate[], id?: string | null): MessageTemplate | undefined {
   if (!id) return undefined
   return templates.find(t => t.id === id && !t.archived)
+}
+
+/**
+ * The details that only make sense to somebody who has not paid.
+ *
+ * A message counting days overdue, or totalling what is still owed, is a
+ * chase whatever the dropdown says.
+ */
+const CHASING_FIELDS: readonly FieldId[] = ['days_overdue', 'pending_dues', 'days_to_due']
+
+/**
+ * Whether this message must never reach a member who has already paid.
+ *
+ * THE RULE, enforced at every point a message is sent — the daily run, the
+ * queue and the manual button — and not left to the audience dropdown being
+ * set correctly. Chasing a member who paid on the first day is how a chit
+ * operator's number gets reported, and a reported number loses delivery for
+ * every member, not only the one who complained.
+ *
+ * Three ways a message qualifies: it is marked as a reminder, it is written
+ * for members who still owe, or it counts days overdue or what is outstanding
+ * — which no message to somebody who has paid could honestly say.
+ */
+export function chasesPayment(t: MessageTemplate): boolean {
+  if (t.neverIfPaid) return true
+  if (t.audience === 'unpaid') return true
+  return fieldsUsed(t.body).some(id => CHASING_FIELDS.includes(id))
+}
+
+/** Said on screen, so the rule is visible rather than surprising. */
+export function chaseWords(t: MessageTemplate): string | null {
+  return chasesPayment(t)
+    ? 'This chases a payment, so it is never sent to a member who has already paid this month — not by the schedule, not by the queue, and not by Send either.'
+    : null
 }
 
 /**

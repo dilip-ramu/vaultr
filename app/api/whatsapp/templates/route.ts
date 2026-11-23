@@ -38,6 +38,7 @@ function rowFrom(t: MessageTemplate, userId: string) {
     kind: t.name,
     label: t.label,
     audience: t.audience,
+    never_if_paid: Boolean(t.neverIfPaid),
     template_name: t.name,
     language: t.language,
     body: t.body,

@@ -31,7 +31,7 @@ import {
 } from '@/lib/chit/reminderSchedule'
 import {
   fromRow, matchStepsToLibrary, templateById, renderVariables, fieldsUsed,
-  type MessageTemplate,
+  chasesPayment, type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from '@/lib/chit/messageFields'
 import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
@@ -165,6 +165,10 @@ export async function GET(req: NextRequest) {
       sb.from('chit_auctions').select('month_number, dividend_per_member').eq('group_id', groupId),
     ])
     const payments = (paid ?? []) as { member_id: string; month_number: number }[]
+    const paidThisMonth = payments
+      .filter(p => Number(p.month_number) === monthNumber)
+      .map(p => String(p.member_id))
+    const paidSet = new Set(paidThisMonth)
     const months = (allAuctions ?? []) as { month_number: number; dividend_per_member: number }[]
 
     const logRows = (log ?? []) as { id: string; step_key: string; member_id: string; status: string }[]
@@ -204,9 +208,7 @@ export async function GET(req: NextRequest) {
       // screen shows, so what runs is what was displayed.
       groupSteps: matchStepsToLibrary(orgSteps, library),
       members,
-      paidMemberIds: payments
-        .filter(p => Number(p.month_number) === monthNumber)
-        .map(p => String(p.member_id)),
+      paidMemberIds: paidThisMonth,
       winnerMemberId: (auction.winner_member_id as string | null) ?? null,
       sentKeys: logRows
         .filter(r => isSettledSend(String(r.status)))
@@ -260,6 +262,12 @@ export async function GET(req: NextRequest) {
         })
         continue
       }
+
+      // THE RULE, again. plan() already skips the paid for a step marked
+      // 'members who still owe', but the step's audience is a dropdown and
+      // the message is the thing that knows what it is. Nothing is logged,
+      // so if they later turn out not to have paid it can still go.
+      if (chasesPayment(template) && paidSet.has(d.memberId)) continue
 
       // Belt and braces for a step somebody anchored to the auction date by
       // hand: a message that needs the result is NOT logged when there is no

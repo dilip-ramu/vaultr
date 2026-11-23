@@ -17,7 +17,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Send, Clock, X } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
-import { audienceWords, type MessageTemplate } from '@/lib/chit/messageTemplates'
+import { audienceWords, chaseWords, type MessageTemplate } from '@/lib/chit/messageTemplates'
 import {
   scheduleProblem, whenWords, precisionWords, scopeWords, needsGroupChoice,
   type SendScope,
@@ -199,6 +199,10 @@ export default function SendNow({
             {connected && chosen.status !== 'APPROVED'
               && ' Meta has not approved this message yet, so it cannot go out.'}
           </p>
+        )}
+
+        {chosen && chaseWords(chosen) && (
+          <p className="text-[11.5px]" style={{ color: 'var(--text-muted)' }}>{chaseWords(chosen)}</p>
         )}
 
         {problem && id !== '' && (
