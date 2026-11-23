@@ -15,7 +15,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   templateById, renderVariables, fieldsUsed, driftFromApproved, chasesPayment,
-  type MessageTemplate,
+  renderedText, type MessageTemplate,
 } from './messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from './messageFields'
 import { factsFor, auctionSettled } from './messageFacts'
@@ -200,6 +200,7 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
         const { error } = await sb.from('chit_message_log').insert({
           ...row, status: 'pending',
           error: ['Waiting for a registered WhatsApp number', note].filter(Boolean).join(' · '),
+          body: renderedText(template, values),
         })
         if (!error) pending++
         continue
@@ -213,6 +214,9 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
         sent++
         await sb.from('chit_message_log').insert({
           ...row, status: 'sent', provider_message_id: res.messageId, error: note,
+          // The words as this member received them, figures and all — the
+          // template's name tells nobody what was said.
+          body: renderedText(template, values),
         })
       } else {
         skipped++

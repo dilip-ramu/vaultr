@@ -201,6 +201,18 @@ export function toDraft(t: MessageTemplate): TemplateDraft {
   }
 }
 
+/**
+ * The message as one member actually received it.
+ *
+ * The same reminder reads differently for every member, because the figures
+ * are theirs, so this is what gets stored in the log — 'chit_payment_due' in
+ * a history tells nobody what was said.
+ */
+export function renderedText(t: MessageTemplate, values: readonly string[]): string {
+  let i = 0
+  return compile(t.body).text.replace(/\{\{\s*(\d+)\s*\}\}/g, () => String(values[i++] ?? ''))
+}
+
 /** The message as a member will read it, with the example values filled in. */
 export function previewOf(t: MessageTemplate): string {
   return specPreview(toDraft(t))

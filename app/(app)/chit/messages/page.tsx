@@ -14,7 +14,8 @@ import MessageLibrary from '@/components/chit/MessageLibrary'
 import ReminderRules from '@/components/chit/ReminderRules'
 import MemberRules, { type MemberRow } from '@/components/chit/MemberRules'
 import MissingPolicy from '@/components/chit/MissingPolicy'
-import Replies, { type ReplyRow } from '@/components/chit/Replies'
+import Conversations from '@/components/chit/Conversations'
+import type { InboxRow, OutRow } from '@/lib/chit/conversations'
 import SendNow, { type QueuedRow } from '@/components/chit/SendNow'
 
 export const dynamic = 'force-dynamic'
@@ -31,7 +32,7 @@ export default async function ChitMessagesPage() {
 
   const [
     { data: templateRows }, { data: settings }, { data: members }, { data: replies },
-    { data: groups }, { data: queued },
+    { data: groups }, { data: outgoing }, { data: queued },
   ] = await Promise.all([
     supabase.from('chit_message_templates').select('*').eq('user_id', uid)
       .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
@@ -43,9 +44,14 @@ export default async function ChitMessagesPage() {
     // Cloud API number has no app.
     supabase.from('chit_message_inbox')
       .select('id, member_id, body, from_phone, media_id, media_kind, looks_paid, looks_stop, handled, received_at, member:chit_members(name, member_code)')
-      .eq('user_id', uid).order('received_at', { ascending: false }).limit(100),
+      .eq('user_id', uid).order('received_at', { ascending: false }).limit(300),
     supabase.from('chit_groups').select('id, name')
       .eq('user_id', uid).eq('status', 'active').order('name'),
+    // What was sent to each member, for the other side of the conversation.
+    supabase.from('chit_message_log')
+      .select('id, member_id, body, kind, status, error, sent_at, member:chit_members(name, member_code)')
+      .eq('user_id', uid).not('member_id', 'is', null)
+      .order('sent_at', { ascending: false }).limit(400),
     // What is waiting to go out, and what recently did.
     supabase.from('chit_scheduled_sends')
       .select('id, send_at, scope, status, result, template:chit_message_templates(label), group:chit_groups(name), member:chit_members(name)')
@@ -118,8 +124,9 @@ export default async function ChitMessagesPage() {
         </div>
       )}
 
-      <Replies
-        rows={(replies ?? []) as unknown as ReplyRow[]}
+      <Conversations
+        inbox={(replies ?? []) as unknown as InboxRow[]}
+        sent={(outgoing ?? []) as unknown as OutRow[]}
         groupsByMember={groupNamesByMember}
       />
 

@@ -74,7 +74,8 @@ export async function POST(req: NextRequest) {
     channel: 'whatsapp',
     status: res.ok ? 'sent' : 'failed',
     provider_message_id: res.ok ? res.messageId : null,
-    error: res.ok ? text.trim().slice(0, 500) : res.error,
+    body: text.trim(),
+    error: res.ok ? null : res.error,
   })
 
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 })

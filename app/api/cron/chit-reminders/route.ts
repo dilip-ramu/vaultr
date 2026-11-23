@@ -31,7 +31,7 @@ import {
 } from '@/lib/chit/reminderSchedule'
 import {
   fromRow, matchStepsToLibrary, templateById, renderVariables, fieldsUsed,
-  chasesPayment, type MessageTemplate,
+  chasesPayment, renderedText, type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from '@/lib/chit/messageFields'
 import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
@@ -324,6 +324,7 @@ export async function GET(req: NextRequest) {
         await record(d.memberId, d.stepKey, {
           ...row, status: 'pending',
           error: ['Waiting for a registered WhatsApp number', note].filter(Boolean).join(' · '),
+          body: renderedText(template, values),
         })
         continue
       }
@@ -346,6 +347,7 @@ export async function GET(req: NextRequest) {
         sent++
         await record(d.memberId, d.stepKey, {
           ...row, status: 'sent', provider_message_id: res.messageId, error: note,
+          body: renderedText(template, values),
         })
       } else {
         failed++
