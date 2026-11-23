@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  bucket, bucketWords, foldProblem, foldBucket, foldDrift,
+  bucket, bucketWords, foldProblem, foldBucket, foldDrift, applyBucket,
   type SpendTxn, type Fold, type FoldRequest,
 } from '@/lib/assets/construction'
 
@@ -173,5 +173,53 @@ describe('a fold whose bills changed afterwards', () => {
     const drift = foldDrift(fold, [t('a', 290000, '2026-03-01')])
     expect(drift?.words).toContain('less than the')
     expect(drift?.words).toContain('deleted')
+  })
+})
+
+describe('the bucket in what the asset is worth', () => {
+  const base = {
+    cost: 2_000_000, costLines: [{ label: 'Purchase price', amount: 2_000_000 }],
+    current: 2_600_000, gain: 600_000, returnPct: 30,
+  }
+
+  it('adds the spend to both the cost and the value', () => {
+    // Money spent on the thing is part of what the thing is worth, today, on
+    // the list — not a note to open the asset and read.
+    const v = applyBucket(base, bucket([t('a', 450000, '2026-03-01')]))
+    expect(v.cost).toBe(2_450_000)
+    expect(v.current).toBe(3_050_000)
+  })
+
+  it('claims no gain on money just spent', () => {
+    const v = applyBucket(base, bucket([t('a', 450000, '2026-03-01')]))
+    expect(v.gain).toBe(600_000)
+  })
+
+  it('recomputes the return against the bigger cost', () => {
+    const v = applyBucket(base, bucket([t('a', 450000, '2026-03-01')]))
+    expect(v.returnPct).toBeCloseTo(24.49, 1)
+  })
+
+  it('says how much is building work, and over how many bills', () => {
+    const v = applyBucket(base, bucket([t('a', 300000, '2026-03-01'), t('b', 150000, '2026-04-01')]))
+    expect(v.costLines.at(-1)).toEqual({ label: 'Spent so far (2 bills)', amount: 450000 })
+  })
+
+  it('gets the singular right', () => {
+    const v = applyBucket(base, bucket([t('a', 300000, '2026-03-01')]))
+    expect(v.costLines.at(-1)?.label).toBe('Spent so far (1 bill)')
+  })
+
+  it('leaves an asset with no bucket exactly as it was', () => {
+    expect(applyBucket(base, undefined)).toBe(base)
+    expect(applyBucket(base, bucket([]))).toBe(base)
+  })
+
+  it('values a bucket-only asset at what has been spent', () => {
+    // A Construction asset has no purchase price of its own: it is worth the
+    // bills and nothing else.
+    const empty = { cost: 0, costLines: [], current: 0, gain: 0, returnPct: 0 }
+    const v = applyBucket(empty, bucket([t('a', 450000, '2026-03-01')]))
+    expect(v).toMatchObject({ cost: 450000, current: 450000, gain: 0, returnPct: 0 })
   })
 })

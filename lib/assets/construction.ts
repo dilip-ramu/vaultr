@@ -29,6 +29,8 @@
 //
 // Pure. No React, no database.
 
+import type { Valuation } from './valuation'
+
 const r2 = (n: number) => Math.round((Number.isFinite(n) ? n : 0) * 100) / 100
 const num = (n: unknown) => (Number.isFinite(Number(n)) ? Number(n) : 0)
 
@@ -207,4 +209,35 @@ export function foldDrift(f: Fold, spend: readonly SpendTxn[]): { difference: nu
   }
   if (missing > 0) bits.push(`${missing} of them ${missing === 1 ? 'has' : 'have'} since been deleted`)
   return { difference, words: `${f.improvementName}: ${bits.join(', ')}.` }
+}
+
+/**
+ * The bucket, folded into what the asset is worth.
+ *
+ * Money spent on a thing you own is not a pending note to read later: it is
+ * part of what the thing is worth, today, on the list. So the spend joins the
+ * asset's cost AND its current value — equally, which is the whole meaning of
+ * 'worth what it cost': there is no gain or loss on a wall you have just paid
+ * for, and pretending otherwise would show a profit nobody made.
+ *
+ * It appears as its own cost line, so the asset's breakdown says how much of
+ * the figure is building work and how many bills are behind it rather than
+ * quietly swelling the purchase price.
+ */
+export function applyBucket(v: Valuation, b?: Bucket | null): Valuation {
+  if (!b || b.amount <= 0) return v
+  const cost = r2(num(v.cost) + b.amount)
+  const current = r2(num(v.current) + b.amount)
+  const gain = r2(current - cost)
+  return {
+    ...v,
+    cost,
+    current,
+    gain,
+    returnPct: cost > 0 ? r2((gain / cost) * 100) : 0,
+    costLines: [
+      ...v.costLines,
+      { label: `Spent so far (${b.count} bill${b.count === 1 ? '' : 's'})`, amount: b.amount },
+    ],
+  }
 }

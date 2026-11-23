@@ -295,7 +295,9 @@ export default function AssetDetail({
                     <p className="text-[15px] font-extrabold" style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
                       {inr(bucket.amount)}
                     </p>
-                    <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{bucketWords(bucket)}</p>
+                    <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                      {bucketWords(bucket)} · already counted in the value above
+                    </p>
                   </div>
                   {bucket.count > 0 && !isSold && (
                     <button onClick={() => setFolding(true)}

@@ -12,7 +12,7 @@ import { valueAsset, assetFx, inr, pctStr, type Valuation } from '@/lib/assets/v
 import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
 import AssetDetail from './AssetDetail'
-import type { Bucket, Fold } from '@/lib/assets/construction'
+import { applyBucket, type Bucket, type Fold } from '@/lib/assets/construction'
 import { createClient } from '@/lib/supabase/client'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { netProceeds } from '@/lib/assets/sale'
@@ -101,9 +101,15 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
 
   const valued = useMemo(() => {
     const m = new Map<string, Valuation>()
-    for (const a of assets) m.set(a.id, valueAsset(a, marketRates, defaults, assetFx(a, fxRates), currencyRates))
+    for (const a of assets) {
+      const v = valueAsset(a, marketRates, defaults, assetFx(a, fxRates), currencyRates)
+      // Money spent on an asset through a funding category is part of what it
+      // is worth NOW — on this list, in the totals, without opening it. A sold
+      // asset is left alone: its figure is the proceeds that came in.
+      m.set(a.id, a.status === 'sold' ? v : applyBucket(v, buckets[a.id]))
+    }
     return m
-  }, [assets, marketRates, defaults, fxRates, currencyRates])
+  }, [assets, marketRates, defaults, fxRates, currencyRates, buckets])
 
   const isSold = (a: Asset) => a.status === 'sold'
   const isAwaiting = (a: Asset) => isSold(a) && a.sale_payment_status !== 'received'
