@@ -13,6 +13,7 @@ import { useBalanceVisibility } from '@/components/shared/BalanceVisibility'
 import AssetForm from './AssetForm'
 import AssetDetail from './AssetDetail'
 import { applyBucket, type Bucket, type Fold } from '@/lib/assets/construction'
+import type { TxnRow } from '@/lib/assets/linked'
 import { createClient } from '@/lib/supabase/client'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { netProceeds } from '@/lib/assets/sale'
@@ -36,9 +37,11 @@ interface Props {
   bucketCategory?: Record<string, string>
   /** Buckets already folded into another asset. */
   folds?: Fold[]
+  /** Every transaction attached to any asset, by any of the five routes. */
+  linkedTxns?: TxnRow[]
 }
 
-export default function AssetsClient({ initialAssets, marketRates, initialDefaults, accounts = [], buckets = {}, bucketCategory = {}, folds = [] }: Props) {
+export default function AssetsClient({ initialAssets, marketRates, initialDefaults, accounts = [], buckets = {}, bucketCategory = {}, folds = [], linkedTxns = [] }: Props) {
   const router = useRouter()
   const { hidden } = useBalanceVisibility()
   const m = (n: number) => hidden ? '••••' : inr(n)
@@ -110,6 +113,10 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
     }
     return m
   }, [assets, marketRates, defaults, fxRates, currencyRates, buckets])
+
+  // One lookup for every attached transaction, built once rather than per
+  // asset — see lib/assets/linked.ts.
+  const txnById = useMemo(() => new Map(linkedTxns.map(t => [t.id, t])), [linkedTxns])
 
   const isSold = (a: Asset) => a.status === 'sold'
   const isAwaiting = (a: Asset) => isSold(a) && a.sale_payment_status !== 'received'
@@ -497,7 +504,7 @@ export default function AssetsClient({ initialAssets, marketRates, initialDefaul
 
       {detail && (
         <AssetDetail asset={detail} valuation={valued.get(detail.id)!} marketRates={marketRates} defaults={defaults} accounts={accounts} fx={assetFx(detail, fxRates)}
-          bucket={buckets[detail.id]} bucketCategory={bucketCategory[detail.id]}
+          bucket={buckets[detail.id]} bucketCategory={bucketCategory[detail.id]} txnById={txnById}
           foldTargets={assets.filter(a => a.id !== detail.id).map(a => ({ id: a.id, name: a.name }))}
           foldsOut={folds.filter(f => f.sourceAssetId === detail.id)}
           foldsIn={folds.filter(f => f.targetAssetId === detail.id)}

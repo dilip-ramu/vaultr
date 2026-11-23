@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { improvementValue, yearsSince, type Improvement } from '@/lib/assets/improvements'
 import { bucketWords, foldDrift, type Bucket, type Fold } from '@/lib/assets/construction'
+import { linkedTransactions, missingWords, nothingLinkedWords, type TxnRow } from '@/lib/assets/linked'
 import FoldBucketModal from './FoldBucketModal'
 import { X, Pencil, Trash2, FileText, Paperclip, Image as ImageIcon, Download, ChevronLeft, ChevronRight, Tag } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -36,6 +37,8 @@ interface Props {
   /** Buckets folded out of this asset, and folds that landed on it. */
   foldsOut?: Fold[]
   foldsIn?: Fold[]
+  /** Every attached transaction, by id — see lib/assets/linked.ts. */
+  txnById?: ReadonlyMap<string, TxnRow>
   onEdit: () => void
   onSaved: (a: Asset) => void
   onDeleted: (id: string) => void
@@ -46,11 +49,24 @@ const GOLD_GRAD = 'linear-gradient(150deg,#8A6D1F,#5C4711)'
 
 export default function AssetDetail({
   asset, valuation, marketRates, defaults = [], accounts = [], fx = 1,
-  bucket, bucketCategory, foldTargets = [], foldsOut = [], foldsIn = [],
+  bucket, bucketCategory, foldTargets = [], foldsOut = [], foldsIn = [], txnById = new Map(),
   onEdit, onSaved, onDeleted, onClose,
 }: Props) {
   const [deleting, setDeleting] = useState(false)
   const [folding, setFolding] = useState(false)
+  const [showTxns, setShowTxns] = useState(false)
+
+  // Everything attached to this asset, grouped by why — the purchase, each
+  // improvement's bills, what is building up now, what has been folded away,
+  // and the sale.
+  const linked = useMemo(() => linkedTransactions({
+    purchaseTransactionId: asset.purchase_transaction_id,
+    saleTransactionId: asset.sale_transaction_id,
+    improvements: ((asset.details as { improvements?: { name: string; transaction_ids?: string[] }[] }).improvements) ?? [],
+    bucketTxns: bucket?.transactions ?? [],
+    folds: foldsOut,
+    byId: txnById,
+  }), [asset, bucket, foldsOut, txnById])
   const [lightbox, setLightbox] = useState<number | null>(null)
   const isSold = asset.status === 'sold'
   const isPaid = asset.sale_payment_status === 'received'
@@ -344,6 +360,72 @@ export default function AssetDetail({
               </div>
             </>
           )}
+
+          {/* ── Every transaction attached to this asset ──────────────────────
+              Five routes in: the purchase, bills tagged onto an improvement,
+              bills arriving through a funding category, bills already folded
+              away, and the sale. Grouped by WHY, because twenty amounts with
+              no reason against them is not an answer. */}
+          <p className="text-[11px] font-extrabold tracking-wide mb-2.5" style={{ color: 'var(--text-muted)' }}>
+            TRANSACTIONS{linked.count > 0 ? ` · ${linked.count}` : ''}
+          </p>
+          <div className="rounded-[14px] overflow-hidden mb-5" style={{ border: '1px solid var(--border)' }}>
+            {linked.count === 0 ? (
+              <p className="px-4 py-3 text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
+                {nothingLinkedWords(!!bucket)}
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ background: 'var(--surface-2)' }}>
+                  <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                    Money in <b style={{ color: 'var(--text)' }}>{inr(linked.spent)}</b>
+                    {linked.received > 0 && <> · out <b style={{ color: 'var(--income)' }}>{inr(linked.received)}</b></>}
+                  </span>
+                  <button onClick={() => setShowTxns(v => !v)} className="text-[12px] font-bold" style={{ color: 'var(--brand)' }}>
+                    {showTxns ? 'Hide' : 'Show all'}
+                  </button>
+                </div>
+
+                {linked.groups.map(g => (
+                  <div key={`${g.reason}-${g.label}`} style={{ borderTop: '1px solid var(--border-2, var(--border))' }}>
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-[12.5px] font-semibold truncate" style={{ color: 'var(--text)' }}>{g.label}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                          {g.txns.length} transaction{g.txns.length === 1 ? '' : 's'}
+                          {g.missing > 0 && <span style={{ color: 'var(--expense)' }}> · {g.missing} deleted</span>}
+                        </p>
+                      </div>
+                      <span className="text-[12.5px] shrink-0" style={{ color: g.reason === 'sale' ? 'var(--income)' : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+                        {inr(g.total)}
+                      </span>
+                    </div>
+
+                    {showTxns && g.txns.map(t => (
+                      <div key={t.id} className="flex items-center justify-between gap-3 px-4 py-1.5"
+                        style={{ background: 'var(--surface-2)' }}>
+                        <span className="text-[11.5px] min-w-0 truncate"
+                          style={{ color: t.found ? 'var(--text-muted)' : 'var(--expense)' }}>
+                          {t.found ? `${t.date} · ${t.name}` : 'deleted since it was tagged'}
+                        </span>
+                        {t.found && (
+                          <span className="text-[11.5px] shrink-0" style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                            {inr(t.amount)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+
+                {missingWords(linked) && (
+                  <p className="px-4 py-2 text-[11px]" style={{ color: 'var(--expense)', borderTop: '1px solid var(--border-2, var(--border))' }}>
+                    {missingWords(linked)}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
 
           {/* ── Improvements ──────────────────────────────────────────────────
               What you built or added after buying it, each valued from the day it

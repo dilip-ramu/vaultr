@@ -4,6 +4,7 @@ import type { Asset, MarketRate, AssetRateDefault } from '@/lib/assets/types'
 import { fetchAndStoreMetalRates } from '@/lib/assets/fetchRates'
 import type { PickerAccount } from '@/components/shared/AccountChipPicker'
 import { bucket, type Fold, type SpendTxn, type Bucket } from '@/lib/assets/construction'
+import type { TxnRow } from '@/lib/assets/linked'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Assets — Vaultr' }
@@ -81,8 +82,43 @@ export default async function AssetsPage() {
     for (const c of cats) if (!buckets[c.asset_id]) buckets[c.asset_id] = bucket([], [])
   }
 
+  // ── Every transaction attached to any asset ───────────────────────────────
+  //
+  // Five ways a transaction can belong to an asset: the purchase, the sale,
+  // bills tagged onto an improvement, bills arriving through a funding
+  // category, and bills already folded away. Gathered in one query so opening
+  // an asset shows them all without a second round trip.
+  const wanted = new Set<string>()
+  for (const a of (assets ?? []) as Record<string, unknown>[]) {
+    if (a.purchase_transaction_id) wanted.add(String(a.purchase_transaction_id))
+    if (a.sale_transaction_id) wanted.add(String(a.sale_transaction_id))
+    const imps = ((a.details as { improvements?: { transaction_ids?: string[] }[] } | null)?.improvements) ?? []
+    for (const imp of imps) for (const id of imp.transaction_ids ?? []) wanted.add(String(id))
+  }
+  for (const f of foldRows) for (const id of f.transactionIds) wanted.add(id)
+  for (const b of Object.values(buckets)) for (const t of b.transactions) wanted.add(t.id)
+
+  const linkedTxns: TxnRow[] = []
+  if (wanted.size > 0) {
+    const { data: rows } = await supabase
+      .from('transactions')
+      .select('id, name, amount, date, type')
+      .eq('user_id', user!.id)
+      .in('id', [...wanted])
+    for (const t of (rows ?? []) as Record<string, unknown>[]) {
+      linkedTxns.push({
+        id: String(t.id),
+        name: (t.name as string | null) ?? null,
+        amount: Number(t.amount) || 0,
+        date: String(t.date ?? '').slice(0, 10),
+        type: (t.type as string | null) ?? null,
+      })
+    }
+  }
+
   return (
     <AssetsClient
+      linkedTxns={linkedTxns}
       buckets={buckets}
       bucketCategory={bucketCategory}
       folds={foldRows}
