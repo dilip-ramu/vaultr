@@ -54,22 +54,22 @@ export default async function ChitMessagesPage() {
 
   const templates = ((templateRows ?? []) as Record<string, unknown>[]).map(fromRow)
 
-  // Which chits each member who has written sits in. One query for the few
-  // members in the inbox, rather than a join that would repeat every reply.
-  const repliedIds = Array.from(new Set(
-    ((replies ?? []) as Record<string, unknown>[])
-      .map(r => String(r.member_id ?? '')).filter(Boolean)))
-  const groupsByMember: Record<string, string[]> = {}
-  if (repliedIds.length > 0) {
-    const { data: links } = await supabase.from('chit_group_members')
-      .select('member_id, group:chit_groups(name)').in('member_id', repliedIds)
-    for (const l of (links ?? []) as Record<string, unknown>[]) {
-      const key = String(l.member_id)
-      const name = String((l.group as { name?: unknown } | null)?.name ?? '').trim()
-      if (!name) continue
-      groupsByMember[key] = [...(groupsByMember[key] ?? []), name]
-    }
+  // Which chits each member sits in. Needed twice: to say who a reply came
+  // from, and because a member in two chits has two sets of figures, so one
+  // of them has to be named before a message can be sent to them.
+  const { data: links } = await supabase.from('chit_group_members')
+    .select('member_id, group_id, group:chit_groups(name, status)')
+  const memberGroups: Record<string, { id: string; name: string }[]> = {}
+  for (const l of (links ?? []) as Record<string, unknown>[]) {
+    const g = l.group as { name?: unknown; status?: unknown } | null
+    const name = String(g?.name ?? '').trim()
+    // A finished chit has no figures worth messaging about.
+    if (!name || String(g?.status ?? 'active') !== 'active') continue
+    const key = String(l.member_id)
+    memberGroups[key] = [...(memberGroups[key] ?? []), { id: String(l.group_id), name }]
   }
+  const groupNamesByMember: Record<string, string[]> = Object.fromEntries(
+    Object.entries(memberGroups).map(([k, v]) => [k, v.map(g => g.name)]))
   const connected = Boolean(process.env.WHATSAPP_WABA_ID && process.env.WHATSAPP_TOKEN)
   const live = Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_TOKEN)
 
@@ -120,7 +120,7 @@ export default async function ChitMessagesPage() {
 
       <Replies
         rows={(replies ?? []) as unknown as ReplyRow[]}
-        groupsByMember={groupsByMember}
+        groupsByMember={groupNamesByMember}
       />
 
       <SendNow
@@ -130,6 +130,7 @@ export default async function ChitMessagesPage() {
           .map(g => ({ id: String(g.id), name: String(g.name ?? '') }))}
         members={((members ?? []) as Record<string, unknown>[])
           .map(m => ({ id: String(m.id), name: String(m.name ?? '') }))}
+        groupsByMember={memberGroups}
         queued={(queued ?? []) as unknown as QueuedRow[]}
         // Set CHIT_OUTBOX_PINGED once an outside scheduler checks the outbox
         // more often than Vercel's once-a-day cron, so the screen stops

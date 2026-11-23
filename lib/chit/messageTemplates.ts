@@ -58,6 +58,14 @@ export interface MessageTemplate {
   rejectedReason?: string | null
   /** When each edit was submitted, for Meta's 1-a-day and 10-a-month limits. */
   editTimes: string[]
+  /**
+   * The wording as Meta approved it, which is not always the wording on
+   * screen. Meta fixes the NUMBER of variables at approval, so a message
+   * edited afterwards and not resubmitted fails on sending with 'number of
+   * parameters does not match'. See driftFromApproved.
+   */
+  approvedBody?: string | null
+  approvedVariables?: { label: string; sample: string }[] | null
   /** Kept but out of the way. Archived messages cannot be scheduled. */
   archived?: boolean
   /** Order in the list. */
@@ -162,6 +170,10 @@ export function fromRow(r: Record<string, unknown>): MessageTemplate {
     categoryAssigned: (r.category_assigned as string | null) ?? null,
     rejectedReason: (r.rejected_reason as string | null) ?? null,
     editTimes: Array.isArray(r.edit_times) ? (r.edit_times as string[]) : [],
+    approvedBody: (r.approved_body as string | null) ?? null,
+    approvedVariables: Array.isArray(r.approved_variables)
+      ? (r.approved_variables as { label: string; sample: string }[])
+      : null,
     archived: Boolean(r.archived),
     sortOrder: Number(r.sort_order) || 0,
   }
@@ -324,6 +336,35 @@ export function duplicateOf(t: MessageTemplate, taken: readonly string[]): Messa
 export function templateById(templates: readonly MessageTemplate[], id?: string | null): MessageTemplate | undefined {
   if (!id) return undefined
   return templates.find(t => t.id === id && !t.archived)
+}
+
+/**
+ * Why this message cannot be sent as it stands, or null when it can.
+ *
+ * Meta fixes the number of variables when it approves a message. Change the
+ * wording afterwards — add a detail, remove one — and the send fails with
+ * 'Number of parameters does not match the expected number of params', which
+ * is error 132000 and reads like a fault in the app rather than an edit
+ * nobody resubmitted.
+ *
+ * So the app compares what it would send against what Meta holds, and says so
+ * before a single message goes out.
+ */
+export function driftFromApproved(t: MessageTemplate): string | null {
+  if (t.status !== 'APPROVED') return null
+  // Nothing recorded: approved before this check existed, so nothing to say.
+  if (!t.approvedBody) return null
+
+  const nowFields = compile(t.body).fields
+  const thenCount = t.approvedVariables?.length ?? compile(t.approvedBody).fields.length
+
+  if (nowFields.length !== thenCount) {
+    return `Meta approved this message with ${thenCount} detail${thenCount === 1 ? '' : 's'} in it and it now has ${nowFields.length}. Submit it again, or put the wording back, before sending.`
+  }
+  if (compile(t.body).text !== compile(t.approvedBody).text) {
+    return 'The wording has changed since Meta approved it. Submit it again so members receive what you have written.'
+  }
+  return null
 }
 
 /**

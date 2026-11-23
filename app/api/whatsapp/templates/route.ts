@@ -150,6 +150,10 @@ export async function POST(req: NextRequest) {
   const meta = data as { id?: string; status?: string; category?: string }
   const { id, error } = await save({
     status: meta.status ?? 'PENDING',
+    // What Meta now holds. Written only here, on a submission it accepted, so
+    // a later save cannot quietly rewrite the record of what was approved.
+    approved_body: t.body,
+    approved_variables: draft.variables,
     meta_template_id: meta.id ?? null,
     category_assigned: meta.category ?? null,
     rejected_reason: null,

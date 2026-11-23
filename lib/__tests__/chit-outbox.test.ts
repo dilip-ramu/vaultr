@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   scheduleProblem, isDue, dueFirst, whenWords, precisionWords, scopeWords,
+  needsGroupChoice,
   type ScheduleDraft,
 } from '@/lib/chit/outbox'
 
@@ -93,5 +94,31 @@ describe('saying when, and how exact', () => {
     expect(scopeWords('group', 'Uma 5 Lakh A')).toBe('to Uma 5 Lakh A')
     expect(scopeWords('member', 'Ravi')).toBe('to Ravi')
     expect(scopeWords('group', null)).toBe('to one group')
+  })
+})
+
+describe('a member who is in more than one chit', () => {
+  // Their dues, their dividend and their month belong to a chit, not to them.
+  // Sending 'their' figures without saying which chit is a coin toss.
+  it('asks which chit when they are in two', () => {
+    expect(needsGroupChoice('member', 2)).toBe(true)
+    expect(scheduleProblem(draft({ scope: 'member', memberId: 'm1', memberGroups: 2 }), now))
+      .toContain('more than one chit')
+  })
+
+  it('asks nothing when they are in one', () => {
+    expect(needsGroupChoice('member', 1)).toBe(false)
+    expect(scheduleProblem(draft({ scope: 'member', memberId: 'm1', memberGroups: 1 }), now)).toBeNull()
+  })
+
+  it('is satisfied once a chit is chosen', () => {
+    expect(scheduleProblem(
+      draft({ scope: 'member', memberId: 'm1', memberGroups: 3, groupId: 'g2' }), now)).toBeNull()
+  })
+
+  // Sending to a whole group, or to everybody, never raises the question.
+  it('never asks for the other scopes', () => {
+    expect(needsGroupChoice('group', 5)).toBe(false)
+    expect(needsGroupChoice('all', 5)).toBe(false)
   })
 })

@@ -21,7 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, CAN } from '@/lib/chit/access'
-import { fromRow, templateById } from '@/lib/chit/messageTemplates'
+import { fromRow, templateById, driftFromApproved } from '@/lib/chit/messageTemplates'
 import { type MissingPolicy } from '@/lib/chit/messageFields'
 import { cloudConfig } from '@/lib/whatsapp/cloud'
 import { broadcast, broadcastWords } from '@/lib/chit/sendBroadcast'
@@ -70,6 +70,12 @@ export async function POST(req: NextRequest) {
       error: `"${template.label}" has not been approved by Meta yet, so WhatsApp will refuse it.`,
     }, { status: 400 })
   }
+
+  // Meta fixes the number of variables at approval. Sending a reworded
+  // message fails with error 132000 after the attempt, which costs nothing
+  // but reads like a fault in the app. Caught here instead.
+  const drift = driftFromApproved(template)
+  if (config && drift) return NextResponse.json({ error: drift }, { status: 400 })
 
   // ── Later ─────────────────────────────────────────────────────────────────
   if (draft.sendAt) {

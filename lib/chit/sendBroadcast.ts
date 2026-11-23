@@ -13,7 +13,9 @@
 // reading of rows and the writing of the log.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { templateById, renderVariables, fieldsUsed, type MessageTemplate } from './messageTemplates'
+import {
+  templateById, renderVariables, fieldsUsed, driftFromApproved, type MessageTemplate,
+} from './messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from './messageFields'
 import { factsFor, auctionSettled } from './messageFacts'
 import { scheduledAuctionDate } from './messages'
@@ -51,6 +53,12 @@ export interface BroadcastResult {
 export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
   const { sb, uid, template } = i
   const config = i.config ?? cloudConfig()
+
+  // The same guard as the route, for the daily run and the queue, which have
+  // no screen to warn anybody.
+  const drift = config ? driftFromApproved(template) : null
+  if (drift) return { sent: 0, pending: 0, skipped: 0, notes: [drift] }
+
   const needsResult = usesResultFields(fieldsUsed(template.body))
 
   let sent = 0, pending = 0, skipped = 0
@@ -59,9 +67,24 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
   let groupQuery = sb.from('chit_groups')
     .select('id, name, chit_value, members, auction_day, auction_time, start_date, commission_pct, bid_ceiling_pct, commission_model')
     .eq('user_id', uid).eq('status', 'active')
-  // One group, when that is what was asked for. A member send still needs the
-  // group, because the figures belong to a month of a chit.
-  if (i.scope === 'group' && i.groupId) groupQuery = groupQuery.eq('id', i.groupId)
+
+  if (i.scope === 'group' && i.groupId) {
+    groupQuery = groupQuery.eq('id', i.groupId)
+  } else if (i.scope === 'member' && i.memberId) {
+    // A message to one person is about ONE chit — their figures differ from
+    // one to the next. Without this, every group was walked and the ones the
+    // member is not in were reported as skipped, which reads as a failure
+    // when nothing was wrong.
+    const { data: mine } = await sb.from('chit_group_members')
+      .select('group_id').eq('member_id', i.memberId)
+    const ids = ((mine ?? []) as { group_id: string }[]).map(r => String(r.group_id))
+    if (ids.length === 0) {
+      return { sent: 0, pending: 0, skipped: 1, notes: ['That member is not in any chit group.'] }
+    }
+    // One of theirs when told which, otherwise the only one they are in.
+    groupQuery = groupQuery.in('id', i.groupId ? ids.filter(id => id === i.groupId) : ids)
+  }
+
   const { data: groups } = await groupQuery
 
   for (const g of (groups ?? []) as Record<string, unknown>[]) {

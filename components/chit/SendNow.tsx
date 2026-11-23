@@ -19,7 +19,8 @@ import { Loader2, Send, Clock, X } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { audienceWords, type MessageTemplate } from '@/lib/chit/messageTemplates'
 import {
-  scheduleProblem, whenWords, precisionWords, scopeWords, type SendScope,
+  scheduleProblem, whenWords, precisionWords, scopeWords, needsGroupChoice,
+  type SendScope,
 } from '@/lib/chit/outbox'
 
 export interface QueuedRow {
@@ -34,12 +35,14 @@ export interface QueuedRow {
 }
 
 export default function SendNow({
-  templates, connected, groups, members, queued = [], frequentTrigger = false,
+  templates, connected, groups, members, groupsByMember = {}, queued = [], frequentTrigger = false,
 }: {
   templates: MessageTemplate[]
   connected: boolean
   groups: { id: string; name: string }[]
   members: { id: string; name: string }[]
+  /** The chits each member sits in. A member in two has two sets of figures. */
+  groupsByMember?: Record<string, { id: string; name: string }[]>
   queued?: QueuedRow[]
   /** Whether something checks the outbox more often than once a day. */
   frequentTrigger?: boolean
@@ -61,11 +64,18 @@ export default function SendNow({
   // operator's. Turning it into an instant here keeps the server out of
   // guessing timezones.
   const sendAt = later && when ? new Date(when).toISOString() : null
+  // Which chits this member is in. Their dues and their dividend belong to a
+  // chit, so one of them has to be named before anything can be worked out.
+  const theirGroups = groupsByMember[memberId] ?? []
+  const mustPickGroup = needsGroupChoice(scope, theirGroups.length)
   const target = scope === 'group'
     ? groups.find(g => g.id === groupId)?.name
     : scope === 'member' ? members.find(m => m.id === memberId)?.name : null
 
-  const problem = scheduleProblem({ templateId: id, scope, groupId, memberId, sendAt })
+  const problem = scheduleProblem({
+    templateId: id, scope, groupId, memberId, sendAt,
+    memberGroups: scope === 'member' ? theirGroups.length : null,
+  })
 
   async function go() {
     setBusy(true)
@@ -139,10 +149,19 @@ export default function SendNow({
           )}
 
           {scope === 'member' && (
-            <select value={memberId} onChange={e => setMemberId(e.target.value)}
+            <select value={memberId} onChange={e => { setMemberId(e.target.value); setGroupId('') }}
               className={`${field} flex-1 min-w-[160px]`} style={fieldStyle}>
               <option value="">— which member —</option>
               {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          )}
+
+          {/* In two chits, so which one is this about? */}
+          {mustPickGroup && (
+            <select value={groupId} onChange={e => setGroupId(e.target.value)}
+              className={`${field} flex-1 min-w-[160px]`} style={fieldStyle}>
+              <option value="">— which chit —</option>
+              {theirGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           )}
         </div>
@@ -165,9 +184,17 @@ export default function SendNow({
           </p>
         )}
 
+        {scope === 'member' && theirGroups.length === 1 && (
+          <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+            About their {theirGroups[0].name} chit.
+          </p>
+        )}
+
         {chosen && (
           <p className="text-[11.5px]" style={{ color: 'var(--text-faint)' }}>
-            Goes to {audienceWords(chosen.audience)}, {scopeWords(scope, target)}.
+            {scope === 'member'
+              ? `Goes to ${target ?? 'them'} only.`
+              : `Goes to ${audienceWords(chosen.audience)}, ${scopeWords(scope, target)}.`}
             {!connected && ' No WhatsApp number is registered, so it will be recorded as pending instead of sent.'}
             {connected && chosen.status !== 'APPROVED'
               && ' Meta has not approved this message yet, so it cannot go out.'}
@@ -191,7 +218,7 @@ export default function SendNow({
           <div className="rounded-xl p-3 space-y-2"
             style={{ background: 'color-mix(in srgb, var(--brand) 8%, transparent)' }}>
             <p className="text-[12.5px]" style={{ color: 'var(--text)' }}>
-              Send <b>{chosen.label}</b> {scopeWords(scope, target)}
+              Send <b>{chosen.label}</b> {scope === 'member' ? `to ${target}` : scopeWords(scope, target)}
               {sendAt ? `, ${whenWords(sendAt)}` : ' now'}? This cannot be undone once it goes.
             </p>
             <div className="flex items-center gap-2">

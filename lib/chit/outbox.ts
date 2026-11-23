@@ -36,6 +36,8 @@ export interface ScheduleDraft {
   scope: SendScope
   groupId?: string | null
   memberId?: string | null
+  /** How many chits the chosen member is in, when one was chosen. */
+  memberGroups?: number | null
   /** Empty means 'now'. */
   sendAt?: string | null
 }
@@ -45,6 +47,9 @@ export function scheduleProblem(d: ScheduleDraft, now: Date = new Date()): strin
   if (!d.templateId) return 'Choose which message to send.'
   if (d.scope === 'group' && !d.groupId) return 'Choose which group.'
   if (d.scope === 'member' && !d.memberId) return 'Choose which member.'
+  if (d.scope === 'member' && d.memberGroups != null && needsGroupChoice('member', d.memberGroups) && !d.groupId) {
+    return 'They are in more than one chit. Choose which one this message is about.'
+  }
 
   if (d.sendAt) {
     const t = Date.parse(d.sendAt)
@@ -55,6 +60,18 @@ export function scheduleProblem(d: ScheduleDraft, now: Date = new Date()): strin
     if (t > now.getTime() + 365 * 24 * 3600_000) return 'That is more than a year away.'
   }
   return null
+}
+
+/**
+ * Whether the app has to ask WHICH chit, before it can send to one member.
+ *
+ * A member's figures — what they owe, their dividend, their month — belong to
+ * a chit, not to them. Somebody in two chits has two of each, so sending
+ * 'their' dues without saying which one is a coin toss. One chit: no
+ * question. Two or more: ask.
+ */
+export function needsGroupChoice(scope: SendScope, memberGroupCount: number): boolean {
+  return scope === 'member' && memberGroupCount > 1
 }
 
 /** Whether this row should go out now. */

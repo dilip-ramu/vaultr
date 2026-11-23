@@ -3,7 +3,7 @@ import {
   compile, normalizeToken, fieldsUsed, insertToken, toDraft, previewOf,
   templateProblems, canSubmit, renderVariables, slugFromLabel, uniqueName,
   blankTemplate, duplicateOf, templateById, stepWarning, fromNumbered,
-  matchStepsToLibrary, audienceWords, STARTER_LIBRARY,
+  matchStepsToLibrary, audienceWords, driftFromApproved, STARTER_LIBRARY,
   type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import type { Facts } from '@/lib/chit/messageFields'
@@ -468,5 +468,54 @@ describe('who a message is for, in words', () => {
     const library = [tpl({ id: 'd', name: 'chit_dues', audience: 'except_winner' })]
     const matched = matchStepsToLibrary([{ kind: 'dues', audience: 'all' as Audience }], library)
     expect(matched[0]).toEqual({ kind: 'dues', audience: 'except_winner', templateId: 'd' })
+  })
+})
+
+describe('wording that has drifted from what Meta approved', () => {
+  const approved = tpl({
+    status: 'APPROVED',
+    body: 'Hello {{member_name}}, your subscription for {{month}} is Rs {{amount_due}}. Thank you.',
+    approvedBody: 'Hello {{member_name}}, your subscription for {{month}} is Rs {{amount_due}}. Thank you.',
+    approvedVariables: [
+      { label: 'member name', sample: 'Ravi' },
+      { label: 'month', sample: 'November 2026' },
+      { label: 'amount due', sample: '23,750' },
+    ],
+  })
+
+  it('says nothing when it matches', () => {
+    expect(driftFromApproved(approved)).toBeNull()
+  })
+
+  // This is Meta error 132000, 'Number of parameters does not match the
+  // expected number of params', caught before a single message goes out.
+  it('catches a detail added after approval', () => {
+    const changed = {
+      ...approved,
+      body: 'Hello {{member_name}}, your subscription for {{month}} is Rs {{amount_due}}, due {{due_date}}.',
+    }
+    expect(driftFromApproved(changed)).toContain('3 details in it and it now has 4')
+  })
+
+  it('catches a detail removed after approval', () => {
+    const changed = { ...approved, body: 'Hello {{member_name}}, your subscription is due. Thank you.' }
+    expect(driftFromApproved(changed)).toContain('and it now has 1')
+  })
+
+  it('catches reworded text, even with the same details', () => {
+    const changed = {
+      ...approved,
+      body: 'Dear {{member_name}}, kindly pay Rs {{amount_due}} for {{month}} without delay.',
+    }
+    expect(driftFromApproved(changed)).toContain('wording has changed')
+  })
+
+  it('says nothing about a message Meta has not approved yet', () => {
+    expect(driftFromApproved({ ...approved, status: 'PENDING', body: 'anything at all here' })).toBeNull()
+  })
+
+  // Approved before the app started recording the shape: nothing to compare.
+  it('says nothing when there is no record of what was approved', () => {
+    expect(driftFromApproved({ ...approved, approvedBody: null, approvedVariables: null })).toBeNull()
   })
 })

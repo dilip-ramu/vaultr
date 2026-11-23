@@ -29,7 +29,8 @@ import { statusWords, editsLeft, type TemplateCategory } from '@/lib/whatsapp/te
 import { GROUP_LABEL, fieldsFor, type FieldSpec } from '@/lib/chit/messageFields'
 import {
   templateProblems, previewOf, insertToken, blankTemplate, duplicateOf,
-  slugFromLabel, uniqueName, audienceWords, STARTER_LIBRARY, type MessageTemplate,
+  slugFromLabel, uniqueName, audienceWords, driftFromApproved,
+  STARTER_LIBRARY, type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import type { Audience } from '@/lib/chit/reminderSchedule'
 
@@ -174,6 +175,12 @@ export default function MessageLibrary({ saved, connected }: {
             <p className="text-[11.5px]" style={{ color: statusTone }}>
               {t.id ? statusWords(t.status, t.categoryAssigned, t.category) : 'Not saved yet.'}
             </p>
+            {driftFromApproved(t) && (
+              <p className="text-[11.5px] rounded-lg px-3 py-2"
+                style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }}>
+                {driftFromApproved(t)}
+              </p>
+            )}
             {t.rejectedReason && (
               <p className="text-[11.5px] rounded-lg px-3 py-2"
                 style={{ background: 'color-mix(in srgb, var(--expense) 10%, transparent)', color: 'var(--expense)' }}>
