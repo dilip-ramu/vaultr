@@ -33,13 +33,16 @@
 import type { Audience } from './reminderSchedule'
 
 export type FieldId =
-  | 'member_name' | 'member_code' | 'bank_name' | 'account_ending'
+  | 'member_name' | 'member_code' | 'slot_number' | 'member_phone' | 'member_address'
+  | 'aadhaar_ending' | 'pan_ending' | 'nominee_name' | 'guarantor_name'
+  | 'bank_name' | 'bank_account_name' | 'bank_branch' | 'bank_ifsc' | 'account_ending'
   | 'group_name' | 'month' | 'month_number' | 'members_count'
   | 'total_months' | 'months_left' | 'start_date' | 'end_date' | 'auction_day'
   | 'chit_value' | 'installment'
   | 'commission_pct' | 'commission_amount'
   | 'min_bid' | 'max_discount' | 'max_discount_pct'
-  | 'auction_date' | 'auction_time' | 'next_auction_date' | 'winner_name'
+  | 'auction_date' | 'auction_time' | 'next_auction_date'
+  | 'winner_name' | 'winner_code'
   | 'amount_due' | 'due_date' | 'dividend' | 'days_overdue'
   | 'bid_amount' | 'discount_shared' | 'net_payout'
 
@@ -50,7 +53,7 @@ export interface FieldSpec {
   /** The example value Meta asks for. Free of # $ % and line breaks. */
   sample: string
   /** For grouping the picker. */
-  group: 'member' | 'group' | 'terms' | 'auction' | 'money' | 'winner'
+  group: 'member' | 'bank' | 'group' | 'terms' | 'auction' | 'money' | 'winner'
   /**
    * Some fields only exist for one audience. A bid amount is the winner's; a
    * day count is only honest in a message that goes to somebody who owes.
@@ -64,6 +67,19 @@ export const FIELDS: readonly FieldSpec[] = [
   { id: 'member_name',   label: 'member name',    sample: 'Ravi',              group: 'member' },
   { id: 'member_code',   label: 'member number',  sample: 'M-014',             group: 'member',
     note: 'Their code in your register, if you have given them one.' },
+  { id: 'slot_number',   label: 'their slot',     sample: '7',                 group: 'member',
+    note: 'Their seat in this group, if you number the seats.' },
+  { id: 'member_phone',  label: 'their phone number', sample: '98765 43210',   group: 'member',
+    note: 'The number this message is going to \u2014 useful when asking them to confirm it is current.' },
+  { id: 'member_address', label: 'their address', sample: '12 Kumaran Road, Tiruppur', group: 'member' },
+  { id: 'aadhaar_ending', label: 'Aadhaar ending', sample: '4321',             group: 'member',
+    note: 'The last four digits only. The full number never goes in a message.' },
+  { id: 'pan_ending',    label: 'PAN ending',     sample: '234K',              group: 'member',
+    note: 'The last four characters only.' },
+  { id: 'nominee_name',  label: 'nominee name',   sample: 'Lakshmi',           group: 'member',
+    note: 'The first nominee on their record.' },
+  { id: 'guarantor_name', label: 'guarantor name', sample: 'Murugan',          group: 'member',
+    note: 'The first guarantor on their record.' },
   { id: 'group_name',    label: 'chit name',      sample: 'Uma 5 Lakh A',      group: 'group' },
   { id: 'members_count', label: 'total members',  sample: '20',                group: 'group' },
   { id: 'chit_value',    label: 'chit value',     sample: '5,00,000',          group: 'group' },
@@ -92,6 +108,8 @@ export const FIELDS: readonly FieldSpec[] = [
   { id: 'next_auction_date', label: 'next auction date', sample: '5 December 2026', group: 'auction' },
   { id: 'winner_name',   label: 'who won',        sample: 'Ravi',              group: 'auction',
     note: 'The member who took the chit this month.' },
+  { id: 'winner_code',   label: 'winner\u2019s number', sample: 'M-014',        group: 'auction',
+    note: 'Their number in your register \u2014 not their phone number, which no message carries.' },
   { id: 'bid_amount',    label: 'winning bid',    sample: '60,000',            group: 'auction',
     note: 'The discount the chit was taken at \u2014 what the group screen calls the winning discount. The same figure for everybody, so any message may use it.' },
   { id: 'discount_shared', label: 'discount shared', sample: '35,000',          group: 'auction',
@@ -104,13 +122,18 @@ export const FIELDS: readonly FieldSpec[] = [
     note: 'Only in a message to members who still owe, and only after the due date.' },
 
   { id: 'net_payout',    label: 'amount payable to them', sample: '4,25,000',  group: 'winner', onlyFor: 'winner' },
-  { id: 'bank_name',     label: 'their bank',     sample: 'HDFC Bank',         group: 'winner', onlyFor: 'winner' },
-  { id: 'account_ending', label: 'account ending', sample: '4321',             group: 'winner', onlyFor: 'winner',
-    note: 'The last four digits only. The full number never goes in a message.' },
+  { id: 'bank_name',     label: 'their bank',     sample: 'HDFC Bank',         group: 'bank' },
+  { id: 'bank_account_name', label: 'account name', sample: 'R Ravi',           group: 'bank',
+    note: 'The name on the account, for them to confirm before you transfer.' },
+  { id: 'bank_branch',   label: 'bank branch',    sample: 'Tiruppur Main',     group: 'bank' },
+  { id: 'bank_ifsc',     label: 'IFSC code',      sample: 'HDFC0001234',       group: 'bank' },
+  { id: 'account_ending', label: 'account ending', sample: '4321',             group: 'bank',
+    note: 'The last four digits only. The full number never goes in a message \u2014 four digits are enough to confirm it is the right account.' },
 ]
 
 export const GROUP_LABEL: Record<FieldSpec['group'], string> = {
   member: 'The member',
+  bank: 'Their bank',
   group: 'The chit',
   terms: 'The rules',
   auction: 'The auction',
@@ -188,7 +211,19 @@ export function daysOverdue(dueDate: string | undefined | null, today: string): 
 export interface Facts {
   memberName?: string
   memberCode?: string | null
+  /** Their seat in this group. */
+  slotNumber?: number | null
+  memberPhone?: string | null
+  memberAddress?: string | null
+  /** Whole numbers, never messaged whole — only the last few characters are. */
+  aadhaar?: string | null
+  pan?: string | null
+  nomineeName?: string | null
+  guarantorName?: string | null
   bankName?: string | null
+  bankAccountName?: string | null
+  bankBranch?: string | null
+  bankIfsc?: string | null
   /** The last four digits. Never the whole number. */
   accountEnding?: string | null
   groupName?: string
@@ -216,6 +251,8 @@ export interface Facts {
   auctionTime?: string | null
   /** Who took the chit this month. Nobody, in an upfront month 1. */
   winnerName?: string | null
+  /** The winner's number in the register. */
+  winnerCode?: string | null
   nextAuctionDate?: string | null
   amountDue?: number | null
   dividend?: number | null
@@ -244,7 +281,26 @@ export function valueFor(id: FieldId, f: Facts): string | null {
   switch (id) {
     case 'member_name':   return text(f.memberName)
     case 'member_code':   return text(f.memberCode)
+    case 'slot_number':   return has(f.slotNumber) ? String(Math.round(Number(f.slotNumber))) : null
+    case 'member_phone':  return text(f.memberPhone)
+    case 'member_address': return text(f.memberAddress)
+    // Only the tail of an identity number is ever sent. A WhatsApp message is
+    // forwarded, screenshotted and read over shoulders, and four characters
+    // are enough for somebody to confirm it is the right record.
+    case 'aadhaar_ending': {
+      const digits = String(f.aadhaar ?? '').replace(/\D/g, '')
+      return digits.length >= 4 ? digits.slice(-4) : null
+    }
+    case 'pan_ending': {
+      const pan = String(f.pan ?? '').replace(/\s+/g, '').toUpperCase()
+      return pan.length >= 4 ? pan.slice(-4) : null
+    }
+    case 'nominee_name':  return text(f.nomineeName)
+    case 'guarantor_name': return text(f.guarantorName)
     case 'bank_name':     return text(f.bankName)
+    case 'bank_account_name': return text(f.bankAccountName)
+    case 'bank_branch':   return text(f.bankBranch)
+    case 'bank_ifsc':     return text(f.bankIfsc)
     case 'account_ending': {
       const digits = String(f.accountEnding ?? '').replace(/\D/g, '')
       return digits.length >= 4 ? digits.slice(-4) : null
@@ -273,6 +329,7 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'auction_time':  return text(f.auctionTime)
     case 'next_auction_date': return dateWords(f.nextAuctionDate)
     case 'winner_name':   return text(f.winnerName)
+    case 'winner_code':   return text(f.winnerCode)
     case 'amount_due':    return has(f.amountDue) ? money(Number(f.amountDue)) : null
     case 'dividend':      return has(f.dividend) ? money(Number(f.dividend)) : null
     case 'due_date':      return dateWords(f.dueDate)
@@ -347,6 +404,18 @@ const ALIASES: Record<string, FieldId> = {
   'group name': 'group_name',
   'their bank': 'bank_name',
   'bank': 'bank_name',
+  'ifsc': 'bank_ifsc',
+  'account holder': 'bank_account_name',
+  'account holder name': 'bank_account_name',
+  'branch': 'bank_branch',
+  'address': 'member_address',
+  'phone': 'member_phone',
+  'phone number': 'member_phone',
+  'aadhaar': 'aadhaar_ending',
+  'pan': 'pan_ending',
+  'nominee': 'nominee_name',
+  'guarantor': 'guarantor_name',
+  'slot': 'slot_number',
   'account ending': 'account_ending',
 }
 

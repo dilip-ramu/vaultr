@@ -11,8 +11,14 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   auctionDate: '2026-11-05', auctionTime: '6:30 PM', nextAuctionDate: '2026-12-05',
   amountDue: 23750, dividend: 1250, dueDate: '2026-11-15',
   bidAmount: 60000, discountShared: 35000, netPayout: 425000,
-  bankName: 'HDFC Bank', accountEnding: '123456784321', winnerName: 'Ravi',
-  memberCode: 'M-014', today: '2026-11-20',
+  bankName: 'HDFC Bank', accountEnding: '123456784321',
+  bankAccountName: 'R Ravi', bankBranch: 'Tiruppur Main', bankIfsc: 'HDFC0001234',
+  winnerName: 'Ravi', winnerCode: 'M-014',
+  memberCode: 'M-014', slotNumber: 7, memberPhone: '98765 43210',
+  memberAddress: '12 Kumaran Road, Tiruppur',
+  aadhaar: '1234 5678 4321', pan: 'ABCDE1234K',
+  nomineeName: 'Lakshmi', guarantorName: 'Murugan',
+  today: '2026-11-20',
   totalMonths: 20, startDate: '2026-04-05', endDate: '2027-11-05', auctionDay: 5,
   commissionPct: 5, commissionAmount: 25000,
   minBid: 100, maxDiscount: 150000, maxDiscountPct: 30,
@@ -180,6 +186,46 @@ describe('a field used where it cannot be honest', () => {
   })
 })
 
+describe('everything on the member page', () => {
+  it('gives the plain details', () => {
+    const f = facts()
+    expect(valueFor('member_code', f)).toBe('M-014')
+    expect(valueFor('slot_number', f)).toBe('7')
+    expect(valueFor('member_phone', f)).toBe('98765 43210')
+    expect(valueFor('member_address', f)).toBe('12 Kumaran Road, Tiruppur')
+    expect(valueFor('nominee_name', f)).toBe('Lakshmi')
+    expect(valueFor('guarantor_name', f)).toBe('Murugan')
+  })
+
+  // An identity number in a WhatsApp message is forwarded, screenshotted and
+  // read over shoulders. Four characters confirm the record; the rest is risk.
+  it('gives only the tail of an identity number', () => {
+    expect(valueFor('aadhaar_ending', facts())).toBe('4321')
+    expect(valueFor('pan_ending', facts())).toBe('234K')
+    expect(valueFor('aadhaar_ending', facts({ aadhaar: '12' }))).toBeNull()
+    expect(valueFor('pan_ending', facts({ pan: null }))).toBeNull()
+  })
+
+  it('has no field for a whole Aadhaar or PAN', () => {
+    // Compared as plain text: the type says they cannot exist, and this says
+    // the same thing out loud, so adding one later fails here too.
+    const ids = FIELDS.map(x => String(x.id))
+    expect(ids).not.toContain('aadhaar')
+    expect(ids).not.toContain('pan')
+  })
+
+  // Notes are what you wrote about a member, not what you would say to them.
+  it('does not offer your private notes about them', () => {
+    expect(FIELDS.some(x => /note/.test(x.id))).toBe(false)
+  })
+
+  it('reports a detail you never filled in as unknown', () => {
+    expect(valueFor('slot_number', facts({ slotNumber: null }))).toBeNull()
+    expect(valueFor('nominee_name', facts({ nomineeName: null }))).toBeNull()
+    expect(valueFor('member_address', facts({ memberAddress: '' }))).toBeNull()
+  })
+})
+
 describe('the result of the auction', () => {
   it('gives the winning bid and the part shared with members', () => {
     expect(valueFor('bid_amount', facts())).toBe('60,000')
@@ -195,9 +241,47 @@ describe('the result of the auction', () => {
     }
   })
 
+  it('names the winner and their number in the register', () => {
+    expect(valueFor('winner_code', facts())).toBe('M-014')
+  })
+
   it('has nothing to say in a month nobody won', () => {
     expect(valueFor('winner_name', facts({ winnerName: null }))).toBeNull()
     expect(valueFor('bid_amount', facts({ bidAmount: null }))).toBeNull()
+  })
+})
+
+describe('the bank, for the winner to confirm', () => {
+  it('gives enough to check the account without exposing it', () => {
+    const f = facts()
+    expect(valueFor('bank_name', f)).toBe('HDFC Bank')
+    expect(valueFor('bank_account_name', f)).toBe('R Ravi')
+    expect(valueFor('bank_branch', f)).toBe('Tiruppur Main')
+    expect(valueFor('bank_ifsc', f)).toBe('HDFC0001234')
+    expect(valueFor('account_ending', f)).toBe('4321')
+  })
+
+  // There is no field for the whole account number, by design: a WhatsApp
+  // message is forwarded, screenshotted and read over shoulders.
+  it('has no field for the whole account number', () => {
+    expect(FIELDS.some(x => /account_number|full_account/.test(x.id))).toBe(false)
+  })
+
+  // It is their own account, going to their own number. There is nothing to
+  // protect it from, and a message asking everybody to confirm their account
+  // before the dividend goes out is a reasonable thing to send.
+  it('allows the bank in any message, since it is the reader\u2019s own', () => {
+    for (const id of ['bank_name', 'bank_account_name', 'bank_branch', 'bank_ifsc', 'account_ending'] as const) {
+      for (const a of ['all', 'winner', 'unpaid'] as const) {
+        expect({ id, a, ok: fieldProblem(id, a) === null }).toEqual({ id, a, ok: true })
+      }
+    }
+  })
+
+  it('knows the other words for them', () => {
+    expect(labelToField('ifsc')?.id).toBe('bank_ifsc')
+    expect(labelToField('account holder name')?.id).toBe('bank_account_name')
+    expect(labelToField('branch')?.id).toBe('bank_branch')
   })
 })
 

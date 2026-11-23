@@ -56,6 +56,14 @@ function monthLabel(iso: string): string {
   return `${MONTHS[Number(m[2]) - 1] ?? m[2]} ${m[1]}`
 }
 
+/** The name on the first entry of a nominee or guarantor list, if there is one. */
+function firstName(v: unknown): string | null {
+  if (!Array.isArray(v) || v.length === 0) return null
+  const first = v[0] as { name?: unknown }
+  const name = String(first?.name ?? '').trim()
+  return name === '' ? null : name
+}
+
 const steps = (v: unknown): readonly Step[] =>
   Array.isArray(v) && v.length > 0 ? (v as Step[]) : DEFAULT_STEPS
 
@@ -125,7 +133,7 @@ export async function GET(req: NextRequest) {
       : scheduledAuctionDate(String(g.start_date ?? ''), Number(g.auction_day) || null, monthNumber + 1)
 
     const [{ data: links }, { data: paid }, { data: log }, { data: windows }] = await Promise.all([
-      sb.from('chit_group_members').select('member_id').eq('group_id', groupId),
+      sb.from('chit_group_members').select('member_id, slot_number').eq('group_id', groupId),
       sb.from('chit_collections').select('member_id').eq('group_id', groupId).eq('month_number', monthNumber),
       sb.from('chit_message_log').select('step_key, member_id').eq('auction_id', String(auction.id)),
       // The bidding rules as they were frozen when the window opened, which is
@@ -135,11 +143,12 @@ export async function GET(req: NextRequest) {
     ])
     const window = ((windows ?? []) as Record<string, unknown>[])[0]
 
-    const memberIds = ((links ?? []) as { member_id: string }[]).map(l => String(l.member_id))
+    const memberLinks = (links ?? []) as { member_id: string; slot_number: number | null }[]
+    const memberIds = memberLinks.map(l => String(l.member_id))
     if (memberIds.length === 0) continue
 
     const { data: people } = await sb.from('chit_members')
-      .select('id, name, phone, dial_code, reminder_steps, member_code, bank_name, bank_account_number')
+      .select('id, name, phone, dial_code, reminder_steps, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
       .in('id', memberIds)
 
     const members: MemberLike[] = ((people ?? []) as Record<string, unknown>[]).map(p => ({
@@ -182,8 +191,8 @@ export async function GET(req: NextRequest) {
     const dueDate = dueDateFor(auctionDate, nextAuctionDate, g.dues_due_days as number | null)
     // Who took the chit, for a message that announces the result to the group.
     // Nobody, in an upfront month 1.
-    const winnerName = ((people ?? []) as Record<string, unknown>[])
-      .find(p => String(p.id) === String(auction.winner_member_id ?? ''))?.name as string | undefined
+    const winnerRow = ((people ?? []) as Record<string, unknown>[])
+      .find(p => String(p.id) === String(auction.winner_member_id ?? ''))
 
     // The chit's own terms, the same figures the group screen shows.
     const terms = {
@@ -203,7 +212,21 @@ export async function GET(req: NextRequest) {
       const facts: Facts = {
         memberName: d.memberName,
         memberCode: (person?.member_code as string | null) ?? null,
+        slotNumber: memberLinks.find(l => String(l.member_id) === d.memberId)?.slot_number ?? null,
+        memberPhone: (person?.phone as string | null) ?? null,
+        memberAddress: (person?.address as string | null) ?? null,
+        aadhaar: (person?.aadhaar as string | null) ?? null,
+        pan: (person?.pan as string | null) ?? null,
+        // The lists hold {name, phone, relation, ...}; the first entry is the
+        // one a member would recognise as 'my nominee'.
+        nomineeName: firstName(person?.nominees),
+        guarantorName: firstName(person?.guarantors),
+        // The recipient's own bank, for them to confirm before a transfer. The
+        // full account number is deliberately not among the facts at all.
         bankName: (person?.bank_name as string | null) ?? null,
+        bankAccountName: (person?.bank_account_name as string | null) ?? null,
+        bankBranch: (person?.bank_branch as string | null) ?? null,
+        bankIfsc: (person?.bank_ifsc as string | null) ?? null,
         accountEnding: (person?.bank_account_number as string | null) ?? null,
         groupName: String(g.name ?? ''),
         month,
@@ -224,7 +247,8 @@ export async function GET(req: NextRequest) {
         maxDiscountPct: Number(g.bid_ceiling_pct),
         auctionDate,
         auctionTime: (g.auction_time as string | null) ?? null,
-        winnerName: winnerName ?? null,
+        winnerName: (winnerRow?.name as string | null) ?? null,
+        winnerCode: (winnerRow?.member_code as string | null) ?? null,
         nextAuctionDate,
         amountDue,
         dividend,
