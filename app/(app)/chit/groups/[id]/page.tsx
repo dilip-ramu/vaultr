@@ -5,7 +5,6 @@ import ChitGroupDetail from '@/components/chit/ChitGroupDetail'
 import type { ChitGroup, ChitGroupMember, ChitAuction, ChitCollection, ChitMember } from '@/lib/chit/types'
 import { isChitAccount } from '@/lib/chit/account'
 import type { CreditMoveRow } from '@/lib/chit/groupLedger'
-import { fromRow } from '@/lib/chit/messageTemplates'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +39,6 @@ export default async function ChitGroupPage({ params }: Props) {
     { data: companies },
     { data: creditMoves },
     { data: messageLog },
-    { data: templateRows },
   ] = await Promise.all([
     supabase.from('chit_group_members').select('*, member:chit_members(*)')
       .eq('user_id', uid).eq('group_id', id).order('slot_number', { nullsFirst: false }),
@@ -67,9 +65,6 @@ export default async function ChitGroupPage({ params }: Props) {
       .select('id, member_id, step_key, kind, channel, status, error, sent_at, member:chit_members(name)')
       .eq('user_id', uid).eq('group_id', id)
       .order('sent_at', { ascending: false }).limit(100),
-    // The templates are one set for every group, so this is not scoped to the
-    // group — see migration v135.
-    supabase.from('chit_message_templates').select('*').eq('user_id', uid),
   ])
 
   const accounts = ((companyAccounts ?? []) as { id: string; name: string; type: string; company_id: string | null }[])
@@ -98,7 +93,6 @@ export default async function ChitGroupPage({ params }: Props) {
         sent_at: String(r.sent_at ?? ''),
       }))}
       whatsappLive={Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_TOKEN)}
-      templates={((templateRows ?? []) as Record<string, unknown>[]).map(fromRow)}
       accounts={accounts}
       companies={(companies ?? []) as { id: string; name: string }[]}
       creditMoves={(creditMoves ?? []) as CreditMoveRow[]}

@@ -14,7 +14,7 @@ const member = (id: string, o: Partial<MemberLike> = {}): MemberLike =>
 
 const input = (o: Partial<PlanInput> = {}): PlanInput => ({
   auctionId: 'a1',
-  anchors: { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05' },
+  anchors: { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05', settledDate: '2026-11-05' },
   groupSteps: DEFAULT_STEPS,
   members: [member('m1')],
   today: '2026-11-10',
@@ -46,7 +46,7 @@ describe('dates', () => {
 })
 
 describe('when a step falls', () => {
-  const anchors = { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05' }
+  const anchors = { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05', settledDate: '2026-11-07' }
 
   it('works off the auction', () => {
     expect(stepDate(step({ key: 'a', offsetDays: 5 }), anchors)).toBe('2026-11-10')
@@ -55,6 +55,9 @@ describe('when a step falls', () => {
 
   it('works off the NEXT auction', () => {
     expect(stepDate(step({ key: 'c', anchor: 'next_auction', offsetDays: -1 }), anchors)).toBe('2026-12-04')
+    // The day it was RECORDED, which is often not the day it was held.
+    expect(stepDate(step({ key: 'd', anchor: 'settled', offsetDays: 0 }), anchors)).toBe('2026-11-07')
+    expect(stepDate(step({ key: 'e', anchor: 'settled', offsetDays: 2 }), anchors)).toBe('2026-11-09')
   })
 
   it('waits when the next auction is not known yet', () => {
@@ -69,6 +72,8 @@ describe('saying it in words', () => {
     expect(stepWords(step({ key: 'b', offsetDays: -3 }))).toBe('3 days before the auction')
     expect(stepWords(step({ key: 'c', offsetDays: 5 }))).toBe('5 days after the auction')
     expect(stepWords(step({ key: 'd', offsetDays: -1, anchor: 'next_auction' }))).toBe('1 day before the next auction')
+    expect(stepWords(step({ key: 'e', offsetDays: 0, anchor: 'settled' }))).toBe('as soon as the auction is recorded')
+    expect(stepWords(step({ key: 'f', offsetDays: 2, anchor: 'settled' }))).toBe('2 days after the auction is recorded')
   })
 
   it('gets the singular right', () => {
@@ -197,9 +202,11 @@ describe('who gets messaged today', () => {
 
 describe('the timetable for a month', () => {
   it('lists every step in the order it happens', () => {
-    const t = timetable(DEFAULT_STEPS, { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05' })
+    const t = timetable(DEFAULT_STEPS, {
+      auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05', settledDate: '2026-11-06',
+    })
     expect(t.map(x => x.date)).toEqual([
-      '2026-11-02', '2026-11-05', '2026-11-05', '2026-11-10', '2026-11-20', '2026-12-04',
+      '2026-11-02', '2026-11-06', '2026-11-06', '2026-11-10', '2026-11-20', '2026-12-04',
     ])
   })
 
@@ -294,5 +301,48 @@ describe('what to send, and which message', () => {
       today: '2026-11-10',
     }))
     expect(r.due[0].templateId).toBeNull()
+  })
+})
+
+
+describe('the result messages wait for the auction to be recorded', () => {
+  // The whole point of the 'settled' anchor: the dues and the winner's
+  // particulars cannot be written before the figures are entered, and a chit
+  // auction is often entered a day or two after it is held.
+  it('ships the dues and the winner message anchored to the recording', () => {
+    for (const key of ['dues', 'winner']) {
+      const s = DEFAULT_STEPS.find(x => x.key === key)!
+      expect({ key, anchor: s.anchor, offset: s.offsetDays })
+        .toEqual({ key, anchor: 'settled', offset: 0 })
+    }
+  })
+
+  it('sends them the day the auction is recorded, not the day it was held', () => {
+    const late = { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05', settledDate: '2026-11-07' }
+    expect(plan(input({ anchors: late, today: '2026-11-05', winnerMemberId: 'm1' })).due).toEqual([])
+    expect(plan(input({ anchors: late, today: '2026-11-07', winnerMemberId: 'm1' }))
+      .due.map(d => d.stepKey).sort()).toEqual(['dues', 'winner'])
+  })
+
+  it('holds them while the auction is unrecorded', () => {
+    const p = plan(input({
+      anchors: { auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05', settledDate: null },
+      today: '2026-11-05', winnerMemberId: 'm1',
+    }))
+    expect(p.due).toEqual([])
+    expect(p.skipped.filter(x => x.reason === 'anchor_unknown').map(x => x.stepKey).sort())
+      .toEqual(['dues', 'winner'])
+  })
+
+  // A date counted backwards from the moment of recording is already past.
+  it('refuses a step before the recording', () => {
+    expect(stepProblem(step({ key: 'x', anchor: 'settled', offsetDays: -1 })))
+      .toBe('Nothing can go out before the auction is recorded.')
+    expect(stepProblem(step({ key: 'x', anchor: 'settled', offsetDays: 0 }))).toBeNull()
+  })
+
+  it('leaves the notice and the reminders on the auction dates', () => {
+    expect(DEFAULT_STEPS.find(s => s.key === 'notice')!.anchor).toBe('auction')
+    expect(DEFAULT_STEPS.filter(s => s.kind === 'reminder').every(s => s.anchor !== 'settled')).toBe(true)
   })
 })

@@ -27,7 +27,7 @@
 // Pure. No React, no database, no network.
 
 import {
-  field, fieldProblem, labelToField, renderFields, safeVar,
+  field, fieldProblem, labelToField, renderFields, safeVar, usesResultFields,
   type FieldId, type FieldSpec, type Facts,
 } from './messageFields'
 import type { Audience } from './reminderSchedule'
@@ -325,6 +325,15 @@ export function stepWarning(
     return `"${t.label}" is written for ${t.audience === 'winner' ? 'the winner' : t.audience === 'unpaid' ? 'members who owe' : 'everybody'}, which does not match this step.`
   }
   const used = fieldsUsed(t.body)
+
+  // A message carrying the result cannot be written before the result is
+  // entered, and a chit auction is often entered a day or two after it is
+  // held. Counted from the auction date, it would go out empty — or, once the
+  // date had passed, never go out at all.
+  if (usesResultFields(used) && step.anchor === 'auction' && step.offsetDays <= 0) {
+    return 'This message uses the result of the auction, so count it from the auction being recorded instead.'
+  }
+
   if (used.includes('days_overdue')) {
     // Overdue means past the due date. On or before it, the count is zero and
     // the message would read 'overdue by 0 days', so it is not sent at all.

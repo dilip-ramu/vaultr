@@ -28,7 +28,17 @@
 
 export type StepKind = 'notice' | 'dues' | 'winner' | 'reminder'
 export type Audience = 'all' | 'winner' | 'unpaid'
-export type Anchor = 'auction' | 'next_auction'
+/**
+ * What a step's date is counted from.
+ *
+ * 'settled' is the day the auction was RECORDED, not the day it was held. The
+ * result messages hang off that: the dues and the winner's particulars cannot
+ * be written before the figures are entered, and a chit auction is often
+ * entered a day or two after it happens. Counting those from the auction date
+ * would mean a message going out with no result in it, or — once the date had
+ * passed — never going out at all.
+ */
+export type Anchor = 'auction' | 'next_auction' | 'settled'
 
 export interface Step {
   /** Stable across edits: a send is logged against it and never repeated. */
@@ -52,8 +62,10 @@ export interface Step {
 /** His six, as the app ships them. */
 export const DEFAULT_STEPS: readonly Step[] = [
   { key: 'notice',     kind: 'notice',   audience: 'all',    anchor: 'auction',      offsetDays: -3, enabled: true },
-  { key: 'dues',       kind: 'dues',     audience: 'all',    anchor: 'auction',      offsetDays: 0,  enabled: true },
-  { key: 'winner',     kind: 'winner',   audience: 'winner', anchor: 'auction',      offsetDays: 0,  enabled: true },
+  // The result messages go out when the auction is recorded, not when it was
+  // held — see the note on Anchor.
+  { key: 'dues',       kind: 'dues',     audience: 'all',    anchor: 'settled',      offsetDays: 0,  enabled: true },
+  { key: 'winner',     kind: 'winner',   audience: 'winner', anchor: 'settled',      offsetDays: 0,  enabled: true },
   { key: 'remind-1',   kind: 'reminder', audience: 'unpaid', anchor: 'auction',      offsetDays: 5,  enabled: true },
   { key: 'remind-2',   kind: 'reminder', audience: 'unpaid', anchor: 'auction',      offsetDays: 15, enabled: true },
   { key: 'remind-3',   kind: 'reminder', audience: 'unpaid', anchor: 'next_auction', offsetDays: -1, enabled: true },
@@ -97,19 +109,33 @@ export interface Anchors {
   auctionDate: string
   /** The next one, when it is known. Steps anchored to it wait until it is. */
   nextAuctionDate?: string | null
+  /**
+   * The day the auction was recorded, with its winner and its figures. Null
+   * until then, so every step anchored to it waits rather than going out
+   * half-filled.
+   */
+  settledDate?: string | null
 }
 
 /** The day a step falls on, or null when its anchor is not known yet. */
 export function stepDate(step: Step, a: Anchors): string | null {
-  const base = step.anchor === 'auction' ? a.auctionDate : a.nextAuctionDate
+  const base = step.anchor === 'auction' ? a.auctionDate
+    : step.anchor === 'next_auction' ? a.nextAuctionDate
+    : a.settledDate
   if (!base) return null
   return addDays(base, step.offsetDays)
 }
 
-/** 'on auction day', '3 days before the auction', '1 day before the next auction'. */
+/** 'on auction day', '3 days before the auction', 'as soon as the auction is recorded'. */
 export function stepWords(step: Step): string {
   const n = Math.abs(step.offsetDays)
   const day = n === 1 ? 'day' : 'days'
+  if (step.anchor === 'settled') {
+    if (step.offsetDays === 0) return 'as soon as the auction is recorded'
+    return step.offsetDays < 0
+      ? `${n} ${day} before the auction is recorded`
+      : `${n} ${day} after the auction is recorded`
+  }
   const anchor = step.anchor === 'auction' ? 'the auction' : 'the next auction'
   if (step.offsetDays === 0) return step.anchor === 'auction' ? 'on auction day' : 'on the next auction day'
   return step.offsetDays < 0 ? `${n} ${day} before ${anchor}` : `${n} ${day} after ${anchor}`
@@ -118,6 +144,11 @@ export function stepWords(step: Step): string {
 /** A step that cannot be saved, and why. */
 export function stepProblem(step: Step): string | null {
   if (!Number.isInteger(step.offsetDays)) return 'Use whole days.'
+  // Counting backwards from the moment something is recorded means a date in
+  // the past, which never arrives again.
+  if (step.anchor === 'settled' && step.offsetDays < 0) {
+    return 'Nothing can go out before the auction is recorded.'
+  }
   // A reminder 90 days out lands after the next two auctions and reads as a
   // mistake rather than a reminder.
   if (step.offsetDays < -60 || step.offsetDays > 60) return 'Keep it within 60 days of the auction.'

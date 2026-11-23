@@ -313,3 +313,32 @@ describe('matching an old schedule to the library', () => {
     expect(matchStepsToLibrary([steps[3]], odd)[0].templateId).toBe('z')
   })
 })
+
+describe('a result message scheduled before the result exists', () => {
+  const dues = tpl({
+    audience: 'all',
+    body: 'Hello {{member_name}}, your subscription for {{month}} is Rs {{amount_due}} after the dividend.',
+  })
+
+  // The mistake: the dues message set to go out on auction day, when the
+  // figures have not been entered yet.
+  it('points it at the auction being recorded', () => {
+    const w = stepWarning({ audience: 'all', templateId: 'a', offsetDays: 0, anchor: 'auction' }, dues, 10)
+    expect(w).toContain('count it from the auction being recorded')
+  })
+
+  it('says nothing once it is counted from the recording', () => {
+    expect(stepWarning({ audience: 'all', templateId: 'a', offsetDays: 0, anchor: 'settled' }, dues, 10)).toBeNull()
+  })
+
+  // Days after the auction, the figures are in. That is a judgement call, not
+  // a certainty, so it is left alone rather than nagged about.
+  it('leaves a later step alone', () => {
+    expect(stepWarning({ audience: 'all', templateId: 'a', offsetDays: 5, anchor: 'auction' }, dues, 10)).toBeNull()
+  })
+
+  it('leaves a message with no result in it alone', () => {
+    const notice = tpl({ audience: 'all', body: 'Hello {{member_name}}, the {{month}} auction is on {{auction_date}}.' })
+    expect(stepWarning({ audience: 'all', templateId: 'a', offsetDays: -3, anchor: 'auction' }, notice, 10)).toBeNull()
+  })
+})

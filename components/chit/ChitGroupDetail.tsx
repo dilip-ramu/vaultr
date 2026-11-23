@@ -1,14 +1,11 @@
 'use client'
 
 import LiveBiddingPanel from './LiveBiddingPanel'
-import ReminderScheduleTab from './ReminderScheduleTab'
 import ReminderLog, { type LogRow } from './ReminderLog'
-import type { MessageTemplate } from '@/lib/chit/messageTemplates'
-import type { Step } from '@/lib/chit/reminderSchedule'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, ChevronDown, ChevronRight, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy, Upload } from 'lucide-react'
+import { ChevronLeft, ChevronDown, ChevronRight, Plus, X, Check, Gavel, Wallet, Trash2, Pencil, Trophy, Upload, ExternalLink } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import {
@@ -36,7 +33,7 @@ type Coll = ChitCollection & { member?: { name: string } }
 
 export default function ChitGroupDetail({
   group: initialGroup, groupMembers, allMembers, auctions: initialAuctions, collections: initialCollections, accounts, companies, creditMoves = [],
-  messageLog = [], whatsappLive = false, templates = [],
+  messageLog = [], whatsappLive = false,
 }: {
   group: ChitGroup
   groupMembers: ChitGroupMember[]
@@ -51,8 +48,6 @@ export default function ChitGroupDetail({
   messageLog?: LogRow[]
   /** Whether a WhatsApp number is registered, so the screen can be honest. */
   whatsappLive?: boolean
-  /** The message library, shared by every group. */
-  templates?: MessageTemplate[]
 }) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('members')
@@ -139,25 +134,6 @@ export default function ChitGroupDetail({
   const pendingCollections = gl.pendingCount
   const pendingMessages = messageLog.filter(r => r.status === 'pending').length
 
-  // This month's auction and the next, for the reminder timetable. The most
-  // recent auction held is the one the schedule hangs off.
-  const reminderAnchors = useMemo(() => {
-    const held = [...auctions]
-      .filter(a => a.auction_date)
-      .sort((a, b) => String(b.auction_date).localeCompare(String(a.auction_date)))
-    const latest = held[0]
-    if (!latest) return null
-    const next = [...auctions]
-      .filter(a => a.auction_date && String(a.auction_date) > String(latest.auction_date))
-      .sort((a, b) => String(a.auction_date).localeCompare(String(b.auction_date)))[0]
-    return {
-      auctionDate: String(latest.auction_date).slice(0, 10),
-      nextAuctionDate: next
-        ? String(next.auction_date).slice(0, 10)
-        : scheduledAuctionDate(group.start_date, group.auction_day, (latest.month_number ?? 0) + 1),
-    }
-  }, [auctions, group.start_date, group.auction_day])
-
   const TABS: [Tab, string][] = [
     ['members', `Members · ${members.length}`],
     ['auctions', `Auctions · ${auctions.length}`],
@@ -228,15 +204,24 @@ export default function ChitGroupDetail({
       )}
       {tab === 'reminders' && (
         <div className="space-y-4">
-          <ReminderScheduleTab
-            groupId={group.id}
-            groupSteps={(group as { reminder_steps?: Step[] | null }).reminder_steps ?? null}
-            members={members.map(m => m.member).filter((m): m is ChitMember => !!m)}
-            anchors={reminderAnchors}
-            whatsappLive={whatsappLive}
-            templates={templates}
-            duesDueDays={(group as { dues_due_days?: number | null }).dues_due_days ?? null}
-          />
+          {/* The schedule and the wording are one set for the whole business
+              (v137, v138), so this tab shows what happened HERE and sends you
+              to the one place they are edited. */}
+          <div className="rounded-2xl p-4 space-y-2"
+            style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+            <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+              {whatsappLive
+                ? 'Messages go out by themselves each day at 8am. A reminder only reaches a member who still owes.'
+                : 'No WhatsApp number is registered yet, so nothing sends on its own. Each message that falls due is recorded below as pending, and the moment the number is live they start going out at 8am.'}
+            </p>
+            <Link href="/chit/messages"
+              className="inline-flex items-center gap-1.5 text-[12.5px] font-bold" style={{ color: 'var(--brand)' }}>
+              The messages and the schedule <ExternalLink className="w-3.5 h-3.5" />
+              <span className="font-normal" style={{ color: 'var(--text-faint)' }}>
+                — one set for every group
+              </span>
+            </Link>
+          </div>
           <ReminderLog rows={messageLog} />
         </div>
       )}

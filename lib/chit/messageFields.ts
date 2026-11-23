@@ -428,6 +428,23 @@ export function labelToField(label: string): FieldSpec | undefined {
   return alias ? field(alias) : field(want.replace(/\s+/g, '_'))
 }
 
+/**
+ * The details that only exist once the auction has been recorded.
+ *
+ * A message using any of these cannot be written before the figures are
+ * entered, which is why the result steps are anchored to the auction being
+ * recorded rather than to the day it was held. See Anchor in
+ * reminderSchedule.ts.
+ */
+export const RESULT_FIELDS: readonly FieldId[] = [
+  'winner_name', 'winner_code', 'bid_amount', 'discount_shared', 'net_payout',
+  'dividend', 'amount_due',
+]
+
+export function usesResultFields(ids: readonly FieldId[]): boolean {
+  return ids.some(id => RESULT_FIELDS.includes(id))
+}
+
 /** The fields that can be used in a message for this audience. */
 export function fieldsFor(audience: Audience): readonly FieldSpec[] {
   return FIELDS.filter(f => !f.onlyFor || f.onlyFor === audience)

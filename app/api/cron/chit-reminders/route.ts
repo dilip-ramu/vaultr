@@ -1,10 +1,14 @@
 // The daily chit reminder run.
 //
-// Called by Vercel cron. For every active group it works out which of its
-// scheduled steps fall on today, who they are for, which message each one
-// sends, and sends it — or records why it could not. Nothing here decides WHEN anything goes out: that is
-// lib/chit/reminderSchedule.ts, which is pure and tested. This file is the
-// plumbing around it.
+// Called by Vercel cron. One schedule covers the whole chit business (v138),
+// so for every user it reads their steps once, then walks each active group:
+// which steps fall on today, who they are for, which message each one sends,
+// and sends it — or records why it could not.
+//
+// Nothing here decides WHEN anything goes out: that is
+// lib/chit/reminderSchedule.ts. Nothing here works out a figure: that is
+// lib/chit/messageFacts.ts. Both are pure and tested. This file is the
+// plumbing around them.
 //
 // ── SAFE TO RUN TWICE ───────────────────────────────────────────────────────
 //
@@ -17,24 +21,22 @@
 //
 // Until a business phone number is registered, sendTemplate reports 'not
 // configured'. The run then records each due message as 'pending' instead of
-// failing: the app can show them as a list to send by hand, and the same rows
-// become real sends the day the number is live. Nothing is lost in between.
+// failing: the app can show them as a list, and the same rows become real
+// sends the day the number is live. Nothing is lost in between.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
-  plan, sendKey, dueDateFor, DEFAULT_STEPS, type Step, type MemberLike,
+  plan, sendKey, DEFAULT_STEPS, type Step, type MemberLike,
 } from '@/lib/chit/reminderSchedule'
 import {
-  fromRow, matchStepsToLibrary, templateById, renderVariables, type MessageTemplate,
+  fromRow, matchStepsToLibrary, templateById, renderVariables, fieldsUsed,
+  type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
-import { fieldWords, type Facts } from '@/lib/chit/messageFields'
+import { fieldWords, usesResultFields } from '@/lib/chit/messageFields'
+import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
-import {
-  monthlyInstallment, numberOfMonths, monthlyCommission, bidCeiling,
-} from '@/lib/chit/auction'
-import { BID_STEP } from '@/lib/chit/bidding'
 import { scheduledAuctionDate } from '@/lib/chit/messages'
 
 // Service role: one run covers every user, so RLS is bypassed deliberately.
@@ -46,26 +48,17 @@ function adminClient() {
   )
 }
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December']
-
-/** 'November 2026' from an ISO date, for the month variable. */
-function monthLabel(iso: string): string {
-  const m = /^(\d{4})-(\d{2})/.exec(iso)
-  if (!m) return iso
-  return `${MONTHS[Number(m[2]) - 1] ?? m[2]} ${m[1]}`
-}
-
-/** The name on the first entry of a nominee or guarantor list, if there is one. */
-function firstName(v: unknown): string | null {
-  if (!Array.isArray(v) || v.length === 0) return null
-  const first = v[0] as { name?: unknown }
-  const name = String(first?.name ?? '').trim()
-  return name === '' ? null : name
-}
-
 const steps = (v: unknown): readonly Step[] =>
   Array.isArray(v) && v.length > 0 ? (v as Step[]) : DEFAULT_STEPS
+
+/** A timestamp as the date it was in Tiruppur. */
+function istDate(ts: unknown): string | null {
+  const t = String(ts ?? '')
+  if (!t) return null
+  const d = new Date(t)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+}
 
 export async function GET(req: NextRequest) {
   // Fail closed, exactly like the other crons: an unset secret must not leave
@@ -83,12 +76,14 @@ export async function GET(req: NextRequest) {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
   const { data: groups } = await sb.from('chit_groups')
-    .select('id, user_id, name, chit_value, members, auction_day, start_date, status, reminder_steps, dues_due_days, auction_time, commission_pct, bid_ceiling_pct, commission_model')
+    .select('id, user_id, name, chit_value, members, auction_day, auction_time, start_date, status, commission_pct, bid_ceiling_pct, commission_model')
     .eq('status', 'active')
 
-  // The message library is one set per user, shared by every group, so it is
-  // fetched once per user rather than once per group.
+  // The library and the schedule are both one per user, shared by every group,
+  // so they are fetched once per user rather than once per group.
   const libraries = new Map<string, MessageTemplate[]>()
+  const settings = new Map<string, { steps: readonly Step[]; duesDueDays: number | null }>()
+
   async function libraryFor(userId: string): Promise<MessageTemplate[]> {
     const had = libraries.get(userId)
     if (had) return had
@@ -96,6 +91,19 @@ export async function GET(req: NextRequest) {
     const lib = ((data ?? []) as Record<string, unknown>[]).map(fromRow).filter(t => !t.archived)
     libraries.set(userId, lib)
     return lib
+  }
+
+  async function settingsFor(userId: string) {
+    const had = settings.get(userId)
+    if (had) return had
+    const { data } = await sb.from('chit_settings')
+      .select('reminder_steps, dues_due_days').eq('user_id', userId).maybeSingle()
+    const value = {
+      steps: steps(data?.reminder_steps),
+      duesDueDays: (data?.dues_due_days as number | null) ?? null,
+    }
+    settings.set(userId, value)
+    return value
   }
 
   let sent = 0, pending = 0, failed = 0, considered = 0
@@ -108,7 +116,7 @@ export async function GET(req: NextRequest) {
     // The auction this run is about: the most recent one held. Before the
     // first auction there is nothing anchored, so the group is skipped.
     const { data: auctions } = await sb.from('chit_auctions')
-      .select('id, month_number, auction_date, winner_member_id, bid_amount, net_payout, dividend_per_member, commission')
+      .select('id, month_number, auction_date, winner_member_id, bid_amount, commission, net_payout, dividend_per_member, created_at')
       .eq('group_id', groupId)
       .lte('auction_date', today)
       .order('auction_date', { ascending: false })
@@ -141,7 +149,6 @@ export async function GET(req: NextRequest) {
       sb.from('chit_bid_windows').select('ceiling_amount, min_increment, month_number')
         .eq('group_id', groupId).order('month_number', { ascending: false }).limit(1),
     ])
-    const window = ((windows ?? []) as Record<string, unknown>[])[0]
 
     const memberLinks = (links ?? []) as { member_id: string; slot_number: number | null }[]
     const memberIds = memberLinks.map(l => String(l.member_id))
@@ -151,27 +158,33 @@ export async function GET(req: NextRequest) {
       .select('id, name, phone, dial_code, reminder_steps, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
       .in('id', memberIds)
 
-    const members: MemberLike[] = ((people ?? []) as Record<string, unknown>[]).map(p => ({
+    const rows = (people ?? []) as Record<string, unknown>[]
+    const library = await libraryFor(userId)
+    const { steps: orgSteps, duesDueDays } = await settingsFor(userId)
+
+    const members: MemberLike[] = rows.map(p => ({
       id: String(p.id),
       name: String(p.name ?? ''),
       phone: (p.phone as string | null) ?? null,
       steps: Array.isArray(p.reminder_steps) && (p.reminder_steps as Step[]).length > 0
-        ? (p.reminder_steps as Step[])
+        ? matchStepsToLibrary(p.reminder_steps as Step[], library)
         : null,
     }))
 
-    const library = await libraryFor(userId)
-    // A schedule saved before the library existed names no message, so each
-    // step is pointed at the one written for its job — the same matching the
-    // screen shows, so what runs is what was displayed.
+    // The result messages are anchored to the day the auction was RECORDED,
+    // not the day it was held — see Anchor in reminderSchedule.ts. Until it
+    // carries a result, there is no such day.
+    const settled = auctionSettled(auction as Record<string, unknown>)
+    const settledDate = settled ? istDate(auction.created_at) : null
+
     const result = plan({
       auctionId: String(auction.id),
-      anchors: { auctionDate, nextAuctionDate },
-      groupSteps: matchStepsToLibrary(steps(g.reminder_steps), library),
-      members: members.map(m => ({
-        ...m,
-        steps: m.steps ? matchStepsToLibrary(m.steps, library) : null,
-      })),
+      anchors: { auctionDate, nextAuctionDate, settledDate },
+      // A schedule saved before the library existed names no message, so each
+      // step is pointed at the one written for its job — the same matching the
+      // screen shows, so what runs is what was displayed.
+      groupSteps: matchStepsToLibrary(orgSteps, library),
+      members,
       paidMemberIds: ((paid ?? []) as { member_id: string }[]).map(p => String(p.member_id)),
       winnerMemberId: (auction.winner_member_id as string | null) ?? null,
       sentKeys: ((log ?? []) as { step_key: string; member_id: string }[])
@@ -182,90 +195,12 @@ export async function GET(req: NextRequest) {
     considered += result.due.length
     if (result.due.length === 0) continue
 
-    const installment = monthlyInstallment({ chitValue: Number(g.chit_value) || 0, members: Number(g.members) || 0 })
-    const dividend = Number(auction.dividend_per_member) || 0
-    const amountDue = Math.max(0, Math.round((installment - dividend) * 100) / 100)
-    const month = monthLabel(auctionDate)
-    // What members are told, and what 'overdue by 12 days' counts from. Unset,
-    // it is the next auction, and nothing is ever counted as overdue.
-    const dueDate = dueDateFor(auctionDate, nextAuctionDate, g.dues_due_days as number | null)
-    // Who took the chit, for a message that announces the result to the group.
-    // Nobody, in an upfront month 1.
-    const winnerRow = ((people ?? []) as Record<string, unknown>[])
-      .find(p => String(p.id) === String(auction.winner_member_id ?? ''))
-
-    // The chit's own terms, the same figures the group screen shows.
-    const terms = {
-      chitValue: Number(g.chit_value) || 0,
-      members: Number(g.members) || 0,
-      commissionPct: Number(g.commission_pct) || 0,
-      bidCeilingPct: Number(g.bid_ceiling_pct) || 0,
-      model: (String(g.commission_model ?? 'MONTHLY') as 'MONTHLY' | 'UPFRONT'),
-    }
-    const totalMonths = numberOfMonths(terms)
-    const auctionDay = Number(g.auction_day) || null
-    const startDate = (g.start_date as string | null) ?? null
-    const endDate = startDate ? scheduledAuctionDate(startDate, auctionDay, totalMonths) : null
+    const winnerRow = rows.find(p => String(p.id) === String(auction.winner_member_id ?? ''))
+    const window = ((windows ?? []) as Record<string, unknown>[])[0] ?? null
 
     for (const d of result.due) {
-      const person = ((people ?? []) as Record<string, unknown>[]).find(p => String(p.id) === d.memberId)
-      const facts: Facts = {
-        memberName: d.memberName,
-        memberCode: (person?.member_code as string | null) ?? null,
-        slotNumber: memberLinks.find(l => String(l.member_id) === d.memberId)?.slot_number ?? null,
-        memberPhone: (person?.phone as string | null) ?? null,
-        memberAddress: (person?.address as string | null) ?? null,
-        aadhaar: (person?.aadhaar as string | null) ?? null,
-        pan: (person?.pan as string | null) ?? null,
-        // The lists hold {name, phone, relation, ...}; the first entry is the
-        // one a member would recognise as 'my nominee'.
-        nomineeName: firstName(person?.nominees),
-        guarantorName: firstName(person?.guarantors),
-        // The recipient's own bank, for them to confirm before a transfer. The
-        // full account number is deliberately not among the facts at all.
-        bankName: (person?.bank_name as string | null) ?? null,
-        bankAccountName: (person?.bank_account_name as string | null) ?? null,
-        bankBranch: (person?.bank_branch as string | null) ?? null,
-        bankIfsc: (person?.bank_ifsc as string | null) ?? null,
-        accountEnding: (person?.bank_account_number as string | null) ?? null,
-        groupName: String(g.name ?? ''),
-        month,
-        monthNumber,
-        membersCount: Number(g.members) || null,
-        totalMonths,
-        startDate,
-        endDate,
-        auctionDay,
-        chitValue: Number(g.chit_value) || 0,
-        installment,
-        commissionPct: Number(g.commission_pct),
-        commissionAmount: monthlyCommission(terms),
-        // What was frozen when bidding opened, if it has; otherwise the rules
-        // as they stand.
-        minBid: window ? Number(window.min_increment) || BID_STEP : BID_STEP,
-        maxDiscount: window ? Number(window.ceiling_amount) || bidCeiling(terms) : bidCeiling(terms),
-        maxDiscountPct: Number(g.bid_ceiling_pct),
-        auctionDate,
-        auctionTime: (g.auction_time as string | null) ?? null,
-        winnerName: (winnerRow?.name as string | null) ?? null,
-        winnerCode: (winnerRow?.member_code as string | null) ?? null,
-        nextAuctionDate,
-        amountDue,
-        dividend,
-        dueDate,
-        bidAmount: Number(auction.bid_amount) || 0,
-        // The part of the discount that reaches members, after the foreman's
-        // cut. The same figure as dividend x members, taken from what was
-        // stored on the night rather than recomputed.
-        discountShared: Math.max(0,
-          Math.round(((Number(auction.bid_amount) || 0) - (Number(auction.commission) || 0)) * 100) / 100),
-        netPayout: Number(auction.net_payout) || 0,
-        today,
-      }
-
-      const to = normalizeWhatsAppNumber(
-        `${String(person?.dial_code ?? '91')}${String(person?.phone ?? '')}`.replace(/\D/g, ''),
-      )
+      const person = rows.find(p => String(p.id) === d.memberId)
+      if (!person) continue
 
       // A row is written whatever happens, so the app can always say what was
       // tried. 'pending' is the honest state before WhatsApp is live.
@@ -283,13 +218,36 @@ export async function GET(req: NextRequest) {
       if (!template) {
         failed++
         await sb.from('chit_message_log').insert({
-          ...row, status: 'failed',
-          error: 'No message is chosen for this step',
+          ...row, status: 'failed', error: 'No message is chosen for this step',
         })
         continue
       }
 
+      // Belt and braces for a step somebody anchored to the auction date by
+      // hand: a message that needs the result is NOT logged when there is no
+      // result, so nothing is burnt and nothing wrong goes out.
+      if (!settled && usesResultFields(fieldsUsed(template.body))) {
+        notes.push(`${d.memberName}: "${template.label}" is waiting for the auction to be recorded`)
+        continue
+      }
+
+      const facts = factsFor({
+        group: g as Record<string, unknown>,
+        auction: auction as Record<string, unknown>,
+        member: person,
+        slotNumber: memberLinks.find(l => String(l.member_id) === d.memberId)?.slot_number ?? null,
+        winner: winnerRow ?? null,
+        window,
+        nextAuctionDate,
+        duesDueDays,
+        today,
+      })
+
       const { values, missing } = renderVariables(template, facts)
+      const to = normalizeWhatsAppNumber(
+        `${String(person.dial_code ?? '91')}${String(person.phone ?? '')}`.replace(/\D/g, ''),
+      )
+
       if (missing.length > 0 || !to) {
         failed++
         await sb.from('chit_message_log').insert({
@@ -302,8 +260,7 @@ export async function GET(req: NextRequest) {
       if (!config) {
         pending++
         await sb.from('chit_message_log').insert({
-          ...row, status: 'pending',
-          error: 'Waiting for a registered WhatsApp number',
+          ...row, status: 'pending', error: 'Waiting for a registered WhatsApp number',
         })
         continue
       }
@@ -313,17 +270,13 @@ export async function GET(req: NextRequest) {
       if (template.status !== 'APPROVED') {
         pending++
         await sb.from('chit_message_log').insert({
-          ...row, status: 'pending',
-          error: `Waiting for Meta to approve "${template.label}"`,
+          ...row, status: 'pending', error: `Waiting for Meta to approve "${template.label}"`,
         })
         continue
       }
 
       const res = await sendTemplate({
-        to,
-        template: template.name,
-        language: template.language,
-        variables: values,
+        to, template: template.name, language: template.language, variables: values,
       }, config)
 
       if (res.ok) {
