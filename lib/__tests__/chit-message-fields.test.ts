@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   FIELDS, field, money, dateWords, safeVar, daysOverdue, valueFor,
   renderFields, fieldWords, fieldProblem, fieldsFor, ordinal, trimPct, labelToField,
+  daysBetween,
   type Facts, type FieldId,
 } from '@/lib/chit/messageFields'
 
@@ -363,10 +364,55 @@ describe('the chit\u2019s own terms', () => {
 
   it('has a value for every field in the catalogue', () => {
     const f = facts()
+    // 'days until the due date' and 'days overdue' cannot both be known: the
+    // date has either passed or it has not. These facts are past it, so the
+    // overdue count is the one with a value.
+    const exclusive = ['days_to_due']
     for (const spec of FIELDS) {
-      // Only the winner-and-overdue ones are allowed to be unknown here.
+      if (exclusive.includes(spec.id)) continue
       expect({ id: spec.id, known: valueFor(spec.id, f) !== null })
         .toEqual({ id: spec.id, known: true })
     }
+    expect(valueFor('days_to_due', facts({ today: '2026-11-12' }))).toBe('3')
+  })
+})
+
+describe('counting the days in a sentence', () => {
+  it('counts the days since the auction, on the day it goes out', () => {
+    // A step set to 7 days after a 5 November auction runs on the 12th.
+    expect(valueFor('days_since_auction', facts({ auctionDate: '2026-11-05', today: '2026-11-12' })))
+      .toBe('7')
+  })
+
+  // 'It has been 0 days since the auction' is not a sentence anybody sends,
+  // so the message is held rather than sent reading oddly.
+  it('says nothing on the day of the auction itself', () => {
+    expect(valueFor('days_since_auction', facts({ auctionDate: '2026-11-05', today: '2026-11-05' })))
+      .toBeNull()
+  })
+
+  it('counts the days still to run before the due date', () => {
+    expect(valueFor('days_to_due', facts({ dueDate: '2026-11-15', today: '2026-11-12' }))).toBe('3')
+  })
+
+  it('has nothing to say about a due date that has passed', () => {
+    expect(valueFor('days_to_due', facts({ dueDate: '2026-11-15', today: '2026-11-20' }))).toBeNull()
+    // That is what days overdue is for.
+    expect(valueFor('days_overdue', facts({ dueDate: '2026-11-15', today: '2026-11-20' }))).toBe('5')
+  })
+
+  it('is offered to every audience, unlike the overdue count', () => {
+    for (const a of ['all', 'winner', 'except_winner', 'unpaid'] as const) {
+      expect(fieldProblem('days_since_auction', a)).toBeNull()
+      expect(fieldProblem('days_to_due', a)).toBeNull()
+    }
+    expect(fieldProblem('days_overdue', 'all')).not.toBeNull()
+  })
+
+  it('counts whole days both ways, and refuses nonsense', () => {
+    expect(daysBetween('2026-11-05', '2026-11-12')).toBe(7)
+    expect(daysBetween('2026-11-12', '2026-11-05')).toBe(0)
+    expect(daysBetween('05/11/2026', '2026-11-12')).toBe(0)
+    expect(daysBetween(null, '2026-11-12')).toBe(0)
   })
 })

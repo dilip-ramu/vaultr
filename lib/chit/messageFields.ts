@@ -43,7 +43,8 @@ export type FieldId =
   | 'min_bid' | 'max_discount' | 'max_discount_pct'
   | 'auction_date' | 'auction_time' | 'next_auction_date'
   | 'winner_name' | 'winner_code'
-  | 'amount_due' | 'due_date' | 'dividend' | 'days_overdue'
+  | 'amount_due' | 'due_date' | 'dividend'
+  | 'days_since_auction' | 'days_to_due' | 'days_overdue'
   | 'bid_amount' | 'discount_shared' | 'net_payout'
   | 'pending_dues' | 'payout_after_dues'
 
@@ -120,6 +121,10 @@ export const FIELDS: readonly FieldSpec[] = [
   { id: 'due_date',      label: 'due date',       sample: '5 December 2026',   group: 'money' },
   { id: 'pending_dues',  label: 'everything they still owe', sample: '47,500', group: 'money',
     note: 'Every month run so far that they have not paid, added up \u2014 not only this month.' },
+  { id: 'days_since_auction', label: 'days since the auction', sample: '7',    group: 'auction',
+    note: 'Counted on the day the message goes out, so a step set to 7 days after the auction says 7.' },
+  { id: 'days_to_due',   label: 'days until the due date', sample: '3',         group: 'money',
+    note: 'Nothing once the due date has passed \u2014 use days overdue for that.' },
   { id: 'days_overdue',  label: 'days overdue',   sample: '12',                group: 'money', onlyFor: 'unpaid',
     note: 'Only in a message to members who still owe, and only after the due date.' },
 
@@ -204,14 +209,27 @@ export function safeVar(v: string | number | null | undefined): string {
   return String(v ?? '').replace(/[\n\r\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 1024)
 }
 
+/**
+ * Whole days from one date to another, or 0 when `to` is not after `from`.
+ *
+ * Zero rather than a negative number, because every use of this reads as a
+ * count in a sentence — 'it has been 7 days' — and a message that would say
+ * minus three days should not be sent at all. The caller turns the 0 into
+ * 'unknown'.
+ */
+export function daysBetween(from: string | undefined | null, to: string | undefined | null): number {
+  const a = String(from ?? '')
+  const b = String(to ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) return 0
+  const x = Date.parse(`${a}T00:00:00Z`)
+  const y = Date.parse(`${b}T00:00:00Z`)
+  if (!Number.isFinite(x) || !Number.isFinite(y) || y <= x) return 0
+  return Math.round((y - x) / 86400000)
+}
+
 /** How many days past the due date, or 0 when it has not passed. */
 export function daysOverdue(dueDate: string | undefined | null, today: string): number {
-  const d = String(dueDate ?? '')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return 0
-  const a = Date.parse(`${d}T00:00:00Z`)
-  const b = Date.parse(`${today}T00:00:00Z`)
-  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 0
-  return Math.round((b - a) / 86400000)
+  return daysBetween(dueDate, today)
 }
 
 /** Everything a message might want to say, as far as it is known. */
@@ -333,6 +351,15 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'amount_due':    return has(f.amountDue) ? money(Number(f.amountDue)) : null
     case 'dividend':      return has(f.dividend) ? money(Number(f.dividend)) : null
     case 'due_date':      return dateWords(f.dueDate)
+    case 'days_since_auction': {
+      const n = daysBetween(f.auctionDate, f.today)
+      // 'It has been 0 days' is not a sentence anybody sends.
+      return n > 0 ? String(n) : null
+    }
+    case 'days_to_due': {
+      const n = daysBetween(f.today, f.dueDate)
+      return n > 0 ? String(n) : null
+    }
     case 'days_overdue': {
       const n = daysOverdue(f.dueDate, String(f.today ?? ''))
       // 'overdue by 0 days' is worse than not sending. Unknown, not zero.
@@ -429,6 +456,9 @@ const ALIASES: Record<string, FieldId> = {
   'nominee': 'nominee_name',
   'guarantor': 'guarantor_name',
   'slot': 'slot_number',
+  'days since auction': 'days_since_auction',
+  'days since the auction': 'days_since_auction',
+  'days until due': 'days_to_due',
 }
 
 export function labelToField(label: string): FieldSpec | undefined {
