@@ -1,57 +1,68 @@
-// Send one message to everybody, now.
+// Send one message — now, or at a time you choose — to everybody, one group,
+// or one member.
 //
-// WHY IT EXISTS
+// WHAT IS DELIBERATE HERE
 //
-// The schedule covers the month. This is for the things a month does not: the
-// auction has moved, the office is shut on Friday, a rule has changed. One
-// message, every member of every active group, at the moment you press it.
+// IT WILL NOT SEND THE SAME THING TWICE IN A DAY. The send is keyed auction +
+// member + 'manual:<message>:<scope>:<date>', and chit_message_log has a
+// unique index on those three, so a second press — or a double click, or a
+// reloaded tab — writes nothing. Tomorrow is a different key, so a deliberate
+// repeat still works.
 //
-// WHAT IT WILL NOT DO
+// A TIME IN THE FUTURE IS QUEUED, NOT SENT. The row goes into
+// chit_scheduled_sends and app/api/cron/chit-outbox sends it when it is due.
+// How close to the chosen minute that is depends on how often the outbox is
+// checked — see lib/chit/outbox.ts, which says so on the screen rather than
+// implying a precision that is not there.
 //
-// It will not send twice in a day. The send is keyed auction + member +
-// 'manual:<message>:<date>', and chit_message_log has a unique index on those
-// three, so a second press — or a double click, or a reloaded tab — writes
-// nothing. Tomorrow is a different key, so a deliberate repeat still works.
-//
-// It will not send a message it cannot fill in. A message asking for the
-// winning bid in a group whose auction has not been recorded is skipped for
-// that group and reported, not sent with a blank.
-//
-// It respects who the message is written for: everybody, the winner, or only
-// the members who still owe.
+// The sending itself is lib/chit/sendBroadcast.ts, shared with the queue so
+// the two cannot disagree about who a message is for.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, CAN } from '@/lib/chit/access'
-import { fromRow, templateById, renderVariables, fieldsUsed } from '@/lib/chit/messageTemplates'
-import { missingWords, usesResultFields, type MissingPolicy } from '@/lib/chit/messageFields'
-import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
-import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
-import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
-import { scheduledAuctionDate } from '@/lib/chit/messages'
+import { fromRow, templateById } from '@/lib/chit/messageTemplates'
+import { type MissingPolicy } from '@/lib/chit/messageFields'
+import { cloudConfig } from '@/lib/whatsapp/cloud'
+import { broadcast, broadcastWords } from '@/lib/chit/sendBroadcast'
+import { scheduleProblem, type SendScope } from '@/lib/chit/outbox'
 
 export async function POST(req: NextRequest) {
   const access = await resolveChitAccess()
   if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   // Messaging every member is not something a collector or a viewer does.
   if (!CAN.manageGroups(access.role)) {
-    return NextResponse.json({ error: 'You do not have permission to message every member.' }, { status: 403 })
+    return NextResponse.json({ error: 'You do not have permission to message members.' }, { status: 403 })
   }
 
-  let body: { templateId?: string }
+  let body: {
+    templateId?: string
+    scope?: SendScope
+    groupId?: string | null
+    memberId?: string | null
+    sendAt?: string | null
+  }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
+
   const templateId = String(body.templateId ?? '')
-  if (!templateId) return NextResponse.json({ error: 'Which message?' }, { status: 400 })
+  const scope: SendScope = body.scope === 'group' || body.scope === 'member' ? body.scope : 'all'
+  const draft = {
+    templateId, scope,
+    groupId: body.groupId ?? null,
+    memberId: body.memberId ?? null,
+    sendAt: body.sendAt ?? null,
+  }
+
+  const problem = scheduleProblem(draft)
+  if (problem) return NextResponse.json({ error: problem }, { status: 400 })
 
   const sb = await createClient()
   const uid = access.ownerId
   const config = cloudConfig()
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 
-  const { data: templateRows } = await sb.from('chit_message_templates')
-    .select('*').eq('user_id', uid)
-  const library = ((templateRows ?? []) as Record<string, unknown>[]).map(fromRow)
-  const template = templateById(library, templateId)
+  const { data: templateRows } = await sb.from('chit_message_templates').select('*').eq('user_id', uid)
+  const template = templateById(((templateRows ?? []) as Record<string, unknown>[]).map(fromRow), templateId)
   if (!template) return NextResponse.json({ error: 'That message is not in the library.' }, { status: 404 })
 
   if (config && template.status !== 'APPROVED') {
@@ -60,160 +71,64 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
-  const { data: settings } = await sb.from('chit_settings')
-    .select('dues_due_days, missing_policy').eq('user_id', uid).maybeSingle()
-  const duesDueDays = (settings?.dues_due_days as number | null) ?? null
-  const missingPolicy = (settings?.missing_policy ?? {}) as MissingPolicy
-
-  const { data: groups } = await sb.from('chit_groups')
-    .select('id, name, chit_value, members, auction_day, auction_time, start_date, commission_pct, bid_ceiling_pct, commission_model')
-    .eq('user_id', uid).eq('status', 'active')
-
-  const needsResult = usesResultFields(fieldsUsed(template.body))
-  const stepKey = `manual:${template.id}:${today}`
-
-  let sent = 0, pending = 0, skipped = 0
-  const notes: string[] = []
-
-  for (const g of (groups ?? []) as Record<string, unknown>[]) {
-    const groupId = String(g.id)
-
-    const { data: auctions } = await sb.from('chit_auctions')
-      .select('id, month_number, auction_date, winner_member_id, bid_amount, commission, net_payout, dividend_per_member')
-      .eq('group_id', groupId).lte('auction_date', today)
-      .order('auction_date', { ascending: false }).limit(1)
-    const auction = (auctions ?? [])[0] as Record<string, unknown> | undefined
-    const settled = auctionSettled(auction ?? null)
-
-    if (needsResult && !settled) {
-      notes.push(`${String(g.name)}: skipped — this month's auction has not been recorded yet`)
-      continue
-    }
-
-    const monthNumber = auction ? Number(auction.month_number) || 0 : 0
-    const auctionDate = auction ? String(auction.auction_date).slice(0, 10) : null
-
-    const nextAuctionDate = auctionDate
-      ? scheduledAuctionDate(String(g.start_date ?? ''), Number(g.auction_day) || null, monthNumber + 1)
-      : null
-
-    const [{ data: links }, { data: paid }, { data: windows }, { data: allAuctions }] = await Promise.all([
-      sb.from('chit_group_members').select('member_id, slot_number').eq('group_id', groupId),
-      // Every payment, not only this month's: what a member still owes in all
-      // is what gets deducted from a payout.
-      sb.from('chit_collections').select('member_id, month_number').eq('group_id', groupId),
-      sb.from('chit_bid_windows').select('ceiling_amount, min_increment')
-        .eq('group_id', groupId).order('month_number', { ascending: false }).limit(1),
-      sb.from('chit_auctions').select('month_number, dividend_per_member').eq('group_id', groupId),
-    ])
-    const payments = (paid ?? []) as { member_id: string; month_number: number }[]
-    const months = (allAuctions ?? []) as { month_number: number; dividend_per_member: number }[]
-
-    const memberLinks = (links ?? []) as { member_id: string; slot_number: number | null }[]
-    const memberIds = memberLinks.map(l => String(l.member_id))
-    if (memberIds.length === 0) continue
-
-    const { data: people } = await sb.from('chit_members')
-      .select('id, name, phone, dial_code, messaging_opted_out, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
-      .in('id', memberIds)
-
-    const rows = (people ?? []) as Record<string, unknown>[]
-    const paidIds = new Set(payments
-      .filter(p => Number(p.month_number) === monthNumber)
-      .map(p => String(p.member_id)))
-    const winnerId = String(auction?.winner_member_id ?? '')
-    const winnerRow = rows.find(p => String(p.id) === winnerId)
-    const window = ((windows ?? []) as Record<string, unknown>[])[0] ?? null
-
-    // Who the message is written for decides who hears it.
-    const audience = rows.filter(p => {
-      // Asked not to be messaged. Not negotiable, not even for a manual send.
-      if (p.messaging_opted_out) return false
-      if (template.audience === 'winner') return String(p.id) === winnerId
-      // The winner has their own message; two on one day reads as not knowing
-      // who won.
-      if (template.audience === 'except_winner') return !winnerId || String(p.id) !== winnerId
-      if (template.audience === 'unpaid') return !paidIds.has(String(p.id))
-      return true
-    })
-
-    for (const person of audience) {
-      const memberId = String(person.id)
-      const row = {
-        user_id: uid,
-        group_id: groupId,
-        member_id: memberId,
-        auction_id: auction ? String(auction.id) : null,
-        step_key: stepKey,
-        kind: 'manual',
-        channel: config ? 'whatsapp' : 'link',
-      }
-
-      const facts = factsFor({
-        group: g,
-        auction: auction ?? null,
-        member: person,
-        slotNumber: memberLinks.find(l => String(l.member_id) === memberId)?.slot_number ?? null,
-        winner: winnerRow ?? null,
-        window,
-        nextAuctionDate,
-        duesDueDays,
-        allAuctions: months,
-        paidMonths: payments
-          .filter(p => String(p.member_id) === memberId)
-          .map(p => Number(p.month_number)),
-        today,
-      })
-
-      const { values, filled, held, sendable } = renderVariables(template, facts, missingPolicy)
-      const to = normalizeWhatsAppNumber(
-        `${String(person.dial_code ?? '91')}${String(person.phone ?? '')}`.replace(/\D/g, ''),
-      )
-
-      if (!sendable || !to) {
-        skipped++
-        notes.push(`${String(person.name)}: ${!to ? 'no usable phone number' : `waiting for ${missingWords(held)}`}`)
-        continue
-      }
-      const note = filled.length > 0 ? `sent with ${missingWords(filled)}` : null
-      if (note) notes.push(`${String(person.name)}: ${note}`)
-
-      if (!config) {
-        // Recorded, so the list is ready the day the number goes live.
-        const { error } = await sb.from('chit_message_log').insert({
-          ...row, status: 'pending',
-          error: ['Waiting for a registered WhatsApp number', note].filter(Boolean).join(' · '),
-        })
-        if (!error) pending++
-        continue
-      }
-
-      const res = await sendTemplate({
-        to, template: template.name, language: template.language, variables: values,
-      }, config)
-
-      if (res.ok) {
-        sent++
-        await sb.from('chit_message_log').insert({
-          ...row, status: 'sent', provider_message_id: res.messageId, error: note,
-        })
-      } else {
-        skipped++
-        notes.push(`${String(person.name)}: ${res.error}`)
-        await sb.from('chit_message_log').insert({ ...row, status: 'failed', error: res.error })
-      }
-    }
+  // ── Later ─────────────────────────────────────────────────────────────────
+  if (draft.sendAt) {
+    const { data, error } = await sb.from('chit_scheduled_sends').insert({
+      user_id: uid,
+      template_id: template.id,
+      scope,
+      group_id: draft.groupId,
+      member_id: draft.memberId,
+      send_at: draft.sendAt,
+    }).select('id').maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, queued: true, id: data?.id ?? null })
   }
 
-  const words = !config
-    ? `${pending} recorded as pending — no WhatsApp number is registered yet.`
-    : sent === 0 && skipped === 0
-      ? 'Nobody to send to.'
-      : `Sent to ${sent}${skipped > 0 ? `, ${skipped} skipped` : ''}.`
+  // ── Now ───────────────────────────────────────────────────────────────────
+  const { data: settings } = await sb.from('chit_settings')
+    .select('dues_due_days, missing_policy').eq('user_id', uid).maybeSingle()
+
+  const result = await broadcast({
+    sb, uid, template, scope,
+    groupId: draft.groupId,
+    memberId: draft.memberId,
+    // The scope is in the key, so a test to one group does not block the real
+    // send to everybody later the same day.
+    stepKey: `manual:${template.id}:${scope}${draft.groupId ?? draft.memberId ? `:${draft.groupId ?? draft.memberId}` : ''}:${today}`,
+    today,
+    duesDueDays: (settings?.dues_due_days as number | null) ?? null,
+    missingPolicy: (settings?.missing_policy ?? {}) as MissingPolicy,
+    config,
+  })
 
   return NextResponse.json({
-    ok: true, sent, pending, skipped,
-    note: words,
-    notes: notes.slice(0, 30),
+    ok: true,
+    ...result,
+    note: broadcastWords(result, Boolean(config)),
+    notes: result.notes.slice(0, 30),
   })
+}
+
+/** DELETE — call off something queued. */
+export async function DELETE(req: NextRequest) {
+  const access = await resolveChitAccess()
+  if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!CAN.manageGroups(access.role)) {
+    return NextResponse.json({ error: 'Not allowed.' }, { status: 403 })
+  }
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'Which one?' }, { status: 400 })
+
+  const sb = await createClient()
+  // Only something still waiting can be called off. One already sending is
+  // past the point of changing your mind.
+  const { data, error } = await sb.from('chit_scheduled_sends')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('id', id).eq('user_id', access.ownerId).eq('status', 'queued')
+    .select('id').maybeSingle()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Too late — it has already gone out.' }, { status: 409 })
+  return NextResponse.json({ ok: true })
 }

@@ -15,7 +15,7 @@ import ReminderRules from '@/components/chit/ReminderRules'
 import MemberRules, { type MemberRow } from '@/components/chit/MemberRules'
 import MissingPolicy from '@/components/chit/MissingPolicy'
 import Replies, { type ReplyRow } from '@/components/chit/Replies'
-import SendNow from '@/components/chit/SendNow'
+import SendNow, { type QueuedRow } from '@/components/chit/SendNow'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Chit messages — Inex' }
@@ -29,7 +29,10 @@ export default async function ChitMessagesPage() {
   const supabase = await createClient()
   const uid = access.ownerId
 
-  const [{ data: templateRows }, { data: settings }, { data: members }, { data: replies }] = await Promise.all([
+  const [
+    { data: templateRows }, { data: settings }, { data: members }, { data: replies },
+    { data: groups }, { data: queued },
+  ] = await Promise.all([
     supabase.from('chit_message_templates').select('*').eq('user_id', uid)
       .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
     supabase.from('chit_settings').select('reminder_steps, dues_due_days, missing_policy')
@@ -41,6 +44,12 @@ export default async function ChitMessagesPage() {
     supabase.from('chit_message_inbox')
       .select('id, member_id, body, from_phone, looks_paid, looks_stop, handled, received_at, member:chit_members(name)')
       .eq('user_id', uid).order('received_at', { ascending: false }).limit(100),
+    supabase.from('chit_groups').select('id, name')
+      .eq('user_id', uid).eq('status', 'active').order('name'),
+    // What is waiting to go out, and what recently did.
+    supabase.from('chit_scheduled_sends')
+      .select('id, send_at, scope, status, result, template:chit_message_templates(label), group:chit_groups(name), member:chit_members(name)')
+      .eq('user_id', uid).order('send_at', { ascending: true }).limit(30),
   ])
 
   const templates = ((templateRows ?? []) as Record<string, unknown>[]).map(fromRow)
@@ -60,7 +69,19 @@ export default async function ChitMessagesPage() {
 
       <Replies rows={(replies ?? []) as unknown as ReplyRow[]} />
 
-      <SendNow templates={templates} connected={connected} />
+      <SendNow
+        templates={templates}
+        connected={connected}
+        groups={((groups ?? []) as Record<string, unknown>[])
+          .map(g => ({ id: String(g.id), name: String(g.name ?? '') }))}
+        members={((members ?? []) as Record<string, unknown>[])
+          .map(m => ({ id: String(m.id), name: String(m.name ?? '') }))}
+        queued={(queued ?? []) as unknown as QueuedRow[]}
+        // Set CHIT_OUTBOX_PINGED once an outside scheduler checks the outbox
+        // more often than Vercel's once-a-day cron, so the screen stops
+        // promising less than it delivers.
+        frequentTrigger={Boolean(process.env.CHIT_OUTBOX_PINGED)}
+      />
 
       <ReminderRules
         userId={uid}
