@@ -38,6 +38,7 @@ import { factsFor, auctionSettled, oneMonthOn } from '@/lib/chit/messageFacts'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
 import { scheduledAuctionDate } from '@/lib/chit/messages'
+import { ensurePortalToken } from '@/lib/chit/portal-auth'
 
 // Service role: one run covers every user, so RLS is bypassed deliberately.
 function adminClient() {
@@ -282,8 +283,18 @@ export async function GET(req: NextRequest) {
         continue
       }
 
+      // Minted only when a message asks for a link, and only for the member
+      // it is going to.
+      const origin = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '') ?? ''
+      let portalLink: string | null = null
+      if (origin && fieldsUsed(template.body).includes('portal_link')) {
+        const made = await ensurePortalToken(userId, d.memberId)
+        portalLink = 'token' in made ? `${origin}/m/enter?t=${made.token}` : null
+      }
+
       const facts = factsFor({
         group: g as Record<string, unknown>,
+        portalLink,
         auction: auction as Record<string, unknown>,
         member: person,
         slotNumber: memberLinks.find(l => String(l.member_id) === d.memberId)?.slot_number ?? null,

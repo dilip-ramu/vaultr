@@ -36,7 +36,8 @@ export default async function ChitMessagesPage() {
   ] = await Promise.all([
     supabase.from('chit_message_templates').select('*').eq('user_id', uid)
       .order('sort_order', { ascending: true }).order('created_at', { ascending: true }),
-    supabase.from('chit_settings').select('reminder_steps, dues_due_days, missing_policy')
+    supabase.from('chit_settings')
+      .select('reminder_steps, dues_due_days, missing_policy, welcome_template_id, joined_template_id')
       .eq('user_id', uid).maybeSingle(),
     supabase.from('chit_members').select('id, name, phone, reminder_steps')
       .eq('user_id', uid).eq('is_active', true).order('name'),
@@ -151,6 +152,8 @@ export default async function ChitMessagesPage() {
         duesDueDays={(settings?.dues_due_days as number | null) ?? null}
         templates={templates}
         whatsappLive={live}
+        welcomeTemplateId={(settings?.welcome_template_id as string | null) ?? null}
+        joinedTemplateId={(settings?.joined_template_id as string | null) ?? null}
       />
 
       <MessageLibrary saved={templates} connected={connected} />

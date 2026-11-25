@@ -23,6 +23,7 @@ import { scheduledAuctionDate } from './messages'
 import { cloudConfig, sendTemplate, type CloudConfig } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
 import type { SendScope } from './outbox'
+import { ensurePortalToken } from './portal-auth'
 
 export interface BroadcastInput {
   sb: SupabaseClient
@@ -60,7 +61,20 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
   const drift = config ? driftFromApproved(template) : null
   if (drift) return { sent: 0, pending: 0, skipped: 0, notes: [drift] }
 
-  const needsResult = usesResultFields(fieldsUsed(template.body))
+  const used = fieldsUsed(template.body)
+  const needsResult = usesResultFields(used)
+  // A passbook link is minted only when a message actually asks for one, and
+  // only once per member per send.
+  const wantsLink = used.includes('portal_link')
+  // Without a configured address the link would point at a preview
+  // deployment, which looks fine in a chat bubble and does not work for the
+  // person who taps it. Better unknown — the message is then held.
+  const origin = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, '') ?? ''
+  const linkFor = async (memberId: string): Promise<string | null> => {
+    if (!wantsLink || !origin) return null
+    const made = await ensurePortalToken(uid, memberId)
+    return 'token' in made ? `${origin}/m/enter?t=${made.token}` : null
+  }
   // THE RULE: a message that chases a payment never reaches somebody who has
   // paid. Not by the audience dropdown — by what the message is.
   const neverIfPaid = chasesPayment(template)
@@ -83,7 +97,10 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
       .select('group_id').eq('member_id', i.memberId)
     const ids = ((mine ?? []) as { group_id: string }[]).map(r => String(r.group_id))
     if (ids.length === 0) {
-      return { sent: 0, pending: 0, skipped: 1, notes: ['That member is not in any chit group.'] }
+      // A member created a moment ago belongs to no chit yet, and a welcome
+      // is exactly the message they should get. Anything needing a chit's
+      // figures has nothing to fill in and is held, which is correct.
+      return await broadcastToLoneMember(i, origin, linkFor)
     }
     // One of theirs when told which, otherwise the only one they are in.
     groupQuery = groupQuery.in('id', i.groupId ? ids.filter(id => id === i.groupId) : ids)
@@ -172,6 +189,7 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
         group: g,
         auction: auction ?? null,
         member: person,
+        portalLink: await linkFor(memberId),
         slotNumber: memberLinks.find(l => String(l.member_id) === memberId)?.slot_number ?? null,
         winner: winnerRow ?? null,
         window,
@@ -228,6 +246,81 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
   }
 
   return { sent, pending, skipped, notes }
+}
+
+/**
+ * One member who is in no chit at all — somebody just added.
+ *
+ * Only their own details exist: their name, their papers, their passbook
+ * link. A message asking for an amount due has nothing to put in it and is
+ * held, which is the right outcome rather than a zero.
+ */
+async function broadcastToLoneMember(
+  i: BroadcastInput,
+  origin: string,
+  linkFor: (memberId: string) => Promise<string | null>,
+): Promise<BroadcastResult> {
+  const { sb, uid, template } = i
+  const config = i.config ?? cloudConfig()
+  const memberId = String(i.memberId ?? '')
+
+  const { data: person } = await sb.from('chit_members')
+    .select('id, name, phone, dial_code, messaging_opted_out, member_code, address, aadhaar, pan, nominees, guarantors, bank_name, bank_account_number, bank_account_name, bank_branch, bank_ifsc')
+    .eq('user_id', uid).eq('id', memberId).maybeSingle()
+
+  if (!person) return { sent: 0, pending: 0, skipped: 1, notes: ['No such member.'] }
+  if (person.messaging_opted_out) {
+    return { sent: 0, pending: 0, skipped: 1, notes: [`${String(person.name)} has asked not to be messaged.`] }
+  }
+
+  const facts = factsFor({
+    group: {}, auction: null, member: person as Record<string, unknown>,
+    portalLink: await linkFor(memberId),
+    duesDueDays: i.duesDueDays, today: i.today,
+  })
+
+  const { values, filled, held, sendable } = renderVariables(template, facts, i.missingPolicy)
+  const to = normalizeWhatsAppNumber(
+    `${String(person.dial_code ?? '91')}${String(person.phone ?? '')}`.replace(/\D/g, ''),
+  )
+
+  const row = {
+    user_id: uid, group_id: null, member_id: memberId, auction_id: null,
+    step_key: i.stepKey, kind: 'manual', channel: config ? 'whatsapp' : 'link',
+  }
+
+  if (!sendable || !to) {
+    return {
+      sent: 0, pending: 0, skipped: 1,
+      notes: [`${String(person.name)}: ${!to ? 'no usable phone number' : `waiting for ${missingWords(held)}`}`],
+    }
+  }
+
+  const note = filled.length > 0 ? `sent with ${missingWords(filled)}` : null
+
+  if (!config) {
+    await sb.from('chit_message_log').insert({
+      ...row, status: 'pending', body: renderedText(template, values),
+      error: ['Waiting for a registered WhatsApp number', note].filter(Boolean).join(' · '),
+    })
+    return { sent: 0, pending: 1, skipped: 0, notes: [] }
+  }
+
+  const res = await sendTemplate({
+    to, template: template.name, language: template.language, variables: values,
+  }, config)
+
+  await sb.from('chit_message_log').insert({
+    ...row,
+    status: res.ok ? 'sent' : 'failed',
+    provider_message_id: res.ok ? res.messageId : null,
+    body: renderedText(template, values),
+    error: res.ok ? note : res.error,
+  })
+
+  return res.ok
+    ? { sent: 1, pending: 0, skipped: 0, notes: note ? [`${String(person.name)}: ${note}`] : [] }
+    : { sent: 0, pending: 0, skipped: 1, notes: [`${String(person.name)}: ${res.error}`] }
 }
 
 /** 'Sent to 18, 2 skipped.' — one line for a screen or a log. */

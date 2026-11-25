@@ -13,7 +13,7 @@ import { resolveSiteOrigin, originSource } from '@/lib/siteOrigin'
 import { memberInviteMessage } from '@/lib/chit/handover'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
-import { ensurePortalToken, rotatePortalToken, revokeAllSessions } from '@/lib/chit/portal-auth'
+import { ensurePortalToken, rotatePortalToken, revokeAllSessions, clearPin } from '@/lib/chit/portal-auth'
 import { buildWhatsAppUrl } from '@/lib/whatsapp'
 
 export const dynamic = 'force-dynamic'
@@ -61,6 +61,17 @@ export async function POST(req: NextRequest) {
     // Switching access off must take effect NOW, not whenever a session expires.
     if (!enabled) await revokeAllSessions(owner, memberId)
     return NextResponse.json({ ok: true, portal_enabled: enabled })
+  }
+
+  // A forgotten PIN had no way out: a new link does not clear it. This is
+  // the way out, and the member sets a new one next time they open their link.
+  if (action === 'clear_pin') {
+    const result = await clearPin(owner, memberId)
+    if (!result.ok) return NextResponse.json({ error: result.reason }, { status: 500 })
+    return NextResponse.json({
+      ok: true, revoked: result.revoked,
+      note: `${member.name ?? 'They'} can set a new PIN next time they open their link. Send it to them again if they have lost it.`,
+    })
   }
 
   if (action === 'revoke') {

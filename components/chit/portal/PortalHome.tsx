@@ -17,9 +17,13 @@ export default function PortalHome({
         <div>
           <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Signed in as</p>
           <h1 className="text-xl font-extrabold leading-tight">{member.name}</h1>
-          {member.phoneMasked && (
-            <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--text-faint)' }}>{member.phoneMasked}</p>
-          )}
+          <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--text-faint)' }}>
+            {[member.memberCode, member.phoneMasked].filter(Boolean).join(' · ')}
+          </p>
+          <Link href="/m/profile" className="inline-flex items-center gap-1 text-[12px] font-bold mt-1"
+            style={{ color: 'var(--brand)' }}>
+            Your details <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
         <div className="pt-1"><SignOut /></div>
       </div>
@@ -75,6 +79,11 @@ export default function PortalHome({
       <p className="text-[11px] leading-relaxed pt-2" style={{ color: 'var(--text-faint)' }}>
         This page shows your own chit account only. If a figure here does not match your
         records, speak to the chit organiser — this is a statement, not a receipt.
+      </p>
+
+      <p className="text-[12px] text-center px-4 pb-6" style={{ color: 'var(--text-muted)' }}>
+        Please always include your member number
+        {member.memberCode ? <b> ({member.memberCode})</b> : null} when you contact us.
       </p>
     </div>
   )

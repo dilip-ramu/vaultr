@@ -142,6 +142,8 @@ export interface FactsInput {
   member: MemberRow
   /** Their seat in this group, if the seats are numbered. */
   slotNumber?: number | null
+  /** Their permanent passbook link, when the message asks for one. */
+  portalLink?: string | null
   /** The winner's row, for a message that names them. */
   winner?: MemberRow | null
   /** The bidding window, for the rules as they were frozen when it opened. */
@@ -210,6 +212,7 @@ export function factsFor(i: FactsInput): Facts {
     pan: i.member.pan ?? null,
     nomineeName: firstName(i.member.nominees),
     guarantorName: firstName(i.member.guarantors),
+    portalLink: i.portalLink ?? null,
 
     bankName: i.member.bank_name ?? null,
     bankAccountName: i.member.bank_account_name ?? null,

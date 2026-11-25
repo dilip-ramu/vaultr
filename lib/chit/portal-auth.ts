@@ -340,6 +340,28 @@ export async function setPin(
 }
 
 /**
+ * Forget a member's PIN, so they can set a new one.
+ *
+ * There was no way out of a forgotten PIN: a fresh link does not clear it,
+ * and the sign-in page's advice to ask for one was wrong. This is the way
+ * out, and it is deliberately the owner's to use.
+ *
+ * Every session is revoked with it. A PIN that has been cleared means the
+ * next person to open that member's link sets the new one, so a device still
+ * signed in on an old session would be a door left open behind them.
+ */
+export async function clearPin(
+  userId: string, memberId: string, now: Date = new Date(), client?: Db,
+): Promise<{ ok: true; revoked: number } | { ok: false; reason: string }> {
+  const db = admin(client)
+  const { error } = await db.from('chit_member_pins')
+    .delete().eq('member_id', memberId).eq('user_id', userId)
+  if (error) return { ok: false, reason: 'Could not clear the PIN. Please try again.' }
+  const revoked = await revokeAllSessions(userId, memberId, now, db)
+  return { ok: true, revoked }
+}
+
+/**
  * Check a PIN, with a lockout so a four-digit secret cannot simply be counted
  * through. Phase 2 calls this before accepting a bid.
  */

@@ -34,7 +34,7 @@ import type { Audience } from './reminderSchedule'
 
 export type FieldId =
   | 'member_name' | 'member_code' | 'slot_number' | 'member_phone' | 'member_address'
-  | 'aadhaar' | 'pan' | 'nominee_name' | 'guarantor_name'
+  | 'aadhaar' | 'pan' | 'nominee_name' | 'guarantor_name' | 'portal_link'
   | 'bank_name' | 'bank_account_name' | 'bank_branch' | 'bank_ifsc' | 'account_number'
   | 'group_name' | 'month' | 'month_number' | 'members_count'
   | 'total_months' | 'months_left' | 'start_date' | 'end_date' | 'auction_day'
@@ -82,6 +82,9 @@ export const FIELDS: readonly FieldSpec[] = [
     note: 'The first nominee on their record.' },
   { id: 'guarantor_name', label: 'guarantor name', sample: 'Murugan',          group: 'member',
     note: 'The first guarantor on their record.' },
+  { id: 'portal_link',   label: 'their passbook link', sample: 'https://inex.app/m/enter?t=9f2c',
+    group: 'member',
+    note: 'Opens their own passbook. The first time, they choose a 4-digit PIN; after that the PIN guards it.' },
   { id: 'group_name',    label: 'chit name',      sample: 'Uma 5 Lakh A',      group: 'group' },
   { id: 'members_count', label: 'total members',  sample: '20',                group: 'group' },
   { id: 'chit_value',    label: 'chit value',     sample: '5,00,000',          group: 'group' },
@@ -250,6 +253,8 @@ export interface Facts {
   pan?: string | null
   nomineeName?: string | null
   guarantorName?: string | null
+  /** Their permanent link to their own passbook. */
+  portalLink?: string | null
   bankName?: string | null
   bankAccountName?: string | null
   bankBranch?: string | null
@@ -327,6 +332,7 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     }
     case 'nominee_name':  return text(f.nomineeName)
     case 'guarantor_name': return text(f.guarantorName)
+    case 'portal_link':   return text(f.portalLink)
     case 'bank_name':     return text(f.bankName)
     case 'bank_account_name': return text(f.bankAccountName)
     case 'bank_branch':   return text(f.bankBranch)
@@ -536,6 +542,9 @@ const ALIASES: Record<string, FieldId> = {
   'nominee': 'nominee_name',
   'guarantor': 'guarantor_name',
   'slot': 'slot_number',
+  'portal': 'portal_link',
+  'link': 'portal_link',
+  'passbook': 'portal_link',
   'days since auction': 'days_since_auction',
   'days since the auction': 'days_since_auction',
   'days until due': 'days_to_due',

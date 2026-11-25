@@ -9,7 +9,7 @@ import { nextMemberCode, codeSequence } from '@/lib/chit/memberCode'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut } from 'lucide-react'
+import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut, KeyRound } from 'lucide-react'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { ChitMember } from '@/lib/chit/types'
@@ -72,7 +72,10 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
     message: string; expiresInWords: string
   } | null>(null)
 
-  async function portalAction(memberId: string, action: 'enable' | 'disable' | 'invite' | 'revoke') {
+  async function portalAction(
+    memberId: string,
+    action: 'enable' | 'disable' | 'invite' | 'revoke' | 'clear_pin',
+  ) {
     setBusyPortal(memberId)
     try {
       const res = await fetch('/api/chit/portal', {
@@ -88,6 +91,8 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
         notify(body.portal_enabled ? 'Portal access on' : 'Portal access off — signed out everywhere')
       } else if (action === 'revoke') {
         notify(body.revoked ? `Signed out of ${body.revoked} device(s)` : 'No active sessions')
+      } else if (action === 'clear_pin') {
+        notify(body.note ?? 'PIN cleared')
       } else if (action === 'invite') {
         // The link is SHOWN, not fired blindly into WhatsApp. Whoever sends it
         // should be able to see the address they are sending — a link pointing
@@ -207,6 +212,13 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
                   title="Sign this member out of every device"
                   className="p-1.5 disabled:opacity-40" style={{ color: 'var(--text-faint)' }}>
                   <LogOut className="w-4 h-4" />
+                </button>
+                {/* A forgotten PIN had no way out: a fresh link does not clear
+                    it. This does, and signs every device out with it. */}
+                <button onClick={() => portalAction(m.id, 'clear_pin')} disabled={busyPortal === m.id}
+                  title="Clear their PIN — they set a new one next time they open their link"
+                  className="p-1.5 disabled:opacity-40" style={{ color: 'var(--text-faint)' }}>
+                  <KeyRound className="w-4 h-4" />
                 </button>
                 <button onClick={() => portalAction(m.id, 'disable')} disabled={busyPortal === m.id}
                   className="text-[10px] font-extrabold uppercase tracking-wide px-2 py-1 rounded-full disabled:opacity-40"

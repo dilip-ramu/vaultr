@@ -31,6 +31,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkBid, minimumAcceptableBid } from './bidding'
 import { winnerFromBids } from './closeAuction'
+import { ledgerRows } from './portalLedger'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -49,6 +50,31 @@ export interface PortalMember {
   /** Masked. The member knows their own number; showing it in full only creates
    *  something worth stealing if a phone is left unlocked. */
   phoneMasked: string | null
+  /** Quoted on every call and printed on receipts, so it is shown in full. */
+  memberCode: string | null
+}
+
+/**
+ * The member's own record, as they may see and correct it.
+ *
+ * Separate from PortalMember because it is read on one page, by that member,
+ * when they ask for it — rather than carried around every screen. Their own
+ * Aadhaar and PAN are theirs to see; nobody else's ever load.
+ */
+export interface PortalProfile {
+  id: string
+  name: string
+  phone: string | null
+  memberCode: string | null
+  address: string | null
+  aadhaar: string | null
+  pan: string | null
+  bankName: string | null
+  bankAccountName: string | null
+  bankAccountNumber: string | null
+  bankIfsc: string | null
+  bankBranch: string | null
+  nomineeName: string | null
 }
 
 export interface PortalGroupSummary {
@@ -154,11 +180,49 @@ async function membershipsOf(memberId: string, client?: Db): Promise<Map<string,
 export async function getMember(memberId: string, client?: Db): Promise<PortalMember | null> {
   const db = admin(client)
   const { data } = await db.from('chit_members')
-    .select('id, name, phone')          // NOT *: aadhaar, pan, nominees stay out
+    .select('id, name, phone, member_code')   // NOT *: aadhaar, pan stay out
     .eq('id', memberId).limit(1)
   const m = (data ?? [])[0] as any
   if (!m) return null
-  return { id: m.id, name: m.name, phoneMasked: maskPhone(m.phone) }
+  return {
+    id: m.id, name: m.name,
+    phoneMasked: maskPhone(m.phone),
+    memberCode: m.member_code ?? null,
+  }
+}
+
+/**
+ * Everything on one member's own record, for the page where they correct it.
+ *
+ * Scoped to the member in the session by the caller, like everything else
+ * here. The full phone number is included on this page alone, because a
+ * member checking their own details should see what the operator has.
+ */
+export async function getProfile(memberId: string, client?: Db): Promise<PortalProfile | null> {
+  const db = admin(client)
+  const { data } = await db.from('chit_members')
+    .select('id, name, phone, member_code, address, aadhaar, pan, nominees, bank_name, bank_account_name, bank_account_number, bank_ifsc, bank_branch')
+    .eq('id', memberId).limit(1)
+  const m = (data ?? [])[0] as any
+  if (!m) return null
+  const nominee = Array.isArray(m.nominees) && m.nominees.length > 0
+    ? String(m.nominees[0]?.name ?? '').trim() || null
+    : null
+  return {
+    id: m.id,
+    name: m.name ?? '',
+    phone: m.phone ?? null,
+    memberCode: m.member_code ?? null,
+    address: m.address ?? null,
+    aadhaar: m.aadhaar ?? null,
+    pan: m.pan ?? null,
+    bankName: m.bank_name ?? null,
+    bankAccountName: m.bank_account_name ?? null,
+    bankAccountNumber: m.bank_account_number ?? null,
+    bankIfsc: m.bank_ifsc ?? null,
+    bankBranch: m.bank_branch ?? null,
+    nomineeName: nominee,
+  }
 }
 
 /** Every group this member is in, with THEIR position in each. */
@@ -185,7 +249,12 @@ export async function getGroups(memberId: string, client?: Db): Promise<PortalGr
   return ((groups ?? []) as any[]).map(g => {
     const myDues = ((dues ?? []) as any[]).filter(d => d.group_id === g.id)
     const myPaid = ((paid ?? []) as any[]).filter(p => p.group_id === g.id)
-    const totalDue = myDues.reduce((s, d) => s + num(d.amount), 0)
+    // Billed months when there are any, otherwise what has actually been
+    // collected — a running chit entered into the app mid-way has the second
+    // and not the first.
+    const totalDue = myDues.length > 0
+      ? myDues.reduce((s, d) => s + num(d.amount), 0)
+      : myPaid.reduce((s, p) => s + num(p.amount), 0)
     const totalPaid = myPaid.reduce((s, p) => s + num(p.amount), 0)
     const unpaid = myDues.filter(d => d.status !== 'PAID')
     const nextDue = unpaid
@@ -244,20 +313,16 @@ export async function getGroupDetail(
       .order('month_number'),
   ])
 
-  const paidBy = new Map<number, any>()
-  for (const p of (paid ?? []) as any[]) paidBy.set(num(p.month_number), p)
-
-  const ledger: PortalLedgerRow[] = ((dues ?? []) as any[]).map(d => {
-    const hit = paidBy.get(num(d.month_number))
-    return {
-      monthNumber: num(d.month_number),
-      dueAmount: num(d.amount),
-      dueDate: d.due_date ?? null,
-      status: (d.status ?? 'PENDING') as PortalLedgerRow['status'],
-      paidAmount: hit ? num(hit.amount) : null,
-      paidDate: hit?.paid_date ?? null,
-    }
-  })
+  // The months come from everywhere they can — billed, paid, auctioned —
+  // because a chit that was already running when it was entered has
+  // collections and no receivables, and the passbook showed the member
+  // nothing at all. See lib/chit/portalLedger.ts.
+  const ledger: PortalLedgerRow[] = ledgerRows({
+    receivables: (dues ?? []) as any[],
+    collections: (paid ?? []) as any[],
+    auctions: (auctions ?? []) as any[],
+    installment: group.monthlyInstallment,
+  }) as PortalLedgerRow[]
 
   // Resolve winner NAMES only, and only for winners of this group's auctions.
   const winnerIds = [...new Set(((auctions ?? []) as any[])

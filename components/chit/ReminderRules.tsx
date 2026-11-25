@@ -34,6 +34,7 @@ import {
 
 export default function ReminderRules({
   userId, savedSteps, duesDueDays = null, templates = [], whatsappLive = false,
+  welcomeTemplateId = null, joinedTemplateId = null,
 }: {
   /** Whose settings these are — the owner, even when a partner is editing. */
   userId: string
@@ -42,12 +43,17 @@ export default function ReminderRules({
   duesDueDays?: number | null
   templates?: MessageTemplate[]
   whatsappLive?: boolean
+  /** Sent when a member is created, and when they join a chit. */
+  welcomeTemplateId?: string | null
+  joinedTemplateId?: string | null
 }) {
   const router = useRouter()
   const sb = createClient()
   const [steps, setSteps] = useState<Step[]>(
     matchStepsToLibrary(savedSteps?.length ? savedSteps : [...DEFAULT_STEPS], templates))
   const [dueDays, setDueDays] = useState<string>(duesDueDays == null ? '' : String(duesDueDays))
+  const [welcome, setWelcome] = useState(welcomeTemplateId ?? '')
+  const [joined, setJoined] = useState(joinedTemplateId ?? '')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
 
@@ -85,6 +91,8 @@ export default function ReminderRules({
       user_id: userId,
       reminder_steps: steps,
       dues_due_days: dueOffset == null || !Number.isFinite(dueOffset) ? null : dueOffset,
+      welcome_template_id: welcome || null,
+      joined_template_id: joined || null,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
     setSaving(false)
@@ -121,6 +129,46 @@ export default function ReminderRules({
           This is the date members are told, and what &ldquo;overdue by 12 days&rdquo; counts from.
           Left empty, it is owed by the next auction, and nothing is ever counted as overdue.
         </p>
+      </div>
+
+      {/* ── When somebody joins ───────────────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden" style={card}>
+        <p className="px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wide"
+          style={{ color: 'var(--text-faint)', borderBottom: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+          When somebody joins
+        </p>
+        <div className="p-4 space-y-3">
+          <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
+            Sent once, by itself, however the member was added — from this app, from a
+            group&rsquo;s member list, or from a spreadsheet import. Leave either empty to send
+            nothing.
+          </p>
+
+          <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+            When a member is added to your register
+            <select value={welcome} onChange={e => { setWelcome(e.target.value); setDirty(true) }}
+              className="w-full px-2 py-2 rounded-lg border text-[13px] mt-1" style={fieldStyle}>
+              <option value="">— send nothing —</option>
+              {live.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+            <span className="block mt-1 text-[10.5px] font-normal" style={{ color: 'var(--text-faint)' }}>
+              They are in no chit yet, so this one can only use their own details and their
+              passbook link — not an amount or a date.
+            </span>
+          </label>
+
+          <label className="block text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+            When a member is added to a chit
+            <select value={joined} onChange={e => { setJoined(e.target.value); setDirty(true) }}
+              className="w-full px-2 py-2 rounded-lg border text-[13px] mt-1" style={fieldStyle}>
+              <option value="">— send nothing —</option>
+              {live.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+            <span className="block mt-1 text-[10.5px] font-normal" style={{ color: 'var(--text-faint)' }}>
+              This one knows the chit: its name, its value, the monthly subscription.
+            </span>
+          </label>
+        </div>
       </div>
 
       {/* ── The steps ─────────────────────────────────────────────────────── */}

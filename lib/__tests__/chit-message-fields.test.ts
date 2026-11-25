@@ -23,6 +23,7 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   today: '2026-11-20',
   totalMonths: 20, startDate: '2026-04-05', endDate: '2027-11-05', auctionDay: 5,
   nextMonth: 'December 2026', nextMonthNumber: 8,
+  portalLink: 'https://x.test/m/enter?t=abc',
   commissionPct: 5, commissionAmount: 25000,
   minBid: 100, maxDiscount: 150000, maxDiscountPct: 30,
   ...o,
@@ -465,5 +466,29 @@ describe('which details may go out as missing', () => {
     expect(ASKABLE_FIELDS).not.toContain('amount_due')
     expect(ASKABLE_FIELDS).not.toContain('days_overdue')
     expect(ASKABLE_FIELDS).not.toContain('net_payout')
+  })
+})
+
+describe('the passbook link', () => {
+  it('is offered to every member message', () => {
+    expect(fieldsFor('all').map(f => f.id)).toContain('portal_link')
+    expect(fieldProblem('portal_link', 'unpaid')).toBeNull()
+  })
+
+  it('is whatever was minted for that member', () => {
+    expect(valueFor('portal_link', facts({ portalLink: 'https://x.test/m/enter?t=abc' })))
+      .toBe('https://x.test/m/enter?t=abc')
+  })
+
+  // A link to a preview deployment looks fine in a chat bubble and does not
+  // work for the person who taps it, so no link is better than a wrong one.
+  it('is unknown when none was minted', () => {
+    expect(valueFor('portal_link', facts({ portalLink: null }))).toBeNull()
+  })
+
+  it('answers to the words somebody would type', () => {
+    for (const word of ['portal', 'link', 'passbook']) {
+      expect(labelToField(word)?.id).toBe('portal_link')
+    }
   })
 })
