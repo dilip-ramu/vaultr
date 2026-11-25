@@ -18,8 +18,7 @@ import {
   renderedText, type MessageTemplate,
 } from './messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from './messageFields'
-import { factsFor, auctionSettled, oneMonthOn } from './messageFacts'
-import { scheduledAuctionDate } from './messages'
+import { factsFor, auctionSettled, nextAuctionDateFor } from './messageFacts'
 import { cloudConfig, sendTemplate, type CloudConfig } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
 import type { SendScope } from './outbox'
@@ -125,10 +124,19 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
 
     const monthNumber = auction ? Number(auction.month_number) || 0 : 0
     const auctionDate = auction ? String(auction.auction_date).slice(0, 10) : null
-    const nextAuctionDate = auctionDate
-      ? scheduledAuctionDate(String(g.start_date ?? ''), Number(g.auction_day) || null, monthNumber + 1)
-        ?? oneMonthOn(auctionDate, Number(g.auction_day) || null)
-      : null
+    // A chit that has not started has no last auction to count from — but it
+    // does have a start date, and the message welcoming a member into it is
+    // exactly the one that should name the first auction. nextAuctionDateFor
+    // works that out; before it, those messages were held for ever.
+    const nextAuctionDate = nextAuctionDateFor({
+      startDate: String(g.start_date ?? '') || null,
+      auctionDay: Number(g.auction_day) || null,
+      lastAuctionDate: auctionDate,
+      lastMonthNumber: monthNumber,
+      today: i.today,
+      // A chit runs for as many months as it has seats.
+      months: Number(g.members) || null,
+    })
 
     const [{ data: links }, { data: paid }, { data: windows }, { data: allAuctions }] = await Promise.all([
       sb.from('chit_group_members').select('member_id, slot_number').eq('group_id', groupId),

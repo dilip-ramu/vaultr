@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   factsFor, auctionSettled, monthLabel, firstName, pendingDues, oneMonthOn,
+  nextAuctionDateFor,
   type FactsInput, type GroupRow, type AuctionRow, type MemberRow,
 } from '@/lib/chit/messageFacts'
 
@@ -268,5 +269,61 @@ describe('a month on, when nothing says otherwise', () => {
   it('has nothing to say about an unreadable date', () => {
     expect(oneMonthOn('', 5)).toBeNull()
     expect(oneMonthOn('next month', 5)).toBeNull()
+  })
+})
+
+describe('nextAuctionDateFor — the chit that has not started', () => {
+  it('names the first auction when nothing has been auctioned yet', () => {
+    // The case that held every "welcome to the chit" message: a brand-new
+    // group, no auction row anywhere, so nothing to count a month on from.
+    expect(nextAuctionDateFor({
+      startDate: '2026-12-05', auctionDay: 5, lastMonthNumber: 0,
+      today: '2026-11-25', months: 20,
+    })).toBe('2026-12-05')
+  })
+
+  it('skips the months that have already gone by', () => {
+    // Started in April, nothing recorded, today is November: the next one a
+    // member can actually attend is December, not April.
+    expect(nextAuctionDateFor({
+      startDate: '2026-04-05', auctionDay: 5, lastMonthNumber: 0,
+      today: '2026-11-25', months: 20,
+    })).toBe('2026-12-05')
+  })
+
+  it('counts from the last auction once there is one', () => {
+    expect(nextAuctionDateFor({
+      startDate: '2026-04-05', auctionDay: 5,
+      lastAuctionDate: '2026-11-05', lastMonthNumber: 8,
+      today: '2026-11-25', months: 20,
+    })).toBe('2026-12-05')
+  })
+
+  it('falls back to a month on when the chit has no start date', () => {
+    expect(nextAuctionDateFor({
+      startDate: null, auctionDay: 5,
+      lastAuctionDate: '2026-11-05', lastMonthNumber: 8,
+      today: '2026-11-25',
+    })).toBe('2026-12-05')
+  })
+
+  it('says nothing only when there is nothing at all to go on', () => {
+    expect(nextAuctionDateFor({ today: '2026-11-25' })).toBeNull()
+  })
+
+  it('still answers for a chit whose months have all run out', () => {
+    // Every scheduled date is in the past and nothing was recorded. Saying
+    // "the first one" is honest; saying nothing holds the message for ever.
+    expect(nextAuctionDateFor({
+      startDate: '2024-01-10', auctionDay: 10, lastMonthNumber: 0,
+      today: '2026-11-25', months: 12,
+    })).toBe('2024-01-10')
+  })
+
+  it('lands on the last day of a short month', () => {
+    expect(nextAuctionDateFor({
+      startDate: '2027-01-31', auctionDay: 31, lastMonthNumber: 0,
+      today: '2027-02-01', months: 12,
+    })).toBe('2027-02-28')
   })
 })

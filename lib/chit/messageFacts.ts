@@ -281,3 +281,56 @@ export function auctionSettled(a?: AuctionRow | null): boolean {
   if (!a) return false
   return Boolean(a.winner_member_id) || num(a.bid_amount) > 0
 }
+
+/**
+ * When is the next auction?
+ *
+ * THE CASE THIS WAS WRITTEN FOR
+ *
+ * A chit that has not started yet. Nobody has auctioned anything, so there is
+ * no last auction to count a month on from — and the message that welcomes a
+ * member into a new chit is exactly the one that wants to tell them when the
+ * first auction is. Before this, that message was held for a missing date
+ * that was never going to arrive.
+ *
+ * The order of trust:
+ *   1. The chit's own calendar — its start date and auction day — for the
+ *      month after the last one auctioned. This is the real answer.
+ *   2. Nothing auctioned yet: the first date on that calendar that has not
+ *      already gone by. For a chit starting in December, that is December.
+ *   3. A chit whose dates have all passed with nothing recorded: the first
+ *      one, so the message says something honest rather than nothing.
+ *   4. No start date at all: a month on from the last auction.
+ *
+ * Returns null only when there is genuinely nothing to go on — no start date
+ * and no auction ever held. Then the message is held, which is right.
+ */
+export function nextAuctionDateFor(i: {
+  startDate?: string | null
+  auctionDay?: number | null
+  /** The most recent auction already held, if any. */
+  lastAuctionDate?: string | null
+  /** Its month number. 0 when nothing has been auctioned. */
+  lastMonthNumber?: number | null
+  today: string
+  /** How many months the chit runs, so this never points past the end. */
+  months?: number | null
+}): string | null {
+  const start = i.startDate ?? null
+  const day = i.auctionDay ?? null
+  const held = Number(i.lastMonthNumber) || 0
+
+  if (held > 0) {
+    return scheduledAuctionDate(start, day, held + 1)
+      ?? (i.lastAuctionDate ? oneMonthOn(i.lastAuctionDate, day) : null)
+  }
+
+  // Nothing auctioned yet.
+  if (!start) return null
+  const last = Math.max(1, Number(i.months) || 24)
+  for (let m = 1; m <= last; m++) {
+    const d = scheduledAuctionDate(start, day, m)
+    if (d && d >= i.today) return d
+  }
+  return scheduledAuctionDate(start, day, 1)
+}
