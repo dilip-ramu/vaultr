@@ -136,8 +136,11 @@ export default function SendNow({
   const card = { border: '1px solid var(--border)', background: 'var(--surface)' }
   const field = 'px-2 py-2 rounded-lg border text-[13px]'
   const fieldStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
-  const waiting = queued.filter(q => q.status === 'queued')
+  // Three ways a row can still want something from you. Anything that went
+  // out cleanly is not on this list at all.
+  const waiting = queued.filter(q => q.status === 'queued' || q.status === 'sending')
   const failed = queued.filter(q => q.status === 'failed')
+  const due = queued.filter(q => q.status === 'queued' && new Date(q.send_at).getTime() <= Date.now())
 
   return (
     <div className="rounded-2xl overflow-hidden" style={card}>
@@ -288,7 +291,9 @@ export default function SendNow({
             style={{ background: 'var(--surface-2)' }}>
             <p className="text-[11px] font-extrabold uppercase tracking-wide"
               style={{ color: 'var(--text-faint)' }}>
-              {waiting.length > 0 ? `${waiting.length} waiting to go` : 'Recently queued'}
+              {waiting.length > 0
+                ? `${waiting.length} waiting to go`
+                : failed.length === 1 ? 'One did not go' : `${failed.length} did not go`}
             </p>
             {failed.length > 0 && (
               <button onClick={clearFailed} disabled={busy}
@@ -299,7 +304,7 @@ export default function SendNow({
               </button>
             )}
           </div>
-          {waiting.some(q => new Date(q.send_at).getTime() <= Date.now()) && (
+          {due.length > 0 && (
             <div className="px-4 py-2.5 flex items-center justify-between gap-3"
               style={{ borderTop: '1px solid var(--border)' }}>
               <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>

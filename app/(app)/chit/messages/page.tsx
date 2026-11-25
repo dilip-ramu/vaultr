@@ -53,12 +53,15 @@ export default async function ChitMessagesPage() {
       .select('id, member_id, body, kind, status, error, sent_at, member:chit_members(name, member_code)')
       .eq('user_id', uid).not('member_id', 'is', null)
       .order('sent_at', { ascending: false }).limit(400),
-    // What is waiting to go out, and what recently did. A cancelled row is a
-    // send you asked NOT to happen, so it is left out — the list is for what
-    // is coming and what went, not a record of changed minds.
+    // What still needs you: waiting to go, going, or did not go.
+    //
+    // A send that WORKED is not on this list. It is on the member's own
+    // conversation, where it belongs — a tick here would only be a pile of
+    // rows to scroll past before finding the one that went wrong. Same for a
+    // send you called off: you already know.
     supabase.from('chit_scheduled_sends')
       .select('id, send_at, scope, status, result, template:chit_message_templates(label), group:chit_groups(name), member:chit_members(name)')
-      .eq('user_id', uid).neq('status', 'cancelled')
+      .eq('user_id', uid).in('status', ['queued', 'sending', 'failed'])
       .order('send_at', { ascending: true }).limit(30),
   ])
 
