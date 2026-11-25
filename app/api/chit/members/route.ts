@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
 import { normalizePhone } from '@/lib/chit/types'
 import { checkMemberCode, nextMemberCode, normalizeMemberCode } from '@/lib/chit/memberCode'
+import { sendQueuedNow } from '@/lib/chit/outboxRunner'
 
 /** Every code already in use, so a clash is refused with a useful message
  *  rather than a database error nobody can act on. */
@@ -125,6 +126,13 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase.from('chit_members').insert(row).select('*').single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // The database put a welcome message in the outbox the moment the member
+  // landed (migration v147). Send it now, not at tomorrow's cron run — a
+  // welcome that arrives the next morning is not a welcome. This runs after
+  // the reply has gone, so the screen does not wait for WhatsApp.
+  after(() => sendQueuedNow(owner))
+
   return NextResponse.json({ member: data })
 }
 

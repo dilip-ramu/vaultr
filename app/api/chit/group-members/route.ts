@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { resolveChitAccess, ledgerClient, CAN, forbidden } from '@/lib/chit/access'
+import { sendQueuedNow } from '@/lib/chit/outboxRunner'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,6 +72,12 @@ export async function POST(req: NextRequest) {
 
   const { error } = await supabase.from('chit_group_members').insert(rows)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Joining a chit queues a "you are in" message per member (migration
+  // v147). Send them now rather than at tomorrow's cron run, behind the
+  // reply so the screen does not wait for WhatsApp.
+  after(() => sendQueuedNow(owner))
+
   return NextResponse.json({ added: rows.length, skipped: memberIds.length - rows.length })
 }
 
