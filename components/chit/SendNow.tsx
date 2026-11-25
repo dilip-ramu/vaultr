@@ -111,18 +111,33 @@ export default function SendNow({
     } finally { setBusy(false) }
   }
 
+  // One button, two meanings. Still waiting -> called off. Already failed or
+  // gone -> taken off the list. What actually reached a member is kept in the
+  // message log either way, so clearing this list loses no history.
   async function cancel(rowId: string) {
     const res = await fetch(`/api/chit/send-now?id=${rowId}`, { method: 'DELETE' })
     const data = await res.json()
-    if (!res.ok) { notify(data.error ?? 'Could not cancel', 'error'); return }
-    notify('Called off.', 'success')
+    if (!res.ok) { notify(data.error ?? 'Could not remove it', 'error'); return }
+    notify(data.note ?? 'Done.', 'success')
     router.refresh()
+  }
+
+  async function clearFailed() {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/chit/send-now?clear=failed', { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) { notify(data.error ?? 'Could not clear them', 'error'); return }
+      notify(data.note ?? 'Cleared.', 'success')
+      router.refresh()
+    } finally { setBusy(false) }
   }
 
   const card = { border: '1px solid var(--border)', background: 'var(--surface)' }
   const field = 'px-2 py-2 rounded-lg border text-[13px]'
   const fieldStyle = { background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }
   const waiting = queued.filter(q => q.status === 'queued')
+  const failed = queued.filter(q => q.status === 'failed')
 
   return (
     <div className="rounded-2xl overflow-hidden" style={card}>
@@ -269,10 +284,21 @@ export default function SendNow({
       {/* Waiting to go */}
       {queued.length > 0 && (
         <div style={{ borderTop: '1px solid var(--border)' }}>
-          <p className="px-4 py-2 text-[11px] font-extrabold uppercase tracking-wide"
-            style={{ color: 'var(--text-faint)', background: 'var(--surface-2)' }}>
-            {waiting.length > 0 ? `${waiting.length} waiting to go` : 'Recently queued'}
-          </p>
+          <div className="px-4 py-2 flex items-center justify-between gap-3"
+            style={{ background: 'var(--surface-2)' }}>
+            <p className="text-[11px] font-extrabold uppercase tracking-wide"
+              style={{ color: 'var(--text-faint)' }}>
+              {waiting.length > 0 ? `${waiting.length} waiting to go` : 'Recently queued'}
+            </p>
+            {failed.length > 0 && (
+              <button onClick={clearFailed} disabled={busy}
+                className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold disabled:opacity-50"
+                style={{ color: 'var(--text-muted)' }}>
+                <X className="w-3 h-3" />
+                clear {failed.length === 1 ? 'the failed one' : `all ${failed.length} failed`}
+              </button>
+            )}
+          </div>
           {waiting.some(q => new Date(q.send_at).getTime() <= Date.now()) && (
             <div className="px-4 py-2.5 flex items-center justify-between gap-3"
               style={{ borderTop: '1px solid var(--border)' }}>
@@ -302,11 +328,11 @@ export default function SendNow({
                     : `${q.status}${q.result ? ` · ${q.result}` : ''}`}
                 </p>
               </div>
-              {q.status === 'queued' && (
+              {q.status !== 'sending' && (
                 <button onClick={() => cancel(q.id)}
                   className="shrink-0 inline-flex items-center gap-1 text-[12px] font-bold"
                   style={{ color: 'var(--text-muted)' }}>
-                  <X className="w-3.5 h-3.5" /> call off
+                  <X className="w-3.5 h-3.5" /> {q.status === 'queued' ? 'call off' : 'clear'}
                 </button>
               )}
             </div>

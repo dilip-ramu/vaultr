@@ -116,7 +116,17 @@ export async function POST(req: NextRequest) {
   })
 }
 
-/** DELETE — call off something queued. */
+/** DELETE — call off something queued, or clear a row that is finished with.
+ *
+ *  Two different jobs behind one button, because to the person pressing it
+ *  they are the same wish: get this off my list.
+ *
+ *    ?id=<row>       waiting  -> called off.  failed or sent -> removed.
+ *    ?clear=failed   every failed row of theirs, removed in one go.
+ *
+ *  Removing is safe: this table is only the waiting list. What actually went
+ *  to a member is in chit_message_log, which nothing here touches, so the
+ *  record of what was sent survives a tidy-up. */
 export async function DELETE(req: NextRequest) {
   const access = await resolveChitAccess()
   if (!access) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -124,9 +134,36 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Not allowed.' }, { status: 403 })
   }
   const id = req.nextUrl.searchParams.get('id')
+  const clear = req.nextUrl.searchParams.get('clear')
+
+  if (clear === 'failed') {
+    const sb = await createClient()
+    const { data, error } = await sb.from('chit_scheduled_sends')
+      .delete().eq('user_id', access.ownerId).eq('status', 'failed')
+      .select('id')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    const n = (data ?? []).length
+    return NextResponse.json({
+      ok: true, removed: n,
+      note: n === 0 ? 'Nothing to clear.' : n === 1 ? 'Cleared it.' : `Cleared ${n}.`,
+    })
+  }
+
   if (!id) return NextResponse.json({ error: 'Which one?' }, { status: 400 })
 
   const sb = await createClient()
+
+  // A row that is done with — it failed, or it went — is just clutter now.
+  // Remove it outright rather than leave a tombstone nobody wants to read.
+  const { data: done } = await sb.from('chit_scheduled_sends')
+    .select('id, status').eq('id', id).eq('user_id', access.ownerId).maybeSingle()
+
+  if (done && (done.status === 'failed' || done.status === 'sent' || done.status === 'cancelled')) {
+    const { error } = await sb.from('chit_scheduled_sends')
+      .delete().eq('id', id).eq('user_id', access.ownerId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, removed: 1, note: 'Cleared it.' })
+  }
   // Only something still waiting can be called off. One already sending is
   // past the point of changing your mind.
   const { data, error } = await sb.from('chit_scheduled_sends')
@@ -136,5 +173,5 @@ export async function DELETE(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Too late — it has already gone out.' }, { status: 409 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, note: 'Called off.' })
 }
