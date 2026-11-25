@@ -27,7 +27,7 @@
 // entered the PIN.
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { checkBid, minimumAcceptableBid, type BidRejection } from './bidding'
+import { checkBid, minimumAcceptableBid, unpaidMonthsBefore, type BidRejection } from './bidding'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -60,13 +60,16 @@ export async function placeBid(p: PlaceBidParams, client?: Db): Promise<PlaceBid
   const now = p.now ?? new Date()
 
   // ── Is this member in this group, and have they already had their turn? ──
-  const [{ data: membership }, { data: windows }, { data: won }] = await Promise.all([
+  const [{ data: membership }, { data: windows }, { data: won }, { data: paid }] = await Promise.all([
     db.from('chit_group_members').select('group_id')
       .eq('member_id', p.memberId).eq('group_id', p.groupId).limit(1),
     db.from('chit_bid_windows')
       .select('id, user_id, group_id, month_number, status, ceiling_amount, min_increment')
       .eq('group_id', p.groupId).eq('status', 'open').limit(1),
-    db.from('chit_auctions').select('winner_member_id').eq('group_id', p.groupId),
+    db.from('chit_auctions').select('winner_member_id, month_number').eq('group_id', p.groupId),
+    // What this member has actually paid into this chit.
+    db.from('chit_collections').select('month_number')
+      .eq('group_id', p.groupId).eq('member_id', p.memberId),
   ])
 
   const isMember = Boolean(membership?.length)
@@ -93,6 +96,14 @@ export async function placeBid(p: PlaceBidParams, client?: Db): Promise<PlaceBid
     highestAmount: highest,
     isMember,
     alreadyWon: ((won ?? []) as any[]).some(a => a.winner_member_id === p.memberId),
+    // Only months already auctioned and still unpaid, and only those before
+    // this one: this month's subscription is not owed until this auction
+    // decides what it is.
+    unpaidMonths: unpaidMonthsBefore(
+      ((won ?? []) as any[]).map(a => num(a.month_number)),
+      ((paid ?? []) as any[]).map(c => num(c.month_number)),
+      num(w.month_number),
+    ),
   }
 
   // ── The rules, before the PIN ────────────────────────────────────────────

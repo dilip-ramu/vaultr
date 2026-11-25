@@ -29,7 +29,7 @@
 // chit_auctions, chit_collections or transactions.
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { checkBid, minimumAcceptableBid } from './bidding'
+import { checkBid, minimumAcceptableBid, unpaidMonthsBefore } from './bidding'
 import { winnerFromBids } from './closeAuction'
 import { ledgerRows } from './portalLedger'
 
@@ -372,12 +372,14 @@ export async function getLiveAuction(
   const w = (windows ?? [])[0] as any
   if (!w) return null                   // no auction running
 
-  const [{ data: bids }, { data: won }] = await Promise.all([
+  const [{ data: bids }, { data: won }, { data: paidMonths }] = await Promise.all([
     db.from('chit_bids')
       .select('member_id, amount, placed_at')
       .eq('window_id', w.id),
     db.from('chit_auctions')
-      .select('winner_member_id').eq('group_id', groupId),
+      .select('winner_member_id, month_number').eq('group_id', groupId),
+    db.from('chit_collections').select('month_number')
+      .eq('group_id', groupId).eq('member_id', memberId),
   ])
 
   const all = ((bids ?? []) as any[]).map(b => ({
@@ -397,7 +399,12 @@ export async function getLiveAuction(
     ceilingAmount: num(w.ceiling_amount),
     minIncrement: num(w.min_increment),
   }
-  const ctx = { window: rules, highestAmount: leader?.amount ?? null, isMember, alreadyWon }
+  const unpaidMonths = unpaidMonthsBefore(
+    ((won ?? []) as any[]).map(a => num(a.month_number)),
+    ((paidMonths ?? []) as any[]).map(c => num(c.month_number)),
+    num(w.month_number),
+  )
+  const ctx = { window: rules, highestAmount: leader?.amount ?? null, isMember, alreadyWon, unpaidMonths }
   const minimumNext = minimumAcceptableBid(ctx)
   const gate = checkBid(minimumNext ?? 0, ctx)
 

@@ -16,7 +16,8 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  checkBid, minimumAcceptableBid, defaultIncrement, type BidContext,
+  checkBid, minimumAcceptableBid, defaultIncrement, unpaidMonthsBefore,
+  type BidContext,
 } from '@/lib/chit/bidding'
 import { placeBid, placeBidForMember } from '@/lib/chit/portal-bids'
 import { getLiveAuction } from '@/lib/chit/portal-data'
@@ -160,7 +161,9 @@ describe('the rules that decide whether a bid stands', () => {
 
 // ── 2. Placing a real bid ───────────────────────────────────────────────────
 
-function db(over: { windowStatus?: string; bids?: any[]; auctions?: any[] } = {}): FakeSupabase {
+function db(over: {
+  windowStatus?: string; bids?: any[]; auctions?: any[]; collections?: any[]
+} = {}): FakeSupabase {
   return new FakeSupabase({
     chit_members: [
       { id: ALICE, user_id: OWNER, name: 'Alice Kumar', phone: '9876543210', is_active: true, portal_enabled: true },
@@ -186,7 +189,9 @@ function db(over: { windowStatus?: string; bids?: any[]; auctions?: any[] } = {}
     chit_auctions: over.auctions ?? [],
     chit_member_pins: [],
     chit_receivables: [],
-    chit_collections: [],
+    // A member who owes for an auctioned month cannot bid, so a fixture with
+    // an auction in it has to say who has paid for it.
+    chit_collections: over.collections ?? [],
     chit_portal_sessions: [],
   })
 }
@@ -269,8 +274,23 @@ describe('placing a bid', () => {
   it('still lets a member bid when SOMEONE ELSE has won', async () => {
     const d = await withPin(db({
       auctions: [{ id: 'a-1', user_id: OWNER, group_id: GROUP, month_number: 2, winner_member_id: BOB, bid_amount: 40000 }],
+      // Alice has paid for the month that was auctioned; somebody else's win
+      // is not her problem.
+      collections: [{ id: 'c-1', user_id: OWNER, group_id: GROUP, member_id: ALICE, month_number: 2, amount: 24000 }],
     }))
     expect((await placeBid(bid(), asClient(d)) as any).ok).toBe(true)
+  })
+
+  // The rule, end to end: the same auction, with Alice not having paid for it.
+  it('refuses a member who owes for a month already auctioned', async () => {
+    const d = await withPin(db({
+      auctions: [{ id: 'a-1', user_id: OWNER, group_id: GROUP, month_number: 2, winner_member_id: BOB, bid_amount: 40000 }],
+    }))
+    const r = await placeBid(bid(), asClient(d)) as any
+    expect(r.ok).toBe(false)
+    expect(r.reason).toBe('DUES_PENDING')
+    expect(r.message).toContain('month 2')
+    expect(d.rows('chit_bids')).toHaveLength(0)
   })
 
   it('refuses a member of a different group, without saying an auction exists', async () => {
@@ -426,5 +446,69 @@ describe('the live auction as a member sees it', () => {
     expect(live!.yourBestBid).toBe(30000)
     expect(live!.bidCount).toBe(2)
     expect(live!.youAreLeading).toBe(false)
+  })
+})
+
+describe('a member who owes cannot bid', () => {
+  // The pot is everybody's subscription. Bidding for it while owing part of
+  // it is asking the other members to fund a prize they are still waiting to
+  // be paid for.
+  const owing = (months: number[]) => ctx({ unpaidMonths: months })
+
+  it('refuses a bid from somebody with an unpaid month', () => {
+    const r = checkBid(5000, owing([3]))
+    expect(r.ok).toBe(false)
+    expect(r.reason).toBe('DUES_PENDING')
+    expect(r.message).toContain('month 3')
+  })
+
+  it('names every month they owe for', () => {
+    expect(checkBid(5000, owing([3, 5])).message).toContain('months 3 and 5')
+    expect(checkBid(5000, owing([2, 3, 5])).message).toContain('months 2, 3 and 5')
+  })
+
+  it('lets a member who owes nothing through', () => {
+    expect(checkBid(5000, owing([])).ok).toBe(true)
+    expect(checkBid(5000, ctx()).ok).toBe(true)
+  })
+
+  // Somebody who can never bid again should be told that, not asked to
+  // settle up first.
+  it('says already-won before it says unpaid', () => {
+    expect(checkBid(5000, ctx({ alreadyWon: true, unpaidMonths: [3] })).reason).toBe('ALREADY_WON')
+  })
+
+  // The phone must not invite a bid that will be refused.
+  it('offers no minimum bid to somebody who cannot bid', () => {
+    expect(minimumAcceptableBid(owing([3]))).toBeNull()
+    expect(minimumAcceptableBid(ctx({ alreadyWon: true }))).toBeNull()
+    expect(minimumAcceptableBid(ctx())).not.toBeNull()
+  })
+})
+
+describe('which months count as owed', () => {
+  const auctioned = [1, 2, 3]
+
+  it('counts auctioned months they have not paid for', () => {
+    expect(unpaidMonthsBefore(auctioned, [1], 4)).toEqual([2, 3])
+  })
+
+  // This month's subscription is not owed until this auction decides what it
+  // is, so bidding for month 4 is not blocked by month 4.
+  it('never counts the month being bid on', () => {
+    expect(unpaidMonthsBefore([1, 2, 3, 4], [1, 2, 3], 4)).toEqual([])
+  })
+
+  it('is empty for somebody fully paid', () => {
+    expect(unpaidMonthsBefore(auctioned, [1, 2, 3], 4)).toEqual([])
+  })
+
+  // A month never auctioned was never billed.
+  it('ignores months that have not been auctioned', () => {
+    expect(unpaidMonthsBefore([1], [], 5)).toEqual([1])
+  })
+
+  it('reads in order, without repeats', () => {
+    expect(unpaidMonthsBefore([3, 1, 3, 2], [], 4)).toEqual([1, 2, 3])
   })
 })

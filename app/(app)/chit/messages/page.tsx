@@ -156,7 +156,12 @@ export default async function ChitMessagesPage() {
         joinedTemplateId={(settings?.joined_template_id as string | null) ?? null}
       />
 
-      <MessageLibrary saved={templates} connected={connected} />
+      <MessageLibrary
+        saved={templates}
+        connected={connected}
+        welcomeTemplateId={(settings?.welcome_template_id as string | null) ?? null}
+        joinedTemplateId={(settings?.joined_template_id as string | null) ?? null}
+      />
 
       <MissingPolicy
         userId={uid}

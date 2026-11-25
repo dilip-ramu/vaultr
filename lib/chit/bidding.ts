@@ -46,12 +46,21 @@ export interface BidContext {
   isMember: boolean
   /** Has this member already taken the prize in this group? */
   alreadyWon: boolean
+  /**
+   * Months of this chit they have been auctioned for and not paid.
+   *
+   * A member who owes cannot bid. The money in the pot is everybody's
+   * subscription, and bidding for it while owing part of it is asking the
+   * other members to fund a prize they are still waiting to be paid for.
+   */
+  unpaidMonths?: readonly number[]
 }
 
 export type BidRejection =
   | 'WINDOW_CLOSED'
   | 'NOT_IN_GROUP'
   | 'ALREADY_WON'
+  | 'DUES_PENDING'
   | 'NOT_A_NUMBER'
   | 'NOT_A_STEP'
   | 'BELOW_MINIMUM'
@@ -63,6 +72,34 @@ export type BidRejection =
  * a round hundred and it beats the standing bid.
  */
 export const BID_STEP = 100
+
+/**
+ * The months of this chit a member has been billed for and not paid.
+ *
+ * Only months that have actually been auctioned count, and only those BEFORE
+ * the one being bid on: this month's subscription is not owed until this
+ * month's auction decides what it is.
+ */
+export function unpaidMonthsBefore(
+  auctionedMonths: readonly number[],
+  paidMonths: readonly number[],
+  currentMonth: number,
+): number[] {
+  const paid = new Set(paidMonths.map(m => Math.round(num(m))))
+  return [...new Set(auctionedMonths.map(m => Math.round(num(m))))]
+    .filter(m => m > 0 && m < Math.round(num(currentMonth)) && !paid.has(m))
+    .sort((a, b) => a - b)
+}
+
+/** 'You have not paid for month 3.' / '…months 3 and 5.' */
+export function duesWords(months: readonly number[]): string {
+  if (months.length === 0) return ''
+  if (months.length === 1) return `You have not paid your subscription for month ${months[0]}.`
+  const list = months.length === 2
+    ? `${months[0]} and ${months[1]}`
+    : `${months.slice(0, -1).join(', ')} and ${months[months.length - 1]}`
+  return `You have not paid your subscription for months ${list}.`
+}
 
 /** The next multiple of BID_STEP at or above n. */
 export function roundUpToStep(n: number): number {
@@ -82,6 +119,8 @@ export interface BidCheck {
  * Returns null when no bid could be accepted at all.
  */
 export function minimumAcceptableBid(ctx: BidContext): number | null {
+  // Nothing to offer somebody who cannot bid at all.
+  if (ctx.alreadyWon || (ctx.unpaidMonths ?? []).length > 0) return null
   // One step above the standing bid. Nothing else.
   //
   // The window stores a frozen min_increment, and this deliberately ignores it.
@@ -109,6 +148,16 @@ export function checkBid(amountRaw: unknown, ctx: BidContext): BidCheck {
       ok: false, reason: 'ALREADY_WON',
       message: 'You have already taken the prize in this chit, so you cannot bid again. '
         + 'You can still watch this auction as it happens.',
+    }
+  }
+  // Owing comes after already-won on purpose: a member who can never bid
+  // again should be told that, not asked to settle first.
+  const owed = ctx.unpaidMonths ?? []
+  if (owed.length > 0) {
+    return {
+      ok: false, reason: 'DUES_PENDING',
+      message: `${duesWords(owed)} Please settle with the organiser to bid in this auction. `
+        + 'You can still watch it as it happens.',
     }
   }
 

@@ -17,9 +17,15 @@ import { monthlyInstallment, numberOfMonths } from '@/lib/chit/auction'
 import { formatAuctionTime } from '@/lib/chit/auctionTime'
 import AuctionRoom from '@/components/chit/AuctionRoom'
 import type { ChitGroup } from '@/lib/chit/types'
+import { unpaidMonthsBefore } from '@/lib/chit/bidding'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Auction room — Inex' }
+
+/** The month about to be auctioned: one past the highest already recorded. */
+function nextMonthFor(auctionedMonths: readonly number[]): number {
+  return auctionedMonths.length === 0 ? 1 : Math.max(...auctionedMonths) + 1
+}
 
 export default async function AuctionRoomPage({
   params,
@@ -37,13 +43,17 @@ export default async function AuctionRoomPage({
   if (!groupRow) notFound()
   const group = groupRow as ChitGroup
 
-  const [{ data: roster }, { data: auctions }] = await Promise.all([
+  const [{ data: roster }, { data: auctions }, { data: collections }] = await Promise.all([
     supabase.from('chit_group_members')
       .select('member_id, slot_number, member:chit_members(id, name, member_code)')
       .eq('user_id', uid).eq('group_id', id),
     supabase.from('chit_auctions')
       .select('month_number, winner_member_id')
       .eq('user_id', uid).eq('group_id', id),
+    // Who has paid what, so somebody who owes cannot bid for a pot the rest
+    // of the members are still funding.
+    supabase.from('chit_collections')
+      .select('member_id, month_number').eq('user_id', uid).eq('group_id', id),
   ])
 
   // Who has already taken the pot, and in which month — so the screen can say
@@ -51,6 +61,12 @@ export default async function AuctionRoomPage({
   const wonMonth: Record<string, number> = {}
   for (const a of (auctions ?? []) as { month_number: number; winner_member_id: string | null }[]) {
     if (a.winner_member_id) wonMonth[a.winner_member_id] = a.month_number
+  }
+
+  const auctionedMonths = ((auctions ?? []) as { month_number: number }[]).map(a => a.month_number)
+  const paidByMember: Record<string, number[]> = {}
+  for (const c of (collections ?? []) as { member_id: string; month_number: number }[]) {
+    paidByMember[c.member_id] = [...(paidByMember[c.member_id] ?? []), c.month_number]
   }
 
   const members = ((roster ?? []) as {
@@ -64,6 +80,11 @@ export default async function AuctionRoomPage({
       code: m?.member_code ?? null,
       slot: r.slot_number,
       wonMonth: wonMonth[r.member_id] ?? null,
+      // Months already auctioned that they have not paid for. This month is
+      // not counted: its subscription is not owed until this auction decides
+      // what it is.
+      unpaidMonths: unpaidMonthsBefore(
+        auctionedMonths, paidByMember[r.member_id] ?? [], nextMonthFor(auctionedMonths)),
     }
   }).sort((a, b) => a.name.localeCompare(b.name))
 

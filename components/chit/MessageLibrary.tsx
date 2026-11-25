@@ -40,10 +40,20 @@ interface Row { key: string; t: MessageTemplate }
 let localKeys = 0
 const newKey = () => `new-${++localKeys}`
 
-export default function MessageLibrary({ saved, connected }: {
+export default function MessageLibrary({
+  saved, connected, welcomeTemplateId = null, joinedTemplateId = null,
+}: {
   saved: MessageTemplate[]
   /** Whether a WhatsApp business account is connected. */
   connected: boolean
+  /**
+   * The two messages sent when somebody joins. They reach ONE member — the
+   * one who joined — whatever 'who it goes to' says, because the trigger
+   * names them. Said on the card, because the dropdown above it reads as
+   * though it decides, and for these two it does not.
+   */
+  welcomeTemplateId?: string | null
+  joinedTemplateId?: string | null
 }) {
   const router = useRouter()
   // Local copies, so a half-written message is not lost by a re-render. An
@@ -211,6 +221,13 @@ export default function MessageLibrary({ saved, connected }: {
                   <option value="winner">the auction winner</option>
                   <option value="unpaid">members who still owe</option>
                 </select>
+                {(t.id === welcomeTemplateId || t.id === joinedTemplateId) && (
+                  <span className="block mt-1 text-[10.5px] font-normal" style={{ color: 'var(--brand)' }}>
+                    This one is sent {t.id === welcomeTemplateId ? 'when a member is added' : 'when a member joins a chit'},
+                    so it reaches only that member whatever is chosen here. Leave it on
+                    &ldquo;every member&rdquo;.
+                  </span>
+                )}
               </label>
             </div>
 

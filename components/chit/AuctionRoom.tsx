@@ -42,6 +42,8 @@ interface RoomMember {
   slot: number | null
   /** The month they took the pot, if they have. They cannot bid again. */
   wonMonth: number | null
+  /** Months already auctioned that they have not paid for. */
+  unpaidMonths?: number[]
 }
 interface BidRow {
   id: string
@@ -150,7 +152,11 @@ export default function AuctionRoom({
     } finally { setBusy(null) }
   }
 
-  const eligible = members.filter(m => m.wonMonth == null)
+  // Two reasons somebody cannot bid, and they are different: one has had
+  // their turn, the other owes for a month already auctioned. The second can
+  // be fixed in the room by paying; the first cannot be fixed at all.
+  const eligible = members.filter(m => m.wonMonth == null && (m.unpaidMonths ?? []).length === 0)
+  const owing = members.filter(m => m.wonMonth == null && (m.unpaidMonths ?? []).length > 0)
   const past = members.filter(m => m.wonMonth != null)
   const card = { border: '1px solid var(--border)', background: 'var(--surface)' }
 
@@ -292,6 +298,29 @@ export default function AuctionRoom({
                 </div>
               )}
             </div>
+
+            {owing.length > 0 && (
+              <div className="rounded-2xl p-4" style={card}>
+                <p className="text-[11px] uppercase tracking-wide font-extrabold mb-2"
+                  style={{ color: 'var(--expense)' }}>
+                  Owes for an earlier month — cannot bid
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  {owing.map(m => (
+                    <p key={m.id} className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
+                      {m.name}{' '}
+                      <span style={{ color: 'var(--text-faint)' }}>
+                        · month{(m.unpaidMonths ?? []).length > 1 ? 's' : ''} {(m.unpaidMonths ?? []).join(', ')}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+                <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--text-faint)' }}>
+                  Record their payment and they can bid in this same auction — the list updates
+                  when the page is refreshed.
+                </p>
+              </div>
+            )}
 
             {past.length > 0 && (
               <div className="rounded-2xl p-4" style={card}>
