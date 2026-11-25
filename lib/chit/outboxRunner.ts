@@ -146,7 +146,7 @@ export async function sendQueuedNow(userId: string): Promise<void> {
     // must not leave the row sitting until tomorrow. A send genuinely booked
     // for the next minute leaving a minute early harms nobody.
     await drainOutbox(createAdminClient(), {
-      userId, limit: 10, now: new Date(Date.now() + 60_000),
+      userId, limit: 40, now: new Date(Date.now() + 60_000),
     })
   } catch {
     // Left for the daily run.

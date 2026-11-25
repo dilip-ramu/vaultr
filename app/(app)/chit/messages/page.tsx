@@ -53,10 +53,13 @@ export default async function ChitMessagesPage() {
       .select('id, member_id, body, kind, status, error, sent_at, member:chit_members(name, member_code)')
       .eq('user_id', uid).not('member_id', 'is', null)
       .order('sent_at', { ascending: false }).limit(400),
-    // What is waiting to go out, and what recently did.
+    // What is waiting to go out, and what recently did. A cancelled row is a
+    // send you asked NOT to happen, so it is left out — the list is for what
+    // is coming and what went, not a record of changed minds.
     supabase.from('chit_scheduled_sends')
       .select('id, send_at, scope, status, result, template:chit_message_templates(label), group:chit_groups(name), member:chit_members(name)')
-      .eq('user_id', uid).order('send_at', { ascending: true }).limit(30),
+      .eq('user_id', uid).neq('status', 'cancelled')
+      .order('send_at', { ascending: true }).limit(30),
   ])
 
   const templates = ((templateRows ?? []) as Record<string, unknown>[]).map(fromRow)

@@ -98,6 +98,19 @@ export default function SendNow({
     } finally { setBusy(false) }
   }
 
+  // The queue drains on a daily cron, so a message booked for this evening
+  // can sit there looking broken. This press drains it here and now.
+  async function runQueue() {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/chit/outbox/run', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { notify(data.error ?? 'Could not send them', 'error'); return }
+      notify(data.note ?? 'Done', 'success')
+      router.refresh()
+    } finally { setBusy(false) }
+  }
+
   async function cancel(rowId: string) {
     const res = await fetch(`/api/chit/send-now?id=${rowId}`, { method: 'DELETE' })
     const data = await res.json()
@@ -260,6 +273,19 @@ export default function SendNow({
             style={{ color: 'var(--text-faint)', background: 'var(--surface-2)' }}>
             {waiting.length > 0 ? `${waiting.length} waiting to go` : 'Recently queued'}
           </p>
+          {waiting.some(q => new Date(q.send_at).getTime() <= Date.now()) && (
+            <div className="px-4 py-2.5 flex items-center justify-between gap-3"
+              style={{ borderTop: '1px solid var(--border)' }}>
+              <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                Their time has passed. They leave on the next check, or now if you say so.
+              </p>
+              <button onClick={runQueue} disabled={busy}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-white text-[12px] font-bold disabled:opacity-50"
+                style={{ background: 'var(--brand)' }}>
+                {busy ? 'Sending…' : 'Send them now'}
+              </button>
+            </div>
+          )}
           {queued.slice(0, 20).map(q => (
             <div key={q.id} className="px-4 py-2.5 flex items-start justify-between gap-3"
               style={{ borderTop: '1px solid var(--border)' }}>
