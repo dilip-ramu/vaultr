@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Upload, Trash2, Pencil, X, Phone, Link2, LogOut, KeyRound } from 'lucide-react'
+import MemberAvatar from './MemberAvatar'
 import { notify } from '@/components/shared/Toast'
 import { confirmDialog } from '@/components/shared/ConfirmDialog'
 import type { ChitMember } from '@/lib/chit/types'
@@ -183,6 +184,8 @@ export default function ChitMembersClient({ initialMembers }: { initialMembers: 
         {filtered.map((m, i) => (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3"
             style={{ borderTop: i > 0 ? '1px solid var(--border)' : undefined }}>
+            <MemberAvatar id={m.id} name={m.name}
+              hasPhoto={Boolean((m as { photo_path?: string | null }).photo_path)} />
             <Link href={`/chit/members/${m.id}`} className="min-w-0 flex-1 group">
               <p className="text-sm font-bold truncate flex items-center gap-2" style={{ color: 'var(--text)' }}>
                 <span className="group-hover:underline underline-offset-2">{m.name}</span>

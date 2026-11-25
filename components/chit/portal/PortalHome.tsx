@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { Card, Row, inr, fmtDate, SignOut } from './shared'
+import PortalAvatar from './PortalAvatar'
 import type { PortalMember, PortalGroupSummary } from '@/lib/chit/portal-data'
 
 export default function PortalHome({
@@ -14,16 +15,23 @@ export default function PortalHome({
   return (
     <div className="pt-8 space-y-4">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Signed in as</p>
-          <h1 className="text-xl font-extrabold leading-tight">{member.name}</h1>
-          <p className="text-[11.5px] mt-0.5" style={{ color: 'var(--text-faint)' }}>
-            {[member.memberCode, member.phoneMasked].filter(Boolean).join(' · ')}
-          </p>
-          <Link href="/m/profile" className="inline-flex items-center gap-1 text-[12px] font-bold mt-1"
-            style={{ color: 'var(--brand)' }}>
-            Your details <ChevronRight className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-3 min-w-0">
+          {/* The photo IS the way in to their details — a member taps their
+              own face, not a line of text. */}
+          <Link href="/m/profile" aria-label="Your details">
+            <PortalAvatar name={member.name} src={member.hasPhoto ? '/api/portal/photo' : null} />
           </Link>
+          <div className="min-w-0">
+            <h1 className="text-xl font-extrabold leading-tight truncate">{member.name}</h1>
+            {member.memberCode && (
+              <p className="text-[14px] font-bold mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                Member number — {member.memberCode}
+              </p>
+            )}
+            {member.phoneMasked && (
+              <p className="text-[11.5px]" style={{ color: 'var(--text-faint)' }}>{member.phoneMasked}</p>
+            )}
+          </div>
         </div>
         <div className="pt-1"><SignOut /></div>
       </div>

@@ -52,6 +52,8 @@ export interface PortalMember {
   phoneMasked: string | null
   /** Quoted on every call and printed on receipts, so it is shown in full. */
   memberCode: string | null
+  /** Whether to ask for their photo, so somebody without one is not a 404. */
+  hasPhoto: boolean
 }
 
 /**
@@ -75,6 +77,7 @@ export interface PortalProfile {
   bankIfsc: string | null
   bankBranch: string | null
   nomineeName: string | null
+  hasPhoto: boolean
 }
 
 export interface PortalGroupSummary {
@@ -180,7 +183,7 @@ async function membershipsOf(memberId: string, client?: Db): Promise<Map<string,
 export async function getMember(memberId: string, client?: Db): Promise<PortalMember | null> {
   const db = admin(client)
   const { data } = await db.from('chit_members')
-    .select('id, name, phone, member_code')   // NOT *: aadhaar, pan stay out
+    .select('id, name, phone, member_code, photo_path')  // NOT *: aadhaar, pan stay out
     .eq('id', memberId).limit(1)
   const m = (data ?? [])[0] as any
   if (!m) return null
@@ -188,6 +191,7 @@ export async function getMember(memberId: string, client?: Db): Promise<PortalMe
     id: m.id, name: m.name,
     phoneMasked: maskPhone(m.phone),
     memberCode: m.member_code ?? null,
+    hasPhoto: Boolean(m.photo_path),
   }
 }
 
@@ -201,7 +205,7 @@ export async function getMember(memberId: string, client?: Db): Promise<PortalMe
 export async function getProfile(memberId: string, client?: Db): Promise<PortalProfile | null> {
   const db = admin(client)
   const { data } = await db.from('chit_members')
-    .select('id, name, phone, member_code, address, aadhaar, pan, nominees, bank_name, bank_account_name, bank_account_number, bank_ifsc, bank_branch')
+    .select('id, name, phone, member_code, photo_path, address, aadhaar, pan, nominees, bank_name, bank_account_name, bank_account_number, bank_ifsc, bank_branch')
     .eq('id', memberId).limit(1)
   const m = (data ?? [])[0] as any
   if (!m) return null
@@ -222,6 +226,7 @@ export async function getProfile(memberId: string, client?: Db): Promise<PortalP
     bankIfsc: m.bank_ifsc ?? null,
     bankBranch: m.bank_branch ?? null,
     nomineeName: nominee,
+    hasPhoto: Boolean(m.photo_path),
   }
 }
 

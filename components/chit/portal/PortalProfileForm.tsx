@@ -16,8 +16,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Loader2, Check, Lock } from 'lucide-react'
+import { ChevronLeft, Loader2, Check, Lock, Camera } from 'lucide-react'
 import { Card } from './shared'
+import PortalAvatar from './PortalAvatar'
+import { photoProblem } from '@/lib/chit/memberPhoto'
 import {
   profileProblems, FIELD_LABEL, type EditableField, type ProfilePatch,
 } from '@/lib/chit/memberProfile'
@@ -50,6 +52,28 @@ export default function PortalProfileForm({ profile }: { profile: PortalProfile 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  // Bumped after an upload so the browser fetches the new photo rather than
+  // the one it already has at the same address.
+  const [photoVersion, setPhotoVersion] = useState(0)
+  const [hasPhoto, setHasPhoto] = useState(profile.hasPhoto)
+
+  async function uploadPhoto(file: File) {
+    const problem = photoProblem({ type: file.type, size: file.size })
+    if (problem) { setError(problem); return }
+    setPhotoBusy(true); setError(null)
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const res = await fetch('/api/portal/photo', { method: 'POST', body })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(data.error ?? 'Could not save the photo'); return }
+      setHasPhoto(true)
+      setPhotoVersion(v => v + 1)
+      setSaved('Photo updated.')
+      router.refresh()
+    } finally { setPhotoBusy(false) }
+  }
 
   const problems = profileProblems(form)
   const problemFor = (f: EditableField) => problems.find(p => p.field === f)?.message
@@ -80,11 +104,35 @@ export default function PortalProfileForm({ profile }: { profile: PortalProfile 
 
       <h1 className="text-xl font-extrabold leading-tight">Your details</h1>
 
+      {/* Their photograph. The organiser sees it too, which is the point: a
+          face beside a name on a collection round. */}
+      <div className="flex items-center gap-3">
+        <PortalAvatar
+          name={profile.name}
+          src={hasPhoto ? `/api/portal/photo?v=${photoVersion}` : null}
+          size={72}
+        />
+        <label className="inline-flex items-center gap-1.5 text-[12.5px] font-bold cursor-pointer"
+          style={{ color: 'var(--brand)' }}>
+          {photoBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+          {hasPhoto ? 'Change photo' : 'Add a photo'}
+          <input type="file" accept="image/*" className="hidden" disabled={photoBusy}
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) uploadPhoto(f)
+              e.target.value = ''
+            }} />
+        </label>
+      </div>
+
+      <p className="text-[14px] font-bold" style={{ color: 'var(--text-muted)' }}>
+        Member number — {profile.memberCode ?? 'not set'}
+      </p>
+
       {/* What only the organiser can change. */}
       <Card className="p-4 space-y-2">
         {[
           ['Name', profile.name],
-          ['Member number', profile.memberCode ?? 'not set'],
           ['Phone', profile.phone ?? 'not set'],
         ].map(([label, value]) => (
           <div key={label} className="flex items-center justify-between gap-3">
@@ -94,8 +142,8 @@ export default function PortalProfileForm({ profile }: { profile: PortalProfile 
         ))}
         <p className="text-[11px] flex items-start gap-1.5 pt-1" style={{ color: 'var(--text-faint)' }}>
           <Lock className="w-3 h-3 mt-0.5 shrink-0" />
-          These three identify you, so only the chit organiser can change them. Ask them if any
-          of it is wrong.
+          These, and your member number, identify you — so only the chit organiser can change
+          them. Ask them if any of it is wrong.
         </p>
       </Card>
 
