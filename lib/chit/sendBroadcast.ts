@@ -18,7 +18,7 @@ import {
   renderedText, type MessageTemplate,
 } from './messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from './messageFields'
-import { factsFor, auctionSettled } from './messageFacts'
+import { factsFor, auctionSettled, oneMonthOn } from './messageFacts'
 import { scheduledAuctionDate } from './messages'
 import { cloudConfig, sendTemplate, type CloudConfig } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
@@ -110,6 +110,7 @@ export async function broadcast(i: BroadcastInput): Promise<BroadcastResult> {
     const auctionDate = auction ? String(auction.auction_date).slice(0, 10) : null
     const nextAuctionDate = auctionDate
       ? scheduledAuctionDate(String(g.start_date ?? ''), Number(g.auction_day) || null, monthNumber + 1)
+        ?? oneMonthOn(auctionDate, Number(g.auction_day) || null)
       : null
 
     const [{ data: links }, { data: paid }, { data: windows }, { data: allAuctions }] = await Promise.all([

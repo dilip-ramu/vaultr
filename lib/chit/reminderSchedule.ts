@@ -68,7 +68,10 @@ export interface Step {
 
 /** His six, as the app ships them. */
 export const DEFAULT_STEPS: readonly Step[] = [
-  { key: 'notice',     kind: 'notice',   audience: 'all',    anchor: 'auction',      offsetDays: -3, enabled: true },
+  // Three days before the NEXT auction. Anchored to the one just held, this
+  // would be a date in the past on every single run, and the notice would
+  // never go out at all.
+  { key: 'notice',     kind: 'notice',   audience: 'all',    anchor: 'next_auction', offsetDays: -3, enabled: true },
   // The result messages go out when the auction is recorded, not when it was
   // held — see the note on Anchor.
   { key: 'dues',       kind: 'dues',     audience: 'except_winner', anchor: 'settled', offsetDays: 0, enabled: true },

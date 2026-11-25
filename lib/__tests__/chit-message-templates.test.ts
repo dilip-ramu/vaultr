@@ -572,3 +572,43 @@ describe('a payment reminder never reaches somebody who has paid', () => {
     }
   })
 })
+
+describe('a notice must announce the auction that is coming', () => {
+  const notice = STARTER_LIBRARY.find(t => t.name === 'chit_auction_notice')!
+
+  // The bug this exists for: a notice sent on the 2nd about an auction held
+  // on the 1st announces an event that is over.
+  it('ships naming the next auction, not the last one', () => {
+    const used = fieldsUsed(notice.body)
+    expect(used).toContain('next_auction_date')
+    expect(used).toContain('next_month')
+    expect(used).not.toContain('auction_date')
+    expect(used).not.toContain('month')
+  })
+
+  it('warns when a step before the next auction names the old one', () => {
+    const wrong = tpl({
+      audience: 'all',
+      body: 'Hello {{member_name}}, the {{month}} auction is on {{auction_date}}. Please join us.',
+    })
+    const w = stepWarning(
+      { audience: 'all', templateId: 'a', offsetDays: -3, anchor: 'next_auction' }, wrong, 10)
+    expect(w).toContain('names the one already held')
+  })
+
+  it('says nothing when it names the right one', () => {
+    expect(stepWarning(
+      { audience: 'all', templateId: 'a', offsetDays: -3, anchor: 'next_auction' }, notice, 10)).toBeNull()
+  })
+
+  // The dues message is ABOUT the month just auctioned and goes out after it,
+  // so naming the held auction is correct there.
+  it('leaves a message about the month just auctioned alone', () => {
+    const dues = tpl({
+      audience: 'all',
+      body: 'Hello {{member_name}}, your subscription for {{month}} is Rs {{amount_due}}. Thank you.',
+    })
+    expect(stepWarning(
+      { audience: 'all', templateId: 'a', offsetDays: 0, anchor: 'settled' }, dues, 10)).toBeNull()
+  })
+})

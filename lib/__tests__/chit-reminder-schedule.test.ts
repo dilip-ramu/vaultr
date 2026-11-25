@@ -118,8 +118,11 @@ describe('who gets messaged today', () => {
     expect(plan(input({ today: '2026-11-11' })).due).toEqual([])
   })
 
-  it('sends the notice before the auction and the dues on the day', () => {
-    expect(plan(input({ today: '2026-11-02' })).due.map(d => d.stepKey)).toEqual(['notice'])
+  it('sends the notice before the NEXT auction and the dues on the day', () => {
+    // Three days before 5 December, not before the November auction that has
+    // already been held.
+    expect(plan(input({ today: '2026-12-02' })).due.map(d => d.stepKey)).toEqual(['notice'])
+    expect(plan(input({ today: '2026-11-02' })).due).toEqual([])
     // m1 won, so m1 gets the winner message and m2 gets the dues — the winner
     // is not sent both.
     const onDay = plan(input({
@@ -212,7 +215,7 @@ describe('the timetable for a month', () => {
       auctionDate: '2026-11-05', nextAuctionDate: '2026-12-05', settledDate: '2026-11-06',
     })
     expect(t.map(x => x.date)).toEqual([
-      '2026-11-02', '2026-11-06', '2026-11-06', '2026-11-10', '2026-11-20', '2026-12-04',
+      '2026-11-06', '2026-11-06', '2026-11-10', '2026-11-20', '2026-12-02', '2026-12-04',
     ])
   })
 
@@ -348,8 +351,10 @@ describe('the result messages wait for the auction to be recorded', () => {
     expect(stepProblem(step({ key: 'x', anchor: 'settled', offsetDays: 0 }))).toBeNull()
   })
 
-  it('leaves the notice and the reminders on the auction dates', () => {
-    expect(DEFAULT_STEPS.find(s => s.key === 'notice')!.anchor).toBe('auction')
+  it('leaves the notice and the reminders off the recording date', () => {
+    // The notice hangs off the next auction, the reminders off the last one.
+    // Neither waits for the figures, because neither carries any.
+    expect(DEFAULT_STEPS.find(s => s.key === 'notice')!.anchor).toBe('next_auction')
     expect(DEFAULT_STEPS.filter(s => s.kind === 'reminder').every(s => s.anchor !== 'settled')).toBe(true)
   })
 })
@@ -435,5 +440,29 @@ describe('a member who asked not to be messaged', () => {
       today: '2026-11-02',
     }))
     expect(p.due).toEqual([])
+  })
+})
+
+describe('the notice goes out before the next auction', () => {
+  // Anchored to the auction already held, three days before it is a date in
+  // the past on every run — so the notice would never have gone out at all.
+  it('is anchored to the next auction, not the last one', () => {
+    const notice = DEFAULT_STEPS.find(s => s.key === 'notice')!
+    expect({ anchor: notice.anchor, offset: notice.offsetDays })
+      .toEqual({ anchor: 'next_auction', offset: -3 })
+  })
+
+  it('falls three days before the next auction', () => {
+    const p = plan(input({ today: '2026-12-02' }))
+    expect(p.due.map(d => d.stepKey)).toEqual(['notice'])
+  })
+
+  it('waits when the next auction is not scheduled yet', () => {
+    const p = plan(input({
+      today: '2026-12-02',
+      anchors: { auctionDate: '2026-11-05', settledDate: '2026-11-05' },
+    }))
+    expect(p.due).toEqual([])
+    expect(p.skipped.some(s => s.stepKey === 'notice' && s.reason === 'anchor_unknown')).toBe(true)
   })
 })

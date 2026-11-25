@@ -26,6 +26,32 @@ export function monthLabel(iso: string): string {
   return `${MONTHS[Number(m[2]) - 1] ?? m[2]} ${m[1]}`
 }
 
+/**
+ * One month on from a date, landing on the group's auction day.
+ *
+ * The LAST fallback for 'when is the next auction'. A row in the table beats
+ * it, and the calendar worked out from the chit's start date beats it — but
+ * both can be missing, and a notice should not go unsent because next month's
+ * auction has not been entered yet. There is always a month after this one.
+ *
+ * The day is clamped to the month's length, so a chit auctioned on the 31st
+ * falls on the 28th in February rather than slipping into March.
+ */
+export function oneMonthOn(iso: string, auctionDay?: number | null): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''))
+  if (!m) return null
+  const year = Number(m[1])
+  const month = Number(m[2])            // 1-based
+  const wanted = Math.round(Number(auctionDay ?? 0)) || Number(m[3])
+
+  const nextYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  const daysInMonth = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate()
+  const day = Math.min(Math.max(1, wanted), daysInMonth)
+
+  return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 /** The name on the first entry of a nominee or guarantor list, if there is one. */
 export function firstName(v: unknown): string | null {
   if (!Array.isArray(v) || v.length === 0) return null
@@ -213,6 +239,13 @@ export function factsFor(i: FactsInput): Facts {
     auctionDate,
     auctionTime: g.auction_time ?? null,
     nextAuctionDate: i.nextAuctionDate ?? null,
+    // The month the NEXT auction falls in, for a notice about it. Worked out
+    // from its date rather than by adding one to this month, so a skipped or
+    // rescheduled month says the truth.
+    nextMonth: i.nextAuctionDate ? monthLabel(String(i.nextAuctionDate)) : null,
+    nextMonthNumber: a && maybe(a.month_number) != null
+      ? Math.round(num(a.month_number)) + 1
+      : null,
     winnerName: i.winner?.name ?? null,
     winnerCode: i.winner?.member_code ?? null,
 

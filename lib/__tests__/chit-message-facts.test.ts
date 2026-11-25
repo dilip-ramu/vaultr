@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  factsFor, auctionSettled, monthLabel, firstName, pendingDues,
+  factsFor, auctionSettled, monthLabel, firstName, pendingDues, oneMonthOn,
   type FactsInput, type GroupRow, type AuctionRow, type MemberRow,
 } from '@/lib/chit/messageFacts'
 
@@ -216,5 +216,57 @@ describe('the winner’s own netting', () => {
     const f = factsFor(input())
     expect(f.pendingDues).toBeNull()
     expect(f.payoutAfterDues).toBeNull()
+  })
+})
+
+describe('the auction coming, as opposed to the one just held', () => {
+  it('names the month the next auction falls in', () => {
+    const f = factsFor(input({ nextAuctionDate: '2026-12-05' }))
+    expect(f.month).toBe('November 2026')
+    expect(f.nextMonth).toBe('December 2026')
+    expect(f.nextMonthNumber).toBe(8)
+  })
+
+  // A skipped or rescheduled month must not be guessed at by adding one.
+  it('takes the month from the date, not by counting', () => {
+    expect(factsFor(input({ nextAuctionDate: '2027-01-15' })).nextMonth).toBe('January 2027')
+  })
+
+  // The chit has finished, or the next auction is not scheduled. A notice
+  // with nothing to announce is held rather than sent half-filled.
+  it('has nothing to say when the next auction is unknown', () => {
+    const f = factsFor(input({ nextAuctionDate: null }))
+    expect(f.nextMonth).toBeNull()
+    expect(f.nextAuctionDate).toBeNull()
+  })
+})
+
+describe('a month on, when nothing says otherwise', () => {
+  // A notice must not be held back because next month's auction has not been
+  // entered yet. There is always a month after this one.
+  it('lands on the same day next month', () => {
+    expect(oneMonthOn('2026-11-05', 5)).toBe('2026-12-05')
+    expect(oneMonthOn('2026-11-05', null)).toBe('2026-12-05')
+  })
+
+  it('crosses the year', () => {
+    expect(oneMonthOn('2026-12-05', 5)).toBe('2027-01-05')
+  })
+
+  // A chit auctioned on the 31st falls on the 28th in February, not in March.
+  it('clamps to the length of the month', () => {
+    expect(oneMonthOn('2027-01-31', 31)).toBe('2027-02-28')
+    expect(oneMonthOn('2028-01-31', 31)).toBe('2028-02-29')
+    expect(oneMonthOn('2026-10-31', 31)).toBe('2026-11-30')
+  })
+
+  it('follows the group’s auction day over the date it was actually held', () => {
+    // Held late on the 9th, but the chit's day is the 5th.
+    expect(oneMonthOn('2026-11-09', 5)).toBe('2026-12-05')
+  })
+
+  it('has nothing to say about an unreadable date', () => {
+    expect(oneMonthOn('', 5)).toBeNull()
+    expect(oneMonthOn('next month', 5)).toBeNull()
   })
 })

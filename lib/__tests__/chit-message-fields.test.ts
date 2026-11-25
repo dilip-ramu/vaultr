@@ -22,6 +22,7 @@ const facts = (o: Partial<Facts> = {}): Facts => ({
   nomineeName: 'Lakshmi', guarantorName: 'Murugan',
   today: '2026-11-20',
   totalMonths: 20, startDate: '2026-04-05', endDate: '2027-11-05', auctionDay: 5,
+  nextMonth: 'December 2026', nextMonthNumber: 8,
   commissionPct: 5, commissionAmount: 25000,
   minBid: 100, maxDiscount: 150000, maxDiscountPct: 30,
   ...o,

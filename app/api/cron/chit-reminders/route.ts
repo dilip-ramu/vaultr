@@ -34,7 +34,7 @@ import {
   chasesPayment, renderedText, type MessageTemplate,
 } from '@/lib/chit/messageTemplates'
 import { missingWords, usesResultFields, type MissingPolicy } from '@/lib/chit/messageFields'
-import { factsFor, auctionSettled } from '@/lib/chit/messageFacts'
+import { factsFor, auctionSettled, oneMonthOn } from '@/lib/chit/messageFacts'
 import { cloudConfig, sendTemplate } from '@/lib/whatsapp/cloud'
 import { normalizeWhatsAppNumber } from '@/lib/whatsapp'
 import { scheduledAuctionDate } from '@/lib/chit/messages'
@@ -141,9 +141,14 @@ export async function GET(req: NextRequest) {
       .gt('auction_date', auctionDate)
       .order('auction_date', { ascending: true })
       .limit(1)
+    // Three ways of knowing, in order of authority: a row already in the
+    // table, the calendar worked out from the chit's start date, and failing
+    // both, simply a month on from this auction. The last one exists so a
+    // notice is never held back because next month has not been entered yet.
     const nextAuctionDate = (future ?? [])[0]
       ? String((future as Record<string, unknown>[])[0].auction_date).slice(0, 10)
       : scheduledAuctionDate(String(g.start_date ?? ''), Number(g.auction_day) || null, monthNumber + 1)
+        ?? oneMonthOn(auctionDate, Number(g.auction_day) || null)
 
     const [{ data: links }, { data: paid }, { data: log }, { data: windows }, { data: allAuctions }] = await Promise.all([
       sb.from('chit_group_members').select('member_id, slot_number').eq('group_id', groupId),

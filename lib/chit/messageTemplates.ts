@@ -28,7 +28,7 @@
 
 import {
   field, fieldProblem, labelToField, renderFields, safeVar, usesResultFields,
-  MISSING_WORD, valueFor, decideMissing,
+  usesPastAuctionFields, MISSING_WORD, valueFor, decideMissing,
   type FieldId, type FieldSpec, type Facts, type MissingPolicy,
 } from './messageFields'
 import type { Audience } from './reminderSchedule'
@@ -472,6 +472,13 @@ export function stepWarning(
   }
   const used = fieldsUsed(t.body)
 
+  // A notice goes out BEFORE an auction, so it must name the auction coming
+  // — not the one already held, which is what 'auction date' and 'month'
+  // mean. Sent on the 2nd about the 1st, it announces an event that is over.
+  if (step.anchor === 'next_auction' && usesPastAuctionFields(used)) {
+    return 'This goes out before the next auction but names the one already held. Use "next auction date" and "next month" instead.'
+  }
+
   // A message carrying the result cannot be written before the result is
   // entered, and a chit auction is often entered a day or two after it is
   // held. Counted from the auction date, it would go out empty — or, once the
@@ -509,7 +516,9 @@ export const STARTER_LIBRARY: readonly MessageTemplate[] = [
   {
     id: '', label: 'Auction notice', name: 'chit_auction_notice', language: 'en',
     category: 'UTILITY', audience: 'all',
-    body: 'Hello {{member_name}}, the {{month}} auction for {{group_name}} is on {{auction_date}} at {{auction_time}}. Your monthly subscription is Rs {{installment}}. You are welcome to join us.',
+    // The NEXT auction. A notice naming the one already held announces an
+    // event that is over.
+    body: 'Hello {{member_name}}, the {{next_month}} auction for {{group_name}} is on {{next_auction_date}} at {{auction_time}}. Your monthly subscription is Rs {{installment}}. You are welcome to join us.',
     footer: null, status: 'DRAFT', editTimes: [], sortOrder: 1,
   },
   {

@@ -41,7 +41,8 @@ export type FieldId =
   | 'chit_value' | 'installment'
   | 'commission_pct' | 'commission_amount'
   | 'min_bid' | 'max_discount' | 'max_discount_pct'
-  | 'auction_date' | 'auction_time' | 'next_auction_date'
+  | 'auction_date' | 'auction_time'
+  | 'next_auction_date' | 'next_month' | 'next_month_number'
   | 'winner_name' | 'winner_code'
   | 'amount_due' | 'due_date' | 'dividend'
   | 'days_since_auction' | 'days_to_due' | 'days_overdue'
@@ -104,9 +105,14 @@ export const FIELDS: readonly FieldSpec[] = [
   { id: 'max_discount_pct', label: 'maximum discount percent', sample: '30',   group: 'terms' },
   { id: 'month_number',  label: 'month number',   sample: '7',                 group: 'group',
     note: 'The 7th of 20 months.' },
-  { id: 'auction_date',  label: 'auction date',   sample: '5 November 2026',   group: 'auction' },
+  { id: 'auction_date',  label: 'auction date',   sample: '5 November 2026',   group: 'auction',
+    note: 'The auction already held this month. For a notice about the one coming, use "next auction date".' },
   { id: 'auction_time',  label: 'auction time',   sample: '6:30 PM',           group: 'auction' },
-  { id: 'next_auction_date', label: 'next auction date', sample: '5 December 2026', group: 'auction' },
+  { id: 'next_auction_date', label: 'next auction date', sample: '5 December 2026', group: 'auction',
+    note: 'Use this in a notice. "Auction date" is the one that has already been held.' },
+  { id: 'next_month',    label: 'next month',     sample: 'December 2026',      group: 'auction',
+    note: 'The month the NEXT auction falls in. "Month" is the one just auctioned.' },
+  { id: 'next_month_number', label: 'next month number', sample: '8',           group: 'auction' },
   { id: 'winner_name',   label: 'who won',        sample: 'Ravi',              group: 'auction',
     note: 'The member who took the chit this month.' },
   { id: 'winner_code',   label: 'winner\u2019s number', sample: 'M-014',        group: 'auction',
@@ -277,6 +283,9 @@ export interface Facts {
   /** The winner's number in the register. */
   winnerCode?: string | null
   nextAuctionDate?: string | null
+  /** The month the next auction falls in, for a notice about it. */
+  nextMonth?: string | null
+  nextMonthNumber?: number | null
   amountDue?: number | null
   dividend?: number | null
   dueDate?: string | null
@@ -346,6 +355,8 @@ export function valueFor(id: FieldId, f: Facts): string | null {
     case 'auction_date':  return dateWords(f.auctionDate)
     case 'auction_time':  return text(f.auctionTime)
     case 'next_auction_date': return dateWords(f.nextAuctionDate)
+    case 'next_month':    return text(f.nextMonth)
+    case 'next_month_number': return has(f.nextMonthNumber) ? String(Math.round(Number(f.nextMonthNumber))) : null
     case 'winner_name':   return text(f.winnerName)
     case 'winner_code':   return text(f.winnerCode)
     case 'amount_due':    return has(f.amountDue) ? money(Number(f.amountDue)) : null
@@ -528,6 +539,8 @@ const ALIASES: Record<string, FieldId> = {
   'days since auction': 'days_since_auction',
   'days since the auction': 'days_since_auction',
   'days until due': 'days_to_due',
+  'next auction': 'next_auction_date',
+  'coming month': 'next_month',
 }
 
 export function labelToField(label: string): FieldSpec | undefined {
@@ -537,6 +550,22 @@ export function labelToField(label: string): FieldSpec | undefined {
   if (exact) return exact
   const alias = ALIASES[want]
   return alias ? field(alias) : field(want.replace(/\s+/g, '_'))
+}
+
+/**
+ * The details that describe the auction already held, as opposed to the one
+ * coming next.
+ *
+ * A notice announcing a date in the past is the mistake these exist to catch:
+ * sent on the 2nd about an auction held on the 1st, it reads as a reminder to
+ * attend something that is over.
+ */
+export const PAST_AUCTION_FIELDS: readonly FieldId[] = [
+  'auction_date', 'month', 'month_number',
+]
+
+export function usesPastAuctionFields(ids: readonly FieldId[]): boolean {
+  return ids.some(id => PAST_AUCTION_FIELDS.includes(id))
 }
 
 /**
