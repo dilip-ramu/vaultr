@@ -14,20 +14,32 @@ export const fmtDate = (d: string | null | undefined): string => {
     : dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+export function Card({ children, className = '', style }: {
+  children: React.ReactNode
+  className?: string
+  /** Merged over the card's own look — for marking one row out from the rest. */
+  style?: React.CSSProperties
+}) {
   return (
     <div className={`rounded-2xl ${className}`}
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)', ...style }}>
       {children}
     </div>
   )
 }
 
-export function Row({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) {
+export function Row({ label, value, tone, compact = false }: {
+  label: string
+  value: React.ReactNode
+  tone?: string
+  /** Half the height and a size smaller — for a long list read on a phone. */
+  compact?: boolean
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <span className="text-[12.5px] shrink-0" style={{ color: 'var(--text-muted)' }}>{label}</span>
-      <span className="text-[13px] font-bold text-right"
+    <div className={`flex items-baseline justify-between gap-3 ${compact ? 'py-0.5' : 'py-1.5'}`}>
+      <span className={`${compact ? 'text-[11.5px]' : 'text-[12.5px]'} shrink-0`}
+        style={{ color: 'var(--text-muted)' }}>{label}</span>
+      <span className={`${compact ? 'text-[12px]' : 'text-[13px]'} font-bold text-right`}
         style={{ color: tone ?? 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
     </div>
   )

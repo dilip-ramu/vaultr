@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, ArrowUpDown, Trophy } from 'lucide-react'
 import { Card, Row, StatusChip, inr, fmtDate } from './shared'
 import PortalBidPanel from './PortalBidPanel'
 import type { PortalGroupDetail, PortalLiveAuction } from '@/lib/chit/portal-data'
@@ -11,6 +12,11 @@ export default function PortalGroup({
 }: { detail: PortalGroupDetail; groupId: string; auction: PortalLiveAuction | null }) {
   const { group: g, ledger, auctions } = detail
   const byMonth = new Map(auctions.map(a => [a.monthNumber, a]))
+  // Newest first by default: the month somebody opens their passbook to check
+  // is almost always the one just gone, not the one five years ago.
+  const [newestFirst, setNewestFirst] = useState(true)
+  const months = [...ledger].sort((a, b) =>
+    newestFirst ? b.monthNumber - a.monthNumber : a.monthNumber - b.monthNumber)
 
   return (
     <div className="pt-8 space-y-4">
@@ -43,8 +49,19 @@ export default function PortalGroup({
 
       {/* ── The passbook. Their months, their money. ──────────────────────── */}
       <div>
-        <p className="text-[11.5px] uppercase tracking-wide font-extrabold mb-2"
-          style={{ color: 'var(--text-faint)' }}>Your passbook</p>
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <p className="text-[11.5px] uppercase tracking-wide font-extrabold"
+            style={{ color: 'var(--text-faint)' }}>Your passbook</p>
+          {ledger.length > 1 && (
+            <button onClick={() => setNewestFirst(v => !v)}
+              className="inline-flex items-center gap-1 text-[11.5px] font-bold"
+              style={{ color: 'var(--brand)' }}>
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              {newestFirst ? 'Newest first' : 'Oldest first'}
+            </button>
+          )}
+        </div>
+
         {ledger.length === 0 ? (
           <Card className="p-4">
             <p className="text-[12.5px]" style={{ color: 'var(--text-muted)' }}>
@@ -52,32 +69,48 @@ export default function PortalGroup({
             </p>
           </Card>
         ) : (
-          <div className="space-y-2">
-            {ledger.map(r => {
+          <div className="space-y-1.5">
+            {months.map(r => {
               const a = byMonth.get(r.monthNumber)
+              const won = Boolean(a?.wonByYou)
               return (
-                <Card key={r.monthNumber} className="p-3.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[13px] font-extrabold">Month {r.monthNumber}</p>
-                    <StatusChip status={r.status} />
+                <Card key={r.monthNumber} className="px-3 py-2.5"
+                  // The month they took the chit is the one they will look
+                  // for, so it is marked rather than left to be counted to.
+                  style={won ? {
+                    borderColor: 'var(--brand)',
+                    background: 'color-mix(in srgb, var(--brand) 6%, var(--surface))',
+                  } : undefined}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex items-baseline gap-2">
+                      <p className="text-[13px] font-extrabold shrink-0">Month {r.monthNumber}</p>
+                      {a?.auctionDate && (
+                        <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                          auction {fmtDate(a.auctionDate)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {won && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-1.5 py-0.5 rounded-full"
+                          style={{ color: 'var(--brand)', background: 'color-mix(in srgb, var(--brand) 14%, transparent)' }}>
+                          <Trophy className="w-3 h-3" /> You won
+                        </span>
+                      )}
+                      <StatusChip status={r.status} />
+                    </div>
                   </div>
-                  <div className="mt-1.5">
-                    <Row label="Amount due" value={inr(r.dueAmount)} />
-                    <Row label="Due date" value={fmtDate(r.dueDate)} />
-                    {r.paidDate && <Row label="Paid on" value={fmtDate(r.paidDate)} tone="var(--income)" />}
-                    {/* The auction figures that PRODUCED this month's amount. A
-                        member who cannot check the arithmetic has to take the
-                        organiser's word for it. */}
-                    {a && (
-                      <>
-                        <Row label="Winning discount" value={inr(a.discount)} />
-                        <Row label="Dividend shared" value={inr(a.dividendPerMember)} tone="var(--income)" />
-                        <Row label="Prize taken by"
-                          value={a.wonByYou ? 'You' : (a.winnerName ?? 'Organiser')}
-                          tone={a.wonByYou ? 'var(--brand)' : undefined} />
-                        {a.wonByYou && <Row label="You received" value={inr(a.netPayout)} tone="var(--brand)" />}
-                      </>
-                    )}
+
+                  {/* Two columns rather than a stack: the same figures in half
+                      the height, which is what makes a long passbook readable. */}
+                  <div className="grid grid-cols-2 gap-x-4 mt-1">
+                    <Row compact label="Due" value={inr(r.dueAmount)} />
+                    <Row compact label="By" value={fmtDate(r.dueDate)} />
+                    {r.paidDate && <Row compact label="Paid" value={fmtDate(r.paidDate)} tone="var(--income)" />}
+                    {r.paidAmount != null && <Row compact label="Amount" value={inr(r.paidAmount)} tone="var(--income)" />}
+                    {a && <Row compact label="Discount" value={inr(a.discount)} />}
+                    {a && <Row compact label="Dividend" value={inr(a.dividendPerMember)} tone="var(--income)" />}
+                    {won && <Row compact label="You received" value={inr(a!.netPayout)} tone="var(--brand)" />}
                   </div>
                 </Card>
               )
@@ -88,7 +121,7 @@ export default function PortalGroup({
 
       <p className="text-[11px] leading-relaxed pt-2" style={{ color: 'var(--text-faint)' }}>
         Auction figures are shown so you can check how each month&apos;s amount was worked out.
-        Other members&apos; payment details are not shown to anyone.
+        Who took the chit each month is not shown, and neither are anybody else&apos;s payments.
       </p>
     </div>
   )

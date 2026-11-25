@@ -9,7 +9,18 @@ export const metadata = { title: 'My Chit' }
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100dvh', background: 'var(--bg)', color: 'var(--text)' }}>
+    // The portal has to scroll ITSELF. The app sets `body { overflow: hidden }`
+    // and scrolls an inner pane instead, which the portal does not have — so
+    // without this, a passbook longer than the screen simply could not be
+    // read past the fold. Touch scrolling is asked for explicitly because
+    // this is opened on a phone far more often than not.
+    <div style={{
+      height: '100dvh',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
+      background: 'var(--bg)',
+      color: 'var(--text)',
+    }}>
       <div className="mx-auto w-full max-w-lg px-4 pb-16">{children}</div>
     </div>
   )
